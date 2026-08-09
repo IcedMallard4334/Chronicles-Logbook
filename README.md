@@ -33,10 +33,18 @@ The schema is user-defined, not hardcoded. Entries, statistics, filters, and das
 - Automation: rules on capture, recurring entries, self-generated reminders
 - Performance at scale: fast queries over long records, with old entries archived rather than in the way
 
-## Tech stack
 
-- **Frontend:** React
-- **Storage:** SQLite
+### Tech Stack
+
+- **Frontend:** React — component-based structure suits our schema-driven UI (forms, timelines, and stats views all render dynamically from user-defined fields).
+- **Backend:** FastAPI (Python) — hand-written REST API with async support, and built-in OpenAPI/Swagger docs for easy testing and documentation.
+- **Database:** Azure Database for PostgreSQL (Flexible Server) — chosen over SQLite to avoid App Service's filesystem persistence limitations, and over Firebase/Firestore to keep our API genuinely hand-written per the project brief. PostgreSQL's JSONB column type also lets us store user-defined entry fields flexibly alongside strongly-typed core fields (project, date, time).
+- **Authentication:** Google OAuth (Sign in with Google), implemented via Authlib. Delegates credential security to Google rather than hand-rolling password storage, satisfying the brief's requirement to rely on an established auth practice/library.
+- **External Integration:**
+  - **GitHub API** — students can link a project to a GitHub repo and pull recent commits, using commit messages to pre-fill or suggest logbook entries (ties directly into our Quick Capture feature).
+  - **Google Calendar API** — outstanding tasks (with due dates) can sync to the student's calendar, so unfinished work surfaces outside the app too.
+- **Hosting:** Azure App Service (backend) + Azure Static Web Apps (frontend) — a non-monolithic split satisfying the key project requirement, consolidated on one platform for simpler credential and cost management across the team.
+- **CI/CD:** Gitea Actions — lint/test/build on every PR, automatic deploy to Azure on merge to main.
 
 ## Status
 
