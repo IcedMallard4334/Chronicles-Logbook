@@ -43,7 +43,7 @@ The schema is user-defined, not hardcoded. Entries, statistics, filters, and das
 - **External Integration:**
   - **GitHub API** — students can link a project to a GitHub repo and pull recent commits, using commit messages to pre-fill or suggest logbook entries (ties directly into our Quick Capture feature).
   - **Google Calendar API** — outstanding tasks (with due dates) can sync to the student's calendar, so unfinished work surfaces outside the app too.
-- **Hosting:** Azure App Service (backend) + Azure Static Web Apps (frontend) — a non-monolithic split satisfying the key project requirement, consolidated on one platform for simpler credential and cost management across the team.
+- **Hosting:** Azure App Service (backend) + Azure Web Apps (frontend) — a non-monolithic split satisfying the key project requirement, consolidated on one platform for simpler credential and cost management across the team.
 - **CI/CD:** Gitea Actions — lint/test/build on every PR, automatic deploy to Azure on merge to main.
 
 ## Status
