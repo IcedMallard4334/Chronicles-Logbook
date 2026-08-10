@@ -18,8 +18,13 @@ jobs:
       - name: Install backend dependencies
         working-directory: ./backend
         run: |
+          python --version
           python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          if (Test-Path requirements.txt) {
+            python -m pip install -r requirements.txt
+          } else {
+            Write-Host "No requirements.txt found yet — skipping install."
+          }
 
       - name: Deploy backend to Azure App Service
         uses: azure/webapps-deploy@v3.0.7
@@ -41,8 +46,13 @@ jobs:
       - name: Install and build frontend
         working-directory: ./frontend
         run: |
-          npm install
-          npm run build
+          node --version
+          if (Test-Path package.json) {
+            npm install
+            npm run build --if-present
+          } else {
+            Write-Host "No package.json found yet — skipping build."
+          }
 
       - name: Deploy frontend to Azure App Service
         uses: azure/webapps-deploy@v3.0.7
