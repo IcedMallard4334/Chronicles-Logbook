@@ -2,15 +2,30 @@ name: Deploy to Azure
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  build_and_deploy:
+  deploy_backend:
     runs-on: windows
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+
+      - name: Deploy backend to Azure App Service
+        uses: azure/webapps-deploy@v3.0.7
+        with:
+          app-name: "<BACKEND_APP_NAME>"
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          package: ./backend
+
+  deploy_frontend:
+    runs-on: windows
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Build frontend
         working-directory: ./frontend
@@ -18,13 +33,9 @@ jobs:
           npm install
           npm run build
 
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: npm install
-
-      - name: Deploy to Azure App Service
+      - name: Deploy frontend to Azure App Service
         uses: azure/webapps-deploy@v3.0.7
         with:
-          app-name: "chronicles-api"
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: .
+          app-name: "<FRONTEND_APP_NAME>"
+          publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
+          package: ./frontend
