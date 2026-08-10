@@ -46,10 +46,6 @@ The schema is user-defined, not hardcoded. Entries, statistics, filters, and das
 - **Hosting:** Azure App Service (backend) + Azure Static Web Apps (frontend) — a non-monolithic split satisfying the key project requirement, consolidated on one platform for simpler credential and cost management across the team.
 - **CI/CD:** Gitea Actions — lint/test/build on every PR, automatic deploy to Azure on merge to main.
 
-## Status
-
-🚧 In development.
-
 ## AI Declaration
 
 Project specification generated with Claude Code (Claude Opus 4.8), per course requirements.
