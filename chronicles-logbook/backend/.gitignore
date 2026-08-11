@@ -1,0 +1,4 @@
+# backend/.gitignore should contain at least:
+.env
+__pycache__/
+*.pyc
