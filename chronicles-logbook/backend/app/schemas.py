@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, List, Literal, Optional, Union
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -33,7 +33,7 @@ class DateFieldDefinition(BaseFieldDefinition):
 
 class DropdownFieldDefinition(BaseFieldDefinition):
     type: Literal[FieldType.DROPDOWN] = FieldType.DROPDOWN
-    options: List[str] = Field(..., min_length=1)
+    options: list[str] = Field(..., min_length=1)
 
     @model_validator(mode="after")
     def validate_unique_options(self):
@@ -46,20 +46,18 @@ class DropdownFieldDefinition(BaseFieldDefinition):
 
 
 FieldDefinition = Annotated[
-    Union[
-        TextFieldDefinition,
-        NumberFieldDefinition,
-        DateFieldDefinition,
-        DropdownFieldDefinition,
-    ],
+    TextFieldDefinition
+    | NumberFieldDefinition
+    | DateFieldDefinition
+    | DropdownFieldDefinition,
     Field(discriminator="type"),
 ]
 
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    entry_schema: List[FieldDefinition] = Field(default_factory=list)
+    description: str | None = None
+    entry_schema: list[FieldDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
@@ -79,7 +77,7 @@ class ProjectResponse(BaseModel):
 
     id: UUID
     name: str
-    description: Optional[str]
-    entry_schema: List[FieldDefinition]
+    description: str | None
+    entry_schema: list[FieldDefinition]
     created_at: datetime
     updated_at: datetime

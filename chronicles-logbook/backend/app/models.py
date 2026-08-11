@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, String
@@ -14,11 +14,11 @@ class Project(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Stores a bare list of field-definition dicts, e.g.
     # [{"id": "...", "name": "Hours spent", "type": "number"}, ...]
-    entry_schema: Mapped[List[Dict[str, Any]]] = mapped_column(
+    entry_schema: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=False,
         server_default="[]",
