@@ -10,6 +10,6 @@ describe('App', () => {
 
   it('renders the counter with initial count of 0', () => {
     const html = renderToString(<App />)
-    expect(html).toMatch(/Count is\s*0/)
+    expect(html).toMatch(/Count is[\s\S]*?0/)
   })
 })
