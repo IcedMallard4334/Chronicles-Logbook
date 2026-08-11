@@ -10,6 +10,7 @@ jobs:
     defaults:
       run:
         shell: pwsh
+        working-directory: chronicles-logbook/backend
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +21,7 @@ jobs:
 
       - name: Install backend dependencies
         run: |
-          cd backend
+          python -m ensurepip --upgrade
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
@@ -29,13 +30,14 @@ jobs:
         with:
           app-name: "chronicles-api"
           publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
-          package: backend
+          package: chronicles-logbook/backend
 
   deploy_frontend:
     runs-on: windows
     defaults:
       run:
         shell: pwsh
+        working-directory: chronicles-logbook/frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +48,6 @@ jobs:
 
       - name: Install and build frontend
         run: |
-          cd frontend
           npm ci
           npm run build
 
@@ -55,4 +56,4 @@ jobs:
         with:
           app-name: "chronicles-web-app"
           publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
-          package: frontend
+          package: chronicles-logbook/frontend
