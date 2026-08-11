@@ -11,7 +11,6 @@ jobs:
     runs-on: windows
     defaults:
       run:
-        working-directory: backend
         shell: cmd
     steps:
       - uses: actions/checkout@v4
@@ -23,21 +22,25 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd backend
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install ruff pytest
 
       - name: Lint
-        run: ruff check .
+        run: |
+          cd backend
+          ruff check .
 
       - name: Test
-        run: pytest
+        run: |
+          cd backend
+          pytest
 
   frontend:
     runs-on: windows
     defaults:
       run:
-        working-directory: frontend
         shell: cmd
     steps:
       - uses: actions/checkout@v4
@@ -48,13 +51,21 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          cd frontend
+          npm ci
 
       - name: Lint
-        run: npm run lint
+        run: |
+          cd frontend
+          npm run lint
 
       - name: Test
-        run: npm run test -- --run
+        run: |
+          cd frontend
+          npm run test -- --run
 
       - name: Build
-        run: npm run build
+        run: |
+          cd frontend
+          npm run build
