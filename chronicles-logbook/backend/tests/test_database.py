@@ -2,7 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionFactory, Base, async_engine, get_db
+from app.database import AsyncSessionFactory, Base, async_engine
 
 
 def test_base_is_declarative():

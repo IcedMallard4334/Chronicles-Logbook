@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Entry, Project
-from app.schemas import EntryCreate, EntryResponse, ProjectCreate, ProjectResponse, ProjectUpdate
+from app.schemas import (
+    EntryCreate,
+    EntryResponse,
+    ProjectCreate,
+    ProjectResponse,
+    ProjectUpdate,
+)
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 

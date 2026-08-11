@@ -1,5 +1,4 @@
 """Shared test fixtures for the Chronicles backend."""
-# ruff: noqa: I001
 
 import os
 import tempfile
@@ -23,7 +22,6 @@ sa_asyncio.create_async_engine = _patched_create_async_engine
 _db_file = tempfile.mktemp(suffix=".db")
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{pathname2url(_db_file)}"
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
