@@ -12,7 +12,7 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-        shell: pwsh
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +38,7 @@ jobs:
     defaults:
       run:
         working-directory: ./frontend
-        shell: pwsh
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
 
