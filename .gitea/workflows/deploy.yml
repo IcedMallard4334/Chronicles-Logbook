@@ -9,7 +9,6 @@ jobs:
     runs-on: windows
     defaults:
       run:
-        working-directory: backend
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +20,7 @@ jobs:
 
       - name: Install backend dependencies
         run: |
+          cd backend
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
@@ -35,7 +35,6 @@ jobs:
     runs-on: windows
     defaults:
       run:
-        working-directory: frontend
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +46,7 @@ jobs:
 
       - name: Install and build frontend
         run: |
+          cd frontend
           npm ci
           npm run build
 
