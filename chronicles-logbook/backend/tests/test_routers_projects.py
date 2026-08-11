@@ -1,6 +1,7 @@
 """Tests for app.routers.projects."""
 
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 from app.models import Project
@@ -19,7 +20,14 @@ def test_create_project(client, mock_session):
 
 def test_get_project_found(client, mock_session):
     project_id = uuid.uuid4()
-    mock_project = Project(name="Existing", description="Found it", entry_schema=[])
+    now = datetime.now(timezone.utc)
+    mock_project = Project(
+        name="Existing",
+        description="Found it",
+        entry_schema=[],
+        created_at=now,
+        updated_at=now,
+    )
     mock_project.id = project_id
     mock_session.get = AsyncMock(return_value=mock_project)
 
