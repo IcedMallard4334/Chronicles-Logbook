@@ -30,7 +30,7 @@ from app.database import Base, get_db
 from main import app
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
@@ -41,7 +41,7 @@ async def test_engine():
         os.remove(_db_file)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def db_session(test_engine):
     # Use a nested transaction so each test rolls back its changes even if the
     # application code commits.
@@ -54,7 +54,7 @@ async def db_session(test_engine):
         await conn.rollback()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def async_client(db_session):
     """Return an httpx AsyncClient wired to the test database session."""
 

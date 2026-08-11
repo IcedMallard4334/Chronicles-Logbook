@@ -5,7 +5,7 @@ import pytest_asyncio
 from app.schemas import FieldType
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def project_with_schema(async_client):
     schema = [
         {"id": "field-1", "name": "Hours", "type": FieldType.NUMBER.value},
