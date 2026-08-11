@@ -32,7 +32,7 @@ jobs:
           package: ./backend
 
   deploy_frontend:
-    runs-on: windows-latest
+    runs-on: windows
     defaults:
       run:
         working-directory: ./frontend
