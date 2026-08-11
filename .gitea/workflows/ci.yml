@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend:
-    runs-on: windows-latest
+    runs-on: windows
     defaults:
       run:
         working-directory: ./backend
