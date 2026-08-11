@@ -5,13 +5,13 @@ import os
 # app.config reads DATABASE_URL at import time, so set it before importing.
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost/test"
 
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import pytest
+from fastapi.testclient import TestClient
 
-from app.database import get_db  # noqa: E402
-from main import app  # noqa: E402
+from app.database import get_db
+from main import app
 
 
 @pytest.fixture
