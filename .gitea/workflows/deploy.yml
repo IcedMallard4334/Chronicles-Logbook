@@ -6,7 +6,11 @@ on:
 
 jobs:
   deploy_backend:
-    runs-on: windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./backend
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -16,25 +20,23 @@ jobs:
           python-version: "3.12"
 
       - name: Install backend dependencies
-        working-directory: ./backend
         run: |
-          python --version
           python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) {
-            python -m pip install -r requirements.txt
-          } else {
-            Write-Host "No requirements.txt found yet — skipping install."
-          }
+          python -m pip install -r requirements.txt
 
       - name: Deploy backend to Azure App Service
-        uses: azure/webapps-deploy@v3.0.7
+        uses: azure/webapps-deploy@v3
         with:
           app-name: "chronicles-api"
           publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
           package: ./backend
 
   deploy_frontend:
-    runs-on: windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -42,20 +44,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ./frontend/package-lock.json
 
       - name: Install and build frontend
-        working-directory: ./frontend
         run: |
-          node --version
-          if (Test-Path package.json) {
-            npm install
-            npm run build --if-present
-          } else {
-            Write-Host "No package.json found yet — skipping build."
-          }
+          npm ci
+          npm run build
 
       - name: Deploy frontend to Azure App Service
-        uses: azure/webapps-deploy@v3.0.7
+        uses: azure/webapps-deploy@v3
         with:
           app-name: "chronicles-web-app"
           publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
