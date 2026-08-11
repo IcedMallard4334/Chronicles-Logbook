@@ -26,7 +26,7 @@ jobs:
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          python -m pip install ruff pytest pytest-asyncio httpx
+          python -m pip install ruff pytest pytest-asyncio httpx aiosqlite
 
       - name: Lint
         run: python -m ruff check .

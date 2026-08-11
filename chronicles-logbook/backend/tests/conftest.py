@@ -1,56 +1,71 @@
 """Shared test fixtures for the Chronicles backend."""
+# ruff: noqa: I001
 
 import os
+import tempfile
+from urllib.request import pathname2url
+
+# Patch create_async_engine before any app import so the PostgreSQL SSL args are
+# stripped for the SQLite test database.
+import sqlalchemy.ext.asyncio as sa_asyncio
+
+_original_create_async_engine = sa_asyncio.create_async_engine
+
+
+def _patched_create_async_engine(url, **kwargs):
+    kwargs.pop("connect_args", None)
+    return _original_create_async_engine(url, **kwargs)
+
+
+sa_asyncio.create_async_engine = _patched_create_async_engine
 
 # app.config reads DATABASE_URL at import time, so set it before importing.
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost/test"
-
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+_db_file = tempfile.mktemp(suffix=".db")
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{pathname2url(_db_file)}"
 
 import pytest
-from fastapi.testclient import TestClient
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.database import get_db
+from app.database import Base, get_db
 from main import app
 
 
-@pytest.fixture
-def mock_session():
-    """Return a mock async SQLAlchemy session."""
-    session = MagicMock()
-    session._added = []
-
-    def capture_add(obj):
-        session._added.append(obj)
-
-    session.add = MagicMock(side_effect=capture_add)
-
-    async def fake_refresh(obj):
-        # Simulate the database populating default/generated columns.
-        if getattr(obj, "id", None) is None:
-            obj.id = uuid.uuid4()
-        if getattr(obj, "created_at", None) is None:
-            obj.created_at = datetime.now(timezone.utc)
-        if getattr(obj, "updated_at", None) is None:
-            obj.updated_at = datetime.now(timezone.utc)
-        if getattr(obj, "entry_schema", None) is None:
-            obj.entry_schema = []
-
-    session.refresh = AsyncMock(side_effect=fake_refresh)
-    session.commit = AsyncMock()
-    session.get = AsyncMock(return_value=None)
-    return session
+@pytest_asyncio.fixture(scope="session")
+async def test_engine():
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
+    if os.path.exists(_db_file):
+        os.remove(_db_file)
 
 
-@pytest.fixture
-def client(mock_session):
-    """Return a FastAPI TestClient with a mocked database dependency."""
+@pytest_asyncio.fixture
+async def db_session(test_engine):
+    # Use a nested transaction so each test rolls back its changes even if the
+    # application code commits.
+    async with test_engine.connect() as conn:
+        await conn.begin()
+        await conn.begin_nested()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        yield session
+        await session.close()
+        await conn.rollback()
+
+
+@pytest_asyncio.fixture
+async def async_client(db_session):
+    """Return an httpx AsyncClient wired to the test database session."""
 
     async def override_get_db():
-        yield mock_session
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client
     app.dependency_overrides.clear()

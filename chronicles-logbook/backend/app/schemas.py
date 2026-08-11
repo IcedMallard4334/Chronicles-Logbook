@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -72,6 +72,25 @@ class ProjectCreate(BaseModel):
         return self
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    entry_schema: list[FieldDefinition] | None = None
+
+    @model_validator(mode="after")
+    def validate_schema_integrity(self):
+        if self.entry_schema is not None:
+            field_ids = [f.id for f in self.entry_schema]
+            if len(field_ids) != len(set(field_ids)):
+                raise ValueError("Field IDs within entry_schema must be unique.")
+
+            field_names = [f.name.strip().lower() for f in self.entry_schema]
+            if len(field_names) != len(set(field_names)):
+                raise ValueError("Field names within entry_schema must be unique.")
+
+        return self
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -79,5 +98,19 @@ class ProjectResponse(BaseModel):
     name: str
     description: str | None
     entry_schema: list[FieldDefinition]
+    created_at: datetime
+    updated_at: datetime
+
+
+class EntryCreate(BaseModel):
+    data: dict[str, Any]
+
+
+class EntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    data: dict[str, Any]
     created_at: datetime
     updated_at: datetime

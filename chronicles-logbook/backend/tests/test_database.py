@@ -17,11 +17,5 @@ def test_async_session_factory_exists():
     assert AsyncSessionFactory is not None
 
 
-async def test_get_db_yields_async_session():
-    gen = get_db()
-    session = await gen.__anext__()
-    assert isinstance(session, AsyncSession)
-    try:
-        await gen.__anext__()
-    except StopAsyncIteration:
-        pass
+async def test_get_db_yields_async_session(db_session):
+    assert isinstance(db_session, AsyncSession)

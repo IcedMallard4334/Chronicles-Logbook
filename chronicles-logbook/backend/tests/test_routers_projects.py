@@ -1,47 +1,62 @@
 """Tests for app.routers.projects."""
 
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock
 
-from app.models import Project
+from app.schemas import FieldType
 
 
-def test_create_project(client, mock_session):
-    response = client.post(
+async def test_create_project(async_client):
+    response = await async_client.post(
         "/projects",
         json={"name": "New Project", "description": "A test project", "entry_schema": []},
     )
     assert response.status_code == 201
-    assert mock_session.add.called
-    assert mock_session.commit.called
-    assert mock_session.refresh.called
+    data = response.json()
+    assert data["name"] == "New Project"
+    assert data["description"] == "A test project"
+    assert data["entry_schema"] == []
 
 
-def test_get_project_found(client, mock_session):
-    project_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
-    mock_project = Project(
-        name="Existing",
-        description="Found it",
-        entry_schema=[],
-        created_at=now,
-        updated_at=now,
+async def test_get_project(async_client):
+    create_response = await async_client.post(
+        "/projects",
+        json={"name": "Existing", "description": "Found it", "entry_schema": []},
     )
-    mock_project.id = project_id
-    mock_session.get = AsyncMock(return_value=mock_project)
+    project_id = create_response.json()["id"]
 
-    response = client.get(f"/projects/{project_id}")
+    response = await async_client.get(f"/projects/{project_id}")
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Existing"
     assert data["description"] == "Found it"
 
 
-def test_get_project_not_found(client, mock_session):
-    project_id = uuid.uuid4()
-    mock_session.get = AsyncMock(return_value=None)
-
-    response = client.get(f"/projects/{project_id}")
+async def test_get_project_not_found(async_client):
+    response = await async_client.get(f"/projects/{uuid.uuid4()}")
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
+
+
+async def test_update_project_schema(async_client):
+    create_response = await async_client.post(
+        "/projects",
+        json={"name": "Project", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+
+    schema = [
+        {
+            "id": "field-1",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+    response = await async_client.put(
+        f"/projects/{project_id}",
+        json={"entry_schema": schema},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Project"
+    assert len(data["entry_schema"]) == 1
+    assert data["entry_schema"][0]["name"] == "Hours"
