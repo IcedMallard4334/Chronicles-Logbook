@@ -118,59 +118,18 @@ function Planet({ className }) {
 
 function Mascot({ className }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 260 280"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      {/* Feet */}
-      <ellipse cx="95" cy="250" rx="20" ry="12" fill="var(--text)" />
-      <ellipse cx="165" cy="250" rx="20" ry="12" fill="var(--text)" />
-      {/* Body */}
-      <path
-        d="M130 30
-           C 180 30, 215 70, 215 130
-           C 215 195, 185 245, 130 245
-           C 75 245, 45 195, 45 130
-           C 45 70, 80 30, 130 30Z"
-        fill="var(--character)"
-      />
-      {/* Eyes */}
-      <circle cx="108" cy="95" r="10" fill="var(--text)" />
-      <circle cx="152" cy="95" r="10" fill="var(--text)" />
-      <circle cx="110" cy="93" r="3" fill="var(--surface)" />
-      <circle cx="154" cy="93" r="3" fill="var(--surface)" />
-      {/* Mouth */}
-      <path
-        d="M124 118c3 4 9 4 12 0"
-        stroke="var(--text)"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Book held at the side */}
-      <g transform="translate(22, 145) rotate(-18)">
-        <rect
-          x="0"
-          y="0"
-          width="78"
-          height="58"
-          rx="7"
-          fill="var(--surface)"
-          stroke="var(--character)"
-          strokeWidth="3"
-        />
-        <line x1="39" y1="0" x2="39" y2="58" stroke="var(--character)" strokeWidth="2" />
-        <line x1="8" y1="16" x2="36" y2="16" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="8" y1="29" x2="36" y2="29" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="8" y1="42" x2="36" y2="42" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="42" y1="16" x2="70" y2="16" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="42" y1="29" x2="70" y2="29" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="42" y1="42" x2="70" y2="42" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
-      </g>
-    </svg>
+    <div className={`character ${className || ""}`} aria-label="Logbook character">
+      <div className="character-head">
+        <span className="eye eye-left" />
+        <span className="eye eye-right" />
+      </div>
+      <div className="character-body" />
+      <div className="leg leg-left" />
+      <div className="leg leg-right" />
+      <div className="book">
+        <span className="book-seam" />
+      </div>
+    </div>
   )
 }
 

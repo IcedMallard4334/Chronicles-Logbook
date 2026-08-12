@@ -20,6 +20,7 @@
 
   --character: oklch(68% 0.09 335);
   --character-soft: oklch(86% 0.055 335);
+  --character-shadow: oklch(55% 0.09 335);
 
   --focus: oklch(59% 0.14 335);
   --error: oklch(55% 0.18 25);
@@ -67,6 +68,7 @@
 
     --character: #2fc7ba;
     --character-soft: oklch(40% 0.08 180);
+    --character-shadow: oklch(45% 0.1 180);
 
     --focus: oklch(78% 0.1 335);
     --error: oklch(65% 0.18 25);
