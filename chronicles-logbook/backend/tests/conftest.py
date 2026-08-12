@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from urllib.request import pathname2url
+from pathlib import Path
 
 # Patch create_async_engine before any app import so the PostgreSQL SSL args are
 # stripped for the SQLite test database.
@@ -19,8 +19,8 @@ def _patched_create_async_engine(url, **kwargs):
 sa_asyncio.create_async_engine = _patched_create_async_engine
 
 # app.config reads DATABASE_URL at import time, so set it before importing.
-_db_file = tempfile.mktemp(suffix=".db")
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite://{pathname2url(_db_file)}"
+_db_file = Path(tempfile.mktemp(suffix=".db")).as_posix()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db_file}"
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
