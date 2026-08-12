@@ -16,8 +16,8 @@
 
 .bg-mascot {
   position: absolute;
-  left: -1%;
-  bottom: -1%;
+  left: 20px;
+  bottom: 20px;
   transform: scale(0.85);
   transform-origin: bottom left;
 }
