@@ -6,10 +6,9 @@ on:
 
 jobs:
   deploy_backend:
-    runs-on: windows
+    runs-on: ubuntu-latest
     defaults:
       run:
-        shell: pwsh
         working-directory: chronicles-logbook/backend
     steps:
       - uses: actions/checkout@v4
@@ -19,33 +18,34 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install backend dependencies
+      - name: Install dependencies into antenv
         run: |
-          python -m ensurepip --upgrade
+          python -m venv antenv
+          source antenv/bin/activate
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
       - name: Zip backend package
-        shell: pwsh
-        run: |
-          Compress-Archive -Path * -DestinationPath ..\backend.zip -Force
-        working-directory: chronicles-logbook/backend
+        run: zip -r ../backend.zip .
 
       - name: Deploy backend to Azure App Service
-        shell: pwsh
         env:
           AZURE_BACKEND_PUBLISH_PROFILE: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
         run: |
-          $profile = [xml]$env:AZURE_BACKEND_PUBLISH_PROFILE
-          $entry = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
-          $uri = "https://$($entry.publishUrl)/api/zipdeploy"
-          $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))
-          Invoke-RestMethod -Uri $uri `
-            -Method POST `
-            -Headers @{ Authorization = "Basic $creds" } `
-            -InFile ..\backend.zip `
-            -ContentType 'application/zip'
-        working-directory: chronicles-logbook/backend
+          python - <<'PY'
+          import base64, os, xml.etree.ElementTree as ET
+          from urllib.request import Request, urlopen
+          profile = ET.fromstring(os.environ['AZURE_BACKEND_PUBLISH_PROFILE'])
+          entry = next(p for p in profile.iter('publishProfile') if p.get('publishMethod') == 'ZipDeploy')
+          uri = f"https://{entry.get('publishUrl')}/api/zipdeploy"
+          creds = base64.b64encode(f"{entry.get('userName')}:{entry.get('userPWD')}".encode()).decode()
+          with open('../backend.zip', 'rb') as f:
+              req = Request(uri, data=f.read(), method='POST')
+              req.add_header('Authorization', f'Basic {creds}')
+              req.add_header('Content-Type', 'application/zip')
+              with urlopen(req) as resp:
+                  print(resp.read().decode())
+          PY
 
   deploy_frontend:
     runs-on: windows
