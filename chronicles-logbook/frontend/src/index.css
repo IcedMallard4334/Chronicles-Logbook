@@ -42,7 +42,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: dark;
 
     --bg: oklch(18% 0.028 258);
@@ -70,6 +70,35 @@
     
     --shadow: 0 18px 48px oklch(8% 0.025 258 / 0.28);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: oklch(18% 0.028 258);
+  --surface: oklch(23% 0.035 258);
+  --surface-soft: oklch(27% 0.042 258);
+  --surface-mauve: oklch(27% 0.045 335);
+
+  --text: oklch(93% 0.018 335);
+  --muted: oklch(73% 0.035 258);
+  --line: oklch(37% 0.045 258);
+
+  --blue: oklch(74% 0.095 255);
+  --blue-soft: oklch(35% 0.065 255);
+  --blue-bg: oklch(28% 0.05 255);
+
+  --mauve: oklch(78% 0.075 335);
+  --mauve-soft: oklch(36% 0.065 335);
+  --mauve-bg: oklch(26% 0.04 335);
+
+  --focus: oklch(78% 0.1 335);
+  --error: oklch(65% 0.18 25);
+  --success: oklch(70% 0.14 145);
+  --success-soft: oklch(32% 0.06 145);
+  --success-bg: oklch(24% 0.04 145);
+
+  --shadow: 0 18px 48px oklch(8% 0.025 258 / 0.28);
 }
 
 * {

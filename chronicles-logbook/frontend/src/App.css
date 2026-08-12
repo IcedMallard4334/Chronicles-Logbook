@@ -41,6 +41,35 @@
   font-size: 0.82rem;
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: capitalize;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-soft);
+  border-color: var(--blue-soft);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.theme-label {
+  min-width: 50px;
+}
+
 .app-main {
   display: grid;
   grid-template-columns: minmax(240px, 0.35fr) minmax(0, 1fr);
