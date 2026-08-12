@@ -20,6 +20,9 @@
 
   --focus: oklch(59% 0.14 335);
   --error: oklch(55% 0.18 25);
+  --success: oklch(55% 0.16 145);
+  --success-soft: oklch(88% 0.06 145);
+  --success-bg: oklch(95% 0.03 145);
 
   --shadow: 0 18px 48px oklch(34% 0.04 255 / 0.1);
 
@@ -61,7 +64,10 @@
 
     --focus: oklch(78% 0.1 335);
     --error: oklch(65% 0.18 25);
-
+    --success: oklch(70% 0.14 145);
+    --success-soft: oklch(32% 0.06 145);
+    --success-bg: oklch(24% 0.04 145);
+    
     --shadow: 0 18px 48px oklch(8% 0.025 258 / 0.28);
   }
 }

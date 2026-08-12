@@ -241,7 +241,7 @@
 
 .field-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -359,6 +359,35 @@
   color: var(--error);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.success {
+  padding: 12px 14px;
+  border: 1px solid var(--success-soft);
+  border-radius: var(--radius-sm);
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.success p {
+  margin-bottom: 4px;
+}
+
+.btn-text {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--blue);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-text:hover {
+  color: var(--text);
 }
 
 .global-error {

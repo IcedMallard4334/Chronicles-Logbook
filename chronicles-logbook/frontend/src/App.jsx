@@ -148,14 +148,21 @@ function ProjectList({ projects, selectedId, onSelect, onCreate }) {
   )
 }
 
-function SchemaBuilder({ project, onSave, disabled }) {
+function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
   const [fields, setFields] = useState(() => project.entry_schema || [])
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  const hasChanges = useMemo(() => {
+    const initialFields = project.entry_schema || []
+    return JSON.stringify(fields) !== JSON.stringify(initialFields)
+  }, [fields, project.entry_schema])
 
   useEffect(() => {
     setFields(project.entry_schema || [])
     setError(null)
+    setSaveSuccess(false)
   }, [project.id, project.entry_schema])
 
   const addField = () => {
@@ -176,14 +183,10 @@ function SchemaBuilder({ project, onSave, disabled }) {
   }
 
   const validateSchema = () => {
-    const ids = new Set()
     const names = new Set()
     for (const field of fields) {
-      if (!field.id.trim()) return "Every field needs an ID."
       if (!field.name.trim()) return "Every field needs a name."
-      if (ids.has(field.id.trim())) return `Duplicate field ID: ${field.id}`
       if (names.has(field.name.trim())) return `Duplicate field name: ${field.name}`
-      ids.add(field.id.trim())
       names.add(field.name.trim())
       if (field.type === "dropdown") {
         if (!Array.isArray(field.options) || field.options.length === 0) {
@@ -202,8 +205,10 @@ function SchemaBuilder({ project, onSave, disabled }) {
     }
     setIsSaving(true)
     setError(null)
+    setSaveSuccess(false)
     try {
       await onSave({ entry_schema: fields })
+      setSaveSuccess(true)
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -224,15 +229,6 @@ function SchemaBuilder({ project, onSave, disabled }) {
           {fields.map((field, index) => (
             <div key={index} className="field-card">
               <div className="field-row">
-                <label className="field-label">
-                  ID
-                  <input
-                    type="text"
-                    value={field.id}
-                    onChange={(e) => updateField(index, { id: e.target.value })}
-                    placeholder="field-id"
-                  />
-                </label>
                 <label className="field-label">
                   Name
                   <input
@@ -292,6 +288,14 @@ function SchemaBuilder({ project, onSave, disabled }) {
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
+      {saveSuccess && (
+        <div className="success" role="status">
+          <p>Schema saved.</p>
+          <button type="button" className="btn-text" onClick={onSwitchToEntries}>
+            Go to Entries to start logging
+          </button>
+        </div>
+      )}
       <div className="actions">
         <button type="button" className="btn-secondary" onClick={addField}>
           Add field
@@ -300,7 +304,7 @@ function SchemaBuilder({ project, onSave, disabled }) {
           type="button"
           className="btn-primary"
           onClick={handleSave}
-          disabled={disabled || isSaving}
+          disabled={disabled || isSaving || !hasChanges}
         >
           {isSaving ? "Saving…" : "Save schema"}
         </button>
@@ -481,7 +485,11 @@ function ProjectDetail({ project, onSchemaSaved, onEntryCreated }) {
             <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
           </>
         ) : (
-          <SchemaBuilder project={project} onSave={onSchemaSaved} />
+          <SchemaBuilder
+            project={project}
+            onSave={onSchemaSaved}
+            onSwitchToEntries={() => setTab("entries")}
+          />
         )}
       </div>
     </section>

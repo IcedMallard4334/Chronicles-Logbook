@@ -132,10 +132,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByText("Add field"))
 
-    const idInputs = screen.getAllByPlaceholderText("field-id")
     const nameInputs = screen.getAllByPlaceholderText("Field name")
-
-    fireEvent.change(idInputs[idInputs.length - 1], { target: { value: "note" } })
     fireEvent.change(nameInputs[nameInputs.length - 1], { target: { value: "Note" } })
 
     fireEvent.click(screen.getByText("Save schema"))
@@ -144,7 +141,7 @@ describe("App", () => {
       expect(updateProject).toHaveBeenCalledWith("proj-1", {
         name: "Field Notes",
         entry_schema: expect.arrayContaining([
-          expect.objectContaining({ id: "note", name: "Note", type: "text" }),
+          expect.objectContaining({ name: "Note", type: "text" }),
         ]),
       })
     })
