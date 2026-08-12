@@ -14,6 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify checkout has the fix
+        shell: pwsh
+        working-directory: .
+        run: |
+          Write-Host "Current commit:"
+          git log -1 --oneline
+          Write-Host "----"
+          Write-Host "Searching for list_projects in projects.py:"
+          Select-String -Path "chronicles-logbook/backend/app/routers/projects.py" -Pattern "list_projects"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,6 +48,7 @@ jobs:
         run: |
           $profile = [xml]$env:AZURE_BACKEND_PUBLISH_PROFILE
           $entry = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
+          Write-Host "Deploying to: $($entry.publishUrl)"
           $uri = "https://$($entry.publishUrl)/api/zipdeploy"
           $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))
           Invoke-RestMethod -Uri $uri `
