@@ -1,10 +1,97 @@
 .app-shell {
+  position: relative;
   width: min(1200px, calc(100% - 40px));
   margin: 0 auto;
   padding: 32px 0 64px;
+  min-height: 100svh;
+}
+
+.background-decorations {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.bg-mascot {
+  position: absolute;
+  left: -2%;
+  bottom: -2%;
+  width: min(320px, 28vw);
+  height: auto;
+  color: var(--character);
+}
+
+.bg-planet {
+  position: absolute;
+  right: 2%;
+  top: 8%;
+  width: min(140px, 12vw);
+  height: auto;
+}
+
+.bg-sparkle {
+  position: absolute;
+  color: var(--character-soft);
+  width: 24px;
+  height: 24px;
+}
+
+.sparkle-1 {
+  left: 22%;
+  bottom: 18%;
+  transform: rotate(15deg);
+}
+
+.sparkle-2 {
+  left: 16%;
+  bottom: 12%;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.sparkle-3 {
+  right: 18%;
+  top: 22%;
+  width: 18px;
+  height: 18px;
+  transform: rotate(-10deg);
+}
+
+.bg-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--blue-soft);
+}
+
+.dot-1 {
+  left: 20%;
+  top: 12%;
+  width: 12px;
+  height: 12px;
+}
+
+.dot-2 {
+  right: 8%;
+  bottom: 18%;
+  width: 16px;
+  height: 16px;
+  background: var(--character-soft);
+}
+
+.dot-3 {
+  right: 24%;
+  top: 6%;
+  width: 8px;
+  height: 8px;
+  opacity: 0.6;
 }
 
 .topbar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -71,6 +158,8 @@
 }
 
 .app-main {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(240px, 0.35fr) minmax(0, 1fr);
   gap: 24px;

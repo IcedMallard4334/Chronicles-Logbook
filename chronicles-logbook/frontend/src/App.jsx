@@ -77,6 +77,129 @@ function ThemeToggle() {
   )
 }
 
+function Sparkle({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M16 0L18.5 13.5L32 16L18.5 18.5L16 32L13.5 18.5L0 16L13.5 13.5L16 0Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
+function Planet({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="60" cy="60" r="28" fill="var(--blue-soft)" stroke="var(--blue)" strokeWidth="2" />
+      <path
+        d="M28 60c0-20 14-34 32-34s32 14 32 34-14 34-32 34"
+        stroke="var(--blue)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <circle cx="60" cy="60" r="5" fill="var(--character)" />
+    </svg>
+  )
+}
+
+function Mascot({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 260 280"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Legs */}
+      <path
+        d="M90 210v30a12 12 0 0 0 24 0v-30"
+        stroke="var(--text)"
+        strokeWidth="16"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M170 210v30a12 12 0 0 1-24 0v-30"
+        stroke="var(--text)"
+        strokeWidth="16"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Feet */}
+      <ellipse cx="102" cy="246" rx="18" ry="12" fill="var(--text)" />
+      <ellipse cx="158" cy="246" rx="18" ry="12" fill="var(--text)" />
+      {/* Body */}
+      <path
+        d="M130 40c-55 0-95 40-95 95s40 95 95 95 95-40 95-95-40-95-95-95z"
+        fill="var(--character)"
+      />
+      {/* Eyes */}
+      <circle cx="105" cy="105" r="11" fill="var(--text)" />
+      <circle cx="155" cy="105" r="11" fill="var(--text)" />
+      <circle cx="108" cy="102" r="4" fill="var(--surface)" />
+      <circle cx="158" cy="102" r="4" fill="var(--surface)" />
+      {/* Mouth */}
+      <path
+        d="M122 128c4 6 12 6 16 0"
+        stroke="var(--text)"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Book cover/back */}
+      <rect
+        x="60"
+        y="155"
+        width="140"
+        height="85"
+        rx="8"
+        fill="var(--surface)"
+        stroke="var(--character)"
+        strokeWidth="3"
+      />
+      {/* Book spine */}
+      <line x1="130" y1="155" x2="130" y2="240" stroke="var(--character)" strokeWidth="2" />
+      {/* Book pages / lines */}
+      <line x1="78" y1="178" x2="122" y2="178" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="78" y1="200" x2="122" y2="200" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="78" y1="222" x2="122" y2="222" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="138" y1="178" x2="182" y2="178" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="138" y1="200" x2="182" y2="200" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="138" y1="222" x2="182" y2="222" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function BackgroundDecorations() {
+  return (
+    <div className="background-decorations" aria-hidden="true">
+      <Mascot className="bg-mascot" />
+      <Planet className="bg-planet" />
+      <Sparkle className="bg-sparkle sparkle-1" />
+      <Sparkle className="bg-sparkle sparkle-2" />
+      <Sparkle className="bg-sparkle sparkle-3" />
+      <div className="bg-dot dot-1" />
+      <div className="bg-dot dot-2" />
+      <div className="bg-dot dot-3" />
+    </div>
+  )
+}
+
 function EmptyState({ onCreate }) {
   return (
     <div className="empty-state">
@@ -636,6 +759,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <BackgroundDecorations />
       <header className="topbar">
         <div className="brand">
           <div className="mark">C</div>
