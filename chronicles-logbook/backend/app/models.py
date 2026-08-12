@@ -3,10 +3,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, JSONType
 
 
 class Project(Base):
@@ -19,7 +18,7 @@ class Project(Base):
     # Stores a bare list of field-definition dicts, e.g.
     # [{"id": "...", "name": "Hours spent", "type": "number"}, ...]
     entry_schema: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=False,
         server_default="[]",
         default=list,
@@ -48,7 +47,7 @@ class Entry(Base):
     # Stores the field-id -> value mapping for this entry, e.g.
     # {"field-1": 5, "field-2": "notes"}
     data: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONType,
         nullable=False,
         default=dict,
     )
