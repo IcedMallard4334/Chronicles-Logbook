@@ -70,9 +70,12 @@ def _validate_entry_data(data: dict[str, Any], entry_schema: list[dict[str, Any]
 
 
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects(db: AsyncSession = Depends(get_db)):  # noqa: B008
+async def list_projects(
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
     result = await db.execute(select(Project))
-    return result.scalars().all()
+    projects = result.scalars().all()
+    return projects
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
