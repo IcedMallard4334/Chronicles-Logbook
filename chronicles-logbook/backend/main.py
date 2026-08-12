@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, async_engine
 from app.routers import projects
 
-
 _DEFAULT_ORIGINS = [
     "http://localhost:5173",
     "https://localhost:5173",
