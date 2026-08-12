@@ -25,12 +25,27 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Zip backend package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path * -DestinationPath ..\backend.zip -Force
+        working-directory: chronicles-logbook/backend
+
       - name: Deploy backend to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: "chronicles-api"
-          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
-          package: chronicles-logbook/backend
+        shell: pwsh
+        env:
+          AZURE_BACKEND_PUBLISH_PROFILE: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+        run: |
+          $profile = [xml]$env:AZURE_BACKEND_PUBLISH_PROFILE
+          $entry = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
+          $uri = "https://$($entry.publishUrl)/api/zipdeploy"
+          $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))
+          Invoke-RestMethod -Uri $uri `
+            -Method POST `
+            -Headers @{ Authorization = "Basic $creds" } `
+            -InFile ..\backend.zip `
+            -ContentType 'application/zip'
+        working-directory: chronicles-logbook/backend
 
   deploy_frontend:
     runs-on: windows
@@ -53,9 +68,24 @@ jobs:
           npm ci
           npm run build
 
+      - name: Zip frontend dist
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\* -DestinationPath ..\frontend.zip -Force
+        working-directory: chronicles-logbook/frontend
+
       - name: Deploy frontend to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: "chronicles-web-app"
-          publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
-          package: chronicles-logbook/frontend/dist
+        shell: pwsh
+        env:
+          AZURE_FRONTEND_PUBLISH_PROFILE: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
+        run: |
+          $profile = [xml]$env:AZURE_FRONTEND_PUBLISH_PROFILE
+          $entry = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
+          $uri = "https://$($entry.publishUrl)/api/zipdeploy"
+          $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))
+          Invoke-RestMethod -Uri $uri `
+            -Method POST `
+            -Headers @{ Authorization = "Basic $creds" } `
+            -InFile ..\frontend.zip `
+            -ContentType 'application/zip'
+        working-directory: chronicles-logbook/frontend
