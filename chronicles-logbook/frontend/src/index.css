@@ -98,6 +98,9 @@
   --mauve-soft: oklch(36% 0.065 335);
   --mauve-bg: oklch(26% 0.04 335);
 
+  --character: #2fc7ba;
+  --character-soft: oklch(40% 0.08 180);
+
   --focus: oklch(78% 0.1 335);
   --error: oklch(65% 0.18 25);
   --success: oklch(70% 0.14 145);

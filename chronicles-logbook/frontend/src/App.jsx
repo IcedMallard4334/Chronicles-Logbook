@@ -125,62 +125,51 @@ function Mascot({ className }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* Legs */}
-      <path
-        d="M90 210v30a12 12 0 0 0 24 0v-30"
-        stroke="var(--text)"
-        strokeWidth="16"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M170 210v30a12 12 0 0 1-24 0v-30"
-        stroke="var(--text)"
-        strokeWidth="16"
-        strokeLinecap="round"
-        fill="none"
-      />
       {/* Feet */}
-      <ellipse cx="102" cy="246" rx="18" ry="12" fill="var(--text)" />
-      <ellipse cx="158" cy="246" rx="18" ry="12" fill="var(--text)" />
+      <ellipse cx="95" cy="250" rx="20" ry="12" fill="var(--text)" />
+      <ellipse cx="165" cy="250" rx="20" ry="12" fill="var(--text)" />
       {/* Body */}
       <path
-        d="M130 40c-55 0-95 40-95 95s40 95 95 95 95-40 95-95-40-95-95-95z"
+        d="M130 30
+           C 180 30, 215 70, 215 130
+           C 215 195, 185 245, 130 245
+           C 75 245, 45 195, 45 130
+           C 45 70, 80 30, 130 30Z"
         fill="var(--character)"
       />
       {/* Eyes */}
-      <circle cx="105" cy="105" r="11" fill="var(--text)" />
-      <circle cx="155" cy="105" r="11" fill="var(--text)" />
-      <circle cx="108" cy="102" r="4" fill="var(--surface)" />
-      <circle cx="158" cy="102" r="4" fill="var(--surface)" />
+      <circle cx="108" cy="95" r="10" fill="var(--text)" />
+      <circle cx="152" cy="95" r="10" fill="var(--text)" />
+      <circle cx="110" cy="93" r="3" fill="var(--surface)" />
+      <circle cx="154" cy="93" r="3" fill="var(--surface)" />
       {/* Mouth */}
       <path
-        d="M122 128c4 6 12 6 16 0"
+        d="M124 118c3 4 9 4 12 0"
         stroke="var(--text)"
         strokeWidth="3"
         strokeLinecap="round"
         fill="none"
       />
-      {/* Book cover/back */}
-      <rect
-        x="60"
-        y="155"
-        width="140"
-        height="85"
-        rx="8"
-        fill="var(--surface)"
-        stroke="var(--character)"
-        strokeWidth="3"
-      />
-      {/* Book spine */}
-      <line x1="130" y1="155" x2="130" y2="240" stroke="var(--character)" strokeWidth="2" />
-      {/* Book pages / lines */}
-      <line x1="78" y1="178" x2="122" y2="178" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
-      <line x1="78" y1="200" x2="122" y2="200" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
-      <line x1="78" y1="222" x2="122" y2="222" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
-      <line x1="138" y1="178" x2="182" y2="178" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
-      <line x1="138" y1="200" x2="182" y2="200" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
-      <line x1="138" y1="222" x2="182" y2="222" stroke="var(--character)" strokeWidth="3" strokeLinecap="round" />
+      {/* Book held at the side */}
+      <g transform="translate(22, 145) rotate(-18)">
+        <rect
+          x="0"
+          y="0"
+          width="78"
+          height="58"
+          rx="7"
+          fill="var(--surface)"
+          stroke="var(--character)"
+          strokeWidth="3"
+        />
+        <line x1="39" y1="0" x2="39" y2="58" stroke="var(--character)" strokeWidth="2" />
+        <line x1="8" y1="16" x2="36" y2="16" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="8" y1="29" x2="36" y2="29" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="8" y1="42" x2="36" y2="42" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="42" y1="16" x2="70" y2="16" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="42" y1="29" x2="70" y2="29" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="42" y1="42" x2="70" y2="42" stroke="var(--character)" strokeWidth="2" strokeLinecap="round" />
+      </g>
     </svg>
   )
 }
