@@ -80,10 +80,9 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: "Schema" })).toBeInTheDocument()
   })
 
-  it("creates a new project from the empty state", async () => {
+  it("creates a new project from the empty state using the modal", async () => {
     fetchProjects.mockResolvedValue([])
     createProject.mockResolvedValue(mockProject)
-    window.prompt = vi.fn().mockReturnValue("Field Notes")
 
     render(<App />)
 
@@ -94,6 +93,15 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByText("Create project"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Start a new project" })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Project name"), {
+      target: { value: "Field Notes" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
 
     await waitFor(() => {
       expect(createProject).toHaveBeenCalledWith({

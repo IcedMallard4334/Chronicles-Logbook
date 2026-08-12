@@ -30,6 +30,88 @@ function EmptyState({ onCreate }) {
   )
 }
 
+function Character({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="60" cy="60" r="55" fill="var(--mauve-soft)" />
+      <circle cx="60" cy="60" r="48" fill="var(--surface-mauve)" />
+      <circle cx="42" cy="50" r="10" fill="var(--text)" />
+      <circle cx="78" cy="50" r="10" fill="var(--text)" />
+      <circle cx="45" cy="47" r="3" fill="var(--surface)" />
+      <circle cx="81" cy="47" r="3" fill="var(--surface)" />
+      <path
+        d="M48 72c6 8 18 8 24 0"
+        stroke="var(--text)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <circle cx="22" cy="60" r="8" fill="var(--blue-soft)" />
+      <circle cx="98" cy="60" r="8" fill="var(--blue-soft)" />
+    </svg>
+  )
+}
+
+function CreateProjectModal({ isOpen, onClose, onCreate }) {
+  const [name, setName] = useState("")
+
+  if (!isOpen) return null
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onCreate(trimmed)
+    setName("")
+  }
+
+  const handleCancel = () => {
+    setName("")
+    onClose()
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={handleCancel} role="presentation">
+      <div
+        className="modal-card"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-project-title"
+      >
+        <Character className="modal-character" />
+        <h2 id="create-project-title">Start a new project</h2>
+        <p>What would you like to call your logbook?</p>
+        <form onSubmit={handleSubmit}>
+          <label className="field-label full">
+            Project name
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Field Notes"
+              autoFocus
+            />
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" aria-label="Confirm create project">
+              Create project
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function ProjectList({ projects, selectedId, onSelect, onCreate }) {
   return (
     <aside className="sidebar">
@@ -411,6 +493,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const loadProjects = useCallback(async () => {
     try {
@@ -432,13 +515,12 @@ function App() {
     [projects, selectedId]
   )
 
-  const handleCreateProject = async () => {
-    const name = window.prompt("Project name:")
-    if (!name || !name.trim()) return
+  const handleCreateProject = async (name) => {
     try {
-      const project = await createProject({ name: name.trim(), entry_schema: [] })
+      const project = await createProject({ name, entry_schema: [] })
       setProjects((prev) => [...prev, project])
       setSelectedId(project.id)
+      setIsModalOpen(false)
     } catch (err) {
       setError(formatError(err))
     }
@@ -509,7 +591,7 @@ function App() {
           projects={projects}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          onCreate={handleCreateProject}
+          onCreate={() => setIsModalOpen(true)}
         />
         <div className="content">
           {loading ? (
@@ -521,10 +603,15 @@ function App() {
               onEntryCreated={handleEntryCreated}
             />
           ) : (
-            <EmptyState onCreate={handleCreateProject} />
+            <EmptyState onCreate={() => setIsModalOpen(true)} />
           )}
         </div>
       </main>
+      <CreateProjectModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreate={handleCreateProject}
+      />
     </div>
   )
 }

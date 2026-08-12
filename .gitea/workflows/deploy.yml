@@ -47,6 +47,8 @@ jobs:
           node-version: "20"
 
       - name: Install and build frontend
+        env:
+          VITE_API_URL: ${{ secrets.BACKEND_URL }}
         run: |
           npm ci
           npm run build

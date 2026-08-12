@@ -1,10 +1,17 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, async_engine
 from app.routers import projects
+
+
+_DEFAULT_ORIGINS = [
+    "http://localhost:5173",
+    "https://localhost:5173",
+]
 
 
 @asynccontextmanager
@@ -20,12 +27,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Chronicles API", lifespan=lifespan)
 
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+] or _DEFAULT_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://chronicles-web-app.azurewebsites.net",
-        "http://localhost:5173",  # Vite dev server
-    ],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
