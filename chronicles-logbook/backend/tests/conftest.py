@@ -20,7 +20,7 @@ sa_asyncio.create_async_engine = _patched_create_async_engine
 
 # app.config reads DATABASE_URL at import time, so set it before importing.
 _db_file = tempfile.mktemp(suffix=".db")
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{pathname2url(_db_file)}"
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite://{pathname2url(_db_file)}"
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
