@@ -8,7 +8,12 @@
     "build": "vite build",
     "start": "serve -s dist -l 8080",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest"
+  },
+  "vitest": {
+    "environment": "jsdom",
+    "setupFiles": ["./src/test-setup.js"]
   },
   
   "dependencies": {
@@ -22,9 +27,12 @@
     "serve": "^14.2.6"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "jsdom": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.4",
     "nodemon": "^3.1.14",
