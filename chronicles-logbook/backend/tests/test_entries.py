@@ -76,6 +76,18 @@ async def test_create_entry_invalid_dropdown(async_client, project_with_schema):
     assert response.status_code == 422
 
 
+async def test_create_entry_blocked_when_archived(async_client, project_with_schema):
+    project_id = project_with_schema["id"]
+    await async_client.post(f"/projects/{project_id}/archive")
+
+    response = await async_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"field-1": 5, "field-2": "notes", "field-3": "Open"}},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Cannot add entries to an archived project."
+
+
 async def test_list_entries(async_client, project_with_schema):
     project_id = project_with_schema["id"]
     await async_client.post(

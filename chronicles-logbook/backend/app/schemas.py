@@ -107,6 +107,7 @@ class ProjectResponse(BaseModel):
     id: UUID
     name: str
     description: str | None
+    archived: bool
     entry_schema: list[FieldDefinition]
     created_at: datetime
     updated_at: datetime

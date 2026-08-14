@@ -85,6 +85,7 @@ def test_project_response_has_required_fields():
         "id": project_id,
         "name": "Response Project",
         "description": None,
+        "archived": False,
         "entry_schema": [],
         "created_at": now,
         "updated_at": now,
@@ -92,3 +93,4 @@ def test_project_response_has_required_fields():
     response = ProjectResponse(**data)
     assert response.id == project_id
     assert response.name == "Response Project"
+    assert response.archived is False

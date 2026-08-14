@@ -37,6 +37,69 @@ async def test_get_project_not_found(async_client):
     assert response.json()["detail"] == "Project not found"
 
 
+async def test_create_project_not_archived_by_default(async_client):
+    response = await async_client.post(
+        "/projects",
+        json={"name": "New Project", "entry_schema": []},
+    )
+    assert response.status_code == 201
+    assert response.json()["archived"] is False
+
+
+async def test_archive_project(async_client):
+    create_response = await async_client.post(
+        "/projects",
+        json={"name": "To Archive", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+
+    response = await async_client.post(f"/projects/{project_id}/archive")
+    assert response.status_code == 200
+    assert response.json()["archived"] is True
+
+    get_response = await async_client.get(f"/projects/{project_id}")
+    assert get_response.json()["archived"] is True
+
+
+async def test_unarchive_project(async_client):
+    create_response = await async_client.post(
+        "/projects",
+        json={"name": "To Restore", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+    await async_client.post(f"/projects/{project_id}/archive")
+
+    response = await async_client.post(f"/projects/{project_id}/unarchive")
+    assert response.status_code == 200
+    assert response.json()["archived"] is False
+
+
+async def test_archive_project_is_idempotent(async_client):
+    create_response = await async_client.post(
+        "/projects",
+        json={"name": "Already Archived", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+
+    first = await async_client.post(f"/projects/{project_id}/archive")
+    second = await async_client.post(f"/projects/{project_id}/archive")
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["archived"] is True
+
+
+async def test_archive_project_not_found(async_client):
+    response = await async_client.post(f"/projects/{uuid.uuid4()}/archive")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
+async def test_unarchive_project_not_found(async_client):
+    response = await async_client.post(f"/projects/{uuid.uuid4()}/unarchive")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
 async def test_update_project_schema(async_client):
     create_response = await async_client.post(
         "/projects",
