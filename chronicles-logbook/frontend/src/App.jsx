@@ -189,6 +189,7 @@ function Character({ className }) {
 
 function CreateProjectModal({ isOpen, onClose, onCreate }) {
   const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
 
   if (!isOpen) return null
 
@@ -196,12 +197,14 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
     event.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) return
-    onCreate(trimmed)
+    onCreate({ name: trimmed, description: description.trim() || null })
     setName("")
+    setDescription("")
   }
 
   const handleCancel = () => {
     setName("")
+    setDescription("")
     onClose()
   }
 
@@ -228,12 +231,108 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
               autoFocus
             />
           </label>
+          <label className="field-label full">
+            Description (optional)
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What is this project for?"
+              rows={3}
+            />
+          </label>
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={handleCancel}>
               Cancel
             </button>
             <button type="submit" className="btn-primary" aria-label="Confirm create project">
               Create project
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function EditProjectModal({ isOpen, onClose, project, onSave }) {
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (isOpen && project) {
+      setName(project.name || "")
+      setDescription(project.description || "")
+      setError(null)
+    }
+  }, [isOpen, project])
+
+  if (!isOpen) return null
+
+  const handleCancel = () => {
+    setError(null)
+    onClose()
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setError("Project name can't be empty.")
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      await onSave({ name: trimmed, description: description.trim() || null })
+      onClose()
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={handleCancel} role="presentation">
+      <div
+        className="modal-card"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-project-title"
+      >
+        <Character className="modal-character" />
+        <h2 id="edit-project-title">Edit project</h2>
+        <p>Update the name and description for this logbook.</p>
+        <form onSubmit={handleSubmit}>
+          <label className="field-label full">
+            Project name
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Field Notes"
+              autoFocus
+            />
+          </label>
+          <label className="field-label full">
+            Description (optional)
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What is this project for?"
+              rows={3}
+            />
+          </label>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={isSaving}>
+              {isSaving ? "Saving…" : "Save changes"}
             </button>
           </div>
         </form>
@@ -574,14 +673,26 @@ function EntryList({ entries, schema }) {
   )
 }
 
-function ProjectDetail({ project, onSchemaSaved, onEntryCreated }) {
+function ProjectDetail({ project, onSchemaSaved, onEntryCreated, onEditProject }) {
   const [tab, setTab] = useState("entries")
 
   return (
     <section className="project-detail">
       <header className="detail-header">
         <div>
-          <h2>{project.name}</h2>
+          <div className="project-title-row">
+            <h2>{project.name}</h2>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={onEditProject}
+              aria-label="Edit project"
+              title="Edit project"
+            >
+              ✎
+            </button>
+          </div>
+          {project.description && <p className="detail-description">{project.description}</p>}
           <p className="detail-meta">
             {project.entry_schema?.length || 0} field
             {project.entry_schema?.length === 1 ? "" : "s"}
@@ -632,6 +743,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const loadProjects = useCallback(async () => {
     try {
@@ -653,9 +765,9 @@ function App() {
     [projects, selectedId]
   )
 
-  const handleCreateProject = async (name) => {
+  const handleCreateProject = async ({ name, description }) => {
     try {
-      const project = await createProject({ name, entry_schema: [] })
+      const project = await createProject({ name, description, entry_schema: [] })
       setProjects((prev) => [...prev, project])
       setSelectedId(project.id)
       setIsModalOpen(false)
@@ -664,14 +776,17 @@ function App() {
     }
   }
 
-  const handleSchemaSaved = async (update) => {
+  const handleProjectUpdate = async (update) => {
     if (!selectedProject) return
     const updated = await updateProject(selectedProject.id, {
       name: selectedProject.name,
+      description: selectedProject.description,
       ...update,
     })
     setProjects((prev) =>
-      prev.map((project) => (project.id === updated.id ? updated : project))
+      prev.map((project) =>
+        project.id === updated.id ? { ...project, ...updated } : project
+      )
     )
   }
 
@@ -739,8 +854,9 @@ function App() {
           ) : selectedProject ? (
             <ProjectDetail
               project={selectedProject}
-              onSchemaSaved={handleSchemaSaved}
+              onSchemaSaved={handleProjectUpdate}
               onEntryCreated={handleEntryCreated}
+              onEditProject={() => setIsEditModalOpen(true)}
             />
           ) : (
             <EmptyState onCreate={() => setIsModalOpen(true)} />
@@ -751,6 +867,12 @@ function App() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreate={handleCreateProject}
+      />
+      <EditProjectModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        project={selectedProject}
+        onSave={handleProjectUpdate}
       />
     </div>
   )

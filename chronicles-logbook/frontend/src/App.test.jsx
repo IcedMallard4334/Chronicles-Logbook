@@ -106,7 +106,84 @@ describe("App", () => {
     await waitFor(() => {
       expect(createProject).toHaveBeenCalledWith({
         name: "Field Notes",
+        description: null,
         entry_schema: [],
+      })
+    })
+  })
+
+  it("creates a new project with a description", async () => {
+    fetchProjects.mockResolvedValue([])
+    createProject.mockResolvedValue(mockProject)
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Create your first project to start building a custom logbook.")
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Create project"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Start a new project" })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Project name"), {
+      target: { value: "Field Notes" },
+    })
+    fireEvent.change(screen.getByLabelText("Description (optional)"), {
+      target: { value: "Notes from the field" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
+
+    await waitFor(() => {
+      expect(createProject).toHaveBeenCalledWith({
+        name: "Field Notes",
+        description: "Notes from the field",
+        entry_schema: [],
+      })
+    })
+  })
+
+  it("edits a project's name and description", async () => {
+    updateProject.mockResolvedValue({
+      ...mockProject,
+      name: "Field Notes Updated",
+      description: "Updated description",
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Field Notes"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit project" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Edit project" })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Project name"), {
+      target: { value: "Field Notes Updated" },
+    })
+    fireEvent.change(screen.getByLabelText("Description (optional)"), {
+      target: { value: "Updated description" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => {
+      expect(updateProject).toHaveBeenCalledWith("proj-1", {
+        name: "Field Notes Updated",
+        description: "Updated description",
       })
     })
   })
