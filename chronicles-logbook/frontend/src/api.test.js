@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
-  fetchProjects,
-  createProject,
   createEntry,
-  signIn,
-  signUp,
+  createProject,
+  deleteAccount,
+  fetchCurrentUser,
+  fetchProjects,
+  getGoogleLoginUrl,
 } from "./api"
 
 describe("api", () => {
@@ -77,29 +78,35 @@ describe("api", () => {
     expect(result).toEqual(entry)
   })
 
-  it("signs up a user", async () => {
-    const auth = { access_token: "token", token_type: "bearer", user: { email: "e@example.com" } }
-    fetch.mockResolvedValueOnce({ ok: true, status: 201, json: async () => auth })
-    const credentials = { full_name: "Ethan", email: "e@example.com", password: "password1" }
+  it("builds the Google login URL", () => {
+    expect(getGoogleLoginUrl()).toBe("http://localhost:8000/auth/google/login")
+  })
 
-    await expect(signUp(credentials)).resolves.toEqual(auth)
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
+  it("loads the current user using the stored bearer token", async () => {
+    const user = { id: "user-1", email: "e@example.com" }
+    window.localStorage.setItem("chronicles_token", "session-token")
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => user })
+
+    await expect(fetchCurrentUser()).resolves.toEqual(user)
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/me", {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer session-token",
+      },
     })
   })
 
-  it("signs in a user", async () => {
-    const auth = { access_token: "token", token_type: "bearer", user: { email: "e@example.com" } }
-    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => auth })
-    const credentials = { email: "e@example.com", password: "password1" }
+  it("deletes the authenticated account", async () => {
+    window.localStorage.setItem("chronicles_token", "session-token")
+    fetch.mockResolvedValueOnce({ ok: true, status: 204, json: async () => ({}) })
 
-    await expect(signIn(credentials)).resolves.toEqual(auth)
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/signin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
+    await expect(deleteAccount()).resolves.toBeNull()
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/account", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer session-token",
+      },
     })
   })
 })

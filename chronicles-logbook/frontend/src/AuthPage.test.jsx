@@ -1,14 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import AuthPage from "./AuthPage"
-import { signIn, signUp } from "./api"
-
-vi.mock("./api", () => ({
-  signIn: vi.fn(),
-  signUp: vi.fn(),
-}))
 
 function renderPage(mode) {
   return render(
@@ -19,62 +13,25 @@ function renderPage(mode) {
 }
 
 describe("AuthPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    window.localStorage.clear()
-  })
-
-  it("submits the sign-up form and stores the session", async () => {
-    signUp.mockResolvedValue({
-      access_token: "signed-token",
-      user: { id: "user-1", full_name: "Ethan Student", email: "ethan@example.com" },
-    })
+  it("offers Google authentication when creating an account", () => {
     renderPage("signup")
 
-    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Ethan Student" } })
-    fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "ETHAN@example.com" },
-    })
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password1" } })
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "password1" },
-    })
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
-
-    await waitFor(() => expect(signUp).toHaveBeenCalledWith({
-      full_name: "Ethan Student",
-      email: "ethan@example.com",
-      password: "password1",
-    }))
-    expect(await screen.findByRole("status")).toHaveTextContent("Account created")
-    expect(window.localStorage.getItem("chronicles_token")).toBe("signed-token")
+    expect(screen.getByRole("heading", { name: "Create an account" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Continue with Google" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/auth/google/login"
+    )
+    expect(screen.getByText(/never receives or stores your Google password/i)).toBeInTheDocument()
   })
 
-  it("validates matching passwords before calling the API", () => {
-    renderPage("signup")
-    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Ethan" } })
-    fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "ethan@example.com" },
-    })
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password1" } })
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "password2" },
-    })
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
-
-    expect(screen.getByRole("alert")).toHaveTextContent("Passwords do not match")
-    expect(signUp).not.toHaveBeenCalled()
-  })
-
-  it("shows the backend error when sign-in fails", async () => {
-    signIn.mockRejectedValue(new Error("Incorrect email or password."))
+  it("offers the same established provider when signing in", () => {
     renderPage("signin")
-    fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "ethan@example.com" },
-    })
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong-pass" } })
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect email or password")
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Continue with Google" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Create an account" })).toHaveAttribute(
+      "href",
+      "/signup"
+    )
   })
 })

@@ -1,83 +1,126 @@
-"""Tests for the sign-up and sign-in user story."""
+"""Tests for Google OpenID Connect authentication."""
 
-from sqlalchemy import select
+from unittest.mock import AsyncMock
+from urllib.parse import parse_qs, unquote, urlparse
+
+from sqlalchemy import func, select
 
 from app.models import User
+from app.routers.auth import oauth
 
 
-async def test_sign_up_creates_user_and_returns_token(async_client, db_session):
-    response = await async_client.post(
-        "/auth/signup",
-        json={
-            "full_name": "  Ethan   Student  ",
-            "email": "ETHAN@example.com",
-            "password": "strong-password",
-        },
-    )
-
-    assert response.status_code == 201
-    body = response.json()
-    assert body["access_token"]
-    assert body["token_type"] == "bearer"
-    assert body["user"]["full_name"] == "Ethan Student"
-    assert body["user"]["email"] == "ethan@example.com"
-    assert "password" not in body["user"]
-    assert "password_hash" not in body["user"]
-
-    user = await db_session.scalar(select(User).where(User.email == "ethan@example.com"))
-    assert user is not None
-    assert user.password_hash != "strong-password"
+def _token_from_redirect(location: str) -> str:
+    fragment = parse_qs(urlparse(location).fragment)
+    return unquote(fragment["token"][0])
 
 
-async def test_sign_up_rejects_duplicate_email(async_client):
-    payload = {
-        "full_name": "Ethan Student",
-        "email": "ethan@example.com",
-        "password": "strong-password",
+async def test_google_callback_creates_user_and_returns_session(
+    async_client, db_session, monkeypatch
+):
+    google_profile = {
+        "sub": "google-user-123",
+        "email": "ETHAN@example.com",
+        "name": "Ethan Student",
+        "picture": "https://example.com/avatar.png",
+        "email_verified": True,
     }
-    assert (await async_client.post("/auth/signup", json=payload)).status_code == 201
-
-    response = await async_client.post("/auth/signup", json=payload)
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "An account with this email already exists."
-
-
-async def test_sign_up_validates_email_and_password(async_client):
-    response = await async_client.post(
-        "/auth/signup",
-        json={"full_name": "Ethan", "email": "not-an-email", "password": "short"},
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": google_profile}),
     )
 
-    assert response.status_code == 422
+    response = await async_client.get("/auth/google/callback", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"].startswith(
+        "http://frontend.test/auth/callback#token="
+    )
+    user = await db_session.scalar(
+        select(User).where(User.google_sub == "google-user-123")
+    )
+    assert user is not None
+    assert user.email == "ethan@example.com"
+    assert user.full_name == "Ethan Student"
+
+    token = _token_from_redirect(response.headers["location"])
+    me = await async_client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == "ethan@example.com"
 
 
-async def test_sign_in_returns_token_for_valid_credentials(async_client):
-    await async_client.post(
-        "/auth/signup",
-        json={
-            "full_name": "Ethan Student",
-            "email": "ethan@example.com",
-            "password": "strong-password",
-        },
+async def test_google_callback_reuses_existing_user(
+    async_client, db_session, monkeypatch
+):
+    profile = {
+        "sub": "google-user-123",
+        "email": "ethan@example.com",
+        "name": "Ethan Student",
+        "email_verified": True,
+    }
+    authorise = AsyncMock(return_value={"userinfo": profile})
+    monkeypatch.setattr(oauth.google, "authorize_access_token", authorise)
+
+    await async_client.get("/auth/google/callback", follow_redirects=False)
+    await async_client.get("/auth/google/callback", follow_redirects=False)
+
+    count = await db_session.scalar(select(func.count()).select_from(User))
+    assert count == 1
+
+
+async def test_google_callback_rejects_unverified_email(
+    async_client, monkeypatch
+):
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(
+            return_value={
+                "userinfo": {
+                    "sub": "google-user-123",
+                    "email": "ethan@example.com",
+                    "name": "Ethan Student",
+                    "email_verified": False,
+                }
+            }
+        ),
     )
 
-    response = await async_client.post(
-        "/auth/signin",
-        json={"email": "ETHAN@example.com", "password": "strong-password"},
-    )
+    response = await async_client.get("/auth/google/callback", follow_redirects=False)
 
-    assert response.status_code == 200
-    assert response.json()["access_token"]
-    assert response.json()["user"]["email"] == "ethan@example.com"
+    assert response.status_code == 307
+    assert "error=" in response.headers["location"]
 
 
-async def test_sign_in_uses_generic_error_for_bad_credentials(async_client):
-    response = await async_client.post(
-        "/auth/signin",
-        json={"email": "missing@example.com", "password": "wrong-password"},
-    )
+async def test_me_requires_authentication(async_client):
+    response = await async_client.get("/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Incorrect email or password."
-    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json()["detail"] == "Authentication required."
+
+
+async def test_authenticated_user_can_delete_account(
+    async_client, db_session, monkeypatch
+):
+    profile = {
+        "sub": "google-user-123",
+        "email": "ethan@example.com",
+        "name": "Ethan Student",
+        "email_verified": True,
+    }
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": profile}),
+    )
+    callback = await async_client.get("/auth/google/callback", follow_redirects=False)
+    token = _token_from_redirect(callback.headers["location"])
+
+    response = await async_client.delete(
+        "/auth/account", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 204
+    assert await db_session.scalar(select(func.count()).select_from(User)) == 0

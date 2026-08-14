@@ -9,6 +9,7 @@ vi.mock("./api", () => ({
   updateProject: vi.fn(),
   fetchEntries: vi.fn(),
   createEntry: vi.fn(),
+  deleteAccount: vi.fn(),
 }))
 
 import {
