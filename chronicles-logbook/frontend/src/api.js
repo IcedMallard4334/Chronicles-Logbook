@@ -61,3 +61,17 @@ export async function createEntry(projectId, data) {
     body: JSON.stringify({ data }),
   })
 }
+
+export async function signUp(credentials) {
+  return request("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  })
+}
+
+export async function signIn(credentials) {
+  return request("/auth/signin", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  })
+}

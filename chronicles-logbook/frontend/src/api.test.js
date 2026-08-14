@@ -3,6 +3,8 @@ import {
   fetchProjects,
   createProject,
   createEntry,
+  signIn,
+  signUp,
 } from "./api"
 
 describe("api", () => {
@@ -73,5 +75,31 @@ describe("api", () => {
       }
     )
     expect(result).toEqual(entry)
+  })
+
+  it("signs up a user", async () => {
+    const auth = { access_token: "token", token_type: "bearer", user: { email: "e@example.com" } }
+    fetch.mockResolvedValueOnce({ ok: true, status: 201, json: async () => auth })
+    const credentials = { full_name: "Ethan", email: "e@example.com", password: "password1" }
+
+    await expect(signUp(credentials)).resolves.toEqual(auth)
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials),
+    })
+  })
+
+  it("signs in a user", async () => {
+    const auth = { access_token: "token", token_type: "bearer", user: { email: "e@example.com" } }
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => auth })
+    const credentials = { email: "e@example.com", password: "password1" }
+
+    await expect(signIn(credentials)).resolves.toEqual(auth)
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials),
+    })
   })
 })

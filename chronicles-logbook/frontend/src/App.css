@@ -203,6 +203,28 @@
   padding-bottom: 40px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-link {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
 .brand {
   display: flex;
   align-items: center;

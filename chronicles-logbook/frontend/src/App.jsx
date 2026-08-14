@@ -831,7 +831,10 @@ function App() {
             <div className="brand-note">a logbook that fits how you work</div>
           </div>
         </div>
-        <ThemeToggle />
+        <div className="topbar-actions">
+          <a className="auth-link" href="/signin">Sign in</a>
+          <ThemeToggle />
+        </div>
       </header>
       <main className="app-main">
         {error && (

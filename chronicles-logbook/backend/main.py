@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, async_engine
-from app.routers import projects
+from app.routers import auth, projects
 
 _DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -40,6 +40,7 @@ app.add_middleware(
 )
 
 app.include_router(projects.router)
+app.include_router(auth.router)
 
 
 @app.get("/health")

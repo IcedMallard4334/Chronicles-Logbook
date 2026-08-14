@@ -27,3 +27,17 @@ except KeyError:
 # SQLAlchemy runs — useful while developing, noisy and slightly sensitive
 # in production, so we never want this on by accident on Azure.
 SQL_DEBUG = os.environ.get("SQL_DEBUG", "false").lower() == "true"
+
+try:
+    JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+except KeyError:
+    raise RuntimeError(
+        "CRITICAL: JWT_SECRET_KEY environment variable is not set. "
+        "Generate a long random value and keep it outside source control."
+    )
+
+if len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError("CRITICAL: JWT_SECRET_KEY must be at least 32 characters long.")
+
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
