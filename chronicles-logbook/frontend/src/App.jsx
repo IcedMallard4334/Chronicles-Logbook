@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  archiveProject,
   createEntry,
   createProject,
   deleteAccount,
   fetchEntries,
   fetchProjects,
+  unarchiveProject,
   updateProject,
 } from "./api"
 import "./App.css"
@@ -383,6 +385,10 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
 }
 
 function ProjectList({ projects, selectedId, onSelect, onCreate }) {
+  const [showArchived, setShowArchived] = useState(false)
+  const activeProjects = projects.filter((project) => !project.archived)
+  const archivedProjects = projects.filter((project) => project.archived)
+
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
@@ -397,22 +403,62 @@ function ProjectList({ projects, selectedId, onSelect, onCreate }) {
           +
         </button>
       </div>
-      {projects.length === 0 ? (
+      {activeProjects.length === 0 && archivedProjects.length === 0 ? (
         <p className="sidebar-empty">No projects yet.</p>
       ) : (
-        <ul className="project-list" role="listbox" aria-label="Projects">
-          {projects.map((project) => (
-            <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+        <>
+          {activeProjects.length === 0 ? (
+            <p className="sidebar-empty">No active projects.</p>
+          ) : (
+            <ul className="project-list" role="listbox" aria-label="Projects">
+              {activeProjects.map((project) => (
+                <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                  <button
+                    type="button"
+                    className={`project-button ${project.id === selectedId ? "active" : ""}`}
+                    onClick={() => onSelect(project.id)}
+                  >
+                    {project.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {archivedProjects.length > 0 && (
+            <div className="archived-section">
               <button
                 type="button"
-                className={`project-button ${project.id === selectedId ? "active" : ""}`}
-                onClick={() => onSelect(project.id)}
+                className="btn-text archived-toggle"
+                onClick={() => setShowArchived((current) => !current)}
+                aria-expanded={showArchived}
               >
-                {project.name}
+                {showArchived ? "Hide" : "Show"} archived ({archivedProjects.length})
               </button>
-            </li>
-          ))}
-        </ul>
+              {showArchived && (
+                <ul
+                  className="project-list archived-list"
+                  role="listbox"
+                  aria-label="Archived projects"
+                >
+                  {archivedProjects.map((project) => (
+                    <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                      <button
+                        type="button"
+                        className={`project-button archived ${
+                          project.id === selectedId ? "active" : ""
+                        }`}
+                        onClick={() => onSelect(project.id)}
+                      >
+                        <span className="project-name">{project.name}</span>
+                        <span className="archived-badge">Archived</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </>
       )}
     </aside>
   )
@@ -714,7 +760,13 @@ function EntryList({ entries, schema }) {
   )
 }
 
-function ProjectDetail({ project, onSchemaSaved, onEntryCreated, onEditProject }) {
+function ProjectDetail({
+  project,
+  onSchemaSaved,
+  onEntryCreated,
+  onEditProject,
+  onToggleArchive,
+}) {
   const [tab, setTab] = useState("entries")
 
   return (
@@ -723,6 +775,7 @@ function ProjectDetail({ project, onSchemaSaved, onEntryCreated, onEditProject }
         <div>
           <div className="project-title-row">
             <h2>{project.name}</h2>
+            {project.archived && <span className="status-badge archived-badge">Archived</span>}
             <button
               type="button"
               className="btn-icon"
@@ -763,7 +816,13 @@ function ProjectDetail({ project, onSchemaSaved, onEntryCreated, onEditProject }
       <div className="detail-body">
         {tab === "entries" ? (
           <>
-            <EntryForm project={project} onCreated={onEntryCreated} />
+            {project.archived ? (
+              <div className="hint-card" role="status">
+                <p>This project is archived. Unarchive it to add new entries.</p>
+              </div>
+            ) : (
+              <EntryForm project={project} onCreated={onEntryCreated} />
+            )}
             <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
           </>
         ) : (
@@ -774,6 +833,15 @@ function ProjectDetail({ project, onSchemaSaved, onEntryCreated, onEditProject }
           />
         )}
       </div>
+      <footer className="detail-footer">
+        <button
+          type="button"
+          className="btn-secondary detail-archive-btn"
+          onClick={onToggleArchive}
+        >
+          {project.archived ? "Unarchive project" : "Archive project"}
+        </button>
+      </footer>
     </section>
   )
 }
@@ -829,6 +897,22 @@ function App() {
         project.id === updated.id ? { ...project, ...updated } : project
       )
     )
+  }
+
+  const handleToggleArchive = async () => {
+    if (!selectedProject) return
+    try {
+      const updated = selectedProject.archived
+        ? await unarchiveProject(selectedProject.id)
+        : await archiveProject(selectedProject.id)
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === updated.id ? { ...project, ...updated } : project
+        )
+      )
+    } catch (err) {
+      setError(formatError(err))
+    }
   }
 
   const handleEntryCreated = async (data) => {
@@ -901,6 +985,7 @@ function App() {
               onSchemaSaved={handleProjectUpdate}
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
+              onToggleArchive={handleToggleArchive}
             />
           ) : (
             <EmptyState onCreate={() => setIsModalOpen(true)} />

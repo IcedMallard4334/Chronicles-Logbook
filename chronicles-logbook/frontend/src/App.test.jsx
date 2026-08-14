@@ -7,6 +7,8 @@ vi.mock("./api", () => ({
   fetchProject: vi.fn(),
   createProject: vi.fn(),
   updateProject: vi.fn(),
+  archiveProject: vi.fn(),
+  unarchiveProject: vi.fn(),
   fetchEntries: vi.fn(),
   createEntry: vi.fn(),
   deleteAccount: vi.fn(),
@@ -16,6 +18,8 @@ import {
   fetchProjects,
   createProject,
   updateProject,
+  archiveProject,
+  unarchiveProject,
   fetchEntries,
   createEntry,
 } from "./api"
@@ -23,6 +27,7 @@ import {
 const mockProject = {
   id: "proj-1",
   name: "Field Notes",
+  archived: false,
   entry_schema: [
     { id: "hours", name: "Hours", type: "number" },
     { id: "mood", name: "Mood", type: "dropdown", options: ["Steady", "Focused"] },
@@ -222,6 +227,81 @@ describe("App", () => {
           expect.objectContaining({ name: "Note", type: "text" }),
         ]),
       })
+    })
+  })
+
+  it("archives a project and blocks new entries", async () => {
+    archiveProject.mockResolvedValue({ ...mockProject, archived: true })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Field Notes"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive project" }))
+
+    await waitFor(() => {
+      expect(archiveProject).toHaveBeenCalledWith("proj-1")
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Archived")).toBeInTheDocument()
+      expect(
+        screen.getByText("This project is archived. Unarchive it to add new entries.")
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByLabelText("Hours")).not.toBeInTheDocument()
+  })
+
+  it("unarchives a project", async () => {
+    fetchProjects.mockResolvedValue([{ ...mockProject, archived: true }])
+    unarchiveProject.mockResolvedValue({ ...mockProject, archived: false })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByText("Show archived (1)"))
+    fireEvent.click(await screen.findByText("Field Notes"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Unarchive project" })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Unarchive project" }))
+
+    await waitFor(() => {
+      expect(unarchiveProject).toHaveBeenCalledWith("proj-1")
+    })
+    await waitFor(() => {
+      expect(screen.queryByText("Archived")).not.toBeInTheDocument()
+    })
+  })
+
+  it("hides archived projects behind a toggle in the sidebar", async () => {
+    fetchProjects.mockResolvedValue([
+      mockProject,
+      { ...mockProject, id: "proj-2", name: "Old Project", archived: true },
+    ])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText("Old Project")).not.toBeInTheDocument()
+    expect(screen.getByText("Show archived (1)")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Show archived (1)"))
+
+    await waitFor(() => {
+      expect(screen.getByText("Old Project")).toBeInTheDocument()
     })
   })
 
