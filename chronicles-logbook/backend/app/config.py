@@ -1,11 +1,18 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Loads variables from a local .env file if one exists.
 # On Azure, environment variables come from Application Settings instead,
 # so this line has no effect there — it's purely a local-dev convenience.
-load_dotenv()
+#
+# We pass an explicit path (backend/.env) instead of calling load_dotenv()
+# bare. The no-arg form auto-detects the .env location by inspecting the
+# call stack, which is unreliable inside uvicorn --reload's spawned child
+# process on Windows — it silently fails to find the file there, so
+# DATABASE_URL never gets set even though .env is present and correct.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 try:
     DATABASE_URL = os.environ["DATABASE_URL"]
