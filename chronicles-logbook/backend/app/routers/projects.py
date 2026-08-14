@@ -127,6 +127,36 @@ async def update_project(
     return project
 
 
+@router.post("/{project_id}/archive", response_model=ProjectResponse)
+async def archive_project(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.archived = True
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+@router.post("/{project_id}/unarchive", response_model=ProjectResponse)
+async def unarchive_project(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.archived = False
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
 @router.post(
     "/{project_id}/entries",
     response_model=EntryResponse,
@@ -140,6 +170,11 @@ async def create_entry(
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    if project.archived:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot add entries to an archived project.",
+        )
 
     _validate_entry_data(data.data, project.entry_schema)
 

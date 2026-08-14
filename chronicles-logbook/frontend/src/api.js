@@ -53,6 +53,14 @@ export async function updateProject(id, project) {
   })
 }
 
+export async function archiveProject(id) {
+  return request(`/projects/${id}/archive`, { method: "POST" })
+}
+
+export async function unarchiveProject(id) {
+  return request(`/projects/${id}/unarchive`, { method: "POST" })
+}
+
 export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }

@@ -385,6 +385,37 @@ button.auth-link {
   color: var(--blue);
 }
 
+.archived-section {
+  border-top: 1px solid var(--line);
+  padding: 8px;
+}
+
+.archived-toggle {
+  padding: 8px 12px;
+}
+
+.project-button.archived {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.archived-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .content {
   min-width: 0;
 }
@@ -441,6 +472,21 @@ button.auth-link {
   font-size: 0.9rem;
 }
 
+.status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.status-badge.archived-badge {
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+}
+
 .detail-description {
   color: var(--muted);
   font-size: 0.9rem;
@@ -483,6 +529,18 @@ button.auth-link {
   padding: 24px;
   display: grid;
   gap: 24px;
+}
+
+.detail-footer {
+  border-top: 1px solid var(--line);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detail-archive-btn {
+  min-width: 160px;
+  text-align: center;
 }
 
 .panel-head h3 {
