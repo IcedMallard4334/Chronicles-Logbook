@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   createEntry,
   createProject,
+  deleteAccount,
   fetchEntries,
   fetchProjects,
   updateProject,
@@ -74,6 +75,46 @@ function ThemeToggle() {
       {icons[theme]}
       <span className="theme-label">{theme}</span>
     </button>
+  )
+}
+
+function AuthActions() {
+  const [user, setUser] = useState(() => {
+    if (typeof window === "undefined") return null
+    try {
+      return JSON.parse(window.localStorage.getItem("chronicles_user"))
+    } catch {
+      return null
+    }
+  })
+  const [accountError, setAccountError] = useState("")
+
+  const clearSession = () => {
+    window.localStorage.removeItem("chronicles_token")
+    window.localStorage.removeItem("chronicles_user")
+    setUser(null)
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete your Chronicles account? This cannot be undone.")) return
+    setAccountError("")
+    try {
+      await deleteAccount()
+      clearSession()
+    } catch (error) {
+      setAccountError(formatError(error))
+    }
+  }
+
+  if (!user) return <a className="auth-link" href="/signin">Sign in</a>
+
+  return (
+    <div className="account-actions">
+      <span className="account-name">{user.full_name}</span>
+      <button type="button" className="auth-link" onClick={clearSession}>Sign out</button>
+      <button type="button" className="delete-account" onClick={handleDelete}>Delete account</button>
+      {accountError && <span className="account-error" role="alert">{accountError}</span>}
+    </div>
   )
 }
 
@@ -831,7 +872,10 @@ function App() {
             <div className="brand-note">a logbook that fits how you work</div>
           </div>
         </div>
-        <ThemeToggle />
+        <div className="topbar-actions">
+          <AuthActions />
+          <ThemeToggle />
+        </div>
       </header>
       <main className="app-main">
         {error && (

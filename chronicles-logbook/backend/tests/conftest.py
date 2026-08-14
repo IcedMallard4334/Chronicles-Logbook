@@ -21,6 +21,11 @@ sa_asyncio.create_async_engine = _patched_create_async_engine
 # app.config reads DATABASE_URL at import time, so set it before importing.
 _db_file = Path(tempfile.mktemp(suffix=".db")).as_posix()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db_file}"
+os.environ["JWT_SECRET_KEY"] = "test-only-secret-key-that-is-long-enough"
+os.environ["SESSION_SECRET_KEY"] = "test-session-secret-key-that-is-long-enough"
+os.environ["GOOGLE_CLIENT_ID"] = "test-google-client-id"
+os.environ["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret"
+os.environ["FRONTEND_URL"] = "http://frontend.test"
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

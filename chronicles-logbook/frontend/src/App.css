@@ -203,6 +203,65 @@
   padding-bottom: 40px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-link {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.account-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 140px;
+  overflow: hidden;
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.auth-link {
+  font: inherit;
+}
+
+.delete-account {
+  border: 0;
+  padding: 8px;
+  background: transparent;
+  color: var(--error);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.account-error {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  color: var(--error);
+  font-size: 0.8rem;
+}
+
 .brand {
   display: flex;
   align-items: center;

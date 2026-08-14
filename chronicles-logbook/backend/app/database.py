@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.types import TypeDecorator
 
-from app.config import DATABASE_URL, SQL_DEBUG
+from app.config import DATABASE_SSL, DATABASE_URL, SQL_DEBUG
 
 
 class Base(DeclarativeBase):
@@ -22,7 +22,11 @@ class JSONType(TypeDecorator):
         return dialect.type_descriptor(JSON)
 
 
-_connect_args = {"ssl": "require"} if DATABASE_URL.startswith("postgresql") else {}
+_connect_args = (
+    {"ssl": "require"}
+    if DATABASE_SSL and DATABASE_URL.startswith("postgresql")
+    else {}
+)
 
 async_engine = create_async_engine(
     DATABASE_URL,

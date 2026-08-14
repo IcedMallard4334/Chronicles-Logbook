@@ -27,3 +27,29 @@ except KeyError:
 # SQLAlchemy runs — useful while developing, noisy and slightly sensitive
 # in production, so we never want this on by accident on Azure.
 SQL_DEBUG = os.environ.get("SQL_DEBUG", "false").lower() == "true"
+
+try:
+    JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+except KeyError:
+    raise RuntimeError(
+        "CRITICAL: JWT_SECRET_KEY environment variable is not set. "
+        "Generate a long random value and keep it outside source control."
+    )
+
+if len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError("CRITICAL: JWT_SECRET_KEY must be at least 32 characters long.")
+
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+
+# Google OpenID Connect. Credentials are injected through local/Azure
+# environment settings and must never be committed.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+OAUTH_REDIRECT_URI = os.environ.get(
+    "OAUTH_REDIRECT_URI", "http://localhost:8000/auth/google/callback"
+)
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", JWT_SECRET_KEY)
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"

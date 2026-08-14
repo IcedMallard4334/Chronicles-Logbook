@@ -4,12 +4,14 @@ const API_BASE_URL =
 
 async function request(path, options = {}) {
   const url = `${API_BASE_URL}${path}`
+  const token = window.localStorage.getItem("chronicles_token")
   const response = await fetch(url, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
-    ...options,
   })
 
   if (!response.ok) {
@@ -60,4 +62,16 @@ export async function createEntry(projectId, data) {
     method: "POST",
     body: JSON.stringify({ data }),
   })
+}
+
+export function getGoogleLoginUrl() {
+  return `${API_BASE_URL}/auth/google/login`
+}
+
+export async function fetchCurrentUser() {
+  return request("/auth/me")
+}
+
+export async function deleteAccount() {
+  return request("/auth/account", { method: "DELETE" })
 }

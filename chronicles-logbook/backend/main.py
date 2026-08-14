@@ -3,9 +3,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
 from app.database import Base, async_engine
-from app.routers import projects
+from app.routers import auth, projects
 
 _DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -26,6 +28,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Chronicles API", lifespan=lifespan)
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    same_site="lax",
+    https_only=COOKIE_SECURE,
+)
+
 _cors_origins = [
     origin.strip()
     for origin in os.environ.get("CORS_ORIGINS", "").split(",")
@@ -35,11 +44,13 @@ _cors_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(projects.router)
+app.include_router(auth.router)
 
 
 @app.get("/health")
