@@ -336,4 +336,40 @@ describe("App", () => {
       })
     })
   })
+
+  it("updates the entry form when switching between projects with different schemas", async () => {
+    const projectA = {
+      ...mockProject,
+      id: "proj-a",
+      name: "Project A",
+      entry_schema: [{ id: "pages", name: "Pages read", type: "number" }],
+    }
+    const projectB = {
+      ...mockProject,
+      id: "proj-b",
+      name: "Project B",
+      entry_schema: [{ id: "location", name: "Location", type: "text" }],
+    }
+
+    fetchProjects.mockResolvedValue([projectA, projectB])
+    fetchEntries.mockResolvedValue([])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Project A")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Project A"))
+    await waitFor(() => {
+      expect(screen.getByLabelText("Pages read")).toBeInTheDocument()
+    })
+    expect(screen.queryByLabelText("Location")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Project B"))
+    await waitFor(() => {
+      expect(screen.getByLabelText("Location")).toBeInTheDocument()
+    })
+    expect(screen.queryByLabelText("Pages read")).not.toBeInTheDocument()
+  })
 })

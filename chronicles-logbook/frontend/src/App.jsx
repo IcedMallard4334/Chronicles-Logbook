@@ -981,6 +981,7 @@ function App() {
             <p className="hint">Loading…</p>
           ) : selectedProject ? (
             <ProjectDetail
+              key={selectedProject.id}
               project={selectedProject}
               onSchemaSaved={handleProjectUpdate}
               onEntryCreated={handleEntryCreated}
