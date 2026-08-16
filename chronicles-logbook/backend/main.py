@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
 from app.database import Base, async_engine
-from app.routers import auth, projects
+from app.routers import auth, entries, projects
 
 _DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -50,6 +50,7 @@ app.add_middleware(
 )
 
 app.include_router(projects.router)
+app.include_router(entries.router)
 app.include_router(auth.router)
 
 

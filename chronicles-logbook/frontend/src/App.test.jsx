@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
   archiveProject: vi.fn(),
   unarchiveProject: vi.fn(),
   fetchEntries: vi.fn(),
+  fetchEntriesGlobal: vi.fn(),
   createEntry: vi.fn(),
   deleteAccount: vi.fn(),
 }))
@@ -21,6 +22,7 @@ import {
   archiveProject,
   unarchiveProject,
   fetchEntries,
+  fetchEntriesGlobal,
   createEntry,
 } from "./api"
 
@@ -371,5 +373,92 @@ describe("App", () => {
       expect(screen.getByLabelText("Location")).toBeInTheDocument()
     })
     expect(screen.queryByLabelText("Pages read")).not.toBeInTheDocument()
+  })
+
+  it("shows the timeline with all entries", async () => {
+    fetchEntriesGlobal.mockResolvedValue(mockEntries)
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Timeline"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Timeline" })).toBeInTheDocument()
+    })
+    expect(screen.getByText("Steady")).toBeInTheDocument()
+    expect(fetchEntriesGlobal).toHaveBeenCalledWith({ q: "", projectId: "" })
+  })
+
+  it("searches entries by keyword in the timeline", async () => {
+    fetchEntriesGlobal.mockResolvedValue([
+      {
+        id: "entry-2",
+        project_id: "proj-1",
+        project_name: "Field Notes",
+        data: { hours: 3, mood: "Focused" },
+        created_at: "2026-08-12T09:00:00Z",
+      },
+    ])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Timeline"))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Search entries")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Search entries"), {
+      target: { value: "Focused" },
+    })
+
+    await waitFor(() => {
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "Focused", projectId: "" })
+    })
+    expect(screen.getByText("Focused")).toBeInTheDocument()
+  })
+
+  it("filters timeline entries by project", async () => {
+    const projectB = { ...mockProject, id: "proj-2", name: "Old Project" }
+    fetchProjects.mockResolvedValue([mockProject, projectB])
+    fetchEntriesGlobal.mockResolvedValue([
+      {
+        id: "entry-3",
+        project_id: "proj-2",
+        project_name: "Old Project",
+        data: { hours: 1, mood: "Steady" },
+        created_at: "2026-08-12T10:00:00Z",
+      },
+    ])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Old Project")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Timeline"))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Filter by project")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Filter by project"), {
+      target: { value: "proj-2" },
+    })
+
+    await waitFor(() => {
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "", projectId: "proj-2" })
+    })
+    expect(screen.getByText("Steady")).toBeInTheDocument()
+    expect(screen.queryByText("2")).not.toBeInTheDocument()
   })
 })

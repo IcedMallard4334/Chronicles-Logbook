@@ -5,6 +5,7 @@ import {
   createProject,
   deleteAccount,
   fetchEntries,
+  fetchEntriesGlobal,
   fetchProjects,
   unarchiveProject,
   updateProject,
@@ -384,13 +385,20 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-function ProjectList({ projects, selectedId, onSelect, onCreate }) {
+function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
   const activeProjects = projects.filter((project) => !project.archived)
   const archivedProjects = projects.filter((project) => project.archived)
 
   return (
     <aside className="sidebar">
+      <button
+        type="button"
+        className={`project-button timeline-button ${timelineActive ? "active" : ""}`}
+        onClick={onShowTimeline}
+      >
+        Timeline
+      </button>
       <div className="sidebar-head">
         <h2>Projects</h2>
         <button
@@ -760,6 +768,113 @@ function EntryList({ entries, schema }) {
   )
 }
 
+function Timeline({ projects }) {
+  const [entries, setEntries] = useState([])
+  const [q, setQ] = useState("")
+  const [projectId, setProjectId] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchEntriesGlobal({ q, projectId })
+        if (!cancelled) setEntries(data)
+      } catch (err) {
+        if (!cancelled) setError(formatError(err))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [q, projectId])
+
+  const schemaByProject = useMemo(() => {
+    const map = {}
+    for (const project of projects) {
+      map[project.id] = project.entry_schema || []
+    }
+    return map
+  }, [projects])
+
+  const getFieldName = (entryProjectId, fieldId) => {
+    const schema = schemaByProject[entryProjectId] || []
+    const field = schema.find((f) => f.id === fieldId)
+    return field?.name || fieldId
+  }
+
+  return (
+    <section className="timeline" aria-label="Timeline">
+      <header className="timeline-header">
+        <h2>Timeline</h2>
+        <p>Search across all entries and filter by project.</p>
+      </header>
+      <div className="timeline-filters">
+        <label className="field-label">
+          Search
+          <input
+            type="text"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+            placeholder="Search entries…"
+            aria-label="Search entries"
+          />
+        </label>
+        <label className="field-label">
+          Project
+          <select
+            value={projectId}
+            onChange={(event) => setProjectId(event.target.value)}
+            aria-label="Filter by project"
+          >
+            <option value="">All projects</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      {loading ? (
+        <p className="hint">Loading…</p>
+      ) : entries.length === 0 ? (
+        <p className="hint">No entries found.</p>
+      ) : (
+        <ul className="timeline-list" role="list">
+          {entries.map((entry) => (
+            <li key={entry.id} className="timeline-row">
+              <div className="timeline-meta">
+                <span className="timeline-project">{entry.project_name}</span>
+                <span className="timeline-time">
+                  {new Date(entry.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="timeline-fields">
+                {Object.entries(entry.data).map(([fieldId, value]) => (
+                  <div key={fieldId} className="timeline-field">
+                    <span className="timeline-label">
+                      {getFieldName(entry.project_id, fieldId)}
+                    </span>
+                    <span className="timeline-value">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function ProjectDetail({
   project,
   onSchemaSaved,
@@ -849,6 +964,7 @@ function ProjectDetail({
 function App() {
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const [view, setView] = useState("project")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -878,11 +994,22 @@ function App() {
     try {
       const project = await createProject({ name, description, entry_schema: [] })
       setProjects((prev) => [...prev, project])
+      setView("project")
       setSelectedId(project.id)
       setIsModalOpen(false)
     } catch (err) {
       setError(formatError(err))
     }
+  }
+
+  const handleSelectProject = (id) => {
+    setView("project")
+    setSelectedId(id)
+  }
+
+  const handleShowTimeline = () => {
+    setView("timeline")
+    setSelectedId(null)
   }
 
   const handleProjectUpdate = async (update) => {
@@ -973,12 +1100,16 @@ function App() {
         <ProjectList
           projects={projects}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={handleSelectProject}
           onCreate={() => setIsModalOpen(true)}
+          onShowTimeline={handleShowTimeline}
+          timelineActive={view === "timeline"}
         />
         <div className="content">
           {loading ? (
             <p className="hint">Loading…</p>
+          ) : view === "timeline" ? (
+            <Timeline projects={projects} />
           ) : selectedProject ? (
             <ProjectDetail
               key={selectedProject.id}

@@ -125,3 +125,14 @@ class EntryResponse(BaseModel):
     data: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+class TimelineEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    project_name: str
+    data: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
