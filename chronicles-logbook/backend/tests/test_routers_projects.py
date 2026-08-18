@@ -123,3 +123,36 @@ async def test_update_project_schema(authenticated_client):
     assert data["name"] == "Project"
     assert len(data["entry_schema"]) == 1
     assert data["entry_schema"][0]["name"] == "Hours"
+
+async def test_update_project_not_found(authenticated_client):
+    response = await authenticated_client.put(
+        f"/projects/{uuid.uuid4()}",
+        json={"name": "Should Not Exist"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+async def test_update_project_rejects_other_users_project(
+    authenticated_client,
+    second_authenticated_client,
+):
+    create_response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Private Project",
+            "description": "Belongs to first user",
+            "entry_schema": [],
+        },
+    )
+
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = await second_authenticated_client.put(
+        f"/projects/{project_id}",
+        json={"name": "Hacked Project"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
