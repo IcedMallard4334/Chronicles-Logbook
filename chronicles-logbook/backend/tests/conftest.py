@@ -33,7 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.database import Base, get_db
 from main import app
-
+from app.models import User
+from app.security import create_access_token
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
@@ -58,17 +59,37 @@ async def db_session(test_engine):
         await session.close()
         await conn.rollback()
 
+@pytest_asyncio.fixture
+async def test_user(db_session):
+    user = User(
+        google_sub="test-google-user",
+        full_name="Test User",
+        email="test@example.com",
+        avatar_url=None,
+    )
+
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return user
 
 @pytest_asyncio.fixture(loop_scope="function")
-async def async_client(db_session):
-    """Return an httpx AsyncClient wired to the test database session."""
+async def async_client(db_session, test_user):
+    """Return an authenticated httpx AsyncClient wired to the test database."""
 
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
+    token = create_access_token(test_user.id)
+
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {token}"},
     ) as client:
         yield client
+
     app.dependency_overrides.clear()
