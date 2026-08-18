@@ -1,0 +1,360 @@
+import { useCallback, useEffect, useState } from "react"
+import {
+  createTask,
+  deleteTask,
+  fetchTasks,
+  toggleTask,
+  updateTask,
+} from "./api"
+
+function formatError(error) {
+  return error instanceof Error ? error.message : "Something went wrong."
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr + "T00:00:00")
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })
+}
+
+function isOverdue(dateStr, completed) {
+  if (!dateStr || completed) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(dateStr + "T00:00:00") < today
+}
+
+// ── Task Form ────────────────────────────────────────────────────────
+
+export function TaskForm({ projectId, task, onSaved, onCancel }) {
+  const [title, setTitle] = useState(task?.title || "")
+  const [description, setDescription] = useState(task?.description || "")
+  const [dueDate, setDueDate] = useState(task?.due_date || "")
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    setTitle(task?.title || "")
+    setDescription(task?.description || "")
+    setDueDate(task?.due_date || "")
+    setError(null)
+  }, [task])
+
+  const isEditing = !!task
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const trimmed = title.trim()
+    if (!trimmed) {
+      setError("Task title can't be empty.")
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      const payload = {
+        title: trimmed,
+        description: description.trim() || null,
+        due_date: dueDate || null,
+      }
+      if (isEditing) {
+        await updateTask(projectId, task.id, payload)
+      } else {
+        await createTask(projectId, payload)
+      }
+      setTitle("")
+      setDescription("")
+      setDueDate("")
+      onSaved()
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <form className="task-form" onSubmit={handleSubmit}>
+      <div className="panel-head">
+        <h3>{isEditing ? "Edit task" : "Add a task"}</h3>
+      </div>
+      <div className="task-form-grid">
+        <label className="field-label full">
+          Title
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What needs to be done?"
+            autoFocus
+          />
+        </label>
+        <label className="field-label">
+          Due date
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </label>
+        <label className="field-label full">
+          Description (optional)
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add any details…"
+            rows={2}
+          />
+        </label>
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="actions">
+        {isEditing && (
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+        <button type="submit" className="btn-primary" disabled={isSaving}>
+          {isSaving
+            ? "Saving…"
+            : isEditing
+              ? "Save changes"
+              : "Add task"}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ── Task List ────────────────────────────────────────────────────────
+
+function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleToggle = async () => {
+    try {
+      await onToggle(projectId, task.id)
+    } catch {
+      // error surfaced via parent refresh
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${task.title}"?`)) return
+    setIsDeleting(true)
+    try {
+      await onDelete(projectId, task.id)
+    } catch {
+      setIsDeleting(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <TaskForm
+        projectId={projectId}
+        task={task}
+        onSaved={() => {
+          setIsEditing(false)
+          onRefresh()
+        }}
+        onCancel={() => setIsEditing(false)}
+      />
+    )
+  }
+
+  const overdue = isOverdue(task.due_date, task.completed)
+
+  return (
+    <li className={`task-item ${task.completed ? "completed" : ""} ${overdue ? "overdue" : ""}`}>
+      <button
+        type="button"
+        className={`task-checkbox ${task.completed ? "checked" : ""}`}
+        onClick={handleToggle}
+        aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+        title={task.completed ? "Mark incomplete" : "Mark complete"}
+      >
+        {task.completed && (
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+            <path d="M3 8.5l3.5 3.5 6.5-8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </button>
+      <div className="task-content">
+        <span className="task-title">{task.title}</span>
+        {task.description && <span className="task-description">{task.description}</span>}
+        {task.due_date && (
+          <span className={`task-due ${overdue ? "task-overdue" : ""}`}>
+            {overdue ? "Overdue · " : ""}
+            {formatDate(task.due_date)}
+          </span>
+        )}
+      </div>
+      <div className="task-actions">
+        <button
+          type="button"
+          className="btn-text"
+          onClick={() => onEdit(task)}
+          aria-label="Edit task"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="btn-text-danger"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          aria-label="Delete task"
+        >
+          {isDeleting ? "…" : "Delete"}
+        </button>
+      </div>
+    </li>
+  )
+}
+
+// ── Task Panel (main export) ─────────────────────────────────────────
+
+export function TaskPanel({ projectId }) {
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
+  const [filter, setFilter] = useState("all") // "all" | "open" | "done"
+
+  const loadTasks = useCallback(async () => {
+    try {
+      const completedParam =
+        filter === "open" ? false : filter === "done" ? true : undefined
+      const data = await fetchTasks(projectId, completedParam)
+      setTasks(data)
+      setError(null)
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId, filter])
+
+  useEffect(() => {
+    setLoading(true)
+    loadTasks()
+  }, [loadTasks])
+
+  const handleToggle = async (pid, taskId) => {
+    await toggleTask(pid, taskId)
+    loadTasks()
+  }
+
+  const handleDelete = async (pid, taskId) => {
+    await deleteTask(pid, taskId)
+    loadTasks()
+  }
+
+  const handleEdit = (task) => {
+    setEditingTask(task)
+    setShowForm(false)
+  }
+
+  const handleSaved = () => {
+    setShowForm(false)
+    setEditingTask(null)
+    loadTasks()
+  }
+
+  const openCount = tasks.filter((t) => !t.completed).length
+  const doneCount = tasks.filter((t) => t.completed).length
+
+  return (
+    <div className="task-panel">
+      <div className="task-panel-header">
+        <div className="panel-head">
+          <h3>Tasks</h3>
+          <p>Track what needs to be done for this project.</p>
+        </div>
+        {!showForm && !editingTask && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setShowForm(true)
+              setEditingTask(null)
+            }}
+          >
+            Add task
+          </button>
+        )}
+      </div>
+
+      {showForm && !editingTask && (
+        <TaskForm
+          projectId={projectId}
+          onSaved={handleSaved}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
+
+      {editingTask && (
+        <TaskForm
+          projectId={projectId}
+          task={editingTask}
+          onSaved={handleSaved}
+          onCancel={() => setEditingTask(null)}
+        />
+      )}
+
+      <div className="task-filters" role="tablist" aria-label="Task filters">
+        {[
+          { key: "all", label: `All (${openCount + doneCount})` },
+          { key: "open", label: `Open (${openCount})` },
+          { key: "done", label: `Done (${doneCount})` },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={filter === key}
+            className={filter === key ? "active" : ""}
+            onClick={() => setFilter(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {error && <p className="error" role="alert">{error}</p>}
+
+      {loading ? (
+        <p className="hint">Loading tasks…</p>
+      ) : tasks.length === 0 ? (
+        <p className="hint">
+          {filter === "all"
+            ? "No tasks yet. Add one to get started."
+            : filter === "open"
+              ? "No open tasks."
+              : "No completed tasks."}
+        </p>
+      ) : (
+        <ul className="task-list" role="list">
+          {tasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              projectId={projectId}
+              task={task}
+              onToggle={handleToggle}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onRefresh={loadTasks}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

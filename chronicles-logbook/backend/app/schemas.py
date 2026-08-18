@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -123,5 +123,34 @@ class EntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     data: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Tasks ────────────────────────────────────────────────────────────
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    due_date: date | None = None
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    due_date: date | None = None
+    completed: bool | None = None
+
+
+class TaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    title: str
+    description: str | None
+    due_date: date | None
+    completed: bool
     created_at: datetime
     updated_at: datetime

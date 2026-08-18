@@ -83,3 +83,36 @@ export async function fetchCurrentUser() {
 export async function deleteAccount() {
   return request("/auth/account", { method: "DELETE" })
 }
+
+// ── Tasks ────────────────────────────────────────────────────────────
+
+export async function fetchTasks(projectId, completed) {
+  const params = completed !== undefined ? `?completed=${completed}` : ""
+  return request(`/projects/${projectId}/tasks${params}`)
+}
+
+export async function createTask(projectId, task) {
+  return request(`/projects/${projectId}/tasks`, {
+    method: "POST",
+    body: JSON.stringify(task),
+  })
+}
+
+export async function updateTask(projectId, taskId, task) {
+  return request(`/projects/${projectId}/tasks/${taskId}`, {
+    method: "PUT",
+    body: JSON.stringify(task),
+  })
+}
+
+export async function toggleTask(projectId, taskId) {
+  return request(`/projects/${projectId}/tasks/${taskId}/toggle`, {
+    method: "PATCH",
+  })
+}
+
+export async function deleteTask(projectId, taskId) {
+  return request(`/projects/${projectId}/tasks/${taskId}`, {
+    method: "DELETE",
+  })
+}
