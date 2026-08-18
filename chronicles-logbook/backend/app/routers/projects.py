@@ -133,18 +133,18 @@ async def update_project(
     project_id: UUID,
     data: ProjectUpdate,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_user_project(project_id, user, db)
 
     if data.name is not None:
         project.name = data.name
     if data.description is not None:
         project.description = data.description
     if data.entry_schema is not None:
-        project.entry_schema = [field.model_dump(mode="json") for field in data.entry_schema]
+        project.entry_schema = [
+            field.model_dump(mode="json") for field in data.entry_schema
+        ]
 
     await db.commit()
     await db.refresh(project)
