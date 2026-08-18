@@ -75,7 +75,25 @@ async def test_user(db_session):
     return user
 
 @pytest_asyncio.fixture(loop_scope="function")
-async def async_client(db_session, test_user):
+async def async_client(db_session):
+    """Return an unauthenticated httpx AsyncClient wired to the test database."""
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def authenticated_client(db_session, test_user):
     """Return an authenticated httpx AsyncClient wired to the test database."""
 
     async def override_get_db():
