@@ -1,3 +1,4 @@
+import { TaskPanel } from "./TaskPanel"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   archiveProject,
@@ -10,6 +11,7 @@ import {
   updateProject,
 } from "./api"
 import "./App.css"
+import "./tasks.css"
 
 const FIELD_TYPES = ["text", "number", "date", "dropdown"]
 
@@ -811,6 +813,15 @@ function ProjectDetail({
           >
             Schema
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "tasks"}
+            className={tab === "tasks" ? "active" : ""}
+            onClick={() => setTab("tasks")}
+          >
+            Tasks
+          </button>
         </div>
       </header>
       <div className="detail-body">
@@ -825,12 +836,14 @@ function ProjectDetail({
             )}
             <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
           </>
-        ) : (
+        ) : tab === "schema" ? (
           <SchemaBuilder
             project={project}
             onSave={onSchemaSaved}
             onSwitchToEntries={() => setTab("entries")}
           />
+        ) : (
+          <TaskPanel projectId={project.id} />
         )}
       </div>
       <footer className="detail-footer">
