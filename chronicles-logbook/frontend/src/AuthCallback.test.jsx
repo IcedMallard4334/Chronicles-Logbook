@@ -14,7 +14,7 @@ function renderCallback() {
     <MemoryRouter initialEntries={["/auth/callback"]}>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/" element={<p>Logbook home</p>} />
+        <Route path="/app" element={<p>Logbook home</p>} />
       </Routes>
     </MemoryRouter>
   )

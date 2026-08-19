@@ -76,6 +76,20 @@ export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }
 
+export async function registerWithPassword(registration) {
+  return request("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(registration),
+  })
+}
+
+export async function signInWithPassword(credentials) {
+  return request("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  })
+}
+
 export async function fetchCurrentUser() {
   return request("/auth/me")
 }

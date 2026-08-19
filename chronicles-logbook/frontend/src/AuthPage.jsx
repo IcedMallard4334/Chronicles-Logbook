@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom"
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 
-import { getGoogleLoginUrl } from "./api"
+import { getGoogleLoginUrl, registerWithPassword, signInWithPassword } from "./api"
 import "./AuthPage.css"
 
 function GoogleIcon() {
@@ -16,6 +17,37 @@ function GoogleIcon() {
 
 function AuthPage({ mode }) {
   const isSignUp = mode === "signup"
+  const navigate = useNavigate()
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [error, setError] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handlePasswordAuth = async (event) => {
+    event.preventDefault()
+    setError("")
+
+    if (isSignUp && password !== confirmPassword) {
+      setError("Passwords do not match.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const session = isSignUp
+        ? await registerWithPassword({ full_name: fullName, email, password })
+        : await signInWithPassword({ email, password })
+      window.localStorage.setItem("chronicles_token", session.access_token)
+      window.localStorage.setItem("chronicles_user", JSON.stringify(session.user))
+      navigate("/app", { replace: true })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to continue.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <main className="auth-shell">
@@ -40,8 +72,8 @@ function AuthPage({ mode }) {
           <h2 id="form-heading">{isSignUp ? "Create an account" : "Sign in"}</h2>
           <p className="auth-subtitle">
             {isSignUp
-              ? "Use your Google account to create a secure Chronicles profile."
-              : "Continue securely with the Google account linked to Chronicles."}
+              ? "Create an account with Google or your email address."
+              : "Continue with Google or sign in with your email and password."}
           </p>
 
           <a className="google-auth-button" href={getGoogleLoginUrl()}>
@@ -50,9 +82,85 @@ function AuthPage({ mode }) {
           </a>
 
           <p className="auth-provider-note">
-            Google manages your password and password recovery. Chronicles never receives or stores
-            your Google password.
+            Google will ask you to choose an account each time.
           </p>
+
+          <div className="auth-divider"><span>or use email</span></div>
+
+          <form className="auth-form" onSubmit={handlePasswordAuth}>
+            {isSignUp && (
+              <label>
+                Full name
+                <input
+                  type="text"
+                  name="name"
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Your full name"
+                  minLength="2"
+                  maxLength="100"
+                  required
+                />
+              </label>
+            )}
+
+            <label>
+              Email address
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                maxLength="320"
+                required
+              />
+            </label>
+
+            <label>
+              Password
+              <input
+                type="password"
+                name="password"
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={isSignUp ? "At least 8 characters" : "Your password"}
+                minLength={isSignUp ? "8" : "1"}
+                maxLength="128"
+                required
+              />
+            </label>
+
+            {isSignUp && (
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  name="confirm-password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Enter your password again"
+                  minLength="8"
+                  maxLength="128"
+                  required
+                />
+              </label>
+            )}
+
+            {error && <p className="auth-message auth-error" role="alert">{error}</p>}
+
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting
+                ? "Please wait…"
+                : isSignUp
+                  ? "Create account"
+                  : "Sign in"}
+            </button>
+          </form>
 
           <p className="auth-switch">
             {isSignUp ? "Already registered?" : "New to Chronicles?"}{" "}

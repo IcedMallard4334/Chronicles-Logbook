@@ -97,6 +97,7 @@ function AuthActions() {
     window.localStorage.removeItem("chronicles_token")
     window.localStorage.removeItem("chronicles_user")
     setUser(null)
+    window.location.assign("/")
   }
 
   const handleDelete = async () => {
@@ -110,7 +111,7 @@ function AuthActions() {
     }
   }
 
-  if (!user) return <a className="auth-link" href="/signin">Sign in</a>
+  if (!user) return <a className="auth-link" href="/">Sign in</a>
 
   return (
     <div className="account-actions">

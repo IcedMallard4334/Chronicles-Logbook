@@ -27,6 +27,16 @@ class User(Base):
     )
 
 
+class PasswordCredential(Base):
+    __tablename__ = "password_credentials"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
 class Project(Base):
     __tablename__ = "projects"
 

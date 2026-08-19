@@ -24,7 +24,7 @@ function AuthCallback() {
         window.localStorage.setItem("chronicles_token", token)
         const user = await fetchCurrentUser()
         window.localStorage.setItem("chronicles_user", JSON.stringify(user))
-        navigate("/", { replace: true })
+        navigate("/app", { replace: true })
       } catch (caught) {
         window.localStorage.removeItem("chronicles_token")
         setError(caught instanceof Error ? caught.message : "Unable to complete sign in.")
@@ -42,7 +42,7 @@ function AuthCallback() {
           <>
             <h1>Sign-in unsuccessful</h1>
             <p className="auth-message auth-error" role="alert">{error}</p>
-            <Link className="auth-submit" to="/signin">Try again</Link>
+            <Link className="auth-submit" to="/">Try again</Link>
           </>
         ) : (
           <>
