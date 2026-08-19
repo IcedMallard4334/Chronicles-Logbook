@@ -197,3 +197,16 @@ class TaskResponse(BaseModel):
     completed: bool
     created_at: datetime
     updated_at: datetime
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def clean_email(cls, value: str) -> str:
+        return _normalise_email(value)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1)
+    password: str = Field(min_length=8, max_length=128)
