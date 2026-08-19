@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Entry, Project
+from app.models import Entry, Project, User
+from app.routers.auth import get_current_user
 from app.schemas import (
     EntryCreate,
     EntryResponse,
@@ -68,22 +69,46 @@ def _validate_entry_data(data: dict[str, Any], entry_schema: list[dict[str, Any]
                     detail=f"Field '{field_name}' must be one of: {', '.join(options)}",
                 )
 
+async def _get_user_project(
+    project_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> Project:
+    project = await db.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+        )
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    return project
 
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Project))
-    projects = result.scalars().all()
-    return projects
+    result = await db.execute(
+        select(Project).where(Project.user_id == user.id)
+    )
+
+    return result.scalars().all()
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     data: ProjectCreate,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     project = Project(
+        user_id=user.id,
         name=data.name,
         description=data.description,
         entry_schema=[field.model_dump(mode="json") for field in data.entry_schema],
@@ -97,30 +122,29 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: UUID,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return await _get_user_project(project_id, user, db)
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: UUID,
     data: ProjectUpdate,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_user_project(project_id, user, db)
 
     if data.name is not None:
         project.name = data.name
     if data.description is not None:
         project.description = data.description
     if data.entry_schema is not None:
-        project.entry_schema = [field.model_dump(mode="json") for field in data.entry_schema]
+        project.entry_schema = [
+            field.model_dump(mode="json") for field in data.entry_schema
+        ]
 
     await db.commit()
     await db.refresh(project)
@@ -130,30 +154,32 @@ async def update_project(
 @router.post("/{project_id}/archive", response_model=ProjectResponse)
 async def archive_project(
     project_id: UUID,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_user_project(project_id, user, db)
 
     project.archived = True
+
     await db.commit()
     await db.refresh(project)
+
     return project
 
 
 @router.post("/{project_id}/unarchive", response_model=ProjectResponse)
 async def unarchive_project(
     project_id: UUID,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_user_project(project_id, user, db)
 
     project.archived = False
+
     await db.commit()
     await db.refresh(project)
+
     return project
 
 
@@ -165,11 +191,11 @@ async def unarchive_project(
 async def create_entry(
     project_id: UUID,
     data: EntryCreate,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_user_project(project_id, user, db)
+
     if project.archived:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -178,22 +204,29 @@ async def create_entry(
 
     _validate_entry_data(data.data, project.entry_schema)
 
-    entry = Entry(project_id=project_id, data=data.data)
+    entry = Entry(
+        project_id=project_id,
+        data=data.data,
+    )
+
     db.add(entry)
+
     await db.commit()
     await db.refresh(entry)
+
     return entry
 
 
 @router.get("/{project_id}/entries", response_model=list[EntryResponse])
 async def list_entries(
     project_id: UUID,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    await _get_user_project(project_id, user, db)
 
-    result = await db.execute(select(Entry).where(Entry.project_id == project_id))
-    entries = result.scalars().all()
-    return entries
+    result = await db.execute(
+        select(Entry).where(Entry.project_id == project_id)
+    )
+
+    return result.scalars().all()

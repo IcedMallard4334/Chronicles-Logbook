@@ -33,7 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.database import Base, get_db
 from main import app
-
+from app.models import User
+from app.security import create_access_token
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
@@ -58,17 +59,114 @@ async def db_session(test_engine):
         await session.close()
         await conn.rollback()
 
+@pytest_asyncio.fixture
+async def test_user(db_session):
+    user = User(
+        google_sub="test-google-user",
+        full_name="Test User",
+        email="test@example.com",
+        avatar_url=None,
+    )
+
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return user
 
 @pytest_asyncio.fixture(loop_scope="function")
 async def async_client(db_session):
-    """Return an httpx AsyncClient wired to the test database session."""
+    """Return an unauthenticated httpx AsyncClient wired to the test database."""
 
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         yield client
+
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def authenticated_client(db_session, test_user):
+    """Return an authenticated httpx AsyncClient wired to the test database."""
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    token = create_access_token(test_user.id)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {token}"},
+    ) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+@pytest_asyncio.fixture
+async def second_test_user(db_session):
+    user = User(
+        google_sub="second-google-user",
+        full_name="Second User",
+        email="second@example.com",
+        avatar_url=None,
+    )
+
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return user
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def second_authenticated_client(db_session, second_test_user):
+    """Return an authenticated client for a different test user."""
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    token = create_access_token(second_test_user.id)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {token}"},
+    ) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+async def test_update_project_rejects_other_users_project(
+    authenticated_client,
+    second_authenticated_client,
+):
+    create_response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Private Project",
+            "description": "Belongs to first user",
+            "entry_schema": [],
+        },
+    )
+
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = await second_authenticated_client.put(
+        f"/projects/{project_id}",
+        json={"name": "Hacked Project"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"

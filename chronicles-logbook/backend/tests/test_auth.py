@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
-from app.models import User
+from app.models import PasswordCredential, User
 from app.routers.auth import oauth
 
 
@@ -181,17 +181,39 @@ async def test_authenticated_user_can_delete_account(
         "name": "Ethan Student",
         "email_verified": True,
     }
+
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
         AsyncMock(return_value={"userinfo": profile}),
     )
-    callback = await async_client.get("/auth/google/callback", follow_redirects=False)
+
+    callback = await async_client.get(
+        "/auth/google/callback",
+        follow_redirects=False,
+    )
+
     token = _token_from_redirect(callback.headers["location"])
 
     response = await async_client.delete(
-        "/auth/account", headers={"Authorization": f"Bearer {token}"}
+        "/auth/account",
+        headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 204
-    assert await db_session.scalar(select(func.count()).select_from(User)) == 0
+
+    assert await db_session.scalar(
+        select(func.count()).select_from(User)
+    ) == 0
+
+    assert await db_session.scalar(
+        select(func.count()).select_from(PasswordCredential)
+    ) == 0
+
+    me = await async_client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert me.status_code == 401
+    assert me.json()["detail"] == "Account no longer exists."
