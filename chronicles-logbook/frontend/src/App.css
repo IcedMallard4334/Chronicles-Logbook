@@ -4,6 +4,7 @@
   margin: 0 auto;
   padding: 32px 0 64px;
   min-height: 100svh;
+  z-index: 1;
 }
 
 .background-decorations {
@@ -193,9 +194,19 @@
   opacity: 0.6;
 }
 
+/* --------------------------------------------------
+   TOP BAR
+   -------------------------------------------------- */
+
+/*
+ * IMPORTANT:
+ * The topbar contains the account controls.
+ * Give it a higher stacking level so a modal rendered
+ * from the account area can appear above .app-main.
+ */
 .topbar {
   position: relative;
-  z-index: 1;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -252,6 +263,11 @@ button.auth-link {
   color: var(--error);
   font-size: 0.82rem;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-account:hover {
+  color: var(--mauve);
 }
 
 .account-error {
@@ -261,6 +277,10 @@ button.auth-link {
   color: var(--error);
   font-size: 0.8rem;
 }
+
+/* --------------------------------------------------
+   BRAND
+   -------------------------------------------------- */
 
 .brand {
   display: flex;
@@ -291,6 +311,10 @@ button.auth-link {
   font-size: 0.82rem;
 }
 
+/* --------------------------------------------------
+   THEME
+   -------------------------------------------------- */
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -319,6 +343,10 @@ button.auth-link {
 .theme-label {
   min-width: 50px;
 }
+
+/* --------------------------------------------------
+   MAIN APP
+   -------------------------------------------------- */
 
 .app-main {
   position: relative;
@@ -439,6 +467,10 @@ button.auth-link {
   margin-bottom: 24px;
 }
 
+/* --------------------------------------------------
+   PROJECT DETAIL
+   -------------------------------------------------- */
+
 .project-detail {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -543,6 +575,10 @@ button.auth-link {
   text-align: center;
 }
 
+/* --------------------------------------------------
+   PANELS
+   -------------------------------------------------- */
+
 .panel-head h3 {
   font-size: 1.05rem;
   margin-bottom: 4px;
@@ -581,6 +617,10 @@ button.auth-link {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* --------------------------------------------------
+   FORMS
+   -------------------------------------------------- */
 
 .field-list {
   display: grid;
@@ -646,6 +686,10 @@ button.auth-link {
   flex-wrap: wrap;
 }
 
+/* --------------------------------------------------
+   BUTTONS
+   -------------------------------------------------- */
+
 .btn-primary,
 .btn-secondary,
 .btn-icon,
@@ -654,7 +698,10 @@ button.auth-link {
   border-radius: var(--radius-sm);
   padding: 10px 16px;
   font-weight: 700;
-  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
 }
 
 .btn-primary {
@@ -712,6 +759,10 @@ button.auth-link {
 .btn-text-danger:hover {
   background: rgba(196, 91, 91, 0.08);
 }
+
+/* --------------------------------------------------
+   STATUS / ERRORS
+   -------------------------------------------------- */
 
 .error {
   color: var(--error);
@@ -771,6 +822,10 @@ button.auth-link {
   font-size: 0.85rem;
 }
 
+/* --------------------------------------------------
+   ENTRIES
+   -------------------------------------------------- */
+
 .log-list {
   list-style: none;
   margin: 16px 0 0;
@@ -825,24 +880,53 @@ button.auth-link {
   white-space: nowrap;
 }
 
+/* --------------------------------------------------
+   MODALS
+   -------------------------------------------------- */
+
+/*
+ * Modal must sit above every normal application layer.
+ *
+ * The topbar is z-index: 10000 because the account controls
+ * live inside it. The modal itself gets an even higher level.
+ */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: oklch(34% 0.04 255 / 0.35);
-  backdrop-filter: blur(4px);
-  z-index: 100;
+  z-index: 20000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+
+  padding: 24px;
+  box-sizing: border-box;
+
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .modal-card {
+  position: relative;
+  z-index: 20001;
+
   width: min(420px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+
   padding: 32px;
+
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
+
   background: var(--surface);
   box-shadow: var(--shadow);
+
   text-align: center;
 }
 
@@ -874,6 +958,54 @@ button.auth-link {
   margin-top: 20px;
 }
 
+/* --------------------------------------------------
+   DELETE ACCOUNT MODAL
+   -------------------------------------------------- */
+
+.delete-account-modal {
+  width: min(460px, 100%);
+  max-width: 460px;
+}
+
+.delete-account-modal h2 {
+  margin-bottom: 10px;
+}
+
+.delete-account-modal p {
+  line-height: 1.5;
+}
+
+.delete-warning {
+  font-weight: 600;
+}
+
+.delete-account-confirm {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+
+  background: var(--danger, #c0392b);
+  color: white;
+
+  font: inherit;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.delete-account-confirm:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.delete-account-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------
+   RESPONSIVE
+   -------------------------------------------------- */
+
 @media (max-width: 860px) {
   .app-shell {
     width: min(100% - 28px, 640px);
@@ -900,6 +1032,38 @@ button.auth-link {
   }
 
   .log-fields {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .account-actions {
+    flex-wrap: wrap;
+  }
+
+  .modal-backdrop {
+    padding: 16px;
+  }
+
+  .modal-card {
+    padding: 24px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
     width: 100%;
   }
 }
