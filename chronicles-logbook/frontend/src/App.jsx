@@ -85,18 +85,13 @@ function ThemeToggle() {
 function AuthActions() {
   const [user, setUser] = useState(() => {
     if (typeof window === "undefined") return null
-
     try {
       return JSON.parse(window.localStorage.getItem("chronicles_user"))
     } catch {
       return null
     }
   })
-
   const [accountError, setAccountError] = useState("")
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [confirmation, setConfirmation] = useState("")
-  const [isDeleting, setIsDeleting] = useState(false)
 
   const clearSession = () => {
     window.localStorage.removeItem("chronicles_token")
@@ -105,127 +100,26 @@ function AuthActions() {
     window.location.assign("/")
   }
 
-  const openDeleteModal = () => {
-    setAccountError("")
-    setConfirmation("")
-    setShowDeleteModal(true)
-  }
-
-  const closeDeleteModal = () => {
-    if (isDeleting) return
-
-    setConfirmation("")
-    setShowDeleteModal(false)
-  }
-
   const handleDelete = async () => {
-    if (confirmation !== "DELETE") return
-
-    setIsDeleting(true)
+    if (!window.confirm("Delete your Chronicles account? This cannot be undone.")) return
     setAccountError("")
-
     try {
       await deleteAccount()
       clearSession()
     } catch (error) {
       setAccountError(formatError(error))
-      setIsDeleting(false)
     }
   }
 
   if (!user) return <a className="auth-link" href="/">Sign in</a>
 
   return (
-    <>
-      <div className="account-actions">
-        <span className="account-name">{user.full_name}</span>
-
-        <button
-          type="button"
-          className="auth-link"
-          onClick={clearSession}
-        >
-          Sign out
-        </button>
-
-        <button
-          type="button"
-          className="delete-account"
-          onClick={openDeleteModal}
-        >
-          Delete account
-        </button>
-
-        {accountError && (
-          <span className="account-error" role="alert">
-            {accountError}
-          </span>
-        )}
-      </div>
-
-      {showDeleteModal && (
-        <div
-          className="modal-backdrop"
-          onClick={closeDeleteModal}
-          role="presentation"
-        >
-          <div
-            className="modal-card delete-account-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-account-title"
-          >
-            <Character className="modal-character" />
-
-            <h2 id="delete-account-title">
-              Delete your account?
-            </h2>
-
-            <p>
-              This will permanently delete your Chronicles account
-              and all of its projects, entries, and tasks.
-            </p>
-
-            <p className="delete-warning">
-              This action cannot be undone.
-            </p>
-
-            <label className="field-label full">
-              Type <strong>DELETE</strong> to confirm
-              <input
-                type="text"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                placeholder="DELETE"
-                autoFocus
-                disabled={isDeleting}
-              />
-            </label>
-
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={closeDeleteModal}
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                className="delete-account-confirm"
-                onClick={handleDelete}
-                disabled={confirmation !== "DELETE" || isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete my account"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <div className="account-actions">
+      <span className="account-name">{user.full_name}</span>
+      <button type="button" className="auth-link" onClick={clearSession}>Sign out</button>
+      <button type="button" className="delete-account" onClick={handleDelete}>Delete account</button>
+      {accountError && <span className="account-error" role="alert">{accountError}</span>}
+    </div>
   )
 }
 
