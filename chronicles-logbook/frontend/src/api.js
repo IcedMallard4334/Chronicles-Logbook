@@ -65,6 +65,14 @@ export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }
 
+export async function fetchEntriesGlobal({ q, projectId } = {}) {
+  const params = new URLSearchParams()
+  if (q) params.append("q", q)
+  if (projectId) params.append("project_id", projectId)
+  const query = params.toString()
+  return request(`/entries${query ? `?${query}` : ""}`)
+}
+
 export async function createEntry(projectId, data) {
   return request(`/projects/${projectId}/entries`, {
     method: "POST",

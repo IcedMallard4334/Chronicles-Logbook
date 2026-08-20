@@ -198,6 +198,18 @@ class TaskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class TimelineEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    project_name: str
+    data: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
 class ForgotPasswordRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
 
