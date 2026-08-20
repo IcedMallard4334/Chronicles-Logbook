@@ -36,6 +36,7 @@ from app.models import User
 from app.security import create_access_token
 from main import app
 
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
     engine = create_async_engine(os.environ["DATABASE_URL"])

@@ -9,11 +9,7 @@ from uuid import UUID
 import jwt
 from fastapi import HTTPException, status
 
-from app.config import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    JWT_ALGORITHM,
-    JWT_SECRET_KEY,
-)
+from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET_KEY
 
 
 _SCRYPT_N = 2**14
