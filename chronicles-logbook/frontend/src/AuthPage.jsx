@@ -15,6 +15,42 @@ function GoogleIcon() {
   )
 }
 
+function AnimatedLines() {
+  return (
+    <div className="auth-animated-lines" aria-hidden="true">
+      <svg className="auth-lines" viewBox="0 0 800 600" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="line-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#6B5BFF" stopOpacity="0.75" />
+            <stop offset="50%" stopColor="#FF6B9D" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#6B5BFF" stopOpacity="0.1" />
+          </linearGradient>
+          <linearGradient id="line-grad-2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#00D4AA" stopOpacity="0.1" />
+            <stop offset="50%" stopColor="#00D4AA" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#4338CA" stopOpacity="0.5" />
+          </linearGradient>
+          <linearGradient id="line-grad-3" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#FF9F43" stopOpacity="0.8" />
+            <stop offset="50%" stopColor="#FF6B9D" stopOpacity="1" />
+            <stop offset="100%" stopColor="#6B5BFF" stopOpacity="0.5" />
+          </linearGradient>
+          <linearGradient id="line-grad-4" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#4338CA" stopOpacity="0.5" />
+            <stop offset="50%" stopColor="#00D4AA" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#FF9F43" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
+        <path className="auth-line line-1" d="M-50,200 C150,100 350,350 550,200 S750,50 900,180" stroke="url(#line-grad-1)" strokeWidth="4" fill="none" />
+        <path className="auth-line line-2" d="M-50,350 C200,450 300,200 500,350 S700,500 900,320" stroke="url(#line-grad-2)" strokeWidth="3.5" fill="none" />
+        <path className="auth-line line-3" d="M-50,100 C100,250 400,50 600,200 S800,350 900,100" stroke="url(#line-grad-3)" strokeWidth="3" fill="none" />
+        <path className="auth-line line-4" d="M-50,480 C200,380 350,520 550,400 S750,300 900,450" stroke="url(#line-grad-4)" strokeWidth="3" fill="none" />
+        <path className="auth-line line-5" d="M-50,50 C250,150 400,30 650,120 S800,200 900,50" stroke="url(#line-grad-1)" strokeWidth="2.5" fill="none" />
+      </svg>
+    </div>
+  )
+}
+
 function AuthPage({ mode }) {
   const isSignUp = mode === "signup"
   const navigate = useNavigate()
@@ -52,8 +88,12 @@ function AuthPage({ mode }) {
   return (
     <main className="auth-shell">
       <section className="auth-intro" aria-labelledby="auth-heading">
+        <AnimatedLines />
         <Link className="auth-brand" to="/">
-          <span className="auth-mark">C</span>
+          <div className="auth-logo-c">
+            <div className="auth-logo-ring" />
+            <span className="auth-logo-letter">C</span>
+          </div>
           <span>Chronicles</span>
         </Link>
         <div className="auth-copy">

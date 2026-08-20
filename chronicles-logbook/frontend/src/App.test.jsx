@@ -57,7 +57,7 @@ describe("App", () => {
     expect(screen.getByText("Chronicles")).toBeInTheDocument()
     await waitFor(() => {
       expect(
-        screen.getByText("Create your first project to start building a custom logbook.")
+        screen.getByText("Your digital logbook for tracking projects, entries, and progress.")
       ).toBeInTheDocument()
     })
   })
@@ -94,11 +94,11 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Create your first project to start building a custom logbook.")
+        screen.getByText("Your digital logbook for tracking projects, entries, and progress.")
       ).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Create project"))
+    fireEvent.click(screen.getByText("Create your first project"))
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "Start a new project" })).toBeInTheDocument()
@@ -126,11 +126,11 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Create your first project to start building a custom logbook.")
+        screen.getByText("Your digital logbook for tracking projects, entries, and progress.")
       ).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Create project"))
+    fireEvent.click(screen.getByText("Create your first project"))
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "Start a new project" })).toBeInTheDocument()
