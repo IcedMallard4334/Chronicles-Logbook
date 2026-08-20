@@ -3,6 +3,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -17,7 +18,12 @@ from app.config import (
     PASSWORD_RESET_EXPIRE_MINUTES,
 )
 from app.database import get_db
-from app.email import send_account_deleted_email, send_password_reset_email
+from app.email import (
+    send_account_created_email,
+    send_account_deleted_email,
+    send_password_changed_email,
+    send_password_reset_email,
+)
 from app.models import PasswordCredential, PasswordResetToken, User
 from app.schemas import (
     AuthResponse,
@@ -35,7 +41,6 @@ from app.security import (
     hash_password_reset_token,
     verify_password,
 )
-from app.email import send_account_deleted_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 bearer = HTTPBearer(auto_error=False)
@@ -131,6 +136,12 @@ async def register_with_password(
     )
     await db.commit()
     await db.refresh(user)
+
+    send_account_created_email(
+        recipient=user.email,
+        full_name=user.full_name,
+    )
+
     return _auth_response(user)
 
 
@@ -243,7 +254,8 @@ async def google_callback(
         return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
 
     user = await db.scalar(select(User).where(User.google_sub == google_sub))
-    if user is None:
+    is_new_user = user is None
+    if is_new_user:
         email_owner = await db.scalar(select(User).where(User.email == email))
         if email_owner is not None:
             error = quote(
@@ -265,6 +277,11 @@ async def google_callback(
 
     await db.commit()
     await db.refresh(user)
+    if is_new_user:
+        send_account_created_email(
+            recipient=user.email,
+            full_name=user.full_name,
+        )
     app_token = quote(create_access_token(user.id))
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={app_token}")
 
@@ -291,7 +308,7 @@ async def delete_account(
     await db.commit()
 
     try:
-        send_account_deleted_email(user.email)
+        send_account_deleted_email(email)
     except Exception as e:
         print(f"Account deletion email failed: {e}")
 
@@ -348,7 +365,10 @@ async def reset_password(
         credential.password_hash = hash_password(request.password)
 
     reset_token.used_at = now
-
     await db.commit()
+    try:
+        send_password_changed_email(user.email)
+    except Exception as e:
+        print(f"Password changed email failed: {e}")
 
     return {"message": "Password reset successfully."}

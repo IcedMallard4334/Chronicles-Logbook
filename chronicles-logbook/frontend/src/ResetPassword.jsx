@@ -14,6 +14,7 @@ function ResetPassword() {
 	const [message, setMessage] = useState("")
 	const [error, setError] = useState("")
 	const [isSubmitting, setIsSubmitting] = useState(false)
+    const [linkInvalid, setLinkInvalid] = useState(false)
 
 	const handleSubmit = async (event) => {
 		event.preventDefault()
@@ -40,12 +41,20 @@ function ResetPassword() {
 				navigate("/")
 			}, 1500)
 		} catch (caught) {
-			setError(
-				caught instanceof Error
-					? caught.message
-					: "Unable to reset your password.",
-			)
-		} finally {
+            const errorMessage =
+                caught instanceof Error
+                    ? caught.message
+                    : "Unable to reset your password."
+
+            setError(errorMessage)
+
+            if (
+                errorMessage === "This password reset token has already been used." ||
+                errorMessage === "Invalid or expired password reset token."
+            ) {
+                setLinkInvalid(true)
+            }
+        }finally {
 			setIsSubmitting(false)
 		}
 	}
@@ -79,6 +88,21 @@ function ResetPassword() {
 					<p className="auth-subtitle">
 						Enter your new password below.
 					</p>
+                    {linkInvalid ? (
+                        <>
+                            <p className="auth-message auth-error" role="alert">
+                                {error === "This password reset token has already been used."
+                                    ? "This password reset link has already been used."
+                                    : "This password reset link has expired."}
+                            </p>
+
+                            <Link className="auth-submit" to="/forgot-password">
+                                Request a new reset link
+                            </Link>
+                        </>
+                    ) : (
+                        <form className="auth-form" onSubmit={handleSubmit}></form>
+                    )}
 
 					<form className="auth-form" onSubmit={handleSubmit}>
 						<label>

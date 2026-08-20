@@ -69,6 +69,27 @@ def send_password_reset_email(
         """,
     )
 
+def send_password_changed_email(recipient: str) -> None:
+    _send_email(
+        recipient=recipient,
+        subject="Your Chronicles password was changed",
+        html="""
+            <h2>Password changed successfully</h2>
+
+            <p>
+                Your Chronicles account password has been successfully changed.
+            </p>
+
+            <p>
+                If you made this change, no further action is required.
+            </p>
+
+            <p>
+                If you did not make this change, please secure your account
+                immediately.
+            </p>
+        """,
+    )
 
 def send_account_deleted_email(recipient: str) -> None:
     _send_email(
@@ -84,6 +105,28 @@ def send_account_deleted_email(recipient: str) -> None:
             <p>
                 If you decide to return, you can create a new account
                 using this email address again.
+            </p>
+        """,
+    )
+
+def send_account_created_email(recipient: str, full_name: str) -> None:
+    _send_email(
+        recipient=recipient,
+        subject="Welcome to Chronicles",
+        html=f"""
+            <h2>Welcome to Chronicles, {full_name}!</h2>
+
+            <p>
+                Your Chronicles account has been successfully created.
+            </p>
+
+            <p>
+                You can now sign in and start keeping track of your
+                projects, progress, and work.
+            </p>
+
+            <p>
+                We're glad to have you here.
             </p>
         """,
     )
