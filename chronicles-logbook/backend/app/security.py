@@ -107,13 +107,9 @@ def decode_access_token(token: str) -> UUID:
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
-
-def create_password_reset_token() -> tuple[str, str]:
-    token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-    return token, token_hash
+def create_password_reset_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
-def hash_reset_token(token: str) -> str:
+def hash_password_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

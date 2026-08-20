@@ -3,12 +3,18 @@
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, unquote, urlparse
 
+import pytest_asyncio
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
-
-from app.models import PasswordCredential, User
+from datetime import datetime, timedelta, timezone
+from app.models import PasswordCredential, User, PasswordResetToken
 from app.routers.auth import oauth
-
+from app.security import (
+    create_password_reset_token,
+    hash_password,
+    hash_password_reset_token,
+    verify_password,
+)
 
 def _token_from_redirect(location: str) -> str:
     fragment = parse_qs(urlparse(location).fragment)
@@ -217,3 +223,216 @@ async def test_authenticated_user_can_delete_account(
 
     assert me.status_code == 401
     assert me.json()["detail"] == "Account no longer exists."
+
+@pytest_asyncio.fixture
+async def password_test_user(db_session):
+    user = User(
+        google_sub="password:test-password-user",
+        full_name="Password User",
+        email="password@example.com",
+        avatar_url=None,
+    )
+
+    db_session.add(user)
+    await db_session.flush()
+
+    credential = PasswordCredential(
+        user_id=user.id,
+        password_hash=hash_password("OldPassword123"),
+    )
+
+    db_session.add(credential)
+
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return user
+
+async def test_forgot_password_creates_reset_token(
+    async_client,
+    db_session,
+    password_test_user,
+    monkeypatch,
+):
+    sent_email = {}
+
+    def fake_send_email(
+        recipient,
+        reset_url,
+    ):
+        sent_email["recipient_email"] = recipient
+        sent_email["reset_url"] = reset_url
+
+    monkeypatch.setattr(
+        "app.routers.auth.send_password_reset_email",
+        fake_send_email,
+    )
+
+    response = await async_client.post(
+        "/auth/forgot-password",
+        json={"email": "password@example.com"},
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.json()["message"]
+        == "If an account exists for this email address, "
+        "a password reset link has been sent."
+    )
+
+    assert sent_email["recipient_email"] == "password@example.com"
+    assert "reset-password?token=" in sent_email["reset_url"]
+
+async def test_forgot_password_does_not_reveal_unknown_email(
+    async_client,
+):
+    response = await async_client.post(
+        "/auth/forgot-password",
+        json={"email": "doesnotexist@example.com"},
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.json()["message"]
+        == "If an account exists for this email address, "
+        "a password reset link has been sent."
+    )
+
+async def test_forgot_password_does_not_reset_google_only_account(
+    async_client,
+    test_user,
+    monkeypatch,
+):
+    called = False
+
+    def fake_send_email(*args, **kwargs):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(
+        "app.routers.auth.send_password_reset_email",
+        fake_send_email,
+    )
+
+    response = await async_client.post(
+        "/auth/forgot-password",
+        json={"email": "test@example.com"},
+    )
+
+    assert response.status_code == 200
+    assert called is False
+
+async def test_reset_password_changes_password(
+    async_client,
+    db_session,
+    password_test_user,
+):
+    raw_token = create_password_reset_token()
+
+    reset_token = PasswordResetToken(
+        user_id=password_test_user.id,
+        token_hash=hash_password_reset_token(raw_token),
+        expires_at=(
+            datetime.now(timezone.utc) + timedelta(minutes=30)
+        ),
+    )
+
+    db_session.add(reset_token)
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/auth/reset-password",
+        json={
+            "token": raw_token,
+            "password": "NewPassword123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password reset successfully."
+
+    credential = await db_session.get(
+        PasswordCredential,
+        password_test_user.id,
+    )
+
+    assert credential is not None
+    assert verify_password("NewPassword123", credential.password_hash)
+    assert not verify_password("OldPassword123", credential.password_hash)
+
+    assert reset_token.used_at is not None
+
+async def test_reset_password_rejects_used_token(
+    async_client,
+    db_session,
+    password_test_user,
+):
+    raw_token = create_password_reset_token()
+
+    reset_token = PasswordResetToken(
+        user_id=password_test_user.id,
+        token_hash=hash_password_reset_token(raw_token),
+        expires_at=(
+            datetime.now(timezone.utc) + timedelta(minutes=30)
+        ),
+        used_at=datetime.now(timezone.utc),
+    )
+
+    db_session.add(reset_token)
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/auth/reset-password",
+        json={
+            "token": raw_token,
+            "password": "NewPassword123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "This password reset token has already been used."
+    )
+
+async def test_reset_password_rejects_invalid_token(async_client):
+    response = await async_client.post(
+        "/auth/reset-password",
+        json={
+            "token": "definitely-not-a-real-token",
+            "password": "NewPassword123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Invalid or expired password reset token."
+    )
+
+async def test_reset_password_rejects_expired_token(
+    async_client,
+    db_session,
+    password_test_user,
+):
+    raw_token = create_password_reset_token()
+
+    reset_token = PasswordResetToken(
+        user_id=password_test_user.id,
+        token_hash=hash_password_reset_token(raw_token),
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+
+    db_session.add(reset_token)
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/auth/reset-password",
+        json={
+            "token": raw_token,
+            "password": "NewPassword123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Invalid or expired password reset token."
+    )

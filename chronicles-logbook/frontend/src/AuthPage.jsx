@@ -174,6 +174,12 @@ function AuthPage({ mode }) {
               />
             </label>
 
+            {!isSignUp && (
+              <div className="auth-forgot-password">
+                <Link to="/forgot-password">Forgot password?</Link>
+              </div>
+            )}
+
             {isSignUp && (
               <label>
                 Confirm password
