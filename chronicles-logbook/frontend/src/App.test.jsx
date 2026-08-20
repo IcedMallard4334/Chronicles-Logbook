@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react"
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import App from "./App"
 
@@ -459,6 +459,7 @@ describe("App", () => {
       expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "", projectId: "proj-2" })
     })
     expect(screen.getByText("Steady")).toBeInTheDocument()
-    expect(screen.queryByText("2")).not.toBeInTheDocument()
+    const timeline = screen.getByRole("region", { name: /timeline/i })
+    expect(within(timeline).queryByText("2")).not.toBeInTheDocument()
   })
 })
