@@ -16,6 +16,7 @@ from app.config import (
     OAUTH_REDIRECT_URI,
 )
 from app.database import get_db
+from app.email import send_account_deleted_email, send_password_reset_email
 from app.models import PasswordCredential, PasswordResetToken, User
 from app.schemas import (
     AuthResponse,
@@ -33,7 +34,6 @@ from app.security import (
     hash_reset_token,
     verify_password,
 )
-from app.email import send_account_deleted_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 bearer = HTTPBearer(auto_error=False)
@@ -256,8 +256,6 @@ async def delete_account(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    email = user.email
-
     await db.execute(
         delete(PasswordCredential).where(
             PasswordCredential.user_id == user.id
@@ -269,7 +267,7 @@ async def delete_account(
 
     try:
         send_account_deleted_email(user.email)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Account deletion email failed: {e}")
 
 @router.post("/reset-password")
