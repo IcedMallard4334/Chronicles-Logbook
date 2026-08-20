@@ -1,14 +1,14 @@
 :root {
   color-scheme: light;
 
-  --bg: #f5f5f5;
+  --bg: #f7f5f0;
   --surface: #ffffff;
-  --surface-soft: #eef0f5;
-  --surface-mauve: #ede8ff;
+  --surface-soft: #f0ede8;
+  --surface-mauve: #f5f2ec;
 
-  --text: #1e293b;
-  --muted: #64748b;
-  --line: #e2e8f0;
+  --text: #1f1f1f;
+  --muted: #6b7280;
+  --line: #e5e2dd;
 
   --blue: #6b5bff;
   --blue-soft: #d0c9ff;
@@ -28,7 +28,12 @@
   --success-soft: #bbf7d0;
   --success-bg: #f0fdf4;
 
-  --shadow: 0 8px 32px rgba(26, 26, 46, 0.08);
+  --shadow: 0 8px 32px rgba(31, 31, 31, 0.06);
+
+  --wave-back: #e8e4db;
+  --wave-mid: #ddd8ce;
+  --wave-front: #d1ccc1;
+  --silhouette: #3a3a3e;
 
   --radius-lg: 16px;
   --radius-md: 12px;
@@ -49,14 +54,14 @@
   :root:not([data-theme]) {
     color-scheme: dark;
 
-    --bg: #1a1a2e;
-    --surface: #16213e;
-    --surface-soft: #1f2b47;
-    --surface-mauve: #2a2350;
+    --bg: #0f0f12;
+    --surface: #1a1a1e;
+    --surface-soft: #252529;
+    --surface-mauve: #2a2a30;
 
-    --text: #e8eaf0;
-    --muted: #94a3b8;
-    --line: #2d3a54;
+    --text: #f5f5f5;
+    --muted: #9ca3af;
+    --line: #2e2e33;
 
     --blue: #8577ff;
     --blue-soft: #3d3572;
@@ -76,21 +81,26 @@
     --success-soft: #1a4730;
     --success-bg: #0d2818;
 
-    --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    --wave-back: #151519;
+    --wave-mid: #1c1c21;
+    --wave-front: #232328;
+    --silhouette: #0c0c10;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #1a1a2e;
-  --surface: #16213e;
-  --surface-soft: #1f2b47;
-  --surface-mauve: #2a2350;
+  --bg: #0f0f12;
+  --surface: #1a1a1e;
+  --surface-soft: #252529;
+  --surface-mauve: #2a2a30;
 
-  --text: #e8eaf0;
-  --muted: #94a3b8;
-  --line: #2d3a54;
+  --text: #f5f5f5;
+  --muted: #9ca3af;
+  --line: #2e2e33;
 
   --blue: #8577ff;
   --blue-soft: #3d3572;
@@ -110,7 +120,12 @@
   --success-soft: #1a4730;
   --success-bg: #0d2818;
 
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --wave-back: #151519;
+  --wave-mid: #1c1c21;
+  --wave-front: #232328;
+  --silhouette: #050508;
 }
 
 * {
