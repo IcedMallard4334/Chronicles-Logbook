@@ -105,60 +105,60 @@ async def test_list_entries(authenticated_client, project_with_schema):
     assert len(data) == 2
 
 
-async def test_search_entries_by_keyword(async_client, project_with_schema):
+async def test_search_entries_by_keyword(authenticated_client, project_with_schema):
     project_id = project_with_schema["id"]
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{project_id}/entries",
         json={"data": {"field-1": 1, "field-2": "first task", "field-3": "Open"}},
     )
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{project_id}/entries",
         json={"data": {"field-1": 2, "field-2": "second task", "field-3": "Closed"}},
     )
 
-    response = await async_client.get("/entries?q=first")
+    response = await authenticated_client.get("/entries?q=first")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert "first" in data[0]["data"]["field-2"].lower()
 
 
-async def test_search_entries_filters_by_project(async_client, project_with_schema):
-    second = await async_client.post(
+async def test_search_entries_filters_by_project(authenticated_client, project_with_schema):
+    second = await authenticated_client.post(
         "/projects",
         json={"name": "Second Project", "entry_schema": []},
     )
     second_id = second.json()["id"]
 
     first_id = project_with_schema["id"]
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{first_id}/entries",
         json={"data": {"field-1": 1, "field-2": "shared note", "field-3": "Open"}},
     )
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{second_id}/entries",
         json={"data": {}},
     )
 
-    response = await async_client.get(f"/entries?project_id={first_id}")
+    response = await authenticated_client.get(f"/entries?project_id={first_id}")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["project_id"] == str(first_id)
 
 
-async def test_search_entries_combined(async_client, project_with_schema):
+async def test_search_entries_combined(authenticated_client, project_with_schema):
     project_id = project_with_schema["id"]
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{project_id}/entries",
         json={"data": {"field-1": 1, "field-2": "alpha note", "field-3": "Open"}},
     )
-    await async_client.post(
+    await authenticated_client.post(
         f"/projects/{project_id}/entries",
         json={"data": {"field-1": 2, "field-2": "beta note", "field-3": "Closed"}},
     )
 
-    response = await async_client.get(f"/entries?q=alpha&project_id={project_id}")
+    response = await authenticated_client.get(f"/entries?q=alpha&project_id={project_id}")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1

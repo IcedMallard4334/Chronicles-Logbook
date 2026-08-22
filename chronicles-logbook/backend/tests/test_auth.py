@@ -73,7 +73,12 @@ async def test_password_registration_and_login(async_client, monkeypatch):
     assert login.json()["user"]["full_name"] == "Ethan Student"
 
 
-async def test_password_login_rejects_wrong_password(async_client):
+async def test_password_login_rejects_wrong_password(async_client, monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.auth.send_account_created_email",
+        lambda *args, **kwargs: None,
+    )
+
     await async_client.post(
         "/auth/register",
         json={
@@ -92,7 +97,12 @@ async def test_password_login_rejects_wrong_password(async_client):
     assert response.json()["detail"] == "Invalid email address or password."
 
 
-async def test_registration_rejects_existing_email(async_client):
+async def test_registration_rejects_existing_email(async_client, monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.auth.send_account_created_email",
+        lambda *args, **kwargs: None,
+    )
+
     registration = {
         "full_name": "Ethan Student",
         "email": "ethan@example.com",
