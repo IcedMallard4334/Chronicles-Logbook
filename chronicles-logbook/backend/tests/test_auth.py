@@ -1,13 +1,14 @@
 """Tests for Google OpenID Connect authentication."""
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, unquote, urlparse
 
 import pytest_asyncio
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
-from datetime import datetime, timedelta, timezone
-from app.models import PasswordCredential, User, PasswordResetToken
+
+from app.models import PasswordCredential, PasswordResetToken, User
 from app.routers.auth import oauth
 from app.security import (
     create_password_reset_token,
@@ -15,6 +16,7 @@ from app.security import (
     hash_password_reset_token,
     verify_password,
 )
+
 
 def _token_from_redirect(location: str) -> str:
     fragment = parse_qs(urlparse(location).fragment)

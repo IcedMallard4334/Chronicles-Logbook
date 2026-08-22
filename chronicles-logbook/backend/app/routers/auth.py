@@ -3,7 +3,6 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -306,8 +305,8 @@ async def delete_account(
     await db.commit()
 
     try:
-        send_account_deleted_email(email)
-    except Exception as e:
+        send_account_deleted_email(user.email)
+    except Exception as e:  # noqa: BLE001
         print(f"Account deletion email failed: {e}")
 
 @router.post("/reset-password")
@@ -366,7 +365,7 @@ async def reset_password(
     await db.commit()
     try:
         send_password_changed_email(user.email)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Password changed email failed: {e}")
 
     return {"message": "Password reset successfully."}
