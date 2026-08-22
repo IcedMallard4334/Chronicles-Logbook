@@ -163,3 +163,93 @@ async def test_search_entries_combined(authenticated_client, project_with_schema
     data = response.json()
     assert len(data) == 1
     assert data[0]["data"]["field-2"] == "alpha note"
+
+async def test_search_entries_pagination(authenticated_client, project_with_schema):
+    project_id = project_with_schema["id"]
+
+    for i in range(5):
+        await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={
+                "data": {
+                    "field-1": i,
+                    "field-2": f"entry {i}",
+                    "field-3": "Open",
+                }
+            },
+        )
+
+    first_page = await authenticated_client.get(
+        "/entries?page=1&page_size=2"
+    )
+    assert first_page.status_code == 200
+
+    first_data = first_page.json()
+    assert len(first_data) == 2
+
+    second_page = await authenticated_client.get(
+        "/entries?page=2&page_size=2"
+    )
+    assert second_page.status_code == 200
+
+    second_data = second_page.json()
+    assert len(second_data) == 2
+
+    first_ids = {entry["id"] for entry in first_data}
+    second_ids = {entry["id"] for entry in second_data}
+
+    assert first_ids.isdisjoint(second_ids)
+
+async def test_search_entries_rejects_invalid_pagination(
+    authenticated_client,
+):
+    response = await authenticated_client.get("/entries?page=0")
+    assert response.status_code == 422
+
+    response = await authenticated_client.get("/entries?page_size=0")
+    assert response.status_code == 422
+
+    response = await authenticated_client.get("/entries?page_size=101")
+    assert response.status_code == 422
+
+async def test_search_entries_returns_newest_first(
+    authenticated_client,
+    project_with_schema,
+):
+    project_id = project_with_schema["id"]
+
+    first = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {
+                "field-1": 1,
+                "field-2": "older entry",
+                "field-3": "Open",
+            }
+        },
+    )
+
+    second = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {
+                "field-1": 2,
+                "field-2": "newer entry",
+                "field-3": "Closed",
+            }
+        },
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    response = await authenticated_client.get(
+        "/entries?page=1&page_size=20"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data[0]["id"] == second.json()["id"]
+    assert data[1]["id"] == first.json()["id"]

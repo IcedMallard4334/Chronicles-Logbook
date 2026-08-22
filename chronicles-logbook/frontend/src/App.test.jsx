@@ -390,7 +390,12 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: "Timeline" })).toBeInTheDocument()
     })
     expect(screen.getByText("Steady")).toBeInTheDocument()
-    expect(fetchEntriesGlobal).toHaveBeenCalledWith({ q: "", projectId: "" })
+    expect(fetchEntriesGlobal).toHaveBeenCalledWith({
+      q: "",
+      projectId: "",
+      page: 1,
+      pageSize: 20,
+    })
   })
 
   it("searches entries by keyword in the timeline", async () => {
@@ -421,7 +426,12 @@ describe("App", () => {
     })
 
     await waitFor(() => {
-      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "Focused", projectId: "" })
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({
+        q: "Focused",
+        projectId: "",
+        page: 1,
+        pageSize: 20,
+      })
     })
     expect(screen.getByText("Focused")).toBeInTheDocument()
   })
@@ -456,7 +466,12 @@ describe("App", () => {
     })
 
     await waitFor(() => {
-      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "", projectId: "proj-2" })
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({
+        q: "",
+        projectId: "proj-2",
+        page: 1,
+        pageSize: 20,
+      })
     })
     expect(screen.getByText("Steady")).toBeInTheDocument()
     const timeline = screen.getByRole("region", { name: /timeline/i })
