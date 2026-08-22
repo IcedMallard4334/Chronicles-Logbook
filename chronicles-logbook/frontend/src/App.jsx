@@ -6,6 +6,7 @@ import {
   createProject,
   deleteAccount,
   fetchEntries,
+  fetchEntriesGlobal,
   fetchProjects,
   unarchiveProject,
   updateProject,
@@ -376,7 +377,7 @@ function AuthActions() {
 }
 
 
-function EmptyState({ onCreate }) {
+function EmptyState({ onCreate, onSeedDemoData }) {
   return (
     <div className="empty-state">
       <div className="empty-state-inner">
@@ -384,9 +385,14 @@ function EmptyState({ onCreate }) {
           <LogoIcon size={72} />
           <h2>Welcome to Chronicles</h2>
           <p>Your digital logbook for tracking projects, entries, and progress.</p>
-          <button type="button" className="btn-primary btn-lg" onClick={onCreate}>
-            Create your first project
-          </button>
+          <div className="empty-actions">
+            <button type="button" className="btn-primary btn-lg" onClick={onCreate}>
+              Create your first project
+            </button>
+            <button type="button" className="btn-secondary btn-lg" onClick={onSeedDemoData}>
+              Load demo data
+            </button>
+          </div>
         </div>
         <div className="empty-features">
           <div className="empty-feature">
@@ -589,13 +595,20 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-function ProjectList({ projects, selectedId, onSelect, onCreate }) {
+function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
   const activeProjects = projects.filter((project) => !project.archived)
   const archivedProjects = projects.filter((project) => project.archived)
 
   return (
     <aside className="sidebar">
+      <button
+        type="button"
+        className={`project-button timeline-button ${timelineActive ? "active" : ""}`}
+        onClick={onShowTimeline}
+      >
+        Timeline
+      </button>
       <div className="sidebar-head">
         <h2>Projects</h2>
         <button
@@ -666,6 +679,277 @@ function ProjectList({ projects, selectedId, onSelect, onCreate }) {
         </>
       )}
     </aside>
+  )
+}
+
+function DashboardPanel({ projects, onCreate }) {
+  const activeProjects = projects.filter((p) => !p.archived)
+  const totalEntries = projects.reduce((sum, p) => sum + (p.entries?.length || 0), 0)
+  const recentEntries = projects
+    .flatMap((p) =>
+      (p.entries || []).map((entry) => ({
+        ...entry,
+        projectName: p.name,
+        projectId: p.id,
+      }))
+    )
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 4)
+
+  const stats = [
+    { label: "Active projects", value: activeProjects.length, icon: "layers" },
+    { label: "Entries logged", value: totalEntries, icon: "file-text" },
+    { label: "Tasks due", value: "—", icon: "check-circle" },
+    { label: "Day streak", value: "—", icon: "trending-up" },
+  ]
+
+  const icons = {
+    layers: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+      </svg>
+    ),
+    "file-text": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+    ),
+    "check-circle": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+    ),
+    "trending-up": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+      </svg>
+    ),
+  }
+
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now - date
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    if (diffMins < 1) return "just now"
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
+  return (
+    <aside className="sidebar dashboard-panel" aria-label="Dashboard overview">
+      <div className="sidebar-head">
+        <h2>Overview</h2>
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={onCreate}
+          aria-label="Create project"
+          title="Create project"
+        >
+          +
+        </button>
+      </div>
+
+      <div className="stats-grid">
+        {stats.map((stat) => (
+          <div key={stat.label} className="stat-card">
+            <div className="stat-icon">{icons[stat.icon]}</div>
+            <div className="stat-body">
+              <span className="stat-value">{stat.value}</span>
+              <span className="stat-label">{stat.label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="dashboard-section">
+        <h3>Recent activity</h3>
+        {recentEntries.length === 0 ? (
+          <p className="dashboard-empty">No entries yet. Create a project and log your first entry.</p>
+        ) : (
+          <ul className="activity-list" role="list">
+            {recentEntries.map((entry) => (
+              <li key={`${entry.projectId}-${entry.id}`} className="activity-item">
+                <div className="activity-dot" />
+                <div className="activity-body">
+                  <span className="activity-title">{entry.projectName}</span>
+                  <span className="activity-meta">{formatTimeAgo(entry.created_at)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="dashboard-section">
+        <h3>Upcoming deadlines</h3>
+        <div className="deadline-item">
+          <div className="deadline-dot" />
+          <div className="deadline-body">
+            <span className="deadline-title">Tasks & deadlines</span>
+            <span className="deadline-meta">Coming soon</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function CalendarView({ projects }) {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+  const monthName = currentDate.toLocaleString("default", { month: "long" })
+  const firstDayOfMonth = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date()
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
+  const goToToday = () => {
+    const now = new Date()
+    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1))
+    setSelectedDate(now)
+  }
+
+  const isToday = (day) =>
+    day === today.getDate() &&
+    month === today.getMonth() &&
+    year === today.getFullYear()
+
+  const isSelected = (day) =>
+    day === selectedDate.getDate() &&
+    month === selectedDate.getMonth() &&
+    year === selectedDate.getFullYear()
+
+  const days = []
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    days.push(null)
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(i)
+  }
+
+  const weekDays = ["S", "M", "T", "W", "T", "F", "S"]
+
+  const entriesByDate = useMemo(() => {
+    const map = new Map()
+    projects.forEach((project) => {
+      (project.entries || []).forEach((entry) => {
+        const dateKey = new Date(entry.created_at).toISOString().split("T")[0]
+        if (!map.has(dateKey)) map.set(dateKey, [])
+        map.get(dateKey).push({ ...entry, projectName: project.name })
+      })
+    })
+    return map
+  }, [projects])
+
+  const selectedKey = selectedDate.toISOString().split("T")[0]
+  const selectedEntries = entriesByDate.get(selectedKey) || []
+
+  return (
+    <div className="project-detail calendar-view">
+      <div className="calendar-layout">
+        <div className="calendar-main">
+          <div className="calendar-header">
+            <div className="calendar-title">
+              <h2>{monthName} <span className="calendar-year">{year}</span></h2>
+              <p className="calendar-subtitle">Select a date to see your entries</p>
+            </div>
+            <div className="calendar-controls">
+              <button type="button" className="btn-text calendar-today" onClick={goToToday}>
+                Today
+              </button>
+              <button type="button" className="btn-icon" onClick={prevMonth} aria-label="Previous month">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button type="button" className="btn-icon" onClick={nextMonth} aria-label="Next month">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="calendar-body">
+            <div className="calendar-weekdays">
+              {weekDays.map((day, i) => (
+                <div key={i} className="calendar-weekday">{day}</div>
+              ))}
+            </div>
+            <div className="calendar-grid">
+              {days.map((day, index) => {
+                const key = day ? new Date(year, month, day).toISOString().split("T")[0] : null
+                const entries = key ? entriesByDate.get(key) || [] : []
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""}`}
+                    onClick={() => day && setSelectedDate(new Date(year, month, day))}
+                    disabled={!day}
+                  >
+                    <span className="day-number">{day}</span>
+                    {entries.length > 0 && (
+                      <span className="calendar-dots">
+                        {entries.slice(0, 3).map((_, i) => (
+                          <span key={i} className="calendar-dot" />
+                        ))}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        <aside className="calendar-side" aria-label="Selected date details">
+          <div className="calendar-side-head">
+            <h3>{selectedDate.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric" })}</h3>
+            <span className={`day-badge ${isToday(selectedDate.getDate()) && selectedDate.getMonth() === today.getMonth() && selectedDate.getFullYear() === today.getFullYear() ? "today" : ""}`}>
+              {selectedDate.toLocaleDateString("default", { month: "short", day: "numeric" })}
+            </span>
+          </div>
+          <div className="calendar-side-body">
+            {selectedEntries.length === 0 ? (
+              <div className="calendar-side-empty">
+                <p>No entries logged for this day.</p>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => {}}>
+                  Log an entry
+                </button>
+              </div>
+            ) : (
+              <ul className="calendar-entry-list" role="list">
+                {selectedEntries.map((entry) => (
+                  <li key={entry.id} className="calendar-entry-item">
+                    <div className="calendar-entry-dot" />
+                    <div className="calendar-entry-body">
+                      <span className="calendar-entry-project">{entry.projectName}</span>
+                      <span className="calendar-entry-time">{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
   )
 }
 
@@ -965,6 +1249,113 @@ function EntryList({ entries, schema }) {
   )
 }
 
+function Timeline({ projects }) {
+  const [entries, setEntries] = useState([])
+  const [q, setQ] = useState("")
+  const [projectId, setProjectId] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchEntriesGlobal({ q, projectId })
+        if (!cancelled) setEntries(data)
+      } catch (err) {
+        if (!cancelled) setError(formatError(err))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [q, projectId])
+
+  const schemaByProject = useMemo(() => {
+    const map = {}
+    for (const project of projects) {
+      map[project.id] = project.entry_schema || []
+    }
+    return map
+  }, [projects])
+
+  const getFieldName = (entryProjectId, fieldId) => {
+    const schema = schemaByProject[entryProjectId] || []
+    const field = schema.find((f) => f.id === fieldId)
+    return field?.name || fieldId
+  }
+
+  return (
+    <section className="timeline" aria-label="Timeline">
+      <header className="timeline-header">
+        <h2>Timeline</h2>
+        <p>Search across all entries and filter by project.</p>
+      </header>
+      <div className="timeline-filters">
+        <label className="field-label">
+          Search
+          <input
+            type="text"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+            placeholder="Search entries…"
+            aria-label="Search entries"
+          />
+        </label>
+        <label className="field-label">
+          Project
+          <select
+            value={projectId}
+            onChange={(event) => setProjectId(event.target.value)}
+            aria-label="Filter by project"
+          >
+            <option value="">All projects</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      {loading ? (
+        <p className="hint">Loading…</p>
+      ) : entries.length === 0 ? (
+        <p className="hint">No entries found.</p>
+      ) : (
+        <ul className="timeline-list" role="list">
+          {entries.map((entry) => (
+            <li key={entry.id} className="timeline-row">
+              <div className="timeline-meta">
+                <span className="timeline-project">{entry.project_name}</span>
+                <span className="timeline-time">
+                  {new Date(entry.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="timeline-fields">
+                {Object.entries(entry.data).map(([fieldId, value]) => (
+                  <div key={fieldId} className="timeline-field">
+                    <span className="timeline-label">
+                      {getFieldName(entry.project_id, fieldId)}
+                    </span>
+                    <span className="timeline-value">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function ProjectDetail({
   project,
   onSchemaSaved,
@@ -1062,13 +1453,100 @@ function ProjectDetail({
   )
 }
 
+async function seedDemoData() {
+  const demoProjects = [
+    { name: "Field Notes", description: "Daily observations and quick captures" },
+    { name: "Thesis Research", description: "Literature review and experiment logs" },
+    { name: "Side Project", description: "UI experiments and design iterations" },
+  ]
+
+  const created = []
+  for (const project of demoProjects) {
+    const p = await createProject({ ...project, entry_schema: [] })
+    created.push(p)
+  }
+
+  const now = new Date()
+  let entryId = 1
+  const projectsWithEntries = created.map((project, projectIndex) => {
+    const offsets = [-14, -10, -7, -5, -3, -2, -1, 0]
+    const projectEntries = offsets
+      .filter((_, i) => projectIndex !== 2 || i < 5)
+      .map((offset, i) => {
+        const date = new Date(now)
+        date.setDate(date.getDate() + offset)
+        date.setHours(9 + ((i + projectIndex * 3) % 10), ((i * 13) % 60), 0, 0)
+        return {
+          id: `demo-entry-${entryId++}`,
+          project_id: project.id,
+          data: {},
+          created_at: date.toISOString(),
+        }
+      })
+    return { ...project, entries: projectEntries }
+  })
+
+  return projectsWithEntries
+}
+
+function TodayPanel({ projects, selectedProject, onCreateProject, onViewCalendar }) {
+  const today = new Date()
+  const todayKey = today.toISOString().split("T")[0]
+  const todayEntries = projects.flatMap((p) =>
+    (p.entries || []).filter((e) => e.created_at.startsWith(todayKey))
+  )
+  const entryCount = todayEntries.length
+
+  const handleQuickLog = () => {
+    if (selectedProject) {
+      document.getElementById("entry-quick-note")?.focus()
+    } else {
+      onCreateProject()
+    }
+  }
+
+  return (
+    <div className="today-panel">
+      <div className="today-main">
+        <div className="today-date-block">
+          <span className="today-day">{today.toLocaleDateString("default", { weekday: "long" })}</span>
+          <span className="today-date">{today.toLocaleDateString("default", { day: "numeric", month: "long" })}</span>
+        </div>
+        <div className="today-summary">
+          <h2>{entryCount === 0 ? "Start today's log" : `${entryCount} entr${entryCount === 1 ? "y" : "ies"} today`}</h2>
+          <p>{entryCount === 0 ? "Capture what you're working on while it's fresh." : "Keep the momentum going."}</p>
+        </div>
+      </div>
+      <div className="today-actions">
+        <button type="button" className="btn-primary" onClick={handleQuickLog}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {selectedProject ? "Log today's entry" : "Create a project"}
+        </button>
+        <button type="button" className="btn-secondary" onClick={onViewCalendar}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          View calendar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const [view, setView] = useState("project")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [currentView, setCurrentView] = useState("home")
 
   const loadProjects = useCallback(async () => {
     try {
@@ -1094,8 +1572,34 @@ function App() {
     try {
       const project = await createProject({ name, description, entry_schema: [] })
       setProjects((prev) => [...prev, project])
+      setView("project")
       setSelectedId(project.id)
       setIsModalOpen(false)
+    } catch (err) {
+      setError(formatError(err))
+    }
+  }
+
+  const handleSelectProject = (id) => {
+    setView("project")
+    setSelectedId(id)
+    setCurrentView("home")
+  }
+
+  const handleShowTimeline = () => {
+    setView("timeline")
+    setSelectedId(null)
+    setCurrentView("home")
+  }
+
+  const handleSeedDemoData = async () => {
+    try {
+      const data = await seedDemoData()
+      setProjects(data)
+      if (data.length > 0) {
+        setSelectedId(data[0].id)
+        setView("project")
+      }
     } catch (err) {
       setError(formatError(err))
     }
@@ -1164,9 +1668,52 @@ function App() {
   return (
     <div className="app-shell">
       <div className="app-bg-dynamic" aria-hidden="true">
-        <div className="app-bg-blob blob-1" />
-        <div className="app-bg-blob blob-2" />
-        <div className="app-bg-blob blob-3" />
+        <div className="app-bg-sky" />
+        <div className="app-bg-waves">
+          <svg className="wave wave-back" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
+          </svg>
+          <svg className="wave wave-mid" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path d="M0,256L48,245.3C96,235,192,213,288,202.7C384,192,480,192,576,208C672,224,768,256,864,261.3C960,267,1056,245,1152,229.3C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
+          </svg>
+          <svg className="wave wave-silhouettes" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <g className="silhouette-scene">
+              {/* Person sitting with book */}
+              <g transform="translate(260, 208) scale(0.6)">
+                <circle cx="12" cy="8" r="6" />
+                <path d="M6,16 Q0,32 8,42 L24,42 Q32,32 26,16 Z" />
+                <path d="M8,42 L6,58 M22,42 L24,58" />
+                <rect x="14" y="24" width="16" height="10" rx="1" transform="rotate(-15 22 29)" />
+              </g>
+              {/* Person standing pointing */}
+              <g transform="translate(560, 196) scale(0.65)">
+                <circle cx="12" cy="8" r="6" />
+                <path d="M6,16 L6,44 L18,44 L18,16 Z" />
+                <path d="M6,22 L-2,14 L-2,20 L6,26 Z" />
+                <path d="M18,22 L28,18" />
+                <path d="M8,44 L5,62 M16,44 L19,62" />
+              </g>
+              {/* Child playing / running */}
+              <g transform="translate(860, 215) scale(0.45)">
+                <circle cx="12" cy="8" r="6" />
+                <path d="M6,16 L8,38 L18,36 L16,16 Z" />
+                <path d="M8,24 L-2,22 L-4,30 L6,32 Z" />
+                <path d="M16,24 L26,20 L28,28 L18,30 Z" />
+                <path d="M8,38 L4,54 M18,36 L22,52" />
+              </g>
+              {/* Person with raised arms celebrating / planning */}
+              <g transform="translate(1120, 188) scale(0.7)">
+                <circle cx="12" cy="10" r="6" />
+                <path d="M6,18 L6,46 L18,46 L18,18 Z" />
+                <path d="M6,22 L-2,8 M18,22 L26,8" />
+                <path d="M8,46 L6,64 M16,46 L18,64" />
+              </g>
+            </g>
+          </svg>
+          <svg className="wave wave-front" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path d="M0,288L48,282.7C96,277,192,267,288,245.3C384,224,480,192,576,197.3C672,203,768,245,864,261.3C960,277,1056,267,1152,250.7C1248,235,1344,213,1392,202.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
+          </svg>
+        </div>
         <div className="app-bg-grid" />
       </div>
       <header className="topbar">
@@ -1176,14 +1723,22 @@ function App() {
             <span className="brand-name">Chronicles</span>
           </div>
           <div className="nav-pill-center">
-            <button type="button" className="nav-item active">
+            <button
+              type="button"
+              className={`nav-item ${currentView === "home" ? "active" : ""}`}
+              onClick={() => setCurrentView("home")}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
               <span>Home</span>
             </button>
-            <button type="button" className="nav-item">
+            <button
+              type="button"
+              className={`nav-item ${currentView === "entries" ? "active" : ""}`}
+              onClick={() => setCurrentView("entries")}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
@@ -1192,14 +1747,22 @@ function App() {
               </svg>
               <span>Entries</span>
             </button>
-            <button type="button" className="nav-item">
+            <button
+              type="button"
+              className={`nav-item ${currentView === "tasks" ? "active" : ""}`}
+              onClick={() => setCurrentView("tasks")}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
               </svg>
               <span>Tasks</span>
             </button>
-            <button type="button" className="nav-item">
+            <button
+              type="button"
+              className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
+              onClick={() => setCurrentView("calendar")}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
@@ -1223,15 +1786,47 @@ function App() {
             </button>
           </div>
         )}
-        <ProjectList
-          projects={projects}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onCreate={() => setIsModalOpen(true)}
-        />
+        <div className="sidebar-stack">
+          <ProjectList
+            projects={projects}
+            selectedId={selectedId}
+            onSelect={handleSelectProject}
+            onCreate={() => setIsModalOpen(true)}
+            onShowTimeline={handleShowTimeline}
+            timelineActive={view === "timeline"}
+          />
+          <DashboardPanel
+            projects={projects}
+            onCreate={() => setIsModalOpen(true)}
+          />
+        </div>
         <div className="content">
           {loading ? (
             <p className="hint">Loading…</p>
+          ) : currentView === "calendar" ? (
+            <CalendarView projects={projects} />
+          ) : currentView === "tasks" ? (
+            <div className="project-detail">
+              <div className="detail-header">
+                <h2>Tasks</h2>
+                <p className="detail-description">Your tasks and deadlines will appear here.</p>
+              </div>
+              <div className="detail-body">
+                <p className="hint">Task management coming soon.</p>
+              </div>
+            </div>
+          ) : currentView === "entries" ? (
+            <div className="project-detail">
+              <div className="detail-header">
+                <h2>All entries</h2>
+                <p className="detail-description">Browse and search across all your logbook entries.</p>
+              </div>
+              <div className="detail-body">
+                <p className="hint">Global entry view coming soon.</p>
+              </div>
+            </div>
+          ) : view === "timeline" ? (
+            <Timeline projects={projects} />
           ) : selectedProject ? (
             <ProjectDetail
               key={selectedProject.id}
@@ -1242,7 +1837,29 @@ function App() {
               onToggleArchive={handleToggleArchive}
             />
           ) : (
-            <EmptyState onCreate={() => setIsModalOpen(true)} />
+            <>
+              <TodayPanel
+                projects={projects}
+                selectedProject={selectedProject}
+                onCreateProject={() => setIsModalOpen(true)}
+                onViewCalendar={() => setCurrentView("calendar")}
+              />
+              {selectedProject ? (
+                <ProjectDetail
+                  key={selectedProject.id}
+                  project={selectedProject}
+                  onSchemaSaved={handleProjectUpdate}
+                  onEntryCreated={handleEntryCreated}
+                  onEditProject={() => setIsEditModalOpen(true)}
+                  onToggleArchive={handleToggleArchive}
+                />
+              ) : (
+                <EmptyState
+                  onCreate={() => setIsModalOpen(true)}
+                  onSeedDemoData={handleSeedDemoData}
+                />
+              )}
+            </>
           )}
         </div>
       </main>

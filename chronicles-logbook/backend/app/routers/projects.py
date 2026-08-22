@@ -91,8 +91,8 @@ async def _get_user_project(
 
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     result = await db.execute(
         select(Project).where(Project.user_id == user.id)
@@ -104,8 +104,8 @@ async def list_projects(
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     data: ProjectCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     project = Project(
         user_id=user.id,
@@ -122,8 +122,8 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     return await _get_user_project(project_id, user, db)
 
@@ -132,8 +132,8 @@ async def get_project(
 async def update_project(
     project_id: UUID,
     data: ProjectUpdate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     project = await _get_user_project(project_id, user, db)
 
@@ -154,8 +154,8 @@ async def update_project(
 @router.post("/{project_id}/archive", response_model=ProjectResponse)
 async def archive_project(
     project_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     project = await _get_user_project(project_id, user, db)
 
@@ -170,8 +170,8 @@ async def archive_project(
 @router.post("/{project_id}/unarchive", response_model=ProjectResponse)
 async def unarchive_project(
     project_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     project = await _get_user_project(project_id, user, db)
 
@@ -191,8 +191,8 @@ async def unarchive_project(
 async def create_entry(
     project_id: UUID,
     data: EntryCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     project = await _get_user_project(project_id, user, db)
 
@@ -220,8 +220,8 @@ async def create_entry(
 @router.get("/{project_id}/entries", response_model=list[EntryResponse])
 async def list_entries(
     project_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     await _get_user_project(project_id, user, db)
 

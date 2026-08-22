@@ -296,8 +296,6 @@ async def delete_account(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    email = user.email
-
     await db.execute(
         delete(PasswordCredential).where(
             PasswordCredential.user_id == user.id

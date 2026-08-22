@@ -4,6 +4,7 @@ import {
   createProject,
   deleteAccount,
   fetchCurrentUser,
+  fetchEntriesGlobal,
   fetchProjects,
   getGoogleLoginUrl,
   registerWithPassword,
@@ -78,6 +79,41 @@ describe("api", () => {
       }
     )
     expect(result).toEqual(entry)
+  })
+
+  it("fetches entries globally without filters", async () => {
+    const entries = [{ id: "entry-1", data: { hours: 2 } }]
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => entries,
+    })
+
+    const result = await fetchEntriesGlobal()
+
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/entries", {
+      headers: { "Content-Type": "application/json" },
+    })
+    expect(result).toEqual(entries)
+  })
+
+  it("fetches entries globally with search and project filters", async () => {
+    const entries = [{ id: "entry-1", data: { hours: 2 } }]
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => entries,
+    })
+
+    const result = await fetchEntriesGlobal({ q: "notes", projectId: "proj-1" })
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/entries?q=notes&project_id=proj-1",
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    )
+    expect(result).toEqual(entries)
   })
 
   it("builds the Google login URL", () => {

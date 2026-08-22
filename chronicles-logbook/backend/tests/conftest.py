@@ -32,9 +32,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.database import Base, get_db
-from main import app
 from app.models import User
 from app.security import create_access_token
+from main import app
+
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
