@@ -98,6 +98,23 @@ export async function signInWithPassword(credentials) {
   })
 }
 
+export async function requestPasswordReset(email) {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function resetPassword(token, password) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      token,
+      password,
+    }),
+  })
+}
+
 export async function fetchCurrentUser() {
   return request("/auth/me")
 }
@@ -138,3 +155,5 @@ export async function deleteTask(projectId, taskId) {
     method: "DELETE",
   })
 }
+
+

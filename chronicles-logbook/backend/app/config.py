@@ -54,9 +54,38 @@ SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", JWT_SECRET_KEY)
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"
 
-PASSWORD_RESET_EXPIRE_MINUTES = int(
-    os.environ.get("PASSWORD_RESET_EXPIRE_MINUTES", "30")
+BREVO_SMTP_HOST = os.environ.get(
+    "BREVO_SMTP_HOST",
+    "smtp-relay.brevo.com",
 )
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-EMAIL_FROM = os.getenv("EMAIL_FROM")
+BREVO_SMTP_PORT = int(
+    os.environ.get("BREVO_SMTP_PORT", "587")
+)
+
+BREVO_SMTP_USERNAME = os.environ.get(
+    "BREVO_SMTP_USERNAME",
+    "",
+)
+
+BREVO_SMTP_PASSWORD = os.environ.get(
+    "BREVO_SMTP_PASSWORD",
+    "",
+)
+
+MAIL_FROM = os.environ.get(
+    "MAIL_FROM",
+    "",
+)
+
+MAIL_FROM_NAME = os.environ.get(
+    "MAIL_FROM_NAME",
+    "Chronicles",
+)
+
+PASSWORD_RESET_EXPIRE_MINUTES = int(
+    os.environ.get(
+        "PASSWORD_RESET_EXPIRE_MINUTES",
+        "60",
+    )
+)

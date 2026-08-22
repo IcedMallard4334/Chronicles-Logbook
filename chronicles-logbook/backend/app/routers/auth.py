@@ -3,6 +3,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -14,9 +15,15 @@ from app.config import (
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     OAUTH_REDIRECT_URI,
+    PASSWORD_RESET_EXPIRE_MINUTES,
 )
 from app.database import get_db
-from app.email import send_account_deleted_email, send_password_reset_email
+from app.email import (
+    send_account_created_email,
+    send_account_deleted_email,
+    send_password_changed_email,
+    send_password_reset_email,
+)
 from app.models import PasswordCredential, PasswordResetToken, User
 from app.schemas import (
     AuthResponse,
@@ -31,7 +38,7 @@ from app.security import (
     create_password_reset_token,
     decode_access_token,
     hash_password,
-    hash_reset_token,
+    hash_password_reset_token,
     verify_password,
 )
 
@@ -129,6 +136,12 @@ async def register_with_password(
     )
     await db.commit()
     await db.refresh(user)
+
+    send_account_created_email(
+        recipient=user.email,
+        full_name=user.full_name,
+    )
+
     return _auth_response(user)
 
 
@@ -165,7 +178,21 @@ async def forgot_password(
     # Do not reveal whether an email address belongs to an account.
     if user is None:
         return {
-            "message": "If an account with that email exists, a password reset link has been sent."
+            "message": (
+                "If an account exists for this email address, "
+                "a password reset link has been sent."
+            )
+        }
+
+    # Only password-based accounts should receive password reset emails.
+    credential = await db.get(PasswordCredential, user.id)
+
+    if credential is None:
+        return {
+            "message": (
+                "If an account exists for this email address, "
+                "a password reset link has been sent."
+            )
         }
 
     # Remove any existing reset tokens for this user.
@@ -175,12 +202,16 @@ async def forgot_password(
         )
     )
 
-    raw_token, token_hash = create_password_reset_token()
+    raw_token = create_password_reset_token()
+    token_hash = hash_password_reset_token(raw_token)
 
     reset_token = PasswordResetToken(
         user_id=user.id,
         token_hash=token_hash,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        expires_at=(
+            datetime.now(timezone.utc)
+            + timedelta(minutes=PASSWORD_RESET_EXPIRE_MINUTES)
+        ),
     )
 
     db.add(reset_token)
@@ -190,11 +221,14 @@ async def forgot_password(
 
     send_password_reset_email(
         recipient=user.email,
-        reset_url=reset_url
+        reset_url=reset_url,
     )
 
     return {
-        "message": "If an account with that email exists, a password reset link has been sent."
+        "message": (
+            "If an account exists for this email address, "
+            "a password reset link has been sent."
+        )
     }
 
 @router.get("/google/callback")
@@ -220,7 +254,8 @@ async def google_callback(
         return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
 
     user = await db.scalar(select(User).where(User.google_sub == google_sub))
-    if user is None:
+    is_new_user = user is None
+    if is_new_user:
         email_owner = await db.scalar(select(User).where(User.email == email))
         if email_owner is not None:
             error = quote(
@@ -242,6 +277,11 @@ async def google_callback(
 
     await db.commit()
     await db.refresh(user)
+    if is_new_user:
+        send_account_created_email(
+            recipient=user.email,
+            full_name=user.full_name,
+        )
     app_token = quote(create_access_token(user.id))
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={app_token}")
 
@@ -266,8 +306,8 @@ async def delete_account(
     await db.commit()
 
     try:
-        send_account_deleted_email(user.email)
-    except Exception as e:  # noqa: BLE001
+        send_account_deleted_email(email)
+    except Exception as e:
         print(f"Account deletion email failed: {e}")
 
 @router.post("/reset-password")
@@ -275,7 +315,7 @@ async def reset_password(
     request: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    token_hash = hash_reset_token(request.token)
+    token_hash = hash_password_reset_token(request.token)
 
     result = await db.execute(
         select(PasswordResetToken)
@@ -323,7 +363,10 @@ async def reset_password(
         credential.password_hash = hash_password(request.password)
 
     reset_token.used_at = now
-
     await db.commit()
+    try:
+        send_password_changed_email(user.email)
+    except Exception as e:
+        print(f"Password changed email failed: {e}")
 
     return {"message": "Password reset successfully."}
