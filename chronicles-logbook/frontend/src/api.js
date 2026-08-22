@@ -65,14 +65,23 @@ export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }
 
-export async function fetchEntriesGlobal({ q, projectId } = {}) {
+export async function fetchEntriesGlobal({
+  q,
+  projectId,
+  page = 1,
+  pageSize = 20,
+} = {}) {
   const params = new URLSearchParams()
+
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
-  const query = params.toString()
-  return request(`/entries${query ? `?${query}` : ""}`)
-}
 
+  params.append("page", page)
+  params.append("page_size", pageSize)
+
+  const query = params.toString()
+  return request(`/entries?${query}`)
+}
 export async function createEntry(projectId, data) {
   return request(`/projects/${projectId}/entries`, {
     method: "POST",

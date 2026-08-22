@@ -1253,28 +1253,48 @@ function Timeline({ projects }) {
   const [entries, setEntries] = useState([])
   const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
+  const [page, setPage] = useState(1)
+  const [hasNextPage, setHasNextPage] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    setPage(1)
+    setHasNextPage(true)
+  }, [q, projectId])
+
+  useEffect(() => {
     let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
+
       try {
-        const data = await fetchEntriesGlobal({ q, projectId })
-        if (!cancelled) setEntries(data)
+        const data = await fetchEntriesGlobal({
+          q,
+          projectId,
+          page,
+          pageSize: 20,
+        })
+
+        if (!cancelled) {
+          setEntries(data)
+          setHasNextPage(data.length === 20)
+        }
       } catch (err) {
         if (!cancelled) setError(formatError(err))
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
+
     load()
+
     return () => {
       cancelled = true
     }
-  }, [q, projectId])
+  }, [q, projectId, page])
 
   const schemaByProject = useMemo(() => {
     const map = {}
@@ -1323,34 +1343,64 @@ function Timeline({ projects }) {
           </select>
         </label>
       </div>
-      {error && <p className="error" role="alert">{error}</p>}
+            {error && <p className="error" role="alert">{error}</p>}
+
       {loading ? (
         <p className="hint">Loading…</p>
       ) : entries.length === 0 ? (
         <p className="hint">No entries found.</p>
       ) : (
-        <ul className="timeline-list" role="list">
-          {entries.map((entry) => (
-            <li key={entry.id} className="timeline-row">
-              <div className="timeline-meta">
-                <span className="timeline-project">{entry.project_name}</span>
-                <span className="timeline-time">
-                  {new Date(entry.created_at).toLocaleString()}
-                </span>
-              </div>
-              <div className="timeline-fields">
-                {Object.entries(entry.data).map(([fieldId, value]) => (
-                  <div key={fieldId} className="timeline-field">
-                    <span className="timeline-label">
-                      {getFieldName(entry.project_id, fieldId)}
-                    </span>
-                    <span className="timeline-value">{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="timeline-list" role="list">
+            {entries.map((entry) => (
+              <li key={entry.id} className="timeline-row">
+                <div className="timeline-meta">
+                  <span className="timeline-project">
+                    {entry.project_name}
+                  </span>
+                  <span className="timeline-time">
+                    {new Date(entry.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="timeline-fields">
+                  {Object.entries(entry.data).map(([fieldId, value]) => (
+                    <div key={fieldId} className="timeline-field">
+                      <span className="timeline-label">
+                        {getFieldName(entry.project_id, fieldId)}
+                      </span>
+                      <span className="timeline-value">
+                        {String(value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="timeline-pagination">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page === 1 || loading}
+            >
+              Previous
+            </button>
+
+            <span>Page {page}</span>
+
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setPage((current) => current + 1)}
+              disabled={!hasNextPage || loading}
+            >
+              Next
+            </button>
+          </div>
+        </>
       )}
     </section>
   )

@@ -91,9 +91,12 @@ describe("api", () => {
 
     const result = await fetchEntriesGlobal()
 
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/entries", {
-      headers: { "Content-Type": "application/json" },
-    })
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/entries?page=1&page_size=20",
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    )
     expect(result).toEqual(entries)
   })
 
@@ -105,10 +108,15 @@ describe("api", () => {
       json: async () => entries,
     })
 
-    const result = await fetchEntriesGlobal({ q: "notes", projectId: "proj-1" })
+    const result = await fetchEntriesGlobal({
+      q: "notes",
+      projectId: "proj-1",
+      page: 2,
+      pageSize: 10,
+    })
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/entries?q=notes&project_id=proj-1",
+      "http://localhost:8000/entries?q=notes&project_id=proj-1&page=2&page_size=10",
       {
         headers: { "Content-Type": "application/json" },
       }
