@@ -230,6 +230,11 @@ async def test_me_requires_authentication(async_client):
 async def test_authenticated_user_can_delete_account(
     async_client, db_session, monkeypatch
 ):
+    monkeypatch.setattr(
+        "app.routers.auth.send_account_created_email",
+        lambda *args, **kwargs: None,
+    )
+
     sent_email = {}
 
     def fake_send_email(recipient):
