@@ -641,9 +641,11 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
           ) : (
             <ul className="project-list" role="listbox" aria-label="Projects">
               {activeProjects.map((project) => (
-                <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                <li key={project.id}>
                   <button
                     type="button"
+                    role="option"
+                    aria-selected={project.id === selectedId}
                     className={`project-button ${project.id === selectedId ? "active" : ""}`}
                     onClick={() => onSelect(project.id)}
                   >
@@ -670,9 +672,11 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                   aria-label="Archived projects"
                 >
                   {archivedProjects.map((project) => (
-                    <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                    <li key={project.id}>
                       <button
                         type="button"
+                        role="option"
+                        aria-selected={project.id === selectedId}
                         className={`project-button archived ${
                           project.id === selectedId ? "active" : ""
                         }`}
@@ -1676,6 +1680,18 @@ function App() {
     [projects, selectedId]
   )
 
+  const firstActiveProjectId = useMemo(
+    () => projects.find((project) => !project.archived)?.id || null,
+    [projects]
+  )
+
+  useEffect(() => {
+    if (selectedId) return
+    if (firstActiveProjectId && currentView === "home" && view !== "timeline") {
+      setSelectedId(firstActiveProjectId)
+    }
+  }, [selectedId, firstActiveProjectId, currentView, view])
+
   const handleCreateProject = async ({ name, description }) => {
     try {
       const project = await createProject({ name, description, entry_schema: [] })
@@ -1698,6 +1714,14 @@ function App() {
     setView("timeline")
     setSelectedId(null)
     setCurrentView("home")
+  }
+
+  const handleShowHome = () => {
+    setCurrentView("home")
+    setView("project")
+    if (!selectedId && firstActiveProjectId) {
+      setSelectedId(firstActiveProjectId)
+    }
   }
 
   const handleSeedDemoData = async () => {
@@ -1839,7 +1863,7 @@ function App() {
             <button
               type="button"
               className={`nav-item ${currentView === "home" ? "active" : ""}`}
-              onClick={() => setCurrentView("home")}
+              onClick={handleShowHome}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1919,25 +1943,49 @@ function App() {
           ) : currentView === "calendar" ? (
             <CalendarView projects={projects} />
           ) : currentView === "tasks" ? (
-            <div className="project-detail">
-              <div className="detail-header">
-                <h2>Tasks</h2>
-                <p className="detail-description">Your tasks and deadlines will appear here.</p>
+            selectedProject ? (
+              <div className="project-detail">
+                <div className="detail-header">
+                  <h2>{selectedProject.name}</h2>
+                  <p className="detail-description">Tasks for this project.</p>
+                </div>
+                <div className="detail-body">
+                  <TaskPanel projectId={selectedProject.id} />
+                </div>
               </div>
-              <div className="detail-body">
-                <p className="hint">Task management coming soon.</p>
+            ) : (
+              <div className="project-detail">
+                <div className="detail-header">
+                  <h2>Tasks</h2>
+                  <p className="detail-description">Select a project to view its tasks.</p>
+                </div>
+                <div className="detail-body">
+                  <p className="hint">No project selected.</p>
+                </div>
               </div>
-            </div>
+            )
           ) : currentView === "entries" ? (
-            <div className="project-detail">
-              <div className="detail-header">
-                <h2>All entries</h2>
-                <p className="detail-description">Browse and search across all your logbook entries.</p>
+            selectedProject ? (
+              <div className="project-detail">
+                <div className="detail-header">
+                  <h2>{selectedProject.name}</h2>
+                  <p className="detail-description">Entries for this project.</p>
+                </div>
+                <div className="detail-body">
+                  <EntryList entries={selectedProject.entries || []} schema={selectedProject.entry_schema || []} />
+                </div>
               </div>
-              <div className="detail-body">
-                <p className="hint">Global entry view coming soon.</p>
+            ) : (
+              <div className="project-detail">
+                <div className="detail-header">
+                  <h2>All entries</h2>
+                  <p className="detail-description">Browse and search across all your logbook entries.</p>
+                </div>
+                <div className="detail-body">
+                  <p className="hint">Select a project to view its entries.</p>
+                </div>
               </div>
-            </div>
+            )
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (
@@ -1949,6 +1997,19 @@ function App() {
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
             />
+          ) : projects.length === 0 ? (
+            <>
+              <TodayPanel
+                projects={projects}
+                selectedProject={selectedProject}
+                onCreateProject={() => setIsModalOpen(true)}
+                onViewCalendar={() => setCurrentView("calendar")}
+              />
+              <EmptyState
+                onCreate={() => setIsModalOpen(true)}
+                onSeedDemoData={handleSeedDemoData}
+              />
+            </>
           ) : (
             <>
               <TodayPanel
@@ -1967,10 +2028,20 @@ function App() {
                   onToggleArchive={handleToggleArchive}
                 />
               ) : (
-                <EmptyState
-                  onCreate={() => setIsModalOpen(true)}
-                  onSeedDemoData={handleSeedDemoData}
-                />
+                <div className="empty-state">
+                  <div className="empty-state-inner">
+                    <div className="empty-logo-hero">
+                      <LogoIcon size={72} />
+                      <h2>Welcome back</h2>
+                      <p>Select a project from the sidebar to view its logbook, or create a new one to get started.</p>
+                      <div className="empty-actions">
+                        <button type="button" className="btn-primary btn-lg" onClick={() => setIsModalOpen(true)}>
+                          Create a project
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </>
           )}

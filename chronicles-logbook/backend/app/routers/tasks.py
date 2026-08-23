@@ -51,6 +51,7 @@ async def create_task(
         title=data.title,
         description=data.description,
         due_date=data.due_date,
+        checklist=[item.model_dump() for item in data.checklist],
     )
     db.add(task)
     await db.commit()
@@ -93,6 +94,8 @@ async def update_task(
         task.due_date = data.due_date
     if data.completed is not None:
         task.completed = data.completed
+    if data.checklist is not None:
+        task.checklist = [item.model_dump() for item in data.checklist]
 
     await db.commit()
     await db.refresh(task)

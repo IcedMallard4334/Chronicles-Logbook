@@ -68,7 +68,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
   })
 
@@ -76,10 +76,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -165,10 +165,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -205,10 +205,15 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Schema" })).toBeInTheDocument()
+    })
+
     fireEvent.click(screen.getByRole("tab", { name: "Schema" }))
 
     await waitFor(() => {
@@ -238,10 +243,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -294,7 +299,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     expect(screen.queryByText("Old Project")).not.toBeInTheDocument()
@@ -319,10 +324,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByLabelText("Hours")).toBeInTheDocument()
@@ -352,10 +357,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByLabelText("Hours")).toBeInTheDocument()
@@ -395,16 +400,21 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Project A")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Project A" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Project A"))
+    fireEvent.click(screen.getByRole("option", { name: "Project A" }))
     await waitFor(() => {
       expect(screen.getByLabelText("Pages read")).toBeInTheDocument()
     })
     expect(screen.queryByLabelText("Location")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText("Project B"))
+    fireEvent.click(screen.getByRole("option", { name: "Project B" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Project B" })).toBeInTheDocument()
+    })
+
     await waitFor(() => {
       expect(screen.getByLabelText("Location")).toBeInTheDocument()
     })
@@ -417,7 +427,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText("Timeline"))
@@ -448,7 +458,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText("Timeline"))

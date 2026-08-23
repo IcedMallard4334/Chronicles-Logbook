@@ -169,6 +169,14 @@ class Task(Base):
         server_default="false",
     )
 
+    # Ordered list of checklist items: [{"id": str, "text": str, "completed": bool}]
+    checklist: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

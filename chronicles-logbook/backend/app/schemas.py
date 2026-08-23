@@ -176,10 +176,17 @@ class EntryResponse(BaseModel):
 # ── Tasks ────────────────────────────────────────────────────────────
 
 
+class ChecklistItem(BaseModel):
+    id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=255)
+    completed: bool = False
+
+
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     due_date: date | None = None
+    checklist: list[ChecklistItem] = Field(default_factory=list)
 
 
 class TaskUpdate(BaseModel):
@@ -187,6 +194,7 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     due_date: date | None = None
     completed: bool | None = None
+    checklist: list[ChecklistItem] | None = None
 
 
 class TaskResponse(BaseModel):
@@ -198,6 +206,7 @@ class TaskResponse(BaseModel):
     description: str | None
     due_date: date | None
     completed: bool
+    checklist: list[ChecklistItem]
     created_at: datetime
     updated_at: datetime
 
