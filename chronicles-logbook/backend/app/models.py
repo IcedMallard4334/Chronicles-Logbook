@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, JSONType
@@ -127,6 +127,13 @@ class Entry(Base):
         JSONType,
         nullable=False,
         default=dict,
+    )
+
+    # Time spent on this entry, stored in minutes.
+    time_spent: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
     )
 
     created_at: Mapped[datetime] = mapped_column(

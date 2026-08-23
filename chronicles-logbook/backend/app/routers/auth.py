@@ -136,10 +136,13 @@ async def register_with_password(
     await db.commit()
     await db.refresh(user)
 
-    send_account_created_email(
-        recipient=user.email,
-        full_name=user.full_name,
-    )
+    try:
+        send_account_created_email(
+            recipient=user.email,
+            full_name=user.full_name,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"Account creation email failed: {e}")
 
     return _auth_response(user)
 
@@ -277,10 +280,13 @@ async def google_callback(
     await db.commit()
     await db.refresh(user)
     if is_new_user:
-        send_account_created_email(
-            recipient=user.email,
-            full_name=user.full_name,
-        )
+        try:
+            send_account_created_email(
+                recipient=user.email,
+                full_name=user.full_name,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"Account creation email failed: {e}")
     app_token = quote(create_access_token(user.id))
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={app_token}")
 

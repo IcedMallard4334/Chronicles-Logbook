@@ -68,14 +68,14 @@ describe("api", () => {
       json: async () => entry,
     })
 
-    const result = await createEntry("proj-1", { hours: 2 })
+    const result = await createEntry("proj-1", { data: { hours: 2 } })
 
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:8000/projects/proj-1/entries",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: { hours: 2 } }),
+        body: JSON.stringify({ data: { hours: 2 }, time_spent: null }),
       }
     )
     expect(result).toEqual(entry)

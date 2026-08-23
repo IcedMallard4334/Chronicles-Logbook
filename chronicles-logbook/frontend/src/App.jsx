@@ -24,6 +24,17 @@ function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
 }
 
+function formatDuration(minutes) {
+  if (minutes === null || minutes === undefined || Number.isNaN(minutes))
+    return "—"
+  const total = Math.max(0, Math.round(minutes))
+  const hours = Math.floor(total / 60)
+  const mins = total % 60
+  if (hours === 0) return `${mins}m`
+  if (mins === 0) return `${hours}h`
+  return `${hours}h ${mins}m`
+}
+
 const THEMES = ["light", "dark", "system"]
 
 function useTheme() {
@@ -1121,16 +1132,29 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
 function EntryForm({ project, onCreated }) {
   const schema = project.entry_schema || []
   const [data, setData] = useState({})
+  const [hours, setHours] = useState("")
+  const [minutes, setMinutes] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     setData({})
+    setHours("")
+    setMinutes("")
     setError(null)
   }, [project.id])
 
   const handleChange = (fieldId, value) => {
     setData((prev) => ({ ...prev, [fieldId]: value }))
+  }
+
+  const parseDuration = () => {
+    const h = hours === "" ? 0 : Number(hours)
+    const m = minutes === "" ? 0 : Number(minutes)
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+    if (h < 0 || m < 0) return null
+    const total = Math.round(h) * 60 + Math.round(m)
+    return total > 0 ? total : null
   }
 
   const handleSubmit = async (event) => {
@@ -1148,8 +1172,10 @@ function EntryForm({ project, onCreated }) {
           payload[field.id] = Number(payload[field.id])
         }
       }
-      await onCreated(payload)
+      await onCreated({ data: payload, time_spent: parseDuration() })
       setData({})
+      setHours("")
+      setMinutes("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1204,6 +1230,32 @@ function EntryForm({ project, onCreated }) {
           </label>
         ))}
       </div>
+      <div className="duration-inputs">
+        <span className="duration-label">Time spent</span>
+        <label className="field-label duration-field">
+          Hours spent
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <label className="field-label duration-field">
+          Minutes spent
+          <input
+            type="number"
+            min="0"
+            max="59"
+            step="1"
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button
@@ -1238,6 +1290,10 @@ function EntryList({ entries, schema }) {
                   </span>
                 </div>
               ))}
+              <div className="log-field">
+                <span className="log-label">Time spent</span>
+                <span className="log-value">{formatDuration(entry.time_spent)}</span>
+              </div>
             </div>
             <span className="log-time">
               {new Date(entry.created_at).toLocaleString()}
@@ -1436,6 +1492,8 @@ function ProjectDetail({
           <p className="detail-meta">
             {project.entry_schema?.length || 0} field
             {project.entry_schema?.length === 1 ? "" : "s"}
+            {" · "}
+            Total time: {formatDuration(project.total_time_spent)}
           </p>
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
@@ -1685,15 +1743,20 @@ function App() {
     }
   }
 
-  const handleEntryCreated = async (data) => {
+  const handleEntryCreated = async ({ data, time_spent }) => {
     if (!selectedProject) return
-    const entry = await createEntry(selectedProject.id, data)
+    const entry = await createEntry(selectedProject.id, { data, time_spent })
     setProjects((prev) =>
-      prev.map((project) =>
-        project.id === selectedProject.id
-          ? { ...project, entries: [entry, ...(project.entries || [])] }
-          : project
-      )
+      prev.map((project) => {
+        if (project.id !== selectedProject.id) return project
+        const currentTotal = project.total_time_spent || 0
+        const addedTime = entry.time_spent || 0
+        return {
+          ...project,
+          entries: [entry, ...(project.entries || [])],
+          total_time_spent: currentTotal + addedTime,
+        }
+      })
     )
   }
 

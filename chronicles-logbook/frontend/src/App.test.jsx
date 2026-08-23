@@ -312,6 +312,7 @@ describe("App", () => {
       id: "entry-2",
       project_id: "proj-1",
       data: { hours: "3", mood: "Focused" },
+      time_spent: null,
       created_at: "2026-08-12T09:00:00Z",
     })
 
@@ -333,8 +334,43 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(createEntry).toHaveBeenCalledWith("proj-1", {
-        hours: 3,
-        mood: "Focused",
+        data: { hours: 3, mood: "Focused" },
+        time_spent: null,
+      })
+    })
+  })
+
+  it("creates an entry with logged time", async () => {
+    createEntry.mockResolvedValue({
+      id: "entry-3",
+      project_id: "proj-1",
+      data: { hours: 2, mood: "Steady" },
+      time_spent: 150,
+      created_at: "2026-08-12T10:00:00Z",
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText("Field Notes"))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Hours")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Hours spent"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Minutes spent"), { target: { value: "30" } })
+    fireEvent.change(screen.getByLabelText("Mood"), { target: { value: "Steady" } })
+    fireEvent.click(screen.getByText("Save entry"))
+
+    await waitFor(() => {
+      expect(createEntry).toHaveBeenCalledWith("proj-1", {
+        data: { hours: 2, mood: "Steady" },
+        time_spent: 150,
       })
     })
   })

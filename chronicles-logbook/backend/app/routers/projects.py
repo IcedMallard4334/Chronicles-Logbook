@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -95,10 +95,20 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     result = await db.execute(
-        select(Project).where(Project.user_id == user.id)
+        select(Project, func.coalesce(func.sum(Entry.time_spent), 0).label("total_time"))
+        .outerjoin(Entry, Project.id == Entry.project_id)
+        .where(Project.user_id == user.id)
+        .group_by(Project.id)
+        .order_by(Project.created_at.desc())
     )
 
-    return result.scalars().all()
+    return [
+        {
+            **ProjectResponse.model_validate(project).model_dump(),
+            "total_time_spent": int(total_time or 0),
+        }
+        for project, total_time in result.all()
+    ]
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -125,7 +135,16 @@ async def get_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    return await _get_user_project(project_id, user, db)
+    project = await _get_user_project(project_id, user, db)
+    total_time = await db.scalar(
+        select(func.coalesce(func.sum(Entry.time_spent), 0)).where(
+            Entry.project_id == project_id
+        )
+    )
+    return {
+        **ProjectResponse.model_validate(project).model_dump(),
+        "total_time_spent": int(total_time or 0),
+    }
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -207,6 +226,7 @@ async def create_entry(
     entry = Entry(
         project_id=project_id,
         data=data.data,
+        time_spent=data.time_spent,
     )
 
     db.add(entry)

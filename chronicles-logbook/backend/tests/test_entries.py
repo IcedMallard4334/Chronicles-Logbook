@@ -35,6 +35,35 @@ async def test_create_entry_valid(authenticated_client, project_with_schema):
     assert data["data"]["field-1"] == 5
     assert data["data"]["field-2"] == "Worked on UI"
     assert data["project_id"] == project_id
+    assert data["time_spent"] is None
+
+
+async def test_create_entry_with_time_spent(authenticated_client, project_with_schema):
+    project_id = project_with_schema["id"]
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"field-1": 5, "field-2": "Worked on UI", "field-3": "Open"},
+            "time_spent": 90,
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["time_spent"] == 90
+
+
+async def test_create_entry_rejects_negative_time_spent(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"field-1": 5, "field-2": "Worked on UI", "field-3": "Open"},
+            "time_spent": -10,
+        },
+    )
+    assert response.status_code == 422
 
 
 async def test_create_entry_missing_field(authenticated_client, project_with_schema):
@@ -121,6 +150,25 @@ async def test_search_entries_by_keyword(authenticated_client, project_with_sche
     data = response.json()
     assert len(data) == 1
     assert "first" in data[0]["data"]["field-2"].lower()
+
+
+async def test_search_entries_includes_time_spent(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"field-1": 1, "field-2": "timed entry", "field-3": "Open"},
+            "time_spent": 75,
+        },
+    )
+
+    response = await authenticated_client.get("/entries?q=timed")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["time_spent"] == 75
 
 
 async def test_search_entries_filters_by_project(authenticated_client, project_with_schema):

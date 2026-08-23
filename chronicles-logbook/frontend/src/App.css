@@ -1678,6 +1678,50 @@
 }
 
 /* --------------------------------------------------
+   DURATION INPUT
+   -------------------------------------------------- */
+
+.duration-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.duration-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 11px;
+}
+
+.duration-field {
+  max-width: 120px;
+  margin: 0;
+}
+
+.duration-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 0.92rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.duration-field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.08);
+  outline: none;
+}
+
+/* --------------------------------------------------
    ENTRIES
    -------------------------------------------------- */
 

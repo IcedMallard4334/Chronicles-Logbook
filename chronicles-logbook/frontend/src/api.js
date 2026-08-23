@@ -82,10 +82,10 @@ export async function fetchEntriesGlobal({
   const query = params.toString()
   return request(`/entries?${query}`)
 }
-export async function createEntry(projectId, data) {
+export async function createEntry(projectId, { data, time_spent }) {
   return request(`/projects/${projectId}/entries`, {
     method: "POST",
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({ data, time_spent: time_spent ?? null }),
   })
 }
 

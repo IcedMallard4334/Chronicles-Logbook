@@ -58,6 +58,7 @@ async def search_entries(
                 "project_id": entry.project_id,
                 "project_name": project_name,
                 "data": entry.data,
+                "time_spent": entry.time_spent,
                 "created_at": entry.created_at,
                 "updated_at": entry.updated_at,
             }
