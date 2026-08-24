@@ -1,14 +1,14 @@
-# Entries API
+# Entries
 
-All entry endpoints require authentication and are scoped to a project.
+Entry endpoints require authentication. Project-scoped endpoints also require the caller to own the project.
 
-## List entries
+## List project entries
 
 ```
 GET /projects/{project_id}/entries
 ```
 
-Returns all entries for a project, ordered by date (newest first).
+Returns all entries for a project, ordered newest first.
 
 **Response:** `200 OK`
 
@@ -17,12 +17,11 @@ Returns all entries for a project, ordered by date (newest first).
   {
     "id": "...",
     "project_id": "...",
-    "entry_date": "2026-08-18T14:30:00+00:00",
     "data": {
-      "Hours worked": 3,
-      "What I did": "Finished login page",
-      "Status": "Done"
+      "field-id-1": 3,
+      "field-id-2": "Finished login page"
     },
+    "time_spent": 90,
     "created_at": "...",
     "updated_at": "..."
   }
@@ -41,19 +40,25 @@ POST /projects/{project_id}/entries
 
 ```json
 {
-  "entry_date": "2026-08-18T14:30:00+00:00",
   "data": {
-    "Hours worked": 3,
-    "What I did": "Finished login page",
-    "Status": "Done"
-  }
+    "field-id-1": 3,
+    "field-id-2": "Finished login page"
+  },
+  "time_spent": 90
 }
 ```
 
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `data` | object | Yes | Values keyed by field ID from the project's `entry_schema` |
+| `time_spent` | integer | No | Time spent on the entry, in minutes |
+
 !!! note
-    The `data` keys should match the field names defined in the project's `entry_schema`. The backend validates that all provided fields exist in the schema.
+    The keys in `data` must match the `id` values in the project's `entry_schema`. The backend validates that all required fields are present and that types match.
 
 **Response:** `201 Created` — returns the created entry.
+
+**Errors:** `422` for schema validation failures, `409` if the project is archived.
 
 ---
 
@@ -77,11 +82,11 @@ PUT /projects/{project_id}/entries/{entry_id}
 
 ```json
 {
-  "entry_date": "2026-08-18T15:00:00+00:00",
   "data": {
-    "Hours worked": 4,
-    "Status": "In progress"
-  }
+    "field-id-1": 4,
+    "field-id-2": "Updated text"
+  },
+  "time_spent": 120
 }
 ```
 
@@ -96,3 +101,38 @@ DELETE /projects/{project_id}/entries/{entry_id}
 ```
 
 **Response:** `204 No Content`
+
+---
+
+## Search entries globally
+
+```
+GET /entries
+```
+
+Returns entries across all projects owned by the authenticated user, ordered newest first.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `q` | string | — | Keyword matched against project name and entry field values |
+| `project_id` | UUID | — | Filter to a single project |
+| `page` | integer | 1 | Page number |
+| `page_size` | integer | 20 | Items per page (max 100) |
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "...",
+    "project_id": "...",
+    "project_name": "My Project",
+    "data": { "field-id-1": 3, "field-id-2": "Finished login page" },
+    "time_spent": 90,
+    "created_at": "...",
+    "updated_at": "..."
+  }
+]
+```
