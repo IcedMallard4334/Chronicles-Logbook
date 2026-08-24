@@ -17,43 +17,6 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-def _normalise_email(value: str) -> str:
-    email = value.strip().lower()
-    local, separator, domain = email.partition("@")
-    if not separator or not local or "." not in domain or domain.startswith("."):
-        raise ValueError("Enter a valid email address.")
-    return email
-
-
-class PasswordRegister(BaseModel):
-    full_name: str = Field(min_length=2, max_length=100)
-    email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=8, max_length=128)
-
-    @field_validator("full_name")
-    @classmethod
-    def clean_full_name(cls, value: str) -> str:
-        cleaned = " ".join(value.split())
-        if len(cleaned) < 2:
-            raise ValueError("Enter your full name.")
-        return cleaned
-
-    @field_validator("email")
-    @classmethod
-    def clean_email(cls, value: str) -> str:
-        return _normalise_email(value)
-
-
-class PasswordLogin(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=1, max_length=128)
-
-    @field_validator("email")
-    @classmethod
-    def clean_email(cls, value: str) -> str:
-        return _normalise_email(value)
-
-
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -208,17 +171,3 @@ class TimelineEntryResponse(BaseModel):
     data: dict[str, Any]
     created_at: datetime
     updated_at: datetime
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
-
-    @field_validator("email")
-    @classmethod
-    def clean_email(cls, value: str) -> str:
-        return _normalise_email(value)
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str = Field(min_length=1)
-    password: str = Field(min_length=8, max_length=128)

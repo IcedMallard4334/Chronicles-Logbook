@@ -7,8 +7,6 @@ import {
   fetchEntriesGlobal,
   fetchProjects,
   getGoogleLoginUrl,
-  registerWithPassword,
-  signInWithPassword,
 } from "./api"
 
 describe("api", () => {
@@ -118,36 +116,6 @@ describe("api", () => {
 
   it("builds the Google login URL", () => {
     expect(getGoogleLoginUrl()).toBe("http://localhost:8000/auth/google/login")
-  })
-
-  it("registers with an email and password", async () => {
-    const session = { access_token: "token", user: { email: "e@example.com" } }
-    fetch.mockResolvedValueOnce({ ok: true, status: 201, json: async () => session })
-
-    const registration = {
-      full_name: "Ethan Student",
-      email: "e@example.com",
-      password: "password123",
-    }
-    await expect(registerWithPassword(registration)).resolves.toEqual(session)
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(registration),
-    })
-  })
-
-  it("signs in with an email and password", async () => {
-    const session = { access_token: "token", user: { email: "e@example.com" } }
-    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => session })
-
-    const credentials = { email: "e@example.com", password: "password123" }
-    await expect(signInWithPassword(credentials)).resolves.toEqual(session)
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
-    })
   })
 
   it("loads the current user using the stored bearer token", async () => {

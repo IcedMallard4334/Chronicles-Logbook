@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
-from app.models import PasswordCredential, User
+from app.models import User
 from app.routers.auth import oauth
 
 
@@ -24,65 +24,6 @@ async def test_google_login_always_requests_account_chooser(async_client, monkey
     assert response.status_code == 307
     authorise.assert_awaited_once()
     assert authorise.await_args.kwargs["prompt"] == "select_account"
-
-
-async def test_password_registration_and_login(async_client):
-    registration = await async_client.post(
-        "/auth/register",
-        json={
-            "full_name": "Ethan Student",
-            "email": "ETHAN@example.com",
-            "password": "correct-horse-battery-staple",
-        },
-    )
-
-    assert registration.status_code == 201
-    assert registration.json()["user"]["email"] == "ethan@example.com"
-    assert registration.json()["access_token"]
-
-    login = await async_client.post(
-        "/auth/login",
-        json={
-            "email": "ethan@example.com",
-            "password": "correct-horse-battery-staple",
-        },
-    )
-
-    assert login.status_code == 200
-    assert login.json()["user"]["full_name"] == "Ethan Student"
-
-
-async def test_password_login_rejects_wrong_password(async_client):
-    await async_client.post(
-        "/auth/register",
-        json={
-            "full_name": "Ethan Student",
-            "email": "ethan@example.com",
-            "password": "correct-horse-battery-staple",
-        },
-    )
-
-    response = await async_client.post(
-        "/auth/login",
-        json={"email": "ethan@example.com", "password": "wrong-password"},
-    )
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid email address or password."
-
-
-async def test_registration_rejects_existing_email(async_client):
-    registration = {
-        "full_name": "Ethan Student",
-        "email": "ethan@example.com",
-        "password": "correct-horse-battery-staple",
-    }
-
-    first = await async_client.post("/auth/register", json=registration)
-    second = await async_client.post("/auth/register", json=registration)
-
-    assert first.status_code == 201
-    assert second.status_code == 409
 
 
 async def test_google_callback_creates_user_and_returns_session(
@@ -204,10 +145,6 @@ async def test_authenticated_user_can_delete_account(
 
     assert await db_session.scalar(
         select(func.count()).select_from(User)
-    ) == 0
-
-    assert await db_session.scalar(
-        select(func.count()).select_from(PasswordCredential)
     ) == 0
 
     me = await async_client.get(

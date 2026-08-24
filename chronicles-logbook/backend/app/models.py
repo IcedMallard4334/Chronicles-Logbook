@@ -27,16 +27,6 @@ class User(Base):
     )
 
 
-class PasswordCredential(Base):
-    __tablename__ = "password_credentials"
-
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
-
-
 class Project(Base):
     __tablename__ = "projects"
 
@@ -141,35 +131,3 @@ class Task(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-class PasswordResetToken(Base):
-    __tablename__ = "password_reset_tokens"
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-
-    token_hash: Mapped[str] = mapped_column(
-        String(128),
-        unique=True,
-        nullable=False,
-        index=True,
-    )
-
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-    )
