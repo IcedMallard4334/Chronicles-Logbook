@@ -1,10 +1,10 @@
 import { TaskPanel } from "./TaskPanel"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   archiveProject,
   createEntry,
   createProject,
-  deleteAccount,
   fetchEntries,
   fetchEntriesGlobal,
   fetchProjects,
@@ -63,7 +63,8 @@ function useTheme() {
   return [theme, cycleTheme]
 }
 
-function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
+function UserMenu({ userName, theme, cycleTheme }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -199,39 +200,16 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
             type="button"
             className="user-dropdown-item user-dropdown-profile"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false)
+              navigate("/profile")
+            }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>Profile</span>
-          </button>
-          <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { onSignOut(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span>Sign out</span>
-          </button>
-          <button
-            type="button"
-            className="user-dropdown-item user-dropdown-danger"
-            role="menuitem"
-            onClick={() => { onDeleteAccount(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            <span>Delete account</span>
           </button>
         </div>
       )}
@@ -241,7 +219,7 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
 
 function AuthActions() {
   const [theme, cycleTheme] = useTheme()
-  const [user, setUser] = useState(() => {
+  const user = useMemo(() => {
     if (typeof window === "undefined") return null
 
     try {
@@ -249,47 +227,7 @@ function AuthActions() {
     } catch {
       return null
     }
-  })
-
-  const [accountError, setAccountError] = useState("")
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [confirmation, setConfirmation] = useState("")
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  const clearSession = () => {
-    window.localStorage.removeItem("chronicles_token")
-    window.localStorage.removeItem("chronicles_user")
-    setUser(null)
-    window.location.assign("/")
-  }
-
-  const openDeleteModal = () => {
-    setAccountError("")
-    setConfirmation("")
-    setShowDeleteModal(true)
-  }
-
-  const closeDeleteModal = () => {
-    if (isDeleting) return
-
-    setConfirmation("")
-    setShowDeleteModal(false)
-  }
-
-  const handleDelete = async () => {
-    if (confirmation !== "DELETE") return
-
-    setIsDeleting(true)
-    setAccountError("")
-
-    try {
-      await deleteAccount()
-      clearSession()
-    } catch (error) {
-      setAccountError(formatError(error))
-      setIsDeleting(false)
-    }
-  }
+  }, [])
 
   if (!user) return <a className="auth-link" href="/">Sign in</a>
 
@@ -301,89 +239,12 @@ function AuthActions() {
     .slice(0, 2)
 
   return (
-    <>
-      <div className="account-actions">
-        <div className="user-avatar" title={user.full_name}>
-          {initials}
-        </div>
-        <UserMenu
-          userName={user.full_name}
-          onSignOut={clearSession}
-          onDeleteAccount={openDeleteModal}
-          theme={theme}
-          cycleTheme={cycleTheme}
-        />
-
-        {accountError && (
-          <span className="account-error" role="alert">
-            {accountError}
-          </span>
-        )}
+    <div className="account-actions">
+      <div className="user-avatar" title={user.full_name}>
+        {initials}
       </div>
-
-      {showDeleteModal && (
-        <div
-          className="modal-backdrop"
-          onClick={closeDeleteModal}
-          role="presentation"
-        >
-          <div
-            className="modal-card delete-account-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-account-title"
-          >
-            <LogoIcon className="modal-character" size={90} />
-
-            <h2 id="delete-account-title">
-              Delete your account?
-            </h2>
-
-            <p>
-              This will permanently delete your Chronicles account
-              and all of its projects, entries, and tasks.
-            </p>
-
-            <p className="delete-warning">
-              This action cannot be undone.
-            </p>
-
-            <label className="field-label full">
-              Type <strong>DELETE</strong> to confirm
-              <input
-                type="text"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                placeholder="DELETE"
-                autoFocus
-                disabled={isDeleting}
-              />
-            </label>
-
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={closeDeleteModal}
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                className="delete-account-confirm"
-                onClick={handleDelete}
-                disabled={confirmation !== "DELETE" || isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete my account"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      <UserMenu userName={user.full_name} theme={theme} cycleTheme={cycleTheme} />
+    </div>
   )
 }
 
@@ -445,7 +306,10 @@ function EmptyState({ onCreate, onSeedDemoData }) {
 
 function LogoIcon({ className, size = 40 }) {
   return (
-    <div className="logo-c-wrap" style={{ width: size, height: size }}>
+    <div
+      className={className ? `logo-c-wrap ${className}` : "logo-c-wrap"}
+      style={{ width: size, height: size }}
+    >
       <div className="logo-c-ring" />
       <span className="logo-c-letter">C</span>
     </div>
