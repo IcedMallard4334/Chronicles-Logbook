@@ -212,6 +212,7 @@ async def test_search_entries_combined(authenticated_client, project_with_schema
     assert len(data) == 1
     assert data[0]["data"]["field-2"] == "alpha note"
 
+
 async def test_search_entries_pagination(authenticated_client, project_with_schema):
     project_id = project_with_schema["id"]
 
@@ -248,6 +249,7 @@ async def test_search_entries_pagination(authenticated_client, project_with_sche
 
     assert first_ids.isdisjoint(second_ids)
 
+
 async def test_search_entries_rejects_invalid_pagination(
     authenticated_client,
 ):
@@ -259,6 +261,7 @@ async def test_search_entries_rejects_invalid_pagination(
 
     response = await authenticated_client.get("/entries?page_size=101")
     assert response.status_code == 422
+
 
 async def test_search_entries_returns_newest_first(
     authenticated_client,
@@ -301,3 +304,92 @@ async def test_search_entries_returns_newest_first(
 
     assert data[0]["id"] == second.json()["id"]
     assert data[1]["id"] == first.json()["id"]
+
+
+async def test_search_entries_matches_keyword_beyond_default_page_size(
+    authenticated_client, project_with_schema
+):
+    """Regression test for the pagination-before-filter bug.
+
+    Keyword filtering must run against the full result set, not just the
+    rows on the requested page. Create more entries than the default
+    page_size (20) so that a matching entry sits outside the first page
+    when ordered newest-first, and confirm it's still found.
+    """
+    project_id = project_with_schema["id"]
+
+    # Create 25 "noise" entries first (these end up newest, so the match
+    # created next will be pushed onto page 2 if filtering ran before
+    # pagination).
+    for i in range(25):
+        await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={
+                "data": {
+                    "field-1": i,
+                    "field-2": f"filler entry {i}",
+                    "field-3": "Open",
+                }
+            },
+        )
+
+    # Oldest entry contains the keyword we'll search for.
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {
+                "field-1": 999,
+                "field-2": "needle in a haystack",
+                "field-3": "Closed",
+            }
+        },
+    )
+
+    response = await authenticated_client.get("/entries?q=needle")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert "needle" in data[0]["data"]["field-2"].lower()
+
+
+async def test_search_entries_pagination_applies_after_keyword_filter(
+    authenticated_client, project_with_schema
+):
+    """Pagination should slice the filtered result set, not the raw one."""
+    project_id = project_with_schema["id"]
+
+    for i in range(5):
+        await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={
+                "data": {
+                    "field-1": i,
+                    "field-2": f"match entry {i}",
+                    "field-3": "Open",
+                }
+            },
+        )
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"field-1": 0, "field-2": "no keyword here", "field-3": "Open"}},
+    )
+
+    response = await authenticated_client.get("/entries?q=match&page=1&page_size=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    for entry in data:
+        assert "match" in entry["data"]["field-2"].lower()
+
+    second_page = await authenticated_client.get("/entries?q=match&page=2&page_size=2")
+    assert second_page.status_code == 200
+    second_data = second_page.json()
+    assert len(second_data) == 2
+    for entry in second_data:
+        assert "match" in entry["data"]["field-2"].lower()
+
+    third_page = await authenticated_client.get("/entries?q=match&page=3&page_size=2")
+    assert third_page.status_code == 200
+    third_data = third_page.json()
+    assert len(third_data) == 1
+    assert "match" in third_data[0]["data"]["field-2"].lower()
