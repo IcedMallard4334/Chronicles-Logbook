@@ -244,7 +244,7 @@ async def test_search_entries_returns_newest_first(
     assert second.status_code == 201
 
     response = await authenticated_client.get(
-        "/entries?page=1&page_size=20"
+        f"/entries?project_id={project_id}&page=1&page_size=20"
     )
 
     assert response.status_code == 200
