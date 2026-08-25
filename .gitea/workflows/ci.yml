@@ -47,19 +47,19 @@ jobs:
         run: python ../scripts/badge.py Backend "${{ steps.coverage.outputs.percentage }}" backend-coverage.svg
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: backend-coverage-html
           path: chronicles-logbook/backend/htmlcov
 
       - name: Upload coverage table
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: backend-coverage-table
           path: chronicles-logbook/backend/backend-coverage-table.md
 
       - name: Upload coverage badge
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: backend-coverage-badge
           path: chronicles-logbook/backend/backend-coverage.svg
@@ -111,19 +111,19 @@ jobs:
         run: python ../scripts/badge.py Frontend "${{ steps.coverage.outputs.percentage }}" frontend-coverage.svg
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: frontend-coverage-html
           path: chronicles-logbook/frontend/coverage
 
       - name: Upload coverage table
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: frontend-coverage-table
           path: chronicles-logbook/frontend/frontend-coverage-table.md
 
       - name: Upload coverage badge
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: frontend-coverage-badge
           path: chronicles-logbook/frontend/frontend-coverage.svg
@@ -141,13 +141,13 @@ jobs:
           python-version: "3.12"
 
       - name: Download backend coverage table
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: backend-coverage-table
           path: artifacts/backend
 
       - name: Download frontend coverage table
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: frontend-coverage-table
           path: artifacts/frontend
@@ -177,13 +177,13 @@ jobs:
           python-version: "3.12"
 
       - name: Download backend badge
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: backend-coverage-badge
           path: artifacts/backend
 
       - name: Download frontend badge
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: frontend-coverage-badge
           path: artifacts/frontend
