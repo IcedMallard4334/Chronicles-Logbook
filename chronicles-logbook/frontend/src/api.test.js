@@ -66,14 +66,14 @@ describe("api", () => {
       json: async () => entry,
     })
 
-    const result = await createEntry("proj-1", { hours: 2 })
+    const result = await createEntry("proj-1", { data: { hours: 2 } })
 
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:8000/projects/proj-1/entries",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: { hours: 2 } }),
+        body: JSON.stringify({ data: { hours: 2 }, time_spent: null }),
       }
     )
     expect(result).toEqual(entry)
@@ -89,9 +89,12 @@ describe("api", () => {
 
     const result = await fetchEntriesGlobal()
 
-    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/entries", {
-      headers: { "Content-Type": "application/json" },
-    })
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/entries?page=1&page_size=20",
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    )
     expect(result).toEqual(entries)
   })
 
@@ -103,10 +106,15 @@ describe("api", () => {
       json: async () => entries,
     })
 
-    const result = await fetchEntriesGlobal({ q: "notes", projectId: "proj-1" })
+    const result = await fetchEntriesGlobal({
+      q: "notes",
+      projectId: "proj-1",
+      page: 2,
+      pageSize: 10,
+    })
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/entries?q=notes&project_id=proj-1",
+      "http://localhost:8000/entries?q=notes&project_id=proj-1&page=2&page_size=10",
       {
         headers: { "Content-Type": "application/json" },
       }

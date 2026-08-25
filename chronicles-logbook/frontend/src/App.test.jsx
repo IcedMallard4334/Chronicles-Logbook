@@ -68,7 +68,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
   })
 
@@ -76,10 +76,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -165,10 +165,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -205,10 +205,15 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Schema" })).toBeInTheDocument()
+    })
+
     fireEvent.click(screen.getByRole("tab", { name: "Schema" }))
 
     await waitFor(() => {
@@ -238,10 +243,10 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
@@ -294,7 +299,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     expect(screen.queryByText("Old Project")).not.toBeInTheDocument()
@@ -312,16 +317,17 @@ describe("App", () => {
       id: "entry-2",
       project_id: "proj-1",
       data: { hours: "3", mood: "Focused" },
+      time_spent: null,
       created_at: "2026-08-12T09:00:00Z",
     })
 
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
 
     await waitFor(() => {
       expect(screen.getByLabelText("Hours")).toBeInTheDocument()
@@ -333,8 +339,43 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(createEntry).toHaveBeenCalledWith("proj-1", {
-        hours: 3,
-        mood: "Focused",
+        data: { hours: 3, mood: "Focused" },
+        time_spent: null,
+      })
+    })
+  })
+
+  it("creates an entry with logged time", async () => {
+    createEntry.mockResolvedValue({
+      id: "entry-3",
+      project_id: "proj-1",
+      data: { hours: 2, mood: "Steady" },
+      time_spent: 150,
+      created_at: "2026-08-12T10:00:00Z",
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("option", { name: "Field Notes" }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Hours")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Hours spent"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Minutes spent"), { target: { value: "30" } })
+    fireEvent.change(screen.getByLabelText("Mood"), { target: { value: "Steady" } })
+    fireEvent.click(screen.getByText("Save entry"))
+
+    await waitFor(() => {
+      expect(createEntry).toHaveBeenCalledWith("proj-1", {
+        data: { hours: 2, mood: "Steady" },
+        time_spent: 150,
       })
     })
   })
@@ -359,16 +400,21 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Project A")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Project A" })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText("Project A"))
+    fireEvent.click(screen.getByRole("option", { name: "Project A" }))
     await waitFor(() => {
       expect(screen.getByLabelText("Pages read")).toBeInTheDocument()
     })
     expect(screen.queryByLabelText("Location")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText("Project B"))
+    fireEvent.click(screen.getByRole("option", { name: "Project B" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Project B" })).toBeInTheDocument()
+    })
+
     await waitFor(() => {
       expect(screen.getByLabelText("Location")).toBeInTheDocument()
     })
@@ -381,7 +427,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText("Timeline"))
@@ -390,7 +436,12 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: "Timeline" })).toBeInTheDocument()
     })
     expect(screen.getByText("Steady")).toBeInTheDocument()
-    expect(fetchEntriesGlobal).toHaveBeenCalledWith({ q: "", projectId: "" })
+    expect(fetchEntriesGlobal).toHaveBeenCalledWith({
+      q: "",
+      projectId: "",
+      page: 1,
+      pageSize: 20,
+    })
   })
 
   it("searches entries by keyword in the timeline", async () => {
@@ -407,7 +458,7 @@ describe("App", () => {
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText("Field Notes")).toBeInTheDocument()
+      expect(screen.getByRole("option", { name: "Field Notes" })).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText("Timeline"))
@@ -421,7 +472,12 @@ describe("App", () => {
     })
 
     await waitFor(() => {
-      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "Focused", projectId: "" })
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({
+        q: "Focused",
+        projectId: "",
+        page: 1,
+        pageSize: 20,
+      })
     })
     expect(screen.getByText("Focused")).toBeInTheDocument()
   })
@@ -456,7 +512,12 @@ describe("App", () => {
     })
 
     await waitFor(() => {
-      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({ q: "", projectId: "proj-2" })
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({
+        q: "",
+        projectId: "proj-2",
+        page: 1,
+        pageSize: 20,
+      })
     })
     expect(screen.getByText("Steady")).toBeInTheDocument()
     const timeline = screen.getByRole("region", { name: /timeline/i })

@@ -37,6 +37,45 @@ async def test_get_project_not_found(authenticated_client):
     assert response.json()["detail"] == "Project not found"
 
 
+async def test_get_project_includes_total_time_spent(authenticated_client):
+    create_response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Timed Project", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+
+    for time_spent in [60, 90]:
+        await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={"data": {}, "time_spent": time_spent},
+        )
+
+    response = await authenticated_client.get(f"/projects/{project_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_time_spent"] == 150
+
+
+async def test_list_projects_includes_total_time_spent(authenticated_client):
+    create_response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Timed Project", "entry_schema": []},
+    )
+    project_id = create_response.json()["id"]
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {}, "time_spent": 45},
+    )
+
+    response = await authenticated_client.get("/projects")
+    assert response.status_code == 200
+    data = response.json()
+    project = next((p for p in data if p["id"] == project_id), None)
+    assert project is not None
+    assert project["total_time_spent"] == 45
+
+
 async def test_create_project_not_archived_by_default(authenticated_client):
     response = await authenticated_client.post(
         "/projects",

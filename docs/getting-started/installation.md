@@ -76,3 +76,5 @@ VITE_API_URL=http://localhost:8000
 ## 5. Verify
 
 Start both servers and visit [http://localhost:5173](http://localhost:5173). You should see the Chronicles landing page.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

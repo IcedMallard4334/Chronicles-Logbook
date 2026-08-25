@@ -30,10 +30,16 @@ function isOverdue(dateStr, completed) {
 
 // ── Task Form ────────────────────────────────────────────────────────
 
+function generateChecklistId() {
+  return `chk-${Math.random().toString(36).slice(2, 9)}`
+}
+
 export function TaskForm({ projectId, task, onSaved, onCancel }) {
   const [title, setTitle] = useState(task?.title || "")
   const [description, setDescription] = useState(task?.description || "")
   const [dueDate, setDueDate] = useState(task?.due_date || "")
+  const [checklist, setChecklist] = useState(task?.checklist || [])
+  const [newItemText, setNewItemText] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -41,10 +47,36 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
     setTitle(task?.title || "")
     setDescription(task?.description || "")
     setDueDate(task?.due_date || "")
+    setChecklist(task?.checklist || [])
+    setNewItemText("")
     setError(null)
   }, [task])
 
   const isEditing = !!task
+
+  const handleAddChecklistItem = () => {
+    const trimmed = newItemText.trim()
+    if (!trimmed) return
+    setChecklist((prev) => [...prev, { id: generateChecklistId(), text: trimmed, completed: false }])
+    setNewItemText("")
+  }
+
+  const handleChecklistInputKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault()
+      handleAddChecklistItem()
+    }
+  }
+
+  const handleRemoveChecklistItem = (id) => {
+    setChecklist((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const handleToggleChecklistItem = (id) => {
+    setChecklist((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item))
+    )
+  }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -60,6 +92,11 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
         title: trimmed,
         description: description.trim() || null,
         due_date: dueDate || null,
+        checklist: checklist.map((item) => ({
+          id: item.id,
+          text: item.text.trim(),
+          completed: !!item.completed,
+        })),
       }
       if (isEditing) {
         await updateTask(projectId, task.id, payload)
@@ -69,6 +106,8 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
       setTitle("")
       setDescription("")
       setDueDate("")
+      setChecklist([])
+      setNewItemText("")
       onSaved()
     } catch (err) {
       setError(formatError(err))
@@ -110,6 +149,57 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
             rows={2}
           />
         </label>
+        <div className="field-label full task-checklist-edit">
+          <span className="field-label-text">Checklist</span>
+          {checklist.length > 0 && (
+            <ul className="task-checklist-list" role="list">
+              {checklist.map((item) => (
+                <li key={item.id} className="task-checklist-item">
+                  <button
+                    type="button"
+                    className={`task-checkbox ${item.completed ? "checked" : ""}`}
+                    onClick={() => handleToggleChecklistItem(item.id)}
+                    aria-label={item.completed ? "Mark incomplete" : "Mark complete"}
+                  >
+                    {item.completed && (
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                        <path d="M3 8.5l3.5 3.5 6.5-8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </button>
+                  <span className={`task-checklist-text ${item.completed ? "completed" : ""}`}>
+                    {item.text}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-text-danger"
+                    onClick={() => handleRemoveChecklistItem(item.id)}
+                    aria-label="Remove checklist item"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="task-checklist-add">
+            <input
+              type="text"
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={handleChecklistInputKeyDown}
+              placeholder="Add a checkpoint…"
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleAddChecklistItem}
+              disabled={!newItemText.trim()}
+            >
+              Add
+            </button>
+          </div>
+        </div>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
@@ -132,9 +222,25 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
 
 // ── Task List ────────────────────────────────────────────────────────
 
+function TaskProgress({ checklist }) {
+  const total = checklist?.length || 0
+  const done = checklist?.filter((item) => item.completed).length || 0
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+
+  return (
+    <div className="task-progress">
+      <div className="task-progress-track" aria-hidden="true">
+        <div className="task-progress-fill" style={{ width: `${percent}%` }} />
+      </div>
+      <span className="task-progress-label">{done}/{total}</span>
+    </div>
+  )
+}
+
 function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isUpdatingChecklist, setIsUpdatingChecklist] = useState(false)
 
   const handleToggle = async () => {
     try {
@@ -154,6 +260,28 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
     }
   }
 
+  const handleToggleChecklistItem = async (itemId) => {
+    if (!task.checklist || task.checklist.length === 0 || isUpdatingChecklist) return
+    const updatedChecklist = task.checklist.map((item) =>
+      item.id === itemId ? { ...item, completed: !item.completed } : item
+    )
+    setIsUpdatingChecklist(true)
+    try {
+      await updateTask(projectId, task.id, {
+        title: task.title,
+        description: task.description,
+        due_date: task.due_date,
+        completed: task.completed,
+        checklist: updatedChecklist,
+      })
+      onRefresh()
+    } catch {
+      // error surfaced via parent refresh
+    } finally {
+      setIsUpdatingChecklist(false)
+    }
+  }
+
   if (isEditing) {
     return (
       <TaskForm
@@ -169,6 +297,7 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
   }
 
   const overdue = isOverdue(task.due_date, task.completed)
+  const hasChecklist = task.checklist && task.checklist.length > 0
 
   return (
     <li className={`task-item ${task.completed ? "completed" : ""} ${overdue ? "overdue" : ""}`}>
@@ -188,6 +317,31 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
       <div className="task-content">
         <span className="task-title">{task.title}</span>
         {task.description && <span className="task-description">{task.description}</span>}
+        {hasChecklist && <TaskProgress checklist={task.checklist} />}
+        {hasChecklist && (
+          <ul className="task-checklist-display" role="list">
+            {task.checklist.map((item) => (
+              <li key={item.id} className="task-checklist-row">
+                <button
+                  type="button"
+                  className={`task-checkbox small ${item.completed ? "checked" : ""}`}
+                  onClick={() => handleToggleChecklistItem(item.id)}
+                  disabled={isUpdatingChecklist}
+                  aria-label={item.completed ? "Mark incomplete" : "Mark complete"}
+                >
+                  {item.completed && (
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                      <path d="M3 8.5l3.5 3.5 6.5-8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <span className={`task-checklist-text ${item.completed ? "completed" : ""}`}>
+                  {item.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {task.due_date && (
           <span className={`task-due ${overdue ? "task-overdue" : ""}`}>
             {overdue ? "Overdue · " : ""}

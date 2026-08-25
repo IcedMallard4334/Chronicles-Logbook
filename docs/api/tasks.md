@@ -1,4 +1,4 @@
-# Tasks API
+# Tasks
 
 All task endpoints require authentication and are scoped to a project.
 
@@ -8,7 +8,7 @@ All task endpoints require authentication and are scoped to a project.
 GET /projects/{project_id}/tasks
 ```
 
-Returns all tasks for a project, ordered by due date.
+Returns all tasks for a project, ordered by due date (nulls last), then newest first.
 
 **Query parameters:**
 
@@ -27,6 +27,10 @@ Returns all tasks for a project, ordered by due date.
     "description": "Cover auth and project endpoints",
     "due_date": "2026-08-25",
     "completed": false,
+    "checklist": [
+      { "id": "item-1", "text": "Auth tests", "completed": true },
+      { "id": "item-2", "text": "Project tests", "completed": false }
+    ],
     "created_at": "...",
     "updated_at": "..."
   }
@@ -47,7 +51,10 @@ POST /projects/{project_id}/tasks
 {
   "title": "Write unit tests",
   "description": "Cover auth and project endpoints",
-  "due_date": "2026-08-25"
+  "due_date": "2026-08-25",
+  "checklist": [
+    { "id": "item-1", "text": "Auth tests", "completed": false }
+  ]
 }
 ```
 
@@ -56,6 +63,7 @@ POST /projects/{project_id}/tasks
 | `title` | string (1–255 chars) | Yes | Task title |
 | `description` | string | No | Detailed description |
 | `due_date` | date (YYYY-MM-DD) | No | When the task is due |
+| `checklist` | array | No | Initial checklist items |
 
 **Response:** `201 Created` — returns the created task.
 
@@ -84,7 +92,11 @@ PUT /projects/{project_id}/tasks/{task_id}
   "title": "Updated title",
   "description": "Updated description",
   "due_date": "2026-09-01",
-  "completed": true
+  "completed": true,
+  "checklist": [
+    { "id": "item-1", "text": "Auth tests", "completed": true },
+    { "id": "item-2", "text": "Project tests", "completed": true }
+  ]
 }
 ```
 
@@ -111,3 +123,27 @@ DELETE /projects/{project_id}/tasks/{task_id}
 ```
 
 **Response:** `204 No Content`
+
+---
+
+## Checklist items
+
+Each checklist item has the following shape:
+
+```json
+{
+  "id": "item-1",
+  "text": "Write tests",
+  "completed": false
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | Yes | Stable identifier for the item |
+| `text` | string (1–255 chars) | Yes | Item description |
+| `completed` | boolean | No | Completion status (default: false) |
+
+The frontend uses these items to render a progress bar (`completed / total`) inside each task.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

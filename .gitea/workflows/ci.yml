@@ -13,6 +13,8 @@ jobs:
       run:
         shell: cmd
         working-directory: chronicles-logbook/backend
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percentage }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,13 +28,41 @@ jobs:
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          python -m pip install ruff pytest pytest-asyncio httpx aiosqlite
+          python -m pip install ruff pytest pytest-asyncio pytest-cov httpx aiosqlite
 
       - name: Lint
         run: python -m ruff check .
 
-      - name: Test
-        run: python -m pytest
+      - name: Test with coverage
+        run: python -m pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: python ../scripts/extract_coverage.py cobertura coverage.xml
+
+      - name: Generate per-file coverage table
+        run: python ../scripts/coverage_table.py cobertura coverage.xml backend-coverage-table.md
+
+      - name: Generate coverage badge
+        run: python ../scripts/badge.py Backend "${{ steps.coverage.outputs.percentage }}" backend-coverage.svg
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage-html
+          path: chronicles-logbook/backend/htmlcov
+
+      - name: Upload coverage table
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage-table
+          path: chronicles-logbook/backend/backend-coverage-table.md
+
+      - name: Upload coverage badge
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage-badge
+          path: chronicles-logbook/backend/backend-coverage.svg
 
   frontend:
     runs-on: windows
@@ -40,6 +70,8 @@ jobs:
       run:
         shell: cmd
         working-directory: chronicles-logbook/frontend
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percentage }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,14 +80,115 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: npm ci
 
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm run test -- --run
+      # Requires @vitest/coverage-v8 as a devDependency, and
+      # coverage.reporter to include "json-summary" and "html" in
+      # vitest.config.
+      - name: Test with coverage
+        run: npx vitest run --coverage
 
       - name: Build
         run: npm run build
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: python ../scripts/extract_coverage.py json-summary coverage/coverage-summary.json
+
+      - name: Generate per-file coverage table
+        run: python ../scripts/coverage_table.py json-summary coverage/coverage-summary.json frontend-coverage-table.md
+
+      - name: Generate coverage badge
+        run: python ../scripts/badge.py Frontend "${{ steps.coverage.outputs.percentage }}" frontend-coverage.svg
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-html
+          path: chronicles-logbook/frontend/coverage
+
+      - name: Upload coverage table
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-table
+          path: chronicles-logbook/frontend/frontend-coverage-table.md
+
+      - name: Upload coverage badge
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-badge
+          path: chronicles-logbook/frontend/frontend-coverage.svg
+
+  coverage-comment:
+    needs: [backend, frontend]
+    if: github.event_name == 'pull_request'
+    runs-on: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download backend coverage table
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-coverage-table
+          path: artifacts/backend
+
+      - name: Download frontend coverage table
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-coverage-table
+          path: artifacts/frontend
+
+      - name: Post coverage comment
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEA_API_URL: ${{ github.api_url }}
+          GITEA_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BACKEND_COVERAGE: ${{ needs.backend.outputs.coverage }}
+          FRONTEND_COVERAGE: ${{ needs.frontend.outputs.coverage }}
+          BACKEND_TABLE_PATH: artifacts/backend/backend-coverage-table.md
+          FRONTEND_TABLE_PATH: artifacts/frontend/frontend-coverage-table.md
+        run: python chronicles-logbook/scripts/post_coverage_comment.py
+
+  publish-badges:
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download backend badge
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-coverage-badge
+          path: artifacts/backend
+
+      - name: Download frontend badge
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-coverage-badge
+          path: artifacts/frontend
+
+      - name: Commit and push badges
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python chronicles-logbook/scripts/publish_badges.py artifacts/backend/backend-coverage.svg artifacts/frontend/frontend-coverage.svg

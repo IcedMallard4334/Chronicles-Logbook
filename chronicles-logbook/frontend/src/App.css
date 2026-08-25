@@ -756,26 +756,31 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 92px;
+  min-width: 100px;
+  width: auto;
   height: 92px;
+  padding: 0 14px;
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: 0 4px 16px rgba(107, 91, 255, 0.12);
+  text-align: center;
 }
 
 .today-day {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .today-date {
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   font-weight: 800;
   color: var(--blue);
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .today-summary h2 {
@@ -1675,6 +1680,50 @@
 
 .global-error button:hover {
   background: rgba(220, 38, 38, 0.08);
+}
+
+/* --------------------------------------------------
+   DURATION INPUT
+   -------------------------------------------------- */
+
+.duration-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.duration-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 11px;
+}
+
+.duration-field {
+  max-width: 120px;
+  margin: 0;
+}
+
+.duration-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 0.92rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.duration-field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.08);
+  outline: none;
 }
 
 /* --------------------------------------------------
