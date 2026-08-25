@@ -38,18 +38,12 @@ jobs:
 
       - name: Extract coverage percentage
         id: coverage
-        shell: bash
-        run: |
-          PCT=$(python -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('coverage.xml').getroot().attrib['line-rate']) * 100, 1))")
-          echo "Backend coverage: $PCT%"
-          echo "percentage=$PCT" >> "$GITHUB_OUTPUT"
+        run: python ../scripts/extract_coverage.py cobertura coverage.xml
 
       - name: Generate per-file coverage table
-        shell: bash
         run: python ../scripts/coverage_table.py cobertura coverage.xml backend-coverage-table.md
 
       - name: Generate coverage badge
-        shell: bash
         run: python ../scripts/badge.py Backend "${{ steps.coverage.outputs.percentage }}" backend-coverage.svg
 
       - name: Upload coverage report
@@ -86,6 +80,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: npm ci
 
@@ -103,19 +102,13 @@ jobs:
 
       - name: Extract coverage percentage
         id: coverage
-        shell: bash
-        run: |
-          PCT=$(node -e "console.log(require('./coverage/coverage-summary.json').total.lines.pct)")
-          echo "Frontend coverage: $PCT%"
-          echo "percentage=$PCT" >> "$GITHUB_OUTPUT"
+        run: python ../scripts/extract_coverage.py json-summary coverage/coverage-summary.json
 
       - name: Generate per-file coverage table
-        shell: bash
-        run: python3 ../scripts/coverage_table.py json-summary coverage/coverage-summary.json frontend-coverage-table.md
+        run: python ../scripts/coverage_table.py json-summary coverage/coverage-summary.json frontend-coverage-table.md
 
       - name: Generate coverage badge
-        shell: bash
-        run: python3 ../scripts/badge.py Frontend "${{ steps.coverage.outputs.percentage }}" frontend-coverage.svg
+        run: python ../scripts/badge.py Frontend "${{ steps.coverage.outputs.percentage }}" frontend-coverage.svg
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -160,7 +153,6 @@ jobs:
           path: artifacts/frontend
 
       - name: Post coverage comment
-        shell: bash
         env:
           GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITEA_API_URL: ${{ github.api_url }}
@@ -170,7 +162,7 @@ jobs:
           FRONTEND_COVERAGE: ${{ needs.frontend.outputs.coverage }}
           BACKEND_TABLE_PATH: artifacts/backend/backend-coverage-table.md
           FRONTEND_TABLE_PATH: artifacts/frontend/frontend-coverage-table.md
-        run: python scripts/post_coverage_comment.py
+        run: python chronicles-logbook/scripts/post_coverage_comment.py
 
   publish-badges:
     needs: [backend, frontend]
@@ -178,6 +170,11 @@ jobs:
     runs-on: windows
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Download backend badge
         uses: actions/download-artifact@v4
@@ -192,23 +189,6 @@ jobs:
           path: artifacts/frontend
 
       - name: Commit and push badges
-        shell: bash
         env:
           GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p badges
-          cp artifacts/backend/backend-coverage.svg badges/backend-coverage.svg
-          cp artifacts/frontend/frontend-coverage.svg badges/frontend-coverage.svg
-
-          git config user.name "coverage-bot"
-          git config user.email "coverage-bot@users.noreply.local"
-          git add badges
-
-          if git diff --cached --quiet; then
-            echo "No badge changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore: update coverage badges [skip ci]"
-          REMOTE_HOST="${GITHUB_SERVER_URL#https://}"
-          git push "https://x-access-token:${GITEA_TOKEN}@${REMOTE_HOST}/${GITHUB_REPOSITORY}.git" HEAD:main
+        run: python chronicles-logbook/scripts/publish_badges.py artifacts/backend/backend-coverage.svg artifacts/frontend/frontend-coverage.svg
