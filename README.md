@@ -3,6 +3,10 @@
 ![CI](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Deploy](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles/actions/workflows/deploy.yml/badge.svg?branch=main)
 
+
+![Backend Coverage](badges/backend-coverage.svg)
+![Frontend Coverage](badges/frontend-coverage.svg)
+
 A customisable digital logbook that lets students track project work without the friction (or forgetfulness) of a physical notebook. Unlike a fixed-schema tracker, every project owner defines their own entry format — field names, types, and structure — and the entire system (capture, statistics, views, search) adapts to whatever shape they choose, rather than the other way around.
 
 Recent additions include time tracking per entry with accumulated totals per project, task checklists with progress bars, a dedicated profile page, and both password-based and Google authentication.
