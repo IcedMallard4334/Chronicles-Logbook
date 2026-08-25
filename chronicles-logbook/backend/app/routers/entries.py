@@ -28,15 +28,18 @@ async def search_entries(
 
     The keyword is matched against each entry's field values and its project
     name. Results are returned newest-first.
+
+    Note: the keyword filter must run before pagination is applied, since
+    the keyword can only be matched in Python (it's matched against decoded
+    JSON field values), not in the SQL query itself. Paginating first and
+    filtering after would silently drop matches that fall outside the
+    current page's raw (unfiltered) rows.
     """
-    offset = (page - 1) * page_size
     stmt = (
         select(Entry, Project.name.label("project_name"))
         .join(Project, Entry.project_id == Project.id)
         .where(Project.user_id == user.id)
         .order_by(Entry.created_at.desc(), Entry.id.desc())
-        .offset(offset)
-        .limit(page_size)
     )
     if project_id is not None:
         stmt = stmt.where(Entry.project_id == project_id)
@@ -44,15 +47,15 @@ async def search_entries(
     result = await db.execute(stmt)
     rows = result.all()
 
-    filtered: list[dict[str, Any]] = []
-    query = q.strip() if q else ""
+    query = q.strip().lower() if q else ""
+    matched: list[dict[str, Any]] = []
     for entry, project_name in rows:
         if query:
             values = " ".join(str(value) for value in entry.data.values())
             searchable = f"{project_name} {values}".lower()
-            if query.lower() not in searchable:
+            if query not in searchable:
                 continue
-        filtered.append(
+        matched.append(
             {
                 "id": entry.id,
                 "project_id": entry.project_id,
@@ -64,4 +67,5 @@ async def search_entries(
             }
         )
 
-    return filtered
+    offset = (page - 1) * page_size
+    return matched[offset : offset + page_size]
