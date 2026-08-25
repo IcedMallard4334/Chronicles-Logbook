@@ -1982,3 +1982,205 @@
     font-size: 1.5rem;
   }
 }
+
+/* --------------------------------------------------
+   GOOGLE CALENDAR INTEGRATION
+   -------------------------------------------------- */
+
+.calendar-dot.dot-entry {
+  background: var(--accent, #6B5BFF);
+}
+
+.calendar-dot.dot-google {
+  background: #4285F4;
+}
+
+.calendar-day.has-events {
+  position: relative;
+}
+
+.calendar-notice {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: calendar-notice-in 0.3s ease;
+}
+
+.calendar-notice-success {
+  background: rgba(0, 212, 170, 0.1);
+  color: var(--success, #00D4AA);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+}
+
+.calendar-notice-error {
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+@keyframes calendar-notice-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Google Calendar section in sidebar */
+.calendar-google-section {
+  border-bottom: 1px solid var(--line, #2e2e33);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.calendar-google-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.calendar-google-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4285F4;
+}
+
+.calendar-google-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.calendar-google-loading,
+.calendar-google-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted, rgba(255,255,255,0.5));
+  margin: 0;
+}
+
+.calendar-google-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendar-google-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(66, 133, 244, 0.06);
+  border: 1px solid rgba(66, 133, 244, 0.12);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.calendar-google-event:hover {
+  background: rgba(66, 133, 244, 0.12);
+  border-color: rgba(66, 133, 244, 0.25);
+}
+
+.calendar-google-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4285F4;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.calendar-google-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.calendar-google-event-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text, #fff);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-google-event-title:hover {
+  color: #4285F4;
+}
+
+.calendar-google-event-time {
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(255,255,255,0.5));
+}
+
+.calendar-google-event-location {
+  font-size: 0.72rem;
+  color: var(--text-muted, rgba(255,255,255,0.4));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Section label */
+.calendar-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, rgba(255,255,255,0.5));
+  margin: 0 0 10px 0;
+}
+
+/* Connect button */
+.calendar-connect {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #2e2e33);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-google-calendar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(66, 133, 244, 0.3);
+  background: rgba(66, 133, 244, 0.08);
+  color: #4285F4;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-google-calendar:hover {
+  background: rgba(66, 133, 244, 0.15);
+  border-color: rgba(66, 133, 244, 0.5);
+  color: #5a9cf5;
+}
+
+.btn-google-calendar svg {
+  width: 18px;
+  height: 18px;
+}
+
+.calendar-connect-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(255,255,255,0.4));
+  margin: 0;
+  text-align: center;
+}

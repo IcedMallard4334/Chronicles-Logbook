@@ -65,27 +65,18 @@ export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }
 
-export async function fetchEntriesGlobal({
-  q,
-  projectId,
-  page = 1,
-  pageSize = 20,
-} = {}) {
+export async function fetchEntriesGlobal({ q, projectId } = {}) {
   const params = new URLSearchParams()
-
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
-
-  params.append("page", page)
-  params.append("page_size", pageSize)
-
   const query = params.toString()
-  return request(`/entries?${query}`)
+  return request(`/entries${query ? `?${query}` : ""}`)
 }
-export async function createEntry(projectId, { data, time_spent }) {
+
+export async function createEntry(projectId, data) {
   return request(`/projects/${projectId}/entries`, {
     method: "POST",
-    body: JSON.stringify({ data, time_spent: time_spent ?? null }),
+    body: JSON.stringify({ data }),
   })
 }
 
@@ -134,4 +125,22 @@ export async function deleteTask(projectId, taskId) {
   })
 }
 
+// ── Google Calendar ────────────────────────────────────────────────
 
+export async function fetchGoogleCalendarStatus() {
+  return request("/calendar/google/status")
+}
+
+export async function fetchGoogleCalendarAuthUrl() {
+  const { authorization_url } = await request("/calendar/google/auth")
+  return authorization_url
+}
+
+export async function disconnectGoogleCalendar() {
+  return request("/calendar/google/disconnect", { method: "DELETE" })
+}
+
+export async function fetchGoogleCalendarEvents({ start, end }) {
+  const params = new URLSearchParams({ start, end })
+  return request(`/calendar/google/events?${params.toString()}`)
+}
