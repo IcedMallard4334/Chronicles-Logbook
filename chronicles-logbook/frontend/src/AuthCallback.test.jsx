@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AuthCallback from "./AuthCallback"
 import { fetchCurrentUser } from "./api"
@@ -23,9 +23,14 @@ function renderCallback() {
 describe("AuthCallback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
   })
 
-  it("stores the Google-authenticated session and opens the app", async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("shows a success message before navigating to the app", async () => {
     window.history.pushState({}, "", "/auth/callback#token=google-session-token")
     fetchCurrentUser.mockResolvedValue({
       id: "user-1",
@@ -35,11 +40,21 @@ describe("AuthCallback", () => {
 
     renderCallback()
 
-    expect(await screen.findByText("Logbook home")).toBeInTheDocument()
+    // Wait for the success state to appear.
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Sign-in successful" })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Welcome, Ethan Student!")).toBeInTheDocument()
     expect(window.localStorage.getItem("chronicles_token")).toBe("google-session-token")
     expect(JSON.parse(window.localStorage.getItem("chronicles_user"))).toEqual(
       expect.objectContaining({ email: "ethan@example.com" })
     )
+
+    // Advance past the delay to trigger navigation.
+    await vi.advanceTimersByTimeAsync(1500)
+
+    expect(await screen.findByText("Logbook home")).toBeInTheDocument()
   })
 
   it("shows the provider error", async () => {
