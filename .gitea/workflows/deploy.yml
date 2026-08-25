@@ -103,10 +103,18 @@ jobs:
           Copy-Item -Path ..\..\site\* -Destination dist\docs -Recurse
         working-directory: chronicles-logbook/frontend
 
-      - name: Copy web.config into dist
+      - name: Copy server.js and package files into dist
         shell: pwsh
-        run: Copy-Item -Path web.config -Destination dist\web.config -Force
+        run: |
+          Copy-Item -Path server.js -Destination dist\server.js -Force
+          Copy-Item -Path package.json -Destination dist\package.json -Force
+          Copy-Item -Path package-lock.json -Destination dist\package-lock.json -Force
         working-directory: chronicles-logbook/frontend
+
+      - name: Install production dependencies for server
+        shell: pwsh
+        run: npm ci --omit=dev
+        working-directory: chronicles-logbook/frontend/dist
 
       - name: Zip frontend dist
         shell: pwsh
