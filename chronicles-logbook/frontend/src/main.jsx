@@ -5,21 +5,15 @@ import './index.css'
 import App from './App.jsx'
 import AuthCallback from './AuthCallback.jsx'
 import AuthPage from './AuthPage.jsx'
-import ProfilePage from './ProfilePage.jsx'
 
-export function LandingRoute() {
+function LandingRoute() {
   const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
   return isSignedIn ? <Navigate to="/app" replace /> : <AuthPage />
 }
 
-export function ProtectedAppRoute() {
+function ProtectedAppRoute() {
   const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
   return isSignedIn ? <App /> : <Navigate to="/" replace />
-}
-
-export function ProtectedProfileRoute() {
-  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
-  return isSignedIn ? <ProfilePage /> : <Navigate to="/" replace />
 }
 
 createRoot(document.getElementById('root')).render(
@@ -28,7 +22,6 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<LandingRoute />} />
         <Route path="/app" element={<ProtectedAppRoute />} />
-        <Route path="/profile" element={<ProtectedProfileRoute />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

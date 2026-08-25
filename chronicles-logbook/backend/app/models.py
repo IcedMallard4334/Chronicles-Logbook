@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, JSONType
@@ -25,6 +25,16 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class GoogleCalendarToken(Base):
+    __tablename__ = "google_calendar_tokens"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    refresh_token: Mapped[str] = mapped_column(String(512), nullable=False)
 
 
 class Project(Base):
@@ -87,13 +97,6 @@ class Entry(Base):
         default=dict,
     )
 
-    # Time spent on this entry, stored in minutes.
-    time_spent: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        default=None,
-    )
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -127,14 +130,6 @@ class Task(Base):
         server_default="false",
     )
 
-    # Ordered list of checklist items: [{"id": str, "text": str, "completed": bool}]
-    checklist: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONType,
-        nullable=False,
-        server_default="[]",
-        default=list,
-    )
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -145,3 +140,4 @@ class Task(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+

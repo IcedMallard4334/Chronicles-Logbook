@@ -74,10 +74,10 @@ function AuthPage() {
 
       <section className="auth-panel" aria-labelledby="form-heading">
         <div className="auth-card">
-          <p className="auth-kicker">Welcome</p>
+          <p className="auth-kicker">Start your logbook</p>
           <h2 id="form-heading">Sign in to Chronicles</h2>
           <p className="auth-subtitle">
-            Continue with your Google account to access your logbook.
+            Continue with your Google account to access your projects and entries.
           </p>
 
           <a className="google-auth-button" href={getGoogleLoginUrl()}>

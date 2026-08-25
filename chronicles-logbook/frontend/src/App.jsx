@@ -1,12 +1,16 @@
 import { TaskPanel } from "./TaskPanel"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import {
   archiveProject,
   createEntry,
   createProject,
+  deleteAccount,
+  disconnectGoogleCalendar,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchGoogleCalendarAuthUrl,
+  fetchGoogleCalendarEvents,
+  fetchGoogleCalendarStatus,
   fetchProjects,
   unarchiveProject,
   updateProject,
@@ -22,17 +26,6 @@ function generateId() {
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
-}
-
-function formatDuration(minutes) {
-  if (minutes === null || minutes === undefined || Number.isNaN(minutes))
-    return "—"
-  const total = Math.max(0, Math.round(minutes))
-  const hours = Math.floor(total / 60)
-  const mins = total % 60
-  if (hours === 0) return `${mins}m`
-  if (mins === 0) return `${hours}h`
-  return `${hours}h ${mins}m`
 }
 
 const THEMES = ["light", "dark", "system"]
@@ -63,8 +56,7 @@ function useTheme() {
   return [theme, cycleTheme]
 }
 
-function UserMenu({ userName, theme, cycleTheme }) {
-  const navigate = useNavigate()
+function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -200,16 +192,39 @@ function UserMenu({ userName, theme, cycleTheme }) {
             type="button"
             className="user-dropdown-item user-dropdown-profile"
             role="menuitem"
-            onClick={() => {
-              setOpen(false)
-              navigate("/profile")
-            }}
+            onClick={() => setOpen(false)}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>Profile</span>
+          </button>
+          <div className="user-dropdown-divider" />
+          <button
+            type="button"
+            className="user-dropdown-item"
+            role="menuitem"
+            onClick={() => { onSignOut(); setOpen(false); }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign out</span>
+          </button>
+          <button
+            type="button"
+            className="user-dropdown-item user-dropdown-danger"
+            role="menuitem"
+            onClick={() => { onDeleteAccount(); setOpen(false); }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            <span>Delete account</span>
           </button>
         </div>
       )}
@@ -219,7 +234,7 @@ function UserMenu({ userName, theme, cycleTheme }) {
 
 function AuthActions() {
   const [theme, cycleTheme] = useTheme()
-  const user = useMemo(() => {
+  const [user, setUser] = useState(() => {
     if (typeof window === "undefined") return null
 
     try {
@@ -227,7 +242,47 @@ function AuthActions() {
     } catch {
       return null
     }
-  }, [])
+  })
+
+  const [accountError, setAccountError] = useState("")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [confirmation, setConfirmation] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const clearSession = () => {
+    window.localStorage.removeItem("chronicles_token")
+    window.localStorage.removeItem("chronicles_user")
+    setUser(null)
+    window.location.assign("/")
+  }
+
+  const openDeleteModal = () => {
+    setAccountError("")
+    setConfirmation("")
+    setShowDeleteModal(true)
+  }
+
+  const closeDeleteModal = () => {
+    if (isDeleting) return
+
+    setConfirmation("")
+    setShowDeleteModal(false)
+  }
+
+  const handleDelete = async () => {
+    if (confirmation !== "DELETE") return
+
+    setIsDeleting(true)
+    setAccountError("")
+
+    try {
+      await deleteAccount()
+      clearSession()
+    } catch (error) {
+      setAccountError(formatError(error))
+      setIsDeleting(false)
+    }
+  }
 
   if (!user) return <a className="auth-link" href="/">Sign in</a>
 
@@ -239,12 +294,89 @@ function AuthActions() {
     .slice(0, 2)
 
   return (
-    <div className="account-actions">
-      <div className="user-avatar" title={user.full_name}>
-        {initials}
+    <>
+      <div className="account-actions">
+        <div className="user-avatar" title={user.full_name}>
+          {initials}
+        </div>
+        <UserMenu
+          userName={user.full_name}
+          onSignOut={clearSession}
+          onDeleteAccount={openDeleteModal}
+          theme={theme}
+          cycleTheme={cycleTheme}
+        />
+
+        {accountError && (
+          <span className="account-error" role="alert">
+            {accountError}
+          </span>
+        )}
       </div>
-      <UserMenu userName={user.full_name} theme={theme} cycleTheme={cycleTheme} />
-    </div>
+
+      {showDeleteModal && (
+        <div
+          className="modal-backdrop"
+          onClick={closeDeleteModal}
+          role="presentation"
+        >
+          <div
+            className="modal-card delete-account-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+          >
+            <LogoIcon className="modal-character" size={90} />
+
+            <h2 id="delete-account-title">
+              Delete your account?
+            </h2>
+
+            <p>
+              This will permanently delete your Chronicles account
+              and all of its projects, entries, and tasks.
+            </p>
+
+            <p className="delete-warning">
+              This action cannot be undone.
+            </p>
+
+            <label className="field-label full">
+              Type <strong>DELETE</strong> to confirm
+              <input
+                type="text"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                placeholder="DELETE"
+                autoFocus
+                disabled={isDeleting}
+              />
+            </label>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="delete-account-confirm"
+                onClick={handleDelete}
+                disabled={confirmation !== "DELETE" || isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete my account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -306,10 +438,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
 
 function LogoIcon({ className, size = 40 }) {
   return (
-    <div
-      className={className ? `logo-c-wrap ${className}` : "logo-c-wrap"}
-      style={{ width: size, height: size }}
-    >
+    <div className="logo-c-wrap" style={{ width: size, height: size }}>
       <div className="logo-c-ring" />
       <span className="logo-c-letter">C</span>
     </div>
@@ -505,11 +634,9 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
           ) : (
             <ul className="project-list" role="listbox" aria-label="Projects">
               {activeProjects.map((project) => (
-                <li key={project.id}>
+                <li key={project.id} role="option" aria-selected={project.id === selectedId}>
                   <button
                     type="button"
-                    role="option"
-                    aria-selected={project.id === selectedId}
                     className={`project-button ${project.id === selectedId ? "active" : ""}`}
                     onClick={() => onSelect(project.id)}
                   >
@@ -536,11 +663,9 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                   aria-label="Archived projects"
                 >
                   {archivedProjects.map((project) => (
-                    <li key={project.id}>
+                    <li key={project.id} role="option" aria-selected={project.id === selectedId}>
                       <button
                         type="button"
-                        role="option"
-                        aria-selected={project.id === selectedId}
                         className={`project-button archived ${
                           project.id === selectedId ? "active" : ""
                         }`}
@@ -689,6 +814,10 @@ function DashboardPanel({ projects, onCreate }) {
 function CalendarView({ projects }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleEvents, setGoogleEvents] = useState([])
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [calendarNotice, setCalendarNotice] = useState("")
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -696,6 +825,36 @@ function CalendarView({ projects }) {
   const firstDayOfMonth = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const today = new Date()
+
+  // Check connection status on mount and after callback redirect.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("calendar_connected") === "true") {
+      setCalendarNotice("Google Calendar connected!")
+      window.history.replaceState({}, "", window.location.pathname)
+      setTimeout(() => setCalendarNotice(""), 4000)
+    }
+    if (params.get("calendar_error")) {
+      setCalendarNotice(params.get("calendar_error"))
+      window.history.replaceState({}, "", window.location.pathname)
+      setTimeout(() => setCalendarNotice(""), 6000)
+    }
+    fetchGoogleCalendarStatus()
+      .then((data) => setGoogleConnected(data.connected))
+      .catch(() => setGoogleConnected(false))
+  }, [])
+
+  // Fetch Google Calendar events when month changes.
+  useEffect(() => {
+    if (!googleConnected) return
+    setGoogleLoading(true)
+    const start = new Date(year, month, 1).toISOString()
+    const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString()
+    fetchGoogleCalendarEvents({ start, end })
+      .then(setGoogleEvents)
+      .catch(() => setGoogleEvents([]))
+      .finally(() => setGoogleLoading(false))
+  }, [googleConnected, year, month])
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
@@ -737,8 +896,43 @@ function CalendarView({ projects }) {
     return map
   }, [projects])
 
+  const googleEventsByDate = useMemo(() => {
+    const map = new Map()
+    googleEvents.forEach((event) => {
+      const dateKey = event.start.includes("T")
+        ? event.start.split("T")[0]
+        : event.start
+      if (!map.has(dateKey)) map.set(dateKey, [])
+      map.get(dateKey).push(event)
+    })
+    return map
+  }, [googleEvents])
+
   const selectedKey = selectedDate.toISOString().split("T")[0]
   const selectedEntries = entriesByDate.get(selectedKey) || []
+  const selectedGoogleEvents = googleEventsByDate.get(selectedKey) || []
+
+  const handleConnect = async () => {
+    try {
+      const url = await fetchGoogleCalendarAuthUrl()
+      // Store user ID in session for the callback
+      window.location.href = url
+    } catch (err) {
+      setCalendarNotice(err.message || "Unable to start calendar connection.")
+    }
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectGoogleCalendar()
+      setGoogleConnected(false)
+      setGoogleEvents([])
+      setCalendarNotice("Google Calendar disconnected.")
+      setTimeout(() => setCalendarNotice(""), 4000)
+    } catch (err) {
+      setCalendarNotice(err.message || "Unable to disconnect calendar.")
+    }
+  }
 
   return (
     <div className="project-detail calendar-view">
@@ -747,7 +941,11 @@ function CalendarView({ projects }) {
           <div className="calendar-header">
             <div className="calendar-title">
               <h2>{monthName} <span className="calendar-year">{year}</span></h2>
-              <p className="calendar-subtitle">Select a date to see your entries</p>
+              <p className="calendar-subtitle">
+                {googleConnected
+                  ? "Chronicles entries & Google Calendar events"
+                  : "Select a date to see your entries"}
+              </p>
             </div>
             <div className="calendar-controls">
               <button type="button" className="btn-text calendar-today" onClick={goToToday}>
@@ -775,19 +973,23 @@ function CalendarView({ projects }) {
               {days.map((day, index) => {
                 const key = day ? new Date(year, month, day).toISOString().split("T")[0] : null
                 const entries = key ? entriesByDate.get(key) || [] : []
+                const gEvents = key ? googleEventsByDate.get(key) || [] : []
                 return (
                   <button
                     key={index}
                     type="button"
-                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""}`}
+                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""} ${(entries.length > 0 || gEvents.length > 0) ? "has-events" : ""}`}
                     onClick={() => day && setSelectedDate(new Date(year, month, day))}
                     disabled={!day}
                   >
                     <span className="day-number">{day}</span>
-                    {entries.length > 0 && (
+                    {(entries.length > 0 || gEvents.length > 0) && (
                       <span className="calendar-dots">
-                        {entries.slice(0, 3).map((_, i) => (
-                          <span key={i} className="calendar-dot" />
+                        {entries.slice(0, 2).map((_, i) => (
+                          <span key={`e-${i}`} className="calendar-dot dot-entry" />
+                        ))}
+                        {gEvents.slice(0, 2).map((_, i) => (
+                          <span key={`g-${i}`} className="calendar-dot dot-google" />
                         ))}
                       </span>
                     )}
@@ -796,6 +998,11 @@ function CalendarView({ projects }) {
               })}
             </div>
           </div>
+          {calendarNotice && (
+            <div className={`calendar-notice ${calendarNotice.includes("error") || calendarNotice.includes("Unable") ? "calendar-notice-error" : "calendar-notice-success"}`} role="status">
+              {calendarNotice}
+            </div>
+          )}
         </div>
         <aside className="calendar-side" aria-label="Selected date details">
           <div className="calendar-side-head">
@@ -804,13 +1011,59 @@ function CalendarView({ projects }) {
               {selectedDate.toLocaleDateString("default", { month: "short", day: "numeric" })}
             </span>
           </div>
+
+          {googleConnected && (
+            <div className="calendar-google-section">
+              <div className="calendar-google-head">
+                <span className="calendar-google-label">
+                  <svg className="calendar-google-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
+                  </svg>
+                  Google Calendar
+                </span>
+                <button type="button" className="btn-text btn-sm" onClick={handleDisconnect}>
+                  Disconnect
+                </button>
+              </div>
+              {googleLoading ? (
+                <p className="calendar-google-loading">Loading events…</p>
+              ) : selectedGoogleEvents.length === 0 ? (
+                <p className="calendar-google-empty">No Google events this day.</p>
+              ) : (
+                <ul className="calendar-google-list" role="list">
+                  {selectedGoogleEvents.map((event) => (
+                    <li key={event.id} className="calendar-google-event">
+                      <span className="calendar-google-dot" />
+                      <div className="calendar-google-event-body">
+                        <a
+                          className="calendar-google-event-title"
+                          href={event.html_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {event.summary}
+                        </a>
+                        <span className="calendar-google-event-time">
+                          {event.all_day
+                            ? "All day"
+                            : `${new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(event.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                        </span>
+                        {event.location && (
+                          <span className="calendar-google-event-location">{event.location}</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="calendar-side-body">
+            <h4 className="calendar-section-label">Chronicles Entries</h4>
             {selectedEntries.length === 0 ? (
               <div className="calendar-side-empty">
                 <p>No entries logged for this day.</p>
-                <button type="button" className="btn-secondary btn-sm" onClick={() => {}}>
-                  Log an entry
-                </button>
               </div>
             ) : (
               <ul className="calendar-entry-list" role="list">
@@ -826,6 +1079,18 @@ function CalendarView({ projects }) {
               </ul>
             )}
           </div>
+
+          {!googleConnected && (
+            <div className="calendar-connect">
+              <button type="button" className="btn-google-calendar" onClick={handleConnect}>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
+                </svg>
+                Connect Google Calendar
+              </button>
+              <p className="calendar-connect-hint">See your Google events alongside Chronicles entries.</p>
+            </div>
+          )}
         </aside>
       </div>
     </div>
@@ -1000,29 +1265,16 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
 function EntryForm({ project, onCreated }) {
   const schema = project.entry_schema || []
   const [data, setData] = useState({})
-  const [hours, setHours] = useState("")
-  const [minutes, setMinutes] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     setData({})
-    setHours("")
-    setMinutes("")
     setError(null)
   }, [project.id])
 
   const handleChange = (fieldId, value) => {
     setData((prev) => ({ ...prev, [fieldId]: value }))
-  }
-
-  const parseDuration = () => {
-    const h = hours === "" ? 0 : Number(hours)
-    const m = minutes === "" ? 0 : Number(minutes)
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return null
-    if (h < 0 || m < 0) return null
-    const total = Math.round(h) * 60 + Math.round(m)
-    return total > 0 ? total : null
   }
 
   const handleSubmit = async (event) => {
@@ -1040,10 +1292,8 @@ function EntryForm({ project, onCreated }) {
           payload[field.id] = Number(payload[field.id])
         }
       }
-      await onCreated({ data: payload, time_spent: parseDuration() })
+      await onCreated(payload)
       setData({})
-      setHours("")
-      setMinutes("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1098,32 +1348,6 @@ function EntryForm({ project, onCreated }) {
           </label>
         ))}
       </div>
-      <div className="duration-inputs">
-        <span className="duration-label">Time spent</span>
-        <label className="field-label duration-field">
-          Hours spent
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            placeholder="0"
-          />
-        </label>
-        <label className="field-label duration-field">
-          Minutes spent
-          <input
-            type="number"
-            min="0"
-            max="59"
-            step="1"
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
-            placeholder="0"
-          />
-        </label>
-      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button
@@ -1158,10 +1382,6 @@ function EntryList({ entries, schema }) {
                   </span>
                 </div>
               ))}
-              <div className="log-field">
-                <span className="log-label">Time spent</span>
-                <span className="log-value">{formatDuration(entry.time_spent)}</span>
-              </div>
             </div>
             <span className="log-time">
               {new Date(entry.created_at).toLocaleString()}
@@ -1177,48 +1397,28 @@ function Timeline({ projects }) {
   const [entries, setEntries] = useState([])
   const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
-  const [page, setPage] = useState(1)
-  const [hasNextPage, setHasNextPage] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    setPage(1)
-    setHasNextPage(true)
-  }, [q, projectId])
-
-  useEffect(() => {
     let cancelled = false
-
     const load = async () => {
       setLoading(true)
       setError(null)
-
       try {
-        const data = await fetchEntriesGlobal({
-          q,
-          projectId,
-          page,
-          pageSize: 20,
-        })
-
-        if (!cancelled) {
-          setEntries(data)
-          setHasNextPage(data.length === 20)
-        }
+        const data = await fetchEntriesGlobal({ q, projectId })
+        if (!cancelled) setEntries(data)
       } catch (err) {
         if (!cancelled) setError(formatError(err))
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
-
     load()
-
     return () => {
       cancelled = true
     }
-  }, [q, projectId, page])
+  }, [q, projectId])
 
   const schemaByProject = useMemo(() => {
     const map = {}
@@ -1267,64 +1467,34 @@ function Timeline({ projects }) {
           </select>
         </label>
       </div>
-            {error && <p className="error" role="alert">{error}</p>}
-
+      {error && <p className="error" role="alert">{error}</p>}
       {loading ? (
         <p className="hint">Loading…</p>
       ) : entries.length === 0 ? (
         <p className="hint">No entries found.</p>
       ) : (
-        <>
-          <ul className="timeline-list" role="list">
-            {entries.map((entry) => (
-              <li key={entry.id} className="timeline-row">
-                <div className="timeline-meta">
-                  <span className="timeline-project">
-                    {entry.project_name}
-                  </span>
-                  <span className="timeline-time">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="timeline-fields">
-                  {Object.entries(entry.data).map(([fieldId, value]) => (
-                    <div key={fieldId} className="timeline-field">
-                      <span className="timeline-label">
-                        {getFieldName(entry.project_id, fieldId)}
-                      </span>
-                      <span className="timeline-value">
-                        {String(value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <div className="timeline-pagination">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1 || loading}
-            >
-              Previous
-            </button>
-
-            <span>Page {page}</span>
-
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={!hasNextPage || loading}
-            >
-              Next
-            </button>
-          </div>
-        </>
+        <ul className="timeline-list" role="list">
+          {entries.map((entry) => (
+            <li key={entry.id} className="timeline-row">
+              <div className="timeline-meta">
+                <span className="timeline-project">{entry.project_name}</span>
+                <span className="timeline-time">
+                  {new Date(entry.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="timeline-fields">
+                {Object.entries(entry.data).map(([fieldId, value]) => (
+                  <div key={fieldId} className="timeline-field">
+                    <span className="timeline-label">
+                      {getFieldName(entry.project_id, fieldId)}
+                    </span>
+                    <span className="timeline-value">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   )
@@ -1360,8 +1530,6 @@ function ProjectDetail({
           <p className="detail-meta">
             {project.entry_schema?.length || 0} field
             {project.entry_schema?.length === 1 ? "" : "s"}
-            {" · "}
-            Total time: {formatDuration(project.total_time_spent)}
           </p>
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
@@ -1544,18 +1712,6 @@ function App() {
     [projects, selectedId]
   )
 
-  const firstActiveProjectId = useMemo(
-    () => projects.find((project) => !project.archived)?.id || null,
-    [projects]
-  )
-
-  useEffect(() => {
-    if (selectedId) return
-    if (firstActiveProjectId && currentView === "home" && view !== "timeline") {
-      setSelectedId(firstActiveProjectId)
-    }
-  }, [selectedId, firstActiveProjectId, currentView, view])
-
   const handleCreateProject = async ({ name, description }) => {
     try {
       const project = await createProject({ name, description, entry_schema: [] })
@@ -1578,14 +1734,6 @@ function App() {
     setView("timeline")
     setSelectedId(null)
     setCurrentView("home")
-  }
-
-  const handleShowHome = () => {
-    setCurrentView("home")
-    setView("project")
-    if (!selectedId && firstActiveProjectId) {
-      setSelectedId(firstActiveProjectId)
-    }
   }
 
   const handleSeedDemoData = async () => {
@@ -1631,20 +1779,15 @@ function App() {
     }
   }
 
-  const handleEntryCreated = async ({ data, time_spent }) => {
+  const handleEntryCreated = async (data) => {
     if (!selectedProject) return
-    const entry = await createEntry(selectedProject.id, { data, time_spent })
+    const entry = await createEntry(selectedProject.id, data)
     setProjects((prev) =>
-      prev.map((project) => {
-        if (project.id !== selectedProject.id) return project
-        const currentTotal = project.total_time_spent || 0
-        const addedTime = entry.time_spent || 0
-        return {
-          ...project,
-          entries: [entry, ...(project.entries || [])],
-          total_time_spent: currentTotal + addedTime,
-        }
-      })
+      prev.map((project) =>
+        project.id === selectedProject.id
+          ? { ...project, entries: [entry, ...(project.entries || [])] }
+          : project
+      )
     )
   }
 
@@ -1727,7 +1870,7 @@ function App() {
             <button
               type="button"
               className={`nav-item ${currentView === "home" ? "active" : ""}`}
-              onClick={handleShowHome}
+              onClick={() => setCurrentView("home")}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1807,49 +1950,25 @@ function App() {
           ) : currentView === "calendar" ? (
             <CalendarView projects={projects} />
           ) : currentView === "tasks" ? (
-            selectedProject ? (
-              <div className="project-detail">
-                <div className="detail-header">
-                  <h2>{selectedProject.name}</h2>
-                  <p className="detail-description">Tasks for this project.</p>
-                </div>
-                <div className="detail-body">
-                  <TaskPanel projectId={selectedProject.id} />
-                </div>
+            <div className="project-detail">
+              <div className="detail-header">
+                <h2>Tasks</h2>
+                <p className="detail-description">Your tasks and deadlines will appear here.</p>
               </div>
-            ) : (
-              <div className="project-detail">
-                <div className="detail-header">
-                  <h2>Tasks</h2>
-                  <p className="detail-description">Select a project to view its tasks.</p>
-                </div>
-                <div className="detail-body">
-                  <p className="hint">No project selected.</p>
-                </div>
+              <div className="detail-body">
+                <p className="hint">Task management coming soon.</p>
               </div>
-            )
+            </div>
           ) : currentView === "entries" ? (
-            selectedProject ? (
-              <div className="project-detail">
-                <div className="detail-header">
-                  <h2>{selectedProject.name}</h2>
-                  <p className="detail-description">Entries for this project.</p>
-                </div>
-                <div className="detail-body">
-                  <EntryList entries={selectedProject.entries || []} schema={selectedProject.entry_schema || []} />
-                </div>
+            <div className="project-detail">
+              <div className="detail-header">
+                <h2>All entries</h2>
+                <p className="detail-description">Browse and search across all your logbook entries.</p>
               </div>
-            ) : (
-              <div className="project-detail">
-                <div className="detail-header">
-                  <h2>All entries</h2>
-                  <p className="detail-description">Browse and search across all your logbook entries.</p>
-                </div>
-                <div className="detail-body">
-                  <p className="hint">Select a project to view its entries.</p>
-                </div>
+              <div className="detail-body">
+                <p className="hint">Global entry view coming soon.</p>
               </div>
-            )
+            </div>
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (
@@ -1861,19 +1980,6 @@ function App() {
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
             />
-          ) : projects.length === 0 ? (
-            <>
-              <TodayPanel
-                projects={projects}
-                selectedProject={selectedProject}
-                onCreateProject={() => setIsModalOpen(true)}
-                onViewCalendar={() => setCurrentView("calendar")}
-              />
-              <EmptyState
-                onCreate={() => setIsModalOpen(true)}
-                onSeedDemoData={handleSeedDemoData}
-              />
-            </>
           ) : (
             <>
               <TodayPanel
@@ -1892,20 +1998,10 @@ function App() {
                   onToggleArchive={handleToggleArchive}
                 />
               ) : (
-                <div className="empty-state">
-                  <div className="empty-state-inner">
-                    <div className="empty-logo-hero">
-                      <LogoIcon size={72} />
-                      <h2>Welcome back</h2>
-                      <p>Select a project from the sidebar to view its logbook, or create a new one to get started.</p>
-                      <div className="empty-actions">
-                        <button type="button" className="btn-primary btn-lg" onClick={() => setIsModalOpen(true)}>
-                          Create a project
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <EmptyState
+                  onCreate={() => setIsModalOpen(true)}
+                  onSeedDemoData={handleSeedDemoData}
+                />
               )}
             </>
           )}

@@ -115,14 +115,12 @@ class ProjectResponse(BaseModel):
     description: str | None
     archived: bool
     entry_schema: list[FieldDefinition]
-    total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
 
 
 class EntryCreate(BaseModel):
     data: dict[str, Any]
-    time_spent: int | None = Field(default=None, ge=0)
 
 
 class EntryResponse(BaseModel):
@@ -131,7 +129,6 @@ class EntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     data: dict[str, Any]
-    time_spent: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -139,17 +136,10 @@ class EntryResponse(BaseModel):
 # ── Tasks ────────────────────────────────────────────────────────────
 
 
-class ChecklistItem(BaseModel):
-    id: str = Field(..., min_length=1)
-    text: str = Field(..., min_length=1, max_length=255)
-    completed: bool = False
-
-
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     due_date: date | None = None
-    checklist: list[ChecklistItem] = Field(default_factory=list)
 
 
 class TaskUpdate(BaseModel):
@@ -157,7 +147,6 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     due_date: date | None = None
     completed: bool | None = None
-    checklist: list[ChecklistItem] | None = None
 
 
 class TaskResponse(BaseModel):
@@ -169,7 +158,6 @@ class TaskResponse(BaseModel):
     description: str | None
     due_date: date | None
     completed: bool
-    checklist: list[ChecklistItem]
     created_at: datetime
     updated_at: datetime
 
@@ -181,6 +169,23 @@ class TimelineEntryResponse(BaseModel):
     project_id: UUID
     project_name: str
     data: dict[str, Any]
-    time_spent: int | None
     created_at: datetime
     updated_at: datetime
+
+
+# ── Google Calendar ─────────────────────────────────────────────────
+
+
+class GoogleCalendarStatus(BaseModel):
+    connected: bool
+
+
+class GoogleCalendarEvent(BaseModel):
+    id: str
+    summary: str
+    start: str
+    end: str
+    all_day: bool
+    color: str | None = None
+    html_link: str | None = None
+    location: str | None = None
