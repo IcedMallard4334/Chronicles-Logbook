@@ -3,7 +3,10 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const DIST_DIR = path.join(__dirname, "dist");
+
+// server.js is deployed INSIDE the dist folder (see deploy.yml), so
+// __dirname already points at the built frontend output.
+const DIST_DIR = __dirname;
 const DOCS_DIR = path.join(DIST_DIR, "docs");
 
 // Serve the MkDocs site as real static files, with directory-index resolution
