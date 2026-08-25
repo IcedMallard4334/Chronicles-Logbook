@@ -79,56 +79,6 @@ jobs:
           npm ci
           npm run build
 
-      - name: Set up Python for docs
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install MkDocs
-        shell: pwsh
-        working-directory: .
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install mkdocs-material==9.5.*
-
-      - name: Build docs
-        shell: pwsh
-        working-directory: .
-        run: mkdocs build --strict
-
-      - name: Merge docs into frontend build
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist\docs
-          Copy-Item -Path ..\..\site\* -Destination dist\docs -Recurse
-        working-directory: chronicles-logbook/frontend
-
-      - name: Copy server.js into dist
-        shell: pwsh
-        run: Copy-Item -Path server.js -Destination dist\server.js -Force
-        working-directory: chronicles-logbook/frontend
-
-      - name: Generate minimal production package.json for dist
-        shell: pwsh
-        run: |
-          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
-          $minimal = [ordered]@{
-            name    = $pkg.name
-            version = $pkg.version
-            private = $true
-            type    = "commonjs"
-            main    = "server.js"
-            scripts = @{ start = "node server.js" }
-            dependencies = $pkg.dependencies
-          }
-          $minimal | ConvertTo-Json -Depth 10 | Set-Content dist\package.json
-        working-directory: chronicles-logbook/frontend
-
-      - name: Install production dependencies for server
-        shell: pwsh
-        run: npm install --omit=dev
-        working-directory: chronicles-logbook/frontend/dist
-
       - name: Zip frontend dist
         shell: pwsh
         run: |
