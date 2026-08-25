@@ -93,37 +93,6 @@ export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }
 
-export async function registerWithPassword(registration) {
-  return request("/auth/register", {
-    method: "POST",
-    body: JSON.stringify(registration),
-  })
-}
-
-export async function signInWithPassword(credentials) {
-  return request("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(credentials),
-  })
-}
-
-export async function requestPasswordReset(email) {
-  return request("/auth/forgot-password", {
-    method: "POST",
-    body: JSON.stringify({ email }),
-  })
-}
-
-export async function resetPassword(token, password) {
-  return request("/auth/reset-password", {
-    method: "POST",
-    body: JSON.stringify({
-      token,
-      password,
-    }),
-  })
-}
-
 export async function fetchCurrentUser() {
   return request("/auth/me")
 }

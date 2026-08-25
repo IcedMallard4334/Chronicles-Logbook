@@ -2,17 +2,50 @@
 
 The frontend is a **React 19** application built with **Vite** (v8.2.0) and **React Router**.
 
-## File architecture
+## File Architecture
 
 Views are rendered through React Router routes defined in `main.jsx`. The main app shell and project dashboards live in `App.jsx`, while focused features are split into dedicated components.
+
+```mermaid
+graph TB
+    subgraph App["App.jsx"]
+        Shell[App Shell<br/>Header + Nav]
+        Dashboard[Project Dashboard<br/>Today / Tasks / Entries]
+        Sidebar[Project Sidebar]
+    end
+
+    subgraph Pages["Page Components"]
+        Auth[AuthPage.jsx<br/>Google Sign-in]
+        Callback[AuthCallback.jsx<br/>OAuth handler]
+        Profile[ProfilePage.jsx<br/>Account + Theme]
+    end
+
+    subgraph Features["Feature Components"]
+        TaskPanel[TaskPanel.jsx<br/>Tasks + Checklists]
+    end
+
+    subgraph Shared["Shared"]
+        API[api.js<br/>HTTP Client]
+        CSS_App[App.css]
+        CSS_Profile[ProfilePage.css]
+        CSS_Tasks[tasks.css]
+        CSS_Index[index.css<br/>Theme Variables]
+    end
+
+    Shell --> Dashboard
+    Shell --> Sidebar
+    Dashboard --> TaskPanel
+    Dashboard --> API
+    Auth --> API
+    Profile --> API
+    Callback --> API
+```
 
 | File | Responsibility |
 |---|---|
 | `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views |
-| `AuthPage.jsx` | Sign-in, sign-up, and password-reset-request UI |
+| `AuthPage.jsx` | Google sign-in page with "Continue with Google" button |
 | `AuthCallback.jsx` | Handles OAuth callback token exchange |
-| `ForgotPassword.jsx` | Standalone password-reset request page |
-| `ResetPassword.jsx` | Password reset confirmation page |
 | `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
 | `api.js` | HTTP client wrapping all backend endpoints |
@@ -23,15 +56,22 @@ Views are rendered through React Router routes defined in `main.jsx`. The main a
 
 ## Routing
 
+```mermaid
+graph LR
+    L[Landing /] -->|not signed in| LP[Auth Page]
+    L -->|signed in| APP
+    APP[/app] --> Shell[App Shell]
+    Shell --> PD[Project Dashboard]
+    PROF[/profile] --> PP[Profile Page]
+    CB[/auth/callback] --> AC[AuthCallback]
+```
+
 ```jsx
 <BrowserRouter>
   <Routes>
     <Route path="/" element={<LandingRoute />} />
     <Route path="/app" element={<ProtectedAppRoute />} />
     <Route path="/profile" element={<ProtectedProfileRoute />} />
-    <Route path="/signup" element={<AuthPage mode="signup" />} />
-    <Route path="/forgot-password" element={<ForgotPassword />} />
-    <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/auth/callback" element={<AuthCallback />} />
   </Routes>
 </BrowserRouter>

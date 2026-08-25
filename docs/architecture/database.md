@@ -2,7 +2,74 @@
 
 Chronicles uses **PostgreSQL** with `asyncpg` for async access. The key design choice is using **JSONB columns** for user-defined data, allowing fully custom schemas without database migrations for most feature work.
 
-## Table schema
+## Entity-Relationship Diagram
+
+```mermaid
+erDiagram
+    users ||--o{ projects : owns
+    users ||--o| password_credentials : has
+    users ||--o{ password_reset_tokens : has
+    projects ||--o{ entries : contains
+    projects ||--o{ tasks : contains
+
+    users {
+        uuid id PK
+        varchar google_sub UK
+        varchar email UK
+        varchar full_name
+        varchar avatar_url
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    password_credentials {
+        uuid user_id PK_FK
+        varchar password_hash
+    }
+
+    password_reset_tokens {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash
+        timestamp expires_at
+        timestamp used_at
+        timestamp created_at
+    }
+
+    projects {
+        uuid id PK
+        uuid user_id FK
+        varchar name
+        varchar description
+        jsonb entry_schema
+        boolean archived
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    entries {
+        uuid id PK
+        uuid project_id FK
+        jsonb data
+        integer time_spent
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    tasks {
+        uuid id PK
+        uuid project_id FK
+        varchar title
+        varchar description
+        date due_date
+        boolean completed
+        jsonb checklist
+        timestamp created_at
+        timestamp updated_at
+    }
+```
+
+## Table Schema
 
 ### users
 
