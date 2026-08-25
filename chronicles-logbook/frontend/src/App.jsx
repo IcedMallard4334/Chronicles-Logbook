@@ -438,7 +438,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
 
 function LogoIcon({ className, size = 40 }) {
   return (
-    <div className="logo-c-wrap" style={{ width: size, height: size }}>
+    <div className={`logo-c-wrap ${className || ""}`.trim()} style={{ width: size, height: size }}>
       <div className="logo-c-ring" />
       <span className="logo-c-letter">C</span>
     </div>
@@ -634,11 +634,13 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
           ) : (
             <ul className="project-list" role="listbox" aria-label="Projects">
               {activeProjects.map((project) => (
-                <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                <li key={project.id}>
                   <button
                     type="button"
                     className={`project-button ${project.id === selectedId ? "active" : ""}`}
                     onClick={() => onSelect(project.id)}
+                    role="option"
+                    aria-selected={project.id === selectedId}
                   >
                     {project.name}
                   </button>
@@ -663,13 +665,15 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                   aria-label="Archived projects"
                 >
                   {archivedProjects.map((project) => (
-                    <li key={project.id} role="option" aria-selected={project.id === selectedId}>
+                    <li key={project.id}>
                       <button
                         type="button"
                         className={`project-button archived ${
                           project.id === selectedId ? "active" : ""
                         }`}
                         onClick={() => onSelect(project.id)}
+                        role="option"
+                        aria-selected={project.id === selectedId}
                       >
                         <span className="project-name">{project.name}</span>
                         <span className="archived-badge">Archived</span>
@@ -1265,11 +1269,15 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
 function EntryForm({ project, onCreated }) {
   const schema = project.entry_schema || []
   const [data, setData] = useState({})
+  const [hoursSpent, setHoursSpent] = useState("")
+  const [minutesSpent, setMinutesSpent] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     setData({})
+    setHoursSpent("")
+    setMinutesSpent("")
     setError(null)
   }, [project.id])
 
@@ -1292,8 +1300,13 @@ function EntryForm({ project, onCreated }) {
           payload[field.id] = Number(payload[field.id])
         }
       }
-      await onCreated(payload)
+      const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
+      const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
+      const timeSpent = hours * 60 + minutes
+      await onCreated({ data: payload, time_spent: timeSpent === 0 ? null : timeSpent })
       setData({})
+      setHoursSpent("")
+      setMinutesSpent("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1347,6 +1360,29 @@ function EntryForm({ project, onCreated }) {
             )}
           </label>
         ))}
+      </div>
+      <div className="form-grid time-tracking">
+        <label className="field-label">
+          Hours spent
+          <input
+            type="number"
+            min={0}
+            value={hoursSpent}
+            onChange={(e) => setHoursSpent(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <label className="field-label">
+          Minutes spent
+          <input
+            type="number"
+            min={0}
+            max={59}
+            value={minutesSpent}
+            onChange={(e) => setMinutesSpent(e.target.value)}
+            placeholder="0"
+          />
+        </label>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
@@ -1406,7 +1442,7 @@ function Timeline({ projects }) {
       setLoading(true)
       setError(null)
       try {
-        const data = await fetchEntriesGlobal({ q, projectId })
+        const data = await fetchEntriesGlobal({ q, projectId, page: 1, pageSize: 20 })
         if (!cancelled) setEntries(data)
       } catch (err) {
         if (!cancelled) setError(formatError(err))
