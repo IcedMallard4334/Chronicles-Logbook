@@ -1,6 +1,6 @@
 """Tests for Google OpenID Connect authentication."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, unquote, urlparse
 
 from sqlalchemy import func, select

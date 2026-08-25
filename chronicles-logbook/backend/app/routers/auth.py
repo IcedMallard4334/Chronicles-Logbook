@@ -1,4 +1,3 @@
-import secrets
 import uuid
 from urllib.parse import quote
 
@@ -6,7 +5,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
@@ -83,7 +82,7 @@ def _verify_oauth_state(state: str) -> bool:
 
 
 @router.get("/google/login")
-async def google_login(request: Request):  # noqa: ARG001
+async def google_login(request: Request):
     _require_google_configuration()
     state = _make_oauth_state()
     params = {
@@ -110,7 +109,7 @@ def _auth_response(user: User) -> AuthResponse:
 
 @router.get("/google/callback")
 async def google_callback(
-    request: Request,  # noqa: ARG001
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -221,7 +220,7 @@ def _verify_calendar_state(state: str) -> str | None:
 
 @router.get("/google/calendar/callback")
 async def google_calendar_callback(
-    request: Request,  # noqa: ARG001
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),  # noqa: B008
