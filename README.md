@@ -15,7 +15,7 @@ Recent additions include time tracking per entry with accumulated totals per pro
 
 | | URL |
 |---|---|
-| **Chronicles Live Documentation** | [https://sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles) |
+| **Chronicles Live Documentation** | [https://sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/docs/) |
 | **Chronicles Logbook Link** | [https://chronicles-frontend.azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
 
 
