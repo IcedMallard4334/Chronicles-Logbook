@@ -1,9 +1,11 @@
 """Google Calendar OAuth and event fetching."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+import secrets
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,30 +19,11 @@ from app.database import get_db
 from app.models import GoogleCalendarToken, User
 from app.routers.auth import get_current_user
 from app.schemas import GoogleCalendarEvent, GoogleCalendarStatus
+from app.security import create_access_token
 
 router = APIRouter(prefix="/calendar", tags=["Calendar"])
 
-_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-
-
-def _build_flow(*, redirect_uri: str | None = None) -> Flow:
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google OAuth is not configured.",
-        )
-    return Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-            }
-        },
-        scopes=_SCOPES,
-        redirect_uri=redirect_uri or GOOGLE_CALENDAR_REDIRECT_URI,
-    )
+_SCOPES = "https://www.googleapis.com/auth/calendar.readonly"
 
 
 def _credentials_from_token(token: GoogleCalendarToken) -> Credentials:
@@ -50,7 +33,7 @@ def _credentials_from_token(token: GoogleCalendarToken) -> Credentials:
         token_uri="https://oauth2.googleapis.com/token",
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
-        scopes=_SCOPES,
+        scopes=[_SCOPES],
     )
 
 
@@ -65,17 +48,32 @@ async def google_calendar_status(
 
 @router.get("/google/auth")
 async def google_calendar_auth(
-    request: Request,
     user: User = Depends(get_current_user),  # noqa: B008
 ):
-    flow = _build_flow()
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent",
-    )
-    request.session["google_calendar_state"] = state
-    request.session["google_calendar_user_id"] = str(user.id)
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured.",
+        )
+    # Embed user_id in a signed state token so the callback can identify
+    # the user without relying on session cookies.
+    nonce = secrets.token_urlsafe(32)
+    payload = f"{nonce}:{user.id}"
+    sig = create_access_token(payload)
+    state = f"{payload}.{sig}"
+
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
+        "response_type": "code",
+        "scope": _SCOPES,
+        "state": state,
+        "access_type": "offline",
+        "include_granted_scopes": "true",
+        "prompt": "consent",
+    }
+    qs = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in params.items())
+    authorization_url = f"https://accounts.google.com/o/oauth2/v2/auth?{qs}"
     return {"authorization_url": authorization_url}
 
 

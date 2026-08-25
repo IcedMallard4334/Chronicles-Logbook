@@ -1,10 +1,11 @@
+import secrets
+import uuid
 from urllib.parse import quote
 
-from authlib.integrations.starlette_client import OAuth, OAuthError
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from google_auth_oauthlib.flow import Flow
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,14 +24,6 @@ from app.security import create_access_token, decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 bearer = HTTPBearer(auto_error=False)
-oauth = OAuth()
-oauth.register(
-    name="google",
-    client_id=GOOGLE_CLIENT_ID or None,
-    client_secret=GOOGLE_CLIENT_SECRET or None,
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
 
 
 def _require_google_configuration() -> None:
@@ -63,13 +56,48 @@ async def get_current_user(
     return user
 
 
+def _make_oauth_state() -> str:
+    """Generate a self-contained, signed OAuth state token.
+
+    Avoids Authlib's session-based state which relies on cookies being
+    preserved across the full redirect chain — fragile when teammates
+    access the app from different domains or via Azure deployment URLs.
+    """
+    nonce = str(uuid.uuid4())
+    sig = create_access_token(nonce)
+    return f"{nonce}.{sig}"
+
+
+def _verify_oauth_state(state: str) -> bool:
+    """Verify the signed state token we generated earlier."""
+    try:
+        # Format: {uuid_nonce}.{jwt_with_dots}
+        # UUID is 36 chars (8-4-4-4-12), so split at position 36.
+        nonce, sig = state[:36], state[37:]
+        if state[36] != ".":
+            return False
+        decoded_nonce = decode_access_token(sig)
+        return str(decoded_nonce) == nonce
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @router.get("/google/login")
-async def google_login(request: Request):
+async def google_login(request: Request):  # noqa: ARG001
     _require_google_configuration()
-    return await oauth.google.authorize_redirect(
-        request,
-        OAUTH_REDIRECT_URI,
-        prompt="select_account",
+    state = _make_oauth_state()
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": OAUTH_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+        "access_type": "offline",
+    }
+    qs = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in params.items())
+    return RedirectResponse(
+        f"https://accounts.google.com/o/oauth2/v2/auth?{qs}"
     )
 
 
@@ -82,17 +110,49 @@ def _auth_response(user: User) -> AuthResponse:
 
 @router.get("/google/callback")
 async def google_callback(
-    request: Request,
+    request: Request,  # noqa: ARG001
+    code: str = Query(...),
+    state: str = Query(...),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     _require_google_configuration()
-    try:
-        token = await oauth.google.authorize_access_token(request)
-    except OAuthError as exc:
-        error = quote(exc.description or "Google authentication failed.")
+
+    # Validate the signed state — no session cookie required.
+    if not _verify_oauth_state(state):
+        error = quote("CSRF validation failed. Please try again.")
         return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
 
-    profile = token.get("userinfo") or {}
+    # Exchange the authorisation code directly with Google.
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": OAUTH_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+        if token_resp.status_code != 200:
+            error = quote("Failed to exchange authorization code.")
+            return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
+
+        token_data = token_resp.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            error = quote("Google did not return an access token.")
+            return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
+
+        userinfo_resp = await client.get(
+            "https://openidconnect.googleapis.com/v1/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        if userinfo_resp.status_code != 200:
+            error = quote("Failed to fetch user profile from Google.")
+            return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
+
+    profile = userinfo_resp.json()
     google_sub = str(profile.get("sub", ""))
     email = str(profile.get("email", "")).strip().lower()
     full_name = " ".join(str(profile.get("name", "")).split())
@@ -139,58 +199,65 @@ async def read_current_user(user: User = Depends(get_current_user)):  # noqa: B0
 # The redirect URI is /auth/google/calendar/callback (not /calendar/…)
 # because Google Cloud Console was configured with this path.
 
-_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
 
-def _calendar_flow() -> Flow:
-    return Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-            }
-        },
-        scopes=_CALENDAR_SCOPES,
-        redirect_uri=GOOGLE_CALENDAR_REDIRECT_URI,
-    )
+def _verify_calendar_state(state: str) -> str | None:
+    """Validate the signed calendar state and return the user_id.
+
+    Calendar state format: {nonce}:{user_id}.{jwt_signature}
+    """
+    try:
+        payload_part, sig = state.rsplit(".", 1)
+        decoded_payload = decode_access_token(sig)
+        if decoded_payload != payload_part:
+            return None
+        # Extract user_id from "nonce:user_id"
+        _, user_id = payload_part.split(":", 1)
+        return user_id
+    except Exception:  # noqa: BLE001
+        return None
 
 
 @router.get("/google/calendar/callback")
 async def google_calendar_callback(
-    request: Request,
+    request: Request,  # noqa: ARG001
     code: str = Query(...),
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    saved_state = request.session.pop("google_calendar_state", None)
-    if saved_state != state:
+    user_id = _verify_calendar_state(state)
+    if not user_id:
         return RedirectResponse(
             f"{FRONTEND_URL}/app?calendar_error=State+verification+failed."
         )
 
-    flow = _calendar_flow()
-    try:
-        flow.fetch_token(code=code)
-    except Exception as exc:  # noqa: BLE001
-        error = quote(f"Calendar authorisation failed: {exc}")
-        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+    # Exchange the authorisation code directly with Google.
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+        if token_resp.status_code != 200:
+            error = quote("Calendar authorisation failed.")
+            return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
 
-    credentials = flow.credentials
-    if not credentials.refresh_token:
+        token_data = token_resp.json()
+
+    refresh_token = token_data.get("refresh_token")
+    if not refresh_token:
         error = quote(
             "Google did not return a refresh token. Please revoke access and try again."
         )
         return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
 
-    user_id_str = request.session.pop("google_calendar_user_id", None)
-    if not user_id_str:
-        return RedirectResponse(
-            f"{FRONTEND_URL}/app?calendar_error=User+session+expired."
-        )
-
-    user = await db.get(User, user_id_str)
+    user = await db.get(User, user_id)
     if user is None:
         return RedirectResponse(
             f"{FRONTEND_URL}/app?calendar_error=User+not+found."
@@ -198,12 +265,12 @@ async def google_calendar_callback(
 
     existing = await db.get(GoogleCalendarToken, user.id)
     if existing is not None:
-        existing.refresh_token = credentials.refresh_token
+        existing.refresh_token = refresh_token
     else:
         db.add(
             GoogleCalendarToken(
                 user_id=user.id,
-                refresh_token=credentials.refresh_token,
+                refresh_token=refresh_token,
             )
         )
     await db.commit()
