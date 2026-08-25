@@ -124,3 +124,23 @@ export async function deleteTask(projectId, taskId) {
     method: "DELETE",
   })
 }
+
+// ── Google Calendar ────────────────────────────────────────────────
+
+export async function fetchGoogleCalendarStatus() {
+  return request("/calendar/google/status")
+}
+
+export async function fetchGoogleCalendarAuthUrl() {
+  const { authorization_url } = await request("/calendar/google/auth")
+  return authorization_url
+}
+
+export async function disconnectGoogleCalendar() {
+  return request("/calendar/google/disconnect", { method: "DELETE" })
+}
+
+export async function fetchGoogleCalendarEvents({ start, end }) {
+  const params = new URLSearchParams({ start, end })
+  return request(`/calendar/google/events?${params.toString()}`)
+}

@@ -5,8 +5,12 @@ import {
   createEntry,
   createProject,
   deleteAccount,
+  disconnectGoogleCalendar,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchGoogleCalendarAuthUrl,
+  fetchGoogleCalendarEvents,
+  fetchGoogleCalendarStatus,
   fetchProjects,
   unarchiveProject,
   updateProject,
@@ -810,6 +814,10 @@ function DashboardPanel({ projects, onCreate }) {
 function CalendarView({ projects }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleEvents, setGoogleEvents] = useState([])
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [calendarNotice, setCalendarNotice] = useState("")
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -817,6 +825,36 @@ function CalendarView({ projects }) {
   const firstDayOfMonth = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const today = new Date()
+
+  // Check connection status on mount and after callback redirect.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("calendar_connected") === "true") {
+      setCalendarNotice("Google Calendar connected!")
+      window.history.replaceState({}, "", window.location.pathname)
+      setTimeout(() => setCalendarNotice(""), 4000)
+    }
+    if (params.get("calendar_error")) {
+      setCalendarNotice(params.get("calendar_error"))
+      window.history.replaceState({}, "", window.location.pathname)
+      setTimeout(() => setCalendarNotice(""), 6000)
+    }
+    fetchGoogleCalendarStatus()
+      .then((data) => setGoogleConnected(data.connected))
+      .catch(() => setGoogleConnected(false))
+  }, [])
+
+  // Fetch Google Calendar events when month changes.
+  useEffect(() => {
+    if (!googleConnected) return
+    setGoogleLoading(true)
+    const start = new Date(year, month, 1).toISOString()
+    const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString()
+    fetchGoogleCalendarEvents({ start, end })
+      .then(setGoogleEvents)
+      .catch(() => setGoogleEvents([]))
+      .finally(() => setGoogleLoading(false))
+  }, [googleConnected, year, month])
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
@@ -858,8 +896,43 @@ function CalendarView({ projects }) {
     return map
   }, [projects])
 
+  const googleEventsByDate = useMemo(() => {
+    const map = new Map()
+    googleEvents.forEach((event) => {
+      const dateKey = event.start.includes("T")
+        ? event.start.split("T")[0]
+        : event.start
+      if (!map.has(dateKey)) map.set(dateKey, [])
+      map.get(dateKey).push(event)
+    })
+    return map
+  }, [googleEvents])
+
   const selectedKey = selectedDate.toISOString().split("T")[0]
   const selectedEntries = entriesByDate.get(selectedKey) || []
+  const selectedGoogleEvents = googleEventsByDate.get(selectedKey) || []
+
+  const handleConnect = async () => {
+    try {
+      const url = await fetchGoogleCalendarAuthUrl()
+      // Store user ID in session for the callback
+      window.location.href = url
+    } catch (err) {
+      setCalendarNotice(err.message || "Unable to start calendar connection.")
+    }
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectGoogleCalendar()
+      setGoogleConnected(false)
+      setGoogleEvents([])
+      setCalendarNotice("Google Calendar disconnected.")
+      setTimeout(() => setCalendarNotice(""), 4000)
+    } catch (err) {
+      setCalendarNotice(err.message || "Unable to disconnect calendar.")
+    }
+  }
 
   return (
     <div className="project-detail calendar-view">
@@ -868,7 +941,11 @@ function CalendarView({ projects }) {
           <div className="calendar-header">
             <div className="calendar-title">
               <h2>{monthName} <span className="calendar-year">{year}</span></h2>
-              <p className="calendar-subtitle">Select a date to see your entries</p>
+              <p className="calendar-subtitle">
+                {googleConnected
+                  ? "Chronicles entries & Google Calendar events"
+                  : "Select a date to see your entries"}
+              </p>
             </div>
             <div className="calendar-controls">
               <button type="button" className="btn-text calendar-today" onClick={goToToday}>
@@ -896,19 +973,23 @@ function CalendarView({ projects }) {
               {days.map((day, index) => {
                 const key = day ? new Date(year, month, day).toISOString().split("T")[0] : null
                 const entries = key ? entriesByDate.get(key) || [] : []
+                const gEvents = key ? googleEventsByDate.get(key) || [] : []
                 return (
                   <button
                     key={index}
                     type="button"
-                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""}`}
+                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""} ${(entries.length > 0 || gEvents.length > 0) ? "has-events" : ""}`}
                     onClick={() => day && setSelectedDate(new Date(year, month, day))}
                     disabled={!day}
                   >
                     <span className="day-number">{day}</span>
-                    {entries.length > 0 && (
+                    {(entries.length > 0 || gEvents.length > 0) && (
                       <span className="calendar-dots">
-                        {entries.slice(0, 3).map((_, i) => (
-                          <span key={i} className="calendar-dot" />
+                        {entries.slice(0, 2).map((_, i) => (
+                          <span key={`e-${i}`} className="calendar-dot dot-entry" />
+                        ))}
+                        {gEvents.slice(0, 2).map((_, i) => (
+                          <span key={`g-${i}`} className="calendar-dot dot-google" />
                         ))}
                       </span>
                     )}
@@ -917,6 +998,11 @@ function CalendarView({ projects }) {
               })}
             </div>
           </div>
+          {calendarNotice && (
+            <div className={`calendar-notice ${calendarNotice.includes("error") || calendarNotice.includes("Unable") ? "calendar-notice-error" : "calendar-notice-success"}`} role="status">
+              {calendarNotice}
+            </div>
+          )}
         </div>
         <aside className="calendar-side" aria-label="Selected date details">
           <div className="calendar-side-head">
@@ -925,13 +1011,59 @@ function CalendarView({ projects }) {
               {selectedDate.toLocaleDateString("default", { month: "short", day: "numeric" })}
             </span>
           </div>
+
+          {googleConnected && (
+            <div className="calendar-google-section">
+              <div className="calendar-google-head">
+                <span className="calendar-google-label">
+                  <svg className="calendar-google-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
+                  </svg>
+                  Google Calendar
+                </span>
+                <button type="button" className="btn-text btn-sm" onClick={handleDisconnect}>
+                  Disconnect
+                </button>
+              </div>
+              {googleLoading ? (
+                <p className="calendar-google-loading">Loading events…</p>
+              ) : selectedGoogleEvents.length === 0 ? (
+                <p className="calendar-google-empty">No Google events this day.</p>
+              ) : (
+                <ul className="calendar-google-list" role="list">
+                  {selectedGoogleEvents.map((event) => (
+                    <li key={event.id} className="calendar-google-event">
+                      <span className="calendar-google-dot" />
+                      <div className="calendar-google-event-body">
+                        <a
+                          className="calendar-google-event-title"
+                          href={event.html_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {event.summary}
+                        </a>
+                        <span className="calendar-google-event-time">
+                          {event.all_day
+                            ? "All day"
+                            : `${new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(event.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                        </span>
+                        {event.location && (
+                          <span className="calendar-google-event-location">{event.location}</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="calendar-side-body">
+            <h4 className="calendar-section-label">Chronicles Entries</h4>
             {selectedEntries.length === 0 ? (
               <div className="calendar-side-empty">
                 <p>No entries logged for this day.</p>
-                <button type="button" className="btn-secondary btn-sm" onClick={() => {}}>
-                  Log an entry
-                </button>
               </div>
             ) : (
               <ul className="calendar-entry-list" role="list">
@@ -947,6 +1079,18 @@ function CalendarView({ projects }) {
               </ul>
             )}
           </div>
+
+          {!googleConnected && (
+            <div className="calendar-connect">
+              <button type="button" className="btn-google-calendar" onClick={handleConnect}>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
+                </svg>
+                Connect Google Calendar
+              </button>
+              <p className="calendar-connect-hint">See your Google events alongside Chronicles entries.</p>
+            </div>
+          )}
         </aside>
       </div>
     </div>

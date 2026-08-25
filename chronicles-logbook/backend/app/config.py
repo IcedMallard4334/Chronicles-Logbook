@@ -56,3 +56,8 @@ DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
+
+GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
+    "GOOGLE_CALENDAR_REDIRECT_URI",
+    "http://localhost:8000/calendar/google/callback",
+)

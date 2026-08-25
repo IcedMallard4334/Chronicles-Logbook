@@ -27,6 +27,16 @@ class User(Base):
     )
 
 
+class GoogleCalendarToken(Base):
+    __tablename__ = "google_calendar_tokens"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    refresh_token: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
 class Project(Base):
     __tablename__ = "projects"
 

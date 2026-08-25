@@ -171,3 +171,21 @@ class TimelineEntryResponse(BaseModel):
     data: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+# ── Google Calendar ─────────────────────────────────────────────────
+
+
+class GoogleCalendarStatus(BaseModel):
+    connected: bool
+
+
+class GoogleCalendarEvent(BaseModel):
+    id: str
+    summary: str
+    start: str
+    end: str
+    all_day: bool
+    color: str | None = None
+    html_link: str | None = None
+    location: str | None = None
