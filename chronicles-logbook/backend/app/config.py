@@ -59,5 +59,5 @@ EMAIL_FROM = os.getenv("EMAIL_FROM")
 
 GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
     "GOOGLE_CALENDAR_REDIRECT_URI",
-    "http://localhost:8000/calendar/google/callback",
+    "http://localhost:8000/auth/google/calendar/callback",
 )

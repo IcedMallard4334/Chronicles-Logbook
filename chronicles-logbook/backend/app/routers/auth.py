@@ -1,21 +1,23 @@
 from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google_auth_oauthlib.flow import Flow
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
     FRONTEND_URL,
+    GOOGLE_CALENDAR_REDIRECT_URI,
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     OAUTH_REDIRECT_URI,
 )
 from app.database import get_db
 from app.email import send_account_deleted_email
-from app.models import User
+from app.models import GoogleCalendarToken, User
 from app.schemas import AuthResponse, UserResponse
 from app.security import create_access_token, decode_access_token
 
@@ -130,6 +132,82 @@ async def google_callback(
 @router.get("/me", response_model=UserResponse)
 async def read_current_user(user: User = Depends(get_current_user)):  # noqa: B008
     return user
+
+
+# ── Google Calendar OAuth callback ─────────────────────────────────
+# Google redirects here after the user grants calendar access.
+# The redirect URI is /auth/google/calendar/callback (not /calendar/…)
+# because Google Cloud Console was configured with this path.
+
+_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+
+
+def _calendar_flow() -> Flow:
+    return Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=_CALENDAR_SCOPES,
+        redirect_uri=GOOGLE_CALENDAR_REDIRECT_URI,
+    )
+
+
+@router.get("/google/calendar/callback")
+async def google_calendar_callback(
+    request: Request,
+    code: str = Query(...),
+    state: str = Query(...),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    saved_state = request.session.pop("google_calendar_state", None)
+    if saved_state != state:
+        return RedirectResponse(
+            f"{FRONTEND_URL}/app?calendar_error=State+verification+failed."
+        )
+
+    flow = _calendar_flow()
+    try:
+        flow.fetch_token(code=code)
+    except Exception as exc:  # noqa: BLE001
+        error = quote(f"Calendar authorisation failed: {exc}")
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+
+    credentials = flow.credentials
+    if not credentials.refresh_token:
+        error = quote(
+            "Google did not return a refresh token. Please revoke access and try again."
+        )
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+
+    user_id_str = request.session.pop("google_calendar_user_id", None)
+    if not user_id_str:
+        return RedirectResponse(
+            f"{FRONTEND_URL}/app?calendar_error=User+session+expired."
+        )
+
+    user = await db.get(User, user_id_str)
+    if user is None:
+        return RedirectResponse(
+            f"{FRONTEND_URL}/app?calendar_error=User+not+found."
+        )
+
+    existing = await db.get(GoogleCalendarToken, user.id)
+    if existing is not None:
+        existing.refresh_token = credentials.refresh_token
+    else:
+        db.add(
+            GoogleCalendarToken(
+                user_id=user.id,
+                refresh_token=credentials.refresh_token,
+            )
+        )
+    await db.commit()
+    return RedirectResponse(f"{FRONTEND_URL}/app?calendar_connected=true")
 
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)

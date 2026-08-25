@@ -1,18 +1,14 @@
 """Google Calendar OAuth and event fetching."""
 
-from urllib.parse import quote
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import RedirectResponse
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
-    FRONTEND_URL,
     GOOGLE_CALENDAR_REDIRECT_URI,
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
@@ -68,7 +64,10 @@ async def google_calendar_status(
 
 
 @router.get("/google/auth")
-async def google_calendar_auth(request: Request):
+async def google_calendar_auth(
+    request: Request,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
     flow = _build_flow()
     authorization_url, state = flow.authorization_url(
         access_type="offline",
@@ -76,62 +75,8 @@ async def google_calendar_auth(request: Request):
         prompt="consent",
     )
     request.session["google_calendar_state"] = state
+    request.session["google_calendar_user_id"] = str(user.id)
     return {"authorization_url": authorization_url}
-
-
-@router.get("/google/callback")
-async def google_calendar_callback(
-    request: Request,
-    code: str = Query(...),
-    state: str = Query(...),
-    db: AsyncSession = Depends(get_db),  # noqa: B008
-):
-    saved_state = request.session.pop("google_calendar_state", None)
-    if saved_state != state:
-        return RedirectResponse(
-            f"{FRONTEND_URL}/app?calendar_error=State+verification+failed."
-        )
-
-    flow = _build_flow()
-    try:
-        flow.fetch_token(code=code)
-    except Exception as exc:  # noqa: BLE001
-        error = quote(f"Calendar authorisation failed: {exc}")
-        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
-
-    credentials = flow.credentials
-    if not credentials.refresh_token:
-        error = quote("Google did not return a refresh token. Please revoke access and try again.")
-        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
-
-    # We need the current user from the bearer token passed in the state or
-    # from a session. Since the calendar OAuth is initiated from within the
-    # app (user is already authenticated), we look up the user via the
-    # chronicles_token stored in the session by the frontend before redirect.
-    user_id_str = request.session.pop("google_calendar_user_id", None)
-    if not user_id_str:
-        return RedirectResponse(
-            f"{FRONTEND_URL}/app?calendar_error=User+session+expired."
-        )
-
-    user = await db.get(User, user_id_str)
-    if user is None:
-        return RedirectResponse(
-            f"{FRONTEND_URL}/app?calendar_error=User+not+found."
-        )
-
-    existing = await db.get(GoogleCalendarToken, user.id)
-    if existing is not None:
-        existing.refresh_token = credentials.refresh_token
-    else:
-        db.add(
-            GoogleCalendarToken(
-                user_id=user.id,
-                refresh_token=credentials.refresh_token,
-            )
-        )
-    await db.commit()
-    return RedirectResponse(f"{FRONTEND_URL}/app?calendar_connected=true")
 
 
 @router.delete("/google/disconnect", status_code=status.HTTP_204_NO_CONTENT)
