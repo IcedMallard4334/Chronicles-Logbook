@@ -103,17 +103,30 @@ jobs:
           Copy-Item -Path ..\..\site\* -Destination dist\docs -Recurse
         working-directory: chronicles-logbook/frontend
 
-      - name: Copy server.js and package files into dist
+      - name: Copy server.js into dist
+        shell: pwsh
+        run: Copy-Item -Path server.js -Destination dist\server.js -Force
+        working-directory: chronicles-logbook/frontend
+
+      - name: Generate minimal production package.json for dist
         shell: pwsh
         run: |
-          Copy-Item -Path server.js -Destination dist\server.js -Force
-          Copy-Item -Path package.json -Destination dist\package.json -Force
-          Copy-Item -Path package-lock.json -Destination dist\package-lock.json -Force
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $minimal = [ordered]@{
+            name    = $pkg.name
+            version = $pkg.version
+            private = $true
+            type    = "commonjs"
+            main    = "server.js"
+            scripts = @{ start = "node server.js" }
+            dependencies = $pkg.dependencies
+          }
+          $minimal | ConvertTo-Json -Depth 10 | Set-Content dist\package.json
         working-directory: chronicles-logbook/frontend
 
       - name: Install production dependencies for server
         shell: pwsh
-        run: npm ci --omit=dev
+        run: npm install --omit=dev
         working-directory: chronicles-logbook/frontend/dist
 
       - name: Zip frontend dist
