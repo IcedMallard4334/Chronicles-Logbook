@@ -34,3 +34,5 @@ node --version      # Should show v20.x or higher
 psql --version      # Should show 15.x or higher
 git --version       # Any recent version
 ```
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

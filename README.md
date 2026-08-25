@@ -40,7 +40,7 @@ The schema is user-defined, not hardcoded. Entries, statistics, filters, and das
 - [Deployment](#deployment)
 - [Documentation](#documentation)
 - [Status](#status)
-- [AI declaration](#ai-declaration)
+- [AI Usage](#ai-usage)
 
 ## Prerequisites
 
@@ -346,6 +346,8 @@ python -m mkdocs serve        # Live preview at http://localhost:8001
 
 🚧 In development.
 
-## AI declaration
+## AI Usage
 
-Project specification generated with Claude Code (Claude Opus 4.8), per course requirements.
+This repository makes use of AI code generation using the following tools: Qoder.
+This repository makes use of AI in-line editing using the following tools: Qoder.
+This repository makes use of AI code-review using the following tools: Qoder.

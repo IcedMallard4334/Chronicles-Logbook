@@ -222,3 +222,5 @@ A failing CI check blocks merge to `main`.
 1. S. Chacon and B. Straub, *Pro Git*, 2nd edition. Apress, 2014.
 2. GitHub, "GitHub Flow," [https://docs.github.com/en/get-started/using-github/github-flow](https://docs.github.com/en/get-started/using-github/github-flow).
 3. Conventional Commits, "Conventional Commits Specification," [https://www.conventionalcommits.org/](https://www.conventionalcommits.org/).
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

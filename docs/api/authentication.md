@@ -94,3 +94,5 @@ Include the JWT in the `Authorization` header for all authenticated requests:
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

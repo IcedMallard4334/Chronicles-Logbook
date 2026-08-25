@@ -88,3 +88,5 @@ The frontend will be available at [http://localhost:5173](http://localhost:5173)
 | Port 5173 in use | Vite will automatically try the next available port |
 | CORS errors | Ensure `CORS_ORIGINS` includes your frontend URL |
 | Node.js version error | Upgrade to Node.js 20+ (`node --version` to check) |
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

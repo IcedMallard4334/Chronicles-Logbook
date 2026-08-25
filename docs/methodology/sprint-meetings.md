@@ -143,3 +143,5 @@ The two PO meetings that did take place were substantive:
   - **Action:** Rotate the Scrum Master role for Sprint 2
 
 ![Meeting 5 — In-person photo](../assets/meetings/meeting5-photo.jpeg)
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

@@ -243,3 +243,5 @@ The team uses **Gitea Projects** in **Kanban mode** as its work tracking board. 
 2. D. J. Anderson, *Kanban: Successful Evolutionary Change for Your Technology Business*. Blue Hole Press, 2010.
 3. M. Nygard, "Documenting Architecture Decisions," *Cognitect Blog*, 2011. [Online]. Available: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
 4. Conventional Commits, "Conventional Commits Specification," [Online]. Available: https://www.conventionalcommits.org/
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

@@ -150,3 +150,5 @@ psql "postgresql://user:password@host:5432/dbname" -f migrations/001_schema_upda
 |---|---|---|
 | Local development | `http://localhost:5173` | `http://localhost:8000` |
 | Production | Azure Web Apps URL | Azure App Service URL |
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

@@ -136,3 +136,5 @@ Returns entries across all projects owned by the authenticated user, ordered new
   }
 ]
 ```
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

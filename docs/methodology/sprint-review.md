@@ -141,3 +141,5 @@ Sprint 2 priorities:
 3. Begin Google Calendar API implementation (based on the US9 plan document)
 4. Start intermediate-tier features
 5. Address any feedback from the Milestone 1 review
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

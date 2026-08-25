@@ -55,3 +55,5 @@ frontend `VITE_API_URL` to the public Azure backend URL before building it.
 Google OpenID Connect satisfies authentication through an established provider and library. It
 should not be treated as the project's required relevant external API feature. The GitHub commit
 integration or Google Calendar task integration must still be implemented separately.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

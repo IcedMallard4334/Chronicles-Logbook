@@ -50,3 +50,5 @@ User-defined entry schemas are stored in PostgreSQL JSONB columns. As the number
 The Computer Graphics and Vision (CGV) project runs concurrently with the second half of the semester, reducing the team's available development capacity in Sprint 3 and the submission window.
 
 **Mitigation:** Sprint 3 capacity is reduced proportionally. The sprint plan prioritises bug fixes, polish, and documentation over new features. WIP limits prevent overcommitment. The Scrumban pull-based model means team members pick up work as capacity allows.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

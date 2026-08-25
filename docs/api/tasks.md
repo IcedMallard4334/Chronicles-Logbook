@@ -145,3 +145,5 @@ Each checklist item has the following shape:
 | `completed` | boolean | No | Completion status (default: false) |
 
 The frontend uses these items to render a progress bar (`completed / total`) inside each task.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

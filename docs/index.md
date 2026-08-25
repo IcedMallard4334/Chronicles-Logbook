@@ -72,3 +72,5 @@ Visit [http://localhost:5173](http://localhost:5173) to start using Chronicles.
 ## Team
 
 Driven by Design — COMS3011A, University of the Witwatersrand.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

@@ -177,3 +177,5 @@ The rubric requires:
 - A testing document describing strategy and test cases
 
 This documentation serves as the testing document for the project.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

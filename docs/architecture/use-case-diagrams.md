@@ -51,3 +51,5 @@ Diagrams are not included for US6 (password reset — feature removed post-sprin
 ## US24 — Task Tracking
 
 ![US24 — Task Tracking](../assets/use-cases/us24.png)
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

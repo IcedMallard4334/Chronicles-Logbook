@@ -180,3 +180,5 @@ Tables are auto-created on app startup via `Base.metadata.create_all`. For produ
 
 !!! note
     Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent`, do require a migration or `ALTER TABLE` in production.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

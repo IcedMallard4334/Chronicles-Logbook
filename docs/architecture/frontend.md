@@ -128,3 +128,5 @@ The app uses React's built-in `useState`, `useEffect`, `useCallback`, `useMemo`,
 - **React Router for view routing** — the app has grown beyond a single view; React Router gives clean URLs (`/app`, `/profile`) and handles auth redirects naturally.
 - **CSS custom properties over CSS-in-JS** — themes are achieved purely through CSS variables, keeping the styling layer simple and performant.
 - **Fetch-based API client** — `api.js` wraps the native `fetch` API with token injection and error handling, rather than using Axios or another library.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

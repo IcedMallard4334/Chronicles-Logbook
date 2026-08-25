@@ -161,3 +161,5 @@ Chronicles/
 ├── mkdocs.yml                 # Documentation site configuration
 └── README.md
 ```
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

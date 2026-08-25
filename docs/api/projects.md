@@ -232,3 +232,5 @@ The `entry_schema` supports the following field types:
 | `number` | Integer or float |
 | `date` | ISO date string |
 | `dropdown` | One of a predefined list of `options` |
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

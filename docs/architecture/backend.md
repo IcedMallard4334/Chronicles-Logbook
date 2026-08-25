@@ -123,3 +123,5 @@ Brevo's SMTP service is used to send transactional emails for account creation w
 ## CORS configuration
 
 CORS origins are configured via the `CORS_ORIGINS` environment variable (comma-separated). In production, this points to the Azure App Service URL.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder

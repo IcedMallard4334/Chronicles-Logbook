@@ -91,3 +91,5 @@ Significant technical decisions are documented as ADRs following [Nygard's forma
 - **Async-first backend** — FastAPI + async SQLAlchemy + asyncpg for concurrency
 - **CSS custom properties for theming** — no CSS-in-JS overhead
 - **Fetch-based API client** — no Axios dependency, uses native browser APIs
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder
