@@ -1,10 +1,40 @@
 # Testing
 
-## Backend tests
+## Testing Strategy
+
+```mermaid
+graph TB
+    subgraph Backend["Backend Testing (pytest)"]
+        Unit[Unit Tests<br/>Models, Schemas, Config]
+        API[API Integration Tests<br/>Auth, Projects, Tasks, Entries]
+        DB[Database Tests<br/>Session, Migrations]
+    end
+
+    subgraph Frontend["Frontend Testing (Vitest)"]
+        Comp[Component Tests<br/>App, AuthPage, TaskPanel, ProfilePage]
+        UnitFE[Unit Tests<br/>api.js, helpers]
+    end
+
+    subgraph CI["CI Enforcement"]
+        Lint[Lint Check<br/>ruff + oxlint]
+        Build[Build Verification<br/>vite build]
+        AllTests[All Tests Must Pass]
+    end
+
+    Unit --> AllTests
+    API --> AllTests
+    DB --> AllTests
+    Comp --> AllTests
+    UnitFE --> AllTests
+    Lint --> AllTests
+    Build --> AllTests
+```
+
+## Backend Tests
 
 The backend uses **pytest** with **pytest-asyncio** for async test support.
 
-### Running tests
+### Running Tests
 
 ```bash
 cd chronicles-logbook/backend
@@ -13,7 +43,7 @@ python -m pytest -v           # Verbose output
 python -m pytest -k "auth"    # Run tests matching "auth"
 ```
 
-### Test structure
+### Test Structure
 
 Tests are in `chronicles-logbook/backend/tests/`. The test suite uses an in-memory SQLite database via `aiosqlite` for isolation — no PostgreSQL needed for tests.
 
@@ -25,7 +55,21 @@ async def client():
     ...
 ```
 
-### Writing new tests
+### Test Files
+
+| File | Coverage |
+|---|---|
+| `test_auth.py` | Google OAuth, account deletion |
+| `test_config.py` | Environment variable loading and defaults |
+| `test_database.py` | Database session, engine creation |
+| `test_entries.py` | Entry CRUD, time tracking, global search |
+| `test_main.py` | App startup, lifespan, router registration |
+| `test_models.py` | ORM model definitions and relationships |
+| `test_routers_projects.py` | Project CRUD, archiving, schema management |
+| `test_schemas.py` | Pydantic schema validation |
+| `test_tasks.py` | Task CRUD, checklists, toggle, filtering |
+
+### Writing New Tests
 
 ```python
 import pytest
@@ -46,11 +90,11 @@ async def test_create_task(client: AsyncClient, auth_headers: dict):
 
 ---
 
-## Frontend tests
+## Frontend Tests
 
 The frontend uses **Vitest** for unit and component tests.
 
-### Running tests
+### Running Tests
 
 ```bash
 cd chronicles-logbook/frontend
@@ -58,14 +102,28 @@ npm run test            # Watch mode
 npm run test -- --run   # Single run
 ```
 
-### Writing new tests
+### Test Files
+
+| File | Coverage |
+|---|---|
+| `App.test.jsx` | App shell, navigation, project dashboard |
+| `AuthPage.test.jsx` | Sign-in, sign-up form validation |
+| `AuthCallback.test.jsx` | OAuth callback token handling |
+| `TaskPanel.test.jsx` | Task list, filters, checklist creation and toggling |
+| `ProfilePage.test.jsx` | User display, theme cycling, sign-out, delete account |
+| `api.test.js` | HTTP client, token injection, error handling |
+| `main.test.jsx` | Route protection, redirect logic |
+
+### Writing New Tests
 
 ```javascript
 import { describe, it, expect } from "vitest"
+import { render, screen } from "@testing-library/react"
 
 describe("TaskPanel", () => {
   it("renders the task form", () => {
-    // Test component rendering
+    render(<TaskPanel projectId="proj-1" />)
+    expect(screen.getByRole("heading", { name: /tasks/i })).toBeInTheDocument()
   })
 
   it("filters tasks by status", () => {
@@ -78,16 +136,38 @@ describe("TaskPanel", () => {
 
 ## Linting
 
-| Tool | Scope | Command |
-|---|---|---|
-| ruff | Python (backend) | `python -m ruff check .` |
-| oxlint | JavaScript/JSX (frontend) | `npm run lint` |
+| Tool | Scope | Command | Auto-fix |
+|---|---|---|---|
+| ruff | Python (backend) | `python -m ruff check .` | `python -m ruff check . --fix` |
+| oxlint | JavaScript/JSX (frontend) | `npm run lint` | — |
 
-Both tools are configured via their default settings. Fix issues before committing.
+Both tools are enforced in CI. A failing lint check blocks merge to `main`.
 
 ---
 
-## Sprint 2 requirements
+## Test Policy
+
+### When to Write Tests
+
+- **Every new API endpoint** must have at least one test for the happy path and one for each error case.
+- **Every new frontend component** must have a test that verifies it renders correctly.
+- **Bug fixes** must include a test that reproduces the bug before the fix, and passes after.
+
+### Test Naming Convention
+
+```
+test_<action>_<scenario>_<expected_result>
+```
+
+Example: `test_create_task_with_checklist_returns_201`
+
+### Coverage Targets
+
+The project aims for tests that cover all user-facing API endpoints and critical UI interactions. Coverage is measured by the breadth of endpoint and component coverage rather than line-coverage percentage.
+
+---
+
+## Sprint 2 Requirements
 
 The rubric requires:
 
@@ -96,4 +176,4 @@ The rubric requires:
 - Linting should show no errors or warnings
 - A testing document describing strategy and test cases
 
-This documentation serves as the testing document for Sprint 1.
+This documentation serves as the testing document for the project.

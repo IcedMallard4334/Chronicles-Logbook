@@ -37,60 +37,6 @@ def _send_email(
         server.send_message(message)
 
 
-def send_password_reset_email(
-    recipient: str,
-    reset_url: str,
-) -> None:
-    _send_email(
-        recipient=recipient,
-        subject="Reset your Chronicles password",
-        html=f"""
-            <h2>Reset your password</h2>
-
-            <p>
-                Someone requested a password reset for your
-                Chronicles account.
-            </p>
-
-            <p>
-                <a href="{reset_url}">
-                    Reset your password
-                </a>
-            </p>
-
-            <p>
-                This link expires in 60 minutes and can only be used once.
-            </p>
-
-            <p>
-                If you did not request this reset, you can safely
-                ignore this email.
-            </p>
-        """,
-    )
-
-def send_password_changed_email(recipient: str) -> None:
-    _send_email(
-        recipient=recipient,
-        subject="Your Chronicles password was changed",
-        html="""
-            <h2>Password changed successfully</h2>
-
-            <p>
-                Your Chronicles account password has been successfully changed.
-            </p>
-
-            <p>
-                If you made this change, no further action is required.
-            </p>
-
-            <p>
-                If you did not make this change, please secure your account
-                immediately.
-            </p>
-        """,
-    )
-
 def send_account_deleted_email(recipient: str) -> None:
     _send_email(
         recipient=recipient,

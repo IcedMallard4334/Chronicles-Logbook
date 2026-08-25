@@ -82,10 +82,3 @@ MAIL_FROM_NAME = os.environ.get(
     "MAIL_FROM_NAME",
     "Chronicles",
 )
-
-PASSWORD_RESET_EXPIRE_MINUTES = int(
-    os.environ.get(
-        "PASSWORD_RESET_EXPIRE_MINUTES",
-        "60",
-    )
-)

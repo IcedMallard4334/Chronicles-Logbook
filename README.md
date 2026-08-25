@@ -11,12 +11,21 @@ A customisable digital logbook that lets students track project work without the
 
 Recent additions include time tracking per entry with accumulated totals per project, task checklists with progress bars, a dedicated profile page, and both password-based and Google authentication.
 
+## Links
+
+| | URL |
+|---|---|
+| **Chronicles Live Documentation** | [https://sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles) |
+| **Chronicles Logbook Link** | [https://chronicles-frontend.azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
+
+
 ## Core idea
 
 The schema is user-defined, not hardcoded. Entries, statistics, filters, and dashboards all operate generically over fields the platform doesn't know about until the user creates them. This is the core design constraint that everything else is built against.
 
 ## Table of contents
 
+- [Links](#links)
 - [Prerequisites](#prerequisites)
 - [Repository structure](#repository-structure)
 - [Getting started](#getting-started)
@@ -29,6 +38,7 @@ The schema is user-defined, not hardcoded. Entries, statistics, filters, and das
 - [Contributing](#contributing)
 - [Features](#features)
 - [Deployment](#deployment)
+- [Documentation](#documentation)
 - [Status](#status)
 - [AI declaration](#ai-declaration)
 
@@ -311,6 +321,26 @@ Deployment is handled automatically by Gitea Actions when changes are merged int
 - `.gitea/workflows/deploy.yml` deploys the backend and frontend to Azure App Service.
 
 For Azure deployment details (publish profiles, environment variables, etc.), see the project wiki or ask the team lead.
+
+## Documentation
+
+The full project documentation is built with MkDocs. See the **Chronicles Live Documentation** link in the [Links](#links) section above.
+
+The documentation site includes:
+
+- **Getting Started** — prerequisites, installation, running the project
+- **Architecture** — system design with diagrams (backend, frontend, database ERD, use case diagrams), and authentication & Azure configuration
+- **API Reference** — full endpoint documentation with request/response examples
+- **Development** — contributing guide, testing strategy, deployment
+- **Methodology** — project methodology (Scrumban), Git workflow, sprint meetings, sprint review, and potential risks
+
+### Building docs locally
+
+```bash
+pip install -r docs/requirements.txt
+python -m mkdocs build        # Build to site/
+python -m mkdocs serve        # Live preview at http://localhost:8001
+```
 
 ## Status
 
