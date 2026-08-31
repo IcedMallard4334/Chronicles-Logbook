@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import ChroniclesLogo from "./ChroniclesLogo"
+import { useEffect, useState, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { fetchCurrentUser } from "./api"
@@ -6,10 +7,13 @@ import "./AuthPage.css"
 
 function AuthCallback() {
   const navigate = useNavigate()
+  const started = useRef(false)
   const [status, setStatus] = useState("loading")
   const [message, setMessage] = useState("")
 
   useEffect(() => {
+    if (started.current) return
+    started.current = true
     const completeLogin = async () => {
       const params = new URLSearchParams(window.location.hash.slice(1))
       const token = params.get("token")
@@ -23,6 +27,7 @@ function AuthCallback() {
       }
 
       try {
+        window.localStorage.removeItem("chronicles_signed_out")
         window.localStorage.setItem("chronicles_token", token)
         const user = await fetchCurrentUser()
         window.localStorage.setItem("chronicles_user", JSON.stringify(user))
@@ -46,7 +51,7 @@ function AuthCallback() {
   return (
     <main className="auth-callback-shell">
       <section className="auth-callback-card" aria-live="polite">
-        <span className="auth-mark">C</span>
+        <ChroniclesLogo size={64} />
 
         {status === "loading" && (
           <>

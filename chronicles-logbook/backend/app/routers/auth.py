@@ -1,15 +1,19 @@
 import uuid
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
     FRONTEND_URL,
+    COOKIE_SECURE,
     GOOGLE_CALENDAR_REDIRECT_URI,
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
@@ -17,9 +21,9 @@ from app.config import (
 )
 from app.database import get_db
 from app.email import send_account_deleted_email
-from app.models import GoogleCalendarToken, User
+from app.models import GoogleCalendarAccount, User, LoginSession
 from app.schemas import AuthResponse, UserResponse
-from app.security import create_access_token, decode_access_token
+from app.security import create_access_token, decode_access_token, decode_calendar_state
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 bearer = HTTPBearer(auto_error=False)
@@ -185,7 +189,57 @@ async def google_callback(
     await db.commit()
     await db.refresh(user)
     app_token = quote(create_access_token(user.id))
-    return RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={app_token}")
+    response = RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={app_token}")
+    await _create_login_session(user, db, response)
+    return response
+
+
+_SESSION_COOKIE = "chronicles_refresh"
+_SESSION_DAYS = 30
+
+
+async def _create_login_session(user, db, response):
+    token = secrets.token_urlsafe(48)
+    db.add(LoginSession(token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                        user_id=user.id,
+                        expires_at=datetime.now(timezone.utc) + timedelta(days=_SESSION_DAYS)))
+    await db.commit()
+    response.set_cookie(_SESSION_COOKIE, token, max_age=_SESSION_DAYS * 86400,
+                        httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/auth")
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _check_session_origin(request):
+    # Cookie-authenticated mutations must come from our frontend.
+    if request.headers.get("origin") != FRONTEND_URL:
+        raise HTTPException(403, "Untrusted session request origin.")
+
+
+@router.post("/refresh")
+async def refresh_session(request: Request, response: Response,
+                          db: AsyncSession = Depends(get_db)):
+    _check_session_origin(request)
+    token = request.cookies.get(_SESSION_COOKIE, "")
+    session = await db.get(LoginSession, hashlib.sha256(token.encode()).hexdigest()) if token else None
+    if session is None or session.expires_at.replace(tzinfo=timezone.utc) <= datetime.now(timezone.utc):
+        raise HTTPException(401, "Please sign in again.")
+    user = await db.get(User, session.user_id)
+    if user is None:
+        raise HTTPException(401, "Please sign in again.")
+    response.headers["Cache-Control"] = "no-store"
+    return _auth_response(user)
+
+
+@router.post("/logout", status_code=204)
+async def logout_session(request: Request, response: Response,
+                         db: AsyncSession = Depends(get_db)):
+    _check_session_origin(request)
+    token = request.cookies.get(_SESSION_COOKIE, "")
+    session = await db.get(LoginSession, hashlib.sha256(token.encode()).hexdigest()) if token else None
+    if session:
+        await db.delete(session)
+        await db.commit()
+    response.delete_cookie(_SESSION_COOKIE, path="/auth", secure=COOKIE_SECURE, httponly=True, samesite="lax")
 
 
 @router.get("/me", response_model=UserResponse)
@@ -201,28 +255,16 @@ async def read_current_user(user: User = Depends(get_current_user)):  # noqa: B0
 _CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
 
-def _verify_calendar_state(state: str) -> str | None:
-    """Validate the signed calendar state and return the user_id.
-
-    Calendar state format: {nonce}:{user_id}.{jwt_signature}
-    """
-    try:
-        payload_part, sig = state.rsplit(".", 1)
-        decoded_payload = decode_access_token(sig)
-        if decoded_payload != payload_part:
-            return None
-        # Extract user_id from "nonce:user_id"
-        _, user_id = payload_part.split(":", 1)
-        return user_id
-    except Exception:  # noqa: BLE001
-        return None
+def _verify_calendar_state(state: str) -> uuid.UUID | None:
+    return decode_calendar_state(state)
 
 
 @router.get("/google/calendar/callback")
 async def google_calendar_callback(
     request: Request,
-    code: str = Query(...),
-    state: str = Query(...),
+    code: str | None = Query(None),
+    state: str = Query(""),
+    error: str | None = Query(None),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     user_id = _verify_calendar_state(state)
@@ -231,47 +273,63 @@ async def google_calendar_callback(
             f"{FRONTEND_URL}/app?calendar_error=State+verification+failed."
         )
 
+    if error or not code:
+        message = quote("Google Calendar connection was cancelled. You can connect again when ready.")
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={message}")
+
     # Exchange the authorisation code directly with Google.
-    async with httpx.AsyncClient(timeout=15) as client:
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-        )
-        if token_resp.status_code != 200:
-            error = quote("Calendar authorisation failed.")
-            return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            token_resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+            )
+            if token_resp.status_code != 200:
+                error = quote("Calendar authorisation failed.")
+                return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+    
+            token_data = token_resp.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error=Google+did+not+return+an+access+token.")
+            identity_response = await client.get(
+                "https://www.googleapis.com/calendar/v3/calendars/primary",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if identity_response.status_code != 200:
+                return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error=Cannot+identify+Google+calendar.+Check+that+Calendar+API+is+enabled.")
+            identity = identity_response.json()
+            calendar_id = identity.get("id")
+            if not calendar_id:
+                return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error=Google+calendar+identity+missing.")
+    except httpx.RequestError:
+        message = quote("Cannot reach Google. Please check the backend connection and try again.")
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={message}")
 
-        token_data = token_resp.json()
-
-    refresh_token = token_data.get("refresh_token")
-    if not refresh_token:
-        error = quote(
-            "Google did not return a refresh token. Please revoke access and try again."
-        )
-        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={error}")
+    if _CALENDAR_SCOPE not in token_data.get("scope", "").split():
+        message = quote("Calendar read access was not granted. Please reconnect and allow Calendar access.")
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error={message}")
 
     user = await db.get(User, user_id)
     if user is None:
-        return RedirectResponse(
-            f"{FRONTEND_URL}/app?calendar_error=User+not+found."
-        )
-
-    existing = await db.get(GoogleCalendarToken, user.id)
-    if existing is not None:
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error=User+not+found.")
+    existing = await db.scalar(select(GoogleCalendarAccount).where(
+        GoogleCalendarAccount.user_id == user.id, GoogleCalendarAccount.calendar_id == calendar_id))
+    refresh_token = token_data.get("refresh_token") or (existing.refresh_token if existing else None)
+    if not refresh_token:
+        return RedirectResponse(f"{FRONTEND_URL}/app?calendar_error=Please+reconnect+and+grant+offline+calendar+access.")
+    if existing:
         existing.refresh_token = refresh_token
+        existing.label = calendar_id
     else:
-        db.add(
-            GoogleCalendarToken(
-                user_id=user.id,
-                refresh_token=refresh_token,
-            )
-        )
+        db.add(GoogleCalendarAccount(user_id=user.id, calendar_id=calendar_id,
+                                    label=calendar_id, refresh_token=refresh_token))
     await db.commit()
     return RedirectResponse(f"{FRONTEND_URL}/app?calendar_connected=true")
 

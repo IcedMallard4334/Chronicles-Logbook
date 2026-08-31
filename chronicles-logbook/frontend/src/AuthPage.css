@@ -138,54 +138,6 @@
   text-decoration: none;
 }
 
-/* Auth page C logo */
-.auth-logo-c {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.auth-logo-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    #6b5bff,
-    #ff6b9d,
-    #00d4aa,
-    #ff9f43,
-    #6b5bff
-  );
-  animation: auth-logo-spin 3s linear infinite;
-}
-
-.auth-logo-ring::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: #0f0e1a;
-}
-
-.auth-logo-letter {
-  position: relative;
-  z-index: 2;
-  font-weight: 900;
-  font-size: 1rem;
-  color: #ffffff;
-  line-height: 1;
-}
-
-@keyframes auth-logo-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .auth-copy {
   position: relative;
   z-index: 2;

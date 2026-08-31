@@ -25,7 +25,7 @@ describe("api", () => {
     const result = await fetchProjects()
 
     expect(fetch).toHaveBeenCalledWith("http://localhost:8000/projects", {
-      headers: { "Content-Type": "application/json" },
+      credentials: "include", headers: { "Content-Type": "application/json" },
     })
     expect(result).toEqual(projects)
   })
@@ -42,7 +42,7 @@ describe("api", () => {
 
     expect(fetch).toHaveBeenCalledWith("http://localhost:8000/projects", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Notes" }),
     })
     expect(result).toEqual(project)
@@ -72,7 +72,7 @@ describe("api", () => {
       "http://localhost:8000/projects/proj-1/entries",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { hours: 2 }, time_spent: null }),
       }
     )
@@ -92,7 +92,7 @@ describe("api", () => {
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:8000/entries?page=1&page_size=20",
       {
-        headers: { "Content-Type": "application/json" },
+        credentials: "include", headers: { "Content-Type": "application/json" },
       }
     )
     expect(result).toEqual(entries)
@@ -116,7 +116,7 @@ describe("api", () => {
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:8000/entries?q=notes&project_id=proj-1&page=2&page_size=10",
       {
-        headers: { "Content-Type": "application/json" },
+        credentials: "include", headers: { "Content-Type": "application/json" },
       }
     )
     expect(result).toEqual(entries)
@@ -133,7 +133,7 @@ describe("api", () => {
 
     await expect(fetchCurrentUser()).resolves.toEqual(user)
     expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/me", {
-      headers: {
+      credentials: "include", headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer session-token",
       },
@@ -147,7 +147,7 @@ describe("api", () => {
     await expect(deleteAccount()).resolves.toBeNull()
     expect(fetch).toHaveBeenCalledWith("http://localhost:8000/auth/account", {
       method: "DELETE",
-      headers: {
+      credentials: "include", headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer session-token",
       },

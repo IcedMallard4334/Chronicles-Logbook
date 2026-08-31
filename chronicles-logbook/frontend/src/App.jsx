@@ -1,3 +1,8 @@
+import { signOut } from "./api"
+import { EntriesPage, TasksPage } from "./WorkspacePages"
+import GoogleConnectionCard from "./GoogleConnectionCard"
+import CalendarView from "./CalendarView"
+import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -5,12 +10,8 @@ import {
   createEntry,
   createProject,
   deleteAccount,
-  disconnectGoogleCalendar,
   fetchEntries,
   fetchEntriesGlobal,
-  fetchGoogleCalendarAuthUrl,
-  fetchGoogleCalendarEvents,
-  fetchGoogleCalendarStatus,
   fetchProjects,
   unarchiveProject,
   updateProject,
@@ -249,12 +250,7 @@ function AuthActions() {
   const [confirmation, setConfirmation] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const clearSession = () => {
-    window.localStorage.removeItem("chronicles_token")
-    window.localStorage.removeItem("chronicles_user")
-    setUser(null)
-    window.location.assign("/")
-  }
+  const clearSession = () => { signOut().catch(() => {}) }
 
   const openDeleteModal = () => {
     setAccountError("")
@@ -436,14 +432,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
   )
 }
 
-function LogoIcon({ className, size = 40 }) {
-  return (
-    <div className={`logo-c-wrap ${className || ""}`.trim()} style={{ width: size, height: size }}>
-      <div className="logo-c-ring" />
-      <span className="logo-c-letter">C</span>
-    </div>
-  )
-}
+
 
 function CreateProjectModal({ isOpen, onClose, onCreate }) {
   const [name, setName] = useState("")
@@ -812,292 +801,6 @@ function DashboardPanel({ projects, onCreate }) {
         </div>
       </div>
     </aside>
-  )
-}
-
-function CalendarView({ projects }) {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [googleConnected, setGoogleConnected] = useState(false)
-  const [googleEvents, setGoogleEvents] = useState([])
-  const [googleLoading, setGoogleLoading] = useState(false)
-  const [calendarNotice, setCalendarNotice] = useState("")
-
-  const year = currentDate.getFullYear()
-  const month = currentDate.getMonth()
-  const monthName = currentDate.toLocaleString("default", { month: "long" })
-  const firstDayOfMonth = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const today = new Date()
-
-  // Check connection status on mount and after callback redirect.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get("calendar_connected") === "true") {
-      setCalendarNotice("Google Calendar connected!")
-      window.history.replaceState({}, "", window.location.pathname)
-      setTimeout(() => setCalendarNotice(""), 4000)
-    }
-    if (params.get("calendar_error")) {
-      setCalendarNotice(params.get("calendar_error"))
-      window.history.replaceState({}, "", window.location.pathname)
-      setTimeout(() => setCalendarNotice(""), 6000)
-    }
-    fetchGoogleCalendarStatus()
-      .then((data) => setGoogleConnected(data.connected))
-      .catch(() => setGoogleConnected(false))
-  }, [])
-
-  // Fetch Google Calendar events when month changes.
-  useEffect(() => {
-    if (!googleConnected) return
-    setGoogleLoading(true)
-    const start = new Date(year, month, 1).toISOString()
-    const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString()
-    fetchGoogleCalendarEvents({ start, end })
-      .then(setGoogleEvents)
-      .catch(() => setGoogleEvents([]))
-      .finally(() => setGoogleLoading(false))
-  }, [googleConnected, year, month])
-
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
-  const goToToday = () => {
-    const now = new Date()
-    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1))
-    setSelectedDate(now)
-  }
-
-  const isToday = (day) =>
-    day === today.getDate() &&
-    month === today.getMonth() &&
-    year === today.getFullYear()
-
-  const isSelected = (day) =>
-    day === selectedDate.getDate() &&
-    month === selectedDate.getMonth() &&
-    year === selectedDate.getFullYear()
-
-  const days = []
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    days.push(null)
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i)
-  }
-
-  const weekDays = ["S", "M", "T", "W", "T", "F", "S"]
-
-  const entriesByDate = useMemo(() => {
-    const map = new Map()
-    projects.forEach((project) => {
-      (project.entries || []).forEach((entry) => {
-        const dateKey = new Date(entry.created_at).toISOString().split("T")[0]
-        if (!map.has(dateKey)) map.set(dateKey, [])
-        map.get(dateKey).push({ ...entry, projectName: project.name })
-      })
-    })
-    return map
-  }, [projects])
-
-  const googleEventsByDate = useMemo(() => {
-    const map = new Map()
-    googleEvents.forEach((event) => {
-      const dateKey = event.start.includes("T")
-        ? event.start.split("T")[0]
-        : event.start
-      if (!map.has(dateKey)) map.set(dateKey, [])
-      map.get(dateKey).push(event)
-    })
-    return map
-  }, [googleEvents])
-
-  const selectedKey = selectedDate.toISOString().split("T")[0]
-  const selectedEntries = entriesByDate.get(selectedKey) || []
-  const selectedGoogleEvents = googleEventsByDate.get(selectedKey) || []
-
-  const handleConnect = async () => {
-    try {
-      const url = await fetchGoogleCalendarAuthUrl()
-      // Store user ID in session for the callback
-      window.location.href = url
-    } catch (err) {
-      setCalendarNotice(err.message || "Unable to start calendar connection.")
-    }
-  }
-
-  const handleDisconnect = async () => {
-    try {
-      await disconnectGoogleCalendar()
-      setGoogleConnected(false)
-      setGoogleEvents([])
-      setCalendarNotice("Google Calendar disconnected.")
-      setTimeout(() => setCalendarNotice(""), 4000)
-    } catch (err) {
-      setCalendarNotice(err.message || "Unable to disconnect calendar.")
-    }
-  }
-
-  return (
-    <div className="project-detail calendar-view">
-      <div className="calendar-layout">
-        <div className="calendar-main">
-          <div className="calendar-header">
-            <div className="calendar-title">
-              <h2>{monthName} <span className="calendar-year">{year}</span></h2>
-              <p className="calendar-subtitle">
-                {googleConnected
-                  ? "Chronicles entries & Google Calendar events"
-                  : "Select a date to see your entries"}
-              </p>
-            </div>
-            <div className="calendar-controls">
-              <button type="button" className="btn-text calendar-today" onClick={goToToday}>
-                Today
-              </button>
-              <button type="button" className="btn-icon" onClick={prevMonth} aria-label="Previous month">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-              </button>
-              <button type="button" className="btn-icon" onClick={nextMonth} aria-label="Next month">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div className="calendar-body">
-            <div className="calendar-weekdays">
-              {weekDays.map((day, i) => (
-                <div key={i} className="calendar-weekday">{day}</div>
-              ))}
-            </div>
-            <div className="calendar-grid">
-              {days.map((day, index) => {
-                const key = day ? new Date(year, month, day).toISOString().split("T")[0] : null
-                const entries = key ? entriesByDate.get(key) || [] : []
-                const gEvents = key ? googleEventsByDate.get(key) || [] : []
-                return (
-                  <button
-                    key={index}
-                    type="button"
-                    className={`calendar-day ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${day && isSelected(day) ? "selected" : ""} ${(entries.length > 0 || gEvents.length > 0) ? "has-events" : ""}`}
-                    onClick={() => day && setSelectedDate(new Date(year, month, day))}
-                    disabled={!day}
-                  >
-                    <span className="day-number">{day}</span>
-                    {(entries.length > 0 || gEvents.length > 0) && (
-                      <span className="calendar-dots">
-                        {entries.slice(0, 2).map((_, i) => (
-                          <span key={`e-${i}`} className="calendar-dot dot-entry" />
-                        ))}
-                        {gEvents.slice(0, 2).map((_, i) => (
-                          <span key={`g-${i}`} className="calendar-dot dot-google" />
-                        ))}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          {calendarNotice && (
-            <div className={`calendar-notice ${calendarNotice.includes("error") || calendarNotice.includes("Unable") ? "calendar-notice-error" : "calendar-notice-success"}`} role="status">
-              {calendarNotice}
-            </div>
-          )}
-        </div>
-        <aside className="calendar-side" aria-label="Selected date details">
-          <div className="calendar-side-head">
-            <h3>{selectedDate.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric" })}</h3>
-            <span className={`day-badge ${isToday(selectedDate.getDate()) && selectedDate.getMonth() === today.getMonth() && selectedDate.getFullYear() === today.getFullYear() ? "today" : ""}`}>
-              {selectedDate.toLocaleDateString("default", { month: "short", day: "numeric" })}
-            </span>
-          </div>
-
-          {googleConnected && (
-            <div className="calendar-google-section">
-              <div className="calendar-google-head">
-                <span className="calendar-google-label">
-                  <svg className="calendar-google-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
-                  </svg>
-                  Google Calendar
-                </span>
-                <button type="button" className="btn-text btn-sm" onClick={handleDisconnect}>
-                  Disconnect
-                </button>
-              </div>
-              {googleLoading ? (
-                <p className="calendar-google-loading">Loading events…</p>
-              ) : selectedGoogleEvents.length === 0 ? (
-                <p className="calendar-google-empty">No Google events this day.</p>
-              ) : (
-                <ul className="calendar-google-list" role="list">
-                  {selectedGoogleEvents.map((event) => (
-                    <li key={event.id} className="calendar-google-event">
-                      <span className="calendar-google-dot" />
-                      <div className="calendar-google-event-body">
-                        <a
-                          className="calendar-google-event-title"
-                          href={event.html_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {event.summary}
-                        </a>
-                        <span className="calendar-google-event-time">
-                          {event.all_day
-                            ? "All day"
-                            : `${new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(event.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
-                        </span>
-                        {event.location && (
-                          <span className="calendar-google-event-location">{event.location}</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <div className="calendar-side-body">
-            <h4 className="calendar-section-label">Chronicles Entries</h4>
-            {selectedEntries.length === 0 ? (
-              <div className="calendar-side-empty">
-                <p>No entries logged for this day.</p>
-              </div>
-            ) : (
-              <ul className="calendar-entry-list" role="list">
-                {selectedEntries.map((entry) => (
-                  <li key={entry.id} className="calendar-entry-item">
-                    <div className="calendar-entry-dot" />
-                    <div className="calendar-entry-body">
-                      <span className="calendar-entry-project">{entry.projectName}</span>
-                      <span className="calendar-entry-time">{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {!googleConnected && (
-            <div className="calendar-connect">
-              <button type="button" className="btn-google-calendar" onClick={handleConnect}>
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" fill="currentColor"/>
-                </svg>
-                Connect Google Calendar
-              </button>
-              <p className="calendar-connect-hint">See your Google events alongside Chronicles entries.</p>
-            </div>
-          )}
-        </aside>
-      </div>
-    </div>
   )
 }
 
@@ -1669,55 +1372,6 @@ async function seedDemoData() {
   return projectsWithEntries
 }
 
-function TodayPanel({ projects, selectedProject, onCreateProject, onViewCalendar }) {
-  const today = new Date()
-  const todayKey = today.toISOString().split("T")[0]
-  const todayEntries = projects.flatMap((p) =>
-    (p.entries || []).filter((e) => e.created_at.startsWith(todayKey))
-  )
-  const entryCount = todayEntries.length
-
-  const handleQuickLog = () => {
-    if (selectedProject) {
-      document.getElementById("entry-quick-note")?.focus()
-    } else {
-      onCreateProject()
-    }
-  }
-
-  return (
-    <div className="today-panel">
-      <div className="today-main">
-        <div className="today-date-block">
-          <span className="today-day">{today.toLocaleDateString("default", { weekday: "long" })}</span>
-          <span className="today-date">{today.toLocaleDateString("default", { day: "numeric", month: "long" })}</span>
-        </div>
-        <div className="today-summary">
-          <h2>{entryCount === 0 ? "Start today's log" : `${entryCount} entr${entryCount === 1 ? "y" : "ies"} today`}</h2>
-          <p>{entryCount === 0 ? "Capture what you're working on while it's fresh." : "Keep the momentum going."}</p>
-        </div>
-      </div>
-      <div className="today-actions">
-        <button type="button" className="btn-primary" onClick={handleQuickLog}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          {selectedProject ? "Log today's entry" : "Create a project"}
-        </button>
-        <button type="button" className="btn-secondary" onClick={onViewCalendar}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          View calendar
-        </button>
-      </div>
-    </div>
-  )
-}
-
 function App() {
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState(null)
@@ -1726,7 +1380,16 @@ function App() {
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [currentView, setCurrentView] = useState("home")
+  const [currentView, setCurrentView] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.has("calendar_connected") || params.has("calendar_error") ? "calendar" : ["home", "entries", "tasks", "calendar"].includes(params.get("view")) ? params.get("view") : "home"
+  })
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    params.set("view", currentView)
+    window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
+  }, [currentView])
 
   const loadProjects = useCallback(async () => {
     try {
@@ -1858,35 +1521,35 @@ function App() {
           </svg>
           <svg className="wave wave-silhouettes" viewBox="0 0 1440 320" preserveAspectRatio="none">
             <g className="silhouette-scene">
-              {/* Person sitting with book */}
-              <g transform="translate(260, 208) scale(0.6)">
-                <circle cx="12" cy="8" r="6" />
-                <path d="M6,16 Q0,32 8,42 L24,42 Q32,32 26,16 Z" />
-                <path d="M8,42 L6,58 M22,42 L24,58" />
-                <rect x="14" y="24" width="16" height="10" rx="1" transform="rotate(-15 22 29)" />
+              <g transform="translate(208, 130)">
+                <circle cx="46" cy="32" r="14" />
+                <path d="M34 50c-10 20-12 48-4 69h36c8-21 5-49-5-69z" />
+                <path d="M40 119l-10 53h14l13-50 13 50h14l-12-53z" />
+                <rect x="77" y="89" width="72" height="7" rx="3" />
+                <rect x="91" y="95" width="7" height="78" rx="3" />
+                <path d="M60 68l28 20 7-9-27-27z" />
+                <rect x="85" y="57" width="37" height="26" rx="3" transform="rotate(10 103 70)" />
               </g>
-              {/* Person standing pointing */}
-              <g transform="translate(560, 196) scale(0.65)">
-                <circle cx="12" cy="8" r="6" />
-                <path d="M6,16 L6,44 L18,44 L18,16 Z" />
-                <path d="M6,22 L-2,14 L-2,20 L6,26 Z" />
-                <path d="M18,22 L28,18" />
-                <path d="M8,44 L5,62 M16,44 L19,62" />
+              <g transform="translate(535, 130)">
+                <circle cx="45" cy="31" r="14" />
+                <path d="M34 50c-8 24-4 49 8 66h15c12-17 16-42 7-66z" />
+                <path d="M42 115l-13 57h16l12-49 12 49h16l-14-57z" />
+                <path className="silhouette-detail" d="M37 65L9 88m57-22l30 19" />
+                <circle cx="7" cy="89" r="5" />
               </g>
-              {/* Child playing / running */}
-              <g transform="translate(860, 215) scale(0.45)">
-                <circle cx="12" cy="8" r="6" />
-                <path d="M6,16 L8,38 L18,36 L16,16 Z" />
-                <path d="M8,24 L-2,22 L-4,30 L6,32 Z" />
-                <path d="M16,24 L26,20 L28,28 L18,30 Z" />
-                <path d="M8,38 L4,54 M18,36 L22,52" />
+              <g transform="translate(825, 164)">
+                <circle cx="49" cy="29" r="13" />
+                <path d="M41 46l29 20-14 28-30-16z" />
+                <path className="silhouette-detail" d="M38 59L5 55m50 38L35 134m14-40l39 28" />
+                <circle cx="108" cy="136" r="26" className="silhouette-detail" />
+                <circle cx="108" cy="136" r="5" />
               </g>
-              {/* Person with raised arms celebrating / planning */}
-              <g transform="translate(1120, 188) scale(0.7)">
-                <circle cx="12" cy="10" r="6" />
-                <path d="M6,18 L6,46 L18,46 L18,18 Z" />
-                <path d="M6,22 L-2,8 M18,22 L26,8" />
-                <path d="M8,46 L6,64 M16,46 L18,64" />
+              <g transform="translate(1125, 128)">
+                <circle cx="44" cy="31" r="14" />
+                <path d="M32 50c-7 23-3 50 8 67h16c10-17 14-44 7-67z" />
+                <path d="M40 116l-14 56h16l12-48 13 48h16l-15-56z" />
+                <path className="silhouette-detail" d="M36 64L11 32m53 32l27-33" />
+                <circle cx="8" cy="29" r="5" /><circle cx="94" cy="28" r="5" />
               </g>
             </g>
           </svg>
@@ -1957,7 +1620,7 @@ function App() {
           </div>
         </nav>
       </header>
-      <main className="app-main">
+      <main className={`app-main ${currentView !== "home" ? "app-main-wide" : ""}`}>
         {error && (
           <div className="global-error" role="alert">
             <p>{error}</p>
@@ -1966,7 +1629,7 @@ function App() {
             </button>
           </div>
         )}
-        <div className="sidebar-stack">
+        {currentView === "home" && <div className="sidebar-stack">
           <ProjectList
             projects={projects}
             selectedId={selectedId}
@@ -1979,32 +1642,16 @@ function App() {
             projects={projects}
             onCreate={() => setIsModalOpen(true)}
           />
-        </div>
+        </div>}
         <div className="content">
           {loading ? (
             <p className="hint">Loading…</p>
           ) : currentView === "calendar" ? (
             <CalendarView projects={projects} />
           ) : currentView === "tasks" ? (
-            <div className="project-detail">
-              <div className="detail-header">
-                <h2>Tasks</h2>
-                <p className="detail-description">Your tasks and deadlines will appear here.</p>
-              </div>
-              <div className="detail-body">
-                <p className="hint">Task management coming soon.</p>
-              </div>
-            </div>
+            <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
-            <div className="project-detail">
-              <div className="detail-header">
-                <h2>All entries</h2>
-                <p className="detail-description">Browse and search across all your logbook entries.</p>
-              </div>
-              <div className="detail-body">
-                <p className="hint">Global entry view coming soon.</p>
-              </div>
-            </div>
+            <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (
@@ -2018,7 +1665,7 @@ function App() {
             />
           ) : (
             <>
-              <TodayPanel
+              <GoogleConnectionCard
                 projects={projects}
                 selectedProject={selectedProject}
                 onCreateProject={() => setIsModalOpen(true)}

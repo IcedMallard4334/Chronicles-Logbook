@@ -2,11 +2,50 @@ const API_BASE_URL =
   (typeof import.meta.env !== "undefined" && import.meta.env.VITE_API_URL) ||
   "http://localhost:8000"
 
-async function request(path, options = {}) {
+let renewal = null
+let sessionGeneration = 0
+
+export function refreshSession() {
+  if (!renewal) {
+    const generation = sessionGeneration
+    renewal = (async () => {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, { method: "POST", credentials: "include" })
+      if (!response.ok) {
+        const error = new Error(response.status === 401 ? "Your session has ended. Please sign in again." : "Unable to restore your session. Please try again.")
+        error.status = response.status
+        throw error
+      }
+      const session = await response.json()
+      if (generation !== sessionGeneration) throw new Error("Session changed.")
+      window.localStorage.setItem("chronicles_token", session.access_token)
+      window.localStorage.setItem("chronicles_user", JSON.stringify(session.user))
+      return session
+    })().finally(() => { renewal = null })
+  }
+  return renewal
+}
+
+export async function signOut() {
+  sessionGeneration += 1
+  // Never silently restore a cookie session after an offline sign-out.
+  window.localStorage.setItem("chronicles_signed_out", "true")
+  window.localStorage.removeItem("chronicles_token")
+  window.localStorage.removeItem("chronicles_user")
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, { method: "POST", credentials: "include" })
+  } finally {
+    window.location.assign("/")
+  }
+}
+
+async function request(path, options = {}, retried = false) {
   const url = `${API_BASE_URL}${path}`
   const token = window.localStorage.getItem("chronicles_token")
-  const response = await fetch(url, {
+  let response
+  try {
+    response = await fetch(url, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -14,14 +53,34 @@ async function request(path, options = {}) {
     },
   })
 
+  } catch {
+    throw new Error("Cannot reach the Chronicles API. Check that the backend is running and allows this preview address.")
+  }
+
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
+    const sessionError = response.status === 401 && ["Invalid or expired session.", "Authentication required.", "Account no longer exists."].includes(body.detail)
+    if (sessionError && !retried && !window.localStorage.getItem("chronicles_signed_out")) {
+      try {
+        await refreshSession()
+      } catch (error) {
+        if (error.status === 401) {
+          window.localStorage.removeItem("chronicles_token")
+          window.localStorage.removeItem("chronicles_user")
+          window.dispatchEvent(new Event("chronicles-session-ended"))
+        }
+        throw error
+      }
+      return request(path, options, true)
+    }
     const message = body.detail
       ? Array.isArray(body.detail)
         ? body.detail.map((item) => item.msg || String(item)).join(" ")
         : String(body.detail)
       : `Request failed with status ${response.status}`
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    throw error
   }
 
   if (response.status === 204) {
@@ -146,11 +205,23 @@ export async function fetchGoogleCalendarAuthUrl() {
   return authorization_url
 }
 
-export async function disconnectGoogleCalendar() {
-  return request("/calendar/google/disconnect", { method: "DELETE" })
+export async function disconnectGoogleCalendar(accountId) {
+  const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : ""
+  return request(`/calendar/google/disconnect${query}`, { method: "DELETE" })
 }
 
-export async function fetchGoogleCalendarEvents({ start, end }) {
+export async function fetchGoogleCalendarEvents({ start, end, accountId }) {
   const params = new URLSearchParams({ start, end })
+  if (accountId) params.set("account_id", accountId)
   return request(`/calendar/google/events?${params.toString()}`)
+}
+
+export function fetchCalendarActivities({start, end}) {
+  return request(`/calendar/activities?${new URLSearchParams({start, end})}`)
+}
+export function createCalendarActivity(payload) {
+  return request("/calendar/activities", {method: "POST", body: JSON.stringify(payload)})
+}
+export function deleteCalendarActivity(id) {
+  return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
 }

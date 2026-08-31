@@ -1,3 +1,4 @@
+import ChroniclesLogo from "./ChroniclesLogo"
 import { Link } from "react-router-dom"
 
 import { getGoogleLoginUrl } from "./api"
@@ -56,10 +57,7 @@ function AuthPage() {
       <section className="auth-intro" aria-labelledby="auth-heading">
         <AnimatedLines />
         <Link className="auth-brand" to="/">
-          <div className="auth-logo-c">
-            <div className="auth-logo-ring" />
-            <span className="auth-logo-letter">C</span>
-          </div>
+          <ChroniclesLogo size={44} />
           <span>Chronicles</span>
         </Link>
         <div className="auth-copy">
