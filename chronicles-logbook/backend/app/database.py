@@ -31,6 +31,7 @@ _connect_args = (
 async_engine = create_async_engine(
     DATABASE_URL,
     echo=SQL_DEBUG,
+    hide_parameters=True,
     connect_args=_connect_args,
 )
 

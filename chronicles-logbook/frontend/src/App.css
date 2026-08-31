@@ -1,57 +1,4 @@
 /* --------------------------------------------------
-   ANIMATED "C" LOGO
-   -------------------------------------------------- */
-
-.logo-c-wrap {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.logo-c-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    #6b5bff,
-    #ff6b9d,
-    #00d4aa,
-    #ff9f43,
-    #6b5bff
-  );
-  animation: logo-spin 4s linear infinite;
-  padding: 2px;
-}
-
-.logo-c-ring::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: var(--surface);
-}
-
-.logo-c-letter {
-  position: relative;
-  z-index: 2;
-  font-weight: 900;
-  font-size: 0.55em;
-  background: linear-gradient(135deg, #6b5bff, #4338ca);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
-}
-
-@keyframes logo-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* --------------------------------------------------
    DYNAMIC BACKGROUND
    -------------------------------------------------- */
 
@@ -75,8 +22,8 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--bg) 85%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 40%, transparent) 45%,
+    color-mix(in srgb, var(--bg) 96%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 62%, transparent) 45%,
     transparent 70%
   );
   pointer-events: none;
@@ -116,13 +63,21 @@
 
 .wave-silhouettes {
   bottom: 0;
-  opacity: 0.9;
+  opacity: 0.56;
   pointer-events: none;
   animation: wave-sway 14s ease-in-out infinite alternate-reverse;
 }
 
 .wave-silhouettes .silhouette-scene {
   fill: var(--silhouette);
+}
+
+.wave-silhouettes .silhouette-detail {
+  fill: none;
+  stroke: var(--silhouette);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 @keyframes wave-sway {
@@ -141,7 +96,7 @@
     linear-gradient(var(--line) 1px, transparent 1px),
     linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 60px 60px;
-  opacity: 0.35;
+  opacity: 0.22;
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }

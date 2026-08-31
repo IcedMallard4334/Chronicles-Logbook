@@ -1,3 +1,5 @@
+import { signOut } from "./api"
+import LogoIcon from "./ChroniclesLogo"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
@@ -8,14 +10,7 @@ function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
 }
 
-function LogoIcon({ size = 40 }) {
-  return (
-    <div className="logo-c-wrap" style={{ width: size, height: size }}>
-      <div className="logo-c-ring" />
-      <span className="logo-c-letter">C</span>
-    </div>
-  )
-}
+
 
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -121,11 +116,7 @@ export default function ProfilePage() {
     loadUser()
   }, [loadUser])
 
-  const clearSession = () => {
-    window.localStorage.removeItem("chronicles_token")
-    window.localStorage.removeItem("chronicles_user")
-    window.location.assign("/")
-  }
+  const clearSession = () => { signOut().catch(() => {}) }
 
   const handleSignOut = () => {
     clearSession()

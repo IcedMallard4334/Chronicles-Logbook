@@ -2,12 +2,13 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 28px 24px 48px;
+  padding: 0 0 48px;
+  width: 100%;
 }
 
 .profile-card {
   width: 100%;
-  max-width: 720px;
+  max-width: 1240px;
   padding: 32px;
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: var(--radius-lg);

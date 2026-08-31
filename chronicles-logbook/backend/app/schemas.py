@@ -189,8 +189,14 @@ class TimelineEntryResponse(BaseModel):
 # ── Google Calendar ─────────────────────────────────────────────────
 
 
+class GoogleCalendarAccountResponse(BaseModel):
+    id: str
+    label: str
+
+
 class GoogleCalendarStatus(BaseModel):
     connected: bool
+    accounts: list[GoogleCalendarAccountResponse] = Field(default_factory=list)
 
 
 class GoogleCalendarEvent(BaseModel):

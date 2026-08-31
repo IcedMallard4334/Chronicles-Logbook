@@ -1,0 +1,43 @@
+.ic-accounts { display:flex; flex-wrap:wrap; gap:10px; padding:12px 20px; border-top:1px solid var(--line); }
+.ic-account { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-radius:8px; padding:8px 10px; max-width:100%; }
+.ic-account label { display:flex; align-items:center; gap:7px; font-size:.75rem; overflow-wrap:anywhere; min-width:0; }
+.ic-account input { accent-color:var(--blue); }
+.ic-account button,.ic-day-open { background:transparent; color:var(--text); border:0; text-decoration:underline; font-size:.72rem; cursor:pointer; }
+.ic-account-hint { flex-basis:100%; font-size:.68rem; color:var(--muted); }
+.ic-day-open { margin-bottom:10px; }
+.ic-activity { background:#087e70; }
+.day-dialog { width:min(650px,calc(100vw - 28px)); max-height:85dvh; padding:0; border:1px solid var(--line); border-radius:20px; background:var(--surface); color:var(--text); box-shadow:0 24px 90px #0006; }
+.day-dialog::backdrop { background:#0009; backdrop-filter:blur(4px); }
+.day-dialog-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:22px 24px; border-bottom:1px solid var(--line); background:var(--surface); }
+.day-dialog-kicker { font-size:.65rem; color:var(--muted); letter-spacing:.09em; }
+.day-dialog h2 { margin:5px 0 0; font-size:1.35rem; }
+.day-dialog-header button { background:var(--surface-soft); border:0; border-radius:50%; width:36px; height:36px; color:var(--text); font-size:22px; cursor:pointer; }
+.day-dialog-body { padding:20px 24px; }
+.day-dialog-tools { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:20px; }
+.day-dialog-tools p { font-size:.8rem; color:var(--muted); }
+.day-dialog-tools button,.day-form-actions button { font-size:.8rem; }
+.day-activity-form { background:var(--surface-soft); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:20px; }
+.day-activity-form h3 { font-size:1rem; margin:0 0 5px; }
+.day-activity-form p { font-size:.72rem; color:var(--muted); margin-bottom:14px; }
+.day-activity-form label { display:flex; flex-direction:column; gap:6px; font-size:.8rem; margin-bottom:12px; }
+.day-activity-form input:not([type=checkbox]),.day-activity-form textarea { width:100%; background:var(--surface); color:var(--text); border:1px solid var(--line); padding:10px; border-radius:6px; font:inherit; }
+.day-activity-form label.day-check { flex-direction:row; align-items:center; }
+.day-time-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.day-form-actions { display:flex; gap:8px; justify-content:flex-end; }
+.day-empty { text-align:center; padding:24px 12px; }
+.day-empty h3 { margin:0 0 6px; }
+.day-empty p { font-size:.8rem; color:var(--muted); }
+.day-agenda { list-style:none; padding:0; margin:0; }
+.day-agenda-item { display:grid; grid-template-columns:105px 1fr; gap:14px; padding:18px 0; border-bottom:1px solid var(--line); }
+.day-agenda-item time { font-size:.75rem; color:var(--muted); padding-top:3px; }
+.day-agenda-item > div { border-left:3px solid #1967d2; padding-left:14px; display:flex; flex-direction:column; gap:5px; min-width:0; overflow-wrap:anywhere; }
+.day-entry > div { border-color:#9570e5; }
+.day-activity > div { border-color:#13af98; }
+.day-item-source { color:var(--muted); font-size:.68rem; }
+.day-agenda-item a,.day-agenda-item strong { color:var(--text); font-size:.9rem; }
+.day-agenda-item p { color:var(--muted); font-size:.78rem; margin:0; white-space:pre-wrap; }
+.day-delete { align-self:flex-start; border:0; background:none; color:var(--muted); font-size:.68rem; text-decoration:underline; cursor:pointer; padding:4px 0; }
+.day-error { color:var(--error); font-size:.8rem; }
+.day-delete-confirm { padding:12px; background:var(--surface-soft); border-radius:8px; }
+.day-delete-confirm button { margin-right:10px; padding:8px; }
+@media(max-width:500px) { .day-dialog-header,.day-dialog-body { padding:16px; } .day-dialog h2 { font-size:1.05rem; } .day-agenda-item { grid-template-columns:80px 1fr; gap:8px; } .day-time-fields { grid-template-columns:1fr; gap:0; } .ic-account { flex-wrap:wrap; } }

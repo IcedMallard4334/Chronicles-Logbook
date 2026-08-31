@@ -1,0 +1,19 @@
+.today-home-card { display:grid; grid-template-columns:auto minmax(210px,1fr) auto; align-items:center; gap:24px; padding:25px 28px; margin-bottom:24px; border:1px solid var(--line); border-radius:16px; background:linear-gradient(120deg,color-mix(in srgb,var(--blue-bg) 72%,var(--surface)),var(--surface) 58%); box-shadow:var(--shadow); }
+.today-home-heading { display:flex; align-items:center; gap:15px; min-width:255px; }
+.today-home-logo { display:grid; place-items:center; width:62px; height:62px; flex:0 0 auto; border-radius:18px; background:var(--surface); box-shadow:0 7px 18px color-mix(in srgb,var(--blue) 12%,transparent); }
+.today-home-eyebrow { margin:0 0 4px; color:var(--mauve); font-size:.61rem; font-weight:800; letter-spacing:.1em; }
+.today-home-heading h2 { font-size:1.23rem; letter-spacing:-.035em; }
+.today-home-status { display:flex; align-items:center; gap:6px; margin:5px 0 0; color:var(--muted); font-size:.76rem; }
+.today-home-status span { width:7px; height:7px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 4px var(--blue-bg); }
+.today-home-insight { min-width:0; padding-left:24px; border-left:1px solid var(--line); }
+.today-home-insight strong,.today-home-insight span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.today-home-insight strong { color:var(--text); font-size:.91rem; }
+.today-home-insight span { margin-top:4px; color:var(--muted); font-size:.75rem; }
+.today-home-stats { display:flex; gap:18px; margin:0; }
+.today-home-stats div { min-width:62px; }
+.today-home-stats dt { color:var(--muted); font-size:.61rem; line-height:1.25; }
+.today-home-stats dd { margin:4px 0 0; color:var(--blue); font-size:1.28rem; font-weight:800; line-height:1; }
+.today-home-actions { grid-column:2 / -1; display:flex; justify-content:flex-end; gap:9px; }
+.today-home-actions button { font-size:.79rem; }
+@media(max-width:900px) { .today-home-card { grid-template-columns:1fr auto; } .today-home-insight { border-left:0; padding-left:0; } .today-home-stats { grid-column:2; grid-row:1; } .today-home-actions { grid-column:1 / -1; justify-content:flex-start; } }
+@media(max-width:600px) { .today-home-card { display:flex; flex-direction:column; align-items:stretch; gap:18px; padding:21px; } .today-home-stats { justify-content:space-between; } .today-home-insight { padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); } .today-home-actions { display:grid; grid-template-columns:1fr; } .today-home-actions button { justify-content:center; } }
