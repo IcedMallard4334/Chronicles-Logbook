@@ -6,6 +6,16 @@ import './index.css'
 import App from './App.jsx'
 import AuthCallback from './AuthCallback.jsx'
 import AuthPage from './AuthPage.jsx'
+import ProfilePage from './ProfilePage.jsx'
+import SetupPage from './SetupPage.jsx'
+import { applyPreferences, readPreference } from './preferences'
+import './ProfessionalDensity.css'
+
+applyPreferences({
+  theme: readPreference('theme', 'system'),
+  accent: readPreference('accent', 'chronicles'),
+  density: readPreference('density', 'comfortable'),
+})
 
 function SessionGate({ children }) {
   const [state, setState] = useState('loading')
@@ -46,12 +56,24 @@ function ProtectedAppRoute() {
   return isSignedIn ? <App /> : <Navigate to="/" replace />
 }
 
+function ProtectedSetupRoute() {
+  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
+  return isSignedIn ? <SetupPage /> : <Navigate to="/" replace />
+}
+
+function ProtectedProfileRoute() {
+  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
+  return isSignedIn ? <ProfilePage /> : <Navigate to="/" replace />
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<SessionGate><LandingRoute /></SessionGate>} />
         <Route path="/app" element={<SessionGate><ProtectedAppRoute /></SessionGate>} />
+        <Route path="/setup" element={<SessionGate><ProtectedSetupRoute /></SessionGate>} />
+        <Route path="/profile" element={<SessionGate><ProtectedProfileRoute /></SessionGate>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

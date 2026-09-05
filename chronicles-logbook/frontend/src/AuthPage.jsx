@@ -15,7 +15,7 @@ function GoogleIcon() {
   )
 }
 
-function AnimatedLines() {
+export function AnimatedLines() {
   return (
     <div className="auth-animated-lines" aria-hidden="true">
       <svg className="auth-lines" viewBox="0 0 800 600" preserveAspectRatio="none">
@@ -51,24 +51,27 @@ function AnimatedLines() {
   )
 }
 
+export function AuthIntro() {
+  return (
+    <section className="auth-intro" aria-labelledby="auth-heading">
+      <AnimatedLines />
+      <Link className="auth-brand" to="/">
+        <ChroniclesLogo size={44} />
+        <span>Chronicles</span>
+      </Link>
+      <div className="auth-copy">
+        <p className="auth-eyebrow">Your work, remembered</p>
+        <h1 id="auth-heading">A logbook shaped around the way you work.</h1>
+        <p>Capture progress quickly, keep every project organised, and turn your entries into a useful record.</p>
+      </div>
+    </section>
+  )
+}
+
 function AuthPage() {
   return (
     <main className="auth-shell">
-      <section className="auth-intro" aria-labelledby="auth-heading">
-        <AnimatedLines />
-        <Link className="auth-brand" to="/">
-          <ChroniclesLogo size={44} />
-          <span>Chronicles</span>
-        </Link>
-        <div className="auth-copy">
-          <p className="auth-eyebrow">Your work, remembered</p>
-          <h1 id="auth-heading">A logbook shaped around the way you work.</h1>
-          <p>
-            Capture progress quickly, keep every project organised, and turn your entries into a
-            useful record.
-          </p>
-        </div>
-      </section>
+      <AuthIntro />
 
       <section className="auth-panel" aria-labelledby="form-heading">
         <div className="auth-card">

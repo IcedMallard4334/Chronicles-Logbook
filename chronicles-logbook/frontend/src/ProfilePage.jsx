@@ -3,6 +3,7 @@ import LogoIcon from "./ChroniclesLogo"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
+import { ACCENTS, applyPreferences } from "./preferences"
 import "./App.css"
 import "./ProfilePage.css"
 
@@ -34,6 +35,15 @@ function useTheme() {
   }
 
   return [theme, cycleTheme]
+}
+
+function useDensity() {
+  const [density, setDensity] = useState(() => window.localStorage.getItem("chronicles-density") || "comfortable")
+  useEffect(() => {
+    document.documentElement.dataset.density = density
+    window.localStorage.setItem("chronicles-density", density)
+  }, [density])
+  return [density, setDensity]
 }
 
 function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmation, setConfirmation }) {
@@ -83,6 +93,9 @@ function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmatio
 export default function ProfilePage() {
   const navigate = useNavigate()
   const [theme, cycleTheme] = useTheme()
+  const [density, setDensity] = useDensity()
+  const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
+  const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -157,6 +170,15 @@ export default function ProfilePage() {
     : "?"
 
   const themeLabel = theme.charAt(0).toUpperCase() + theme.slice(1)
+  const updateAccent = (nextAccent) => {
+    setAccent(nextAccent)
+    window.localStorage.setItem("chronicles-accent", nextAccent)
+    applyPreferences({ theme, accent: nextAccent, density })
+  }
+  const updateStartView = (nextStartView) => {
+    setStartView(nextStartView)
+    window.localStorage.setItem("chronicles-start-view", nextStartView)
+  }
 
   return (
     <div className="app-shell">
@@ -221,6 +243,38 @@ export default function ProfilePage() {
                 <button type="button" className="btn-secondary" onClick={cycleTheme}>
                   Switch theme
                 </button>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Workspace density</span>
+                  <span className="profile-row-value">{density === "compact" ? "Compact — more information on screen" : "Comfortable — extra breathing room"}</span>
+                </div>
+                <div className="density-toggle" role="group" aria-label="Workspace density">
+                  <button type="button" className={density === "comfortable" ? "is-selected" : ""} onClick={() => setDensity("comfortable")}>Comfortable</button>
+                  <button type="button" className={density === "compact" ? "is-selected" : ""} onClick={() => setDensity("compact")}>Compact</button>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-section">
+              <h2>Workspace settings</h2>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Accent colour</span>
+                  <span className="profile-row-value">Choose the colour used for controls and focus states.</span>
+                </div>
+                <select className="profile-select" value={accent} onChange={(event) => updateAccent(event.target.value)} aria-label="Accent colour">
+                  {ACCENTS.map(option => <option key={option.id} value={option.id}>{option.name}{option.recommended ? " — Recommended" : ""}</option>)}
+                </select>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Default opening page</span>
+                  <span className="profile-row-value">Choose where Chronicles opens after sign-in.</span>
+                </div>
+                <select className="profile-select" value={startView} onChange={(event) => updateStartView(event.target.value)} aria-label="Default opening page">
+                  <option value="home">Home workspace</option><option value="today">Today</option><option value="calendar">Calendar</option>
+                </select>
               </div>
             </section>
 

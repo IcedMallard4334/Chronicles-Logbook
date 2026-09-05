@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { fetchCurrentUser } from "./api"
+import { hasCompletedSetup } from "./preferences"
 import "./AuthPage.css"
 
 function AuthCallback() {
@@ -32,11 +33,12 @@ function AuthCallback() {
         const user = await fetchCurrentUser()
         window.localStorage.setItem("chronicles_user", JSON.stringify(user))
         setStatus("success")
-        setMessage(`Welcome, ${user.full_name}!`)
+        const needsSetup = !hasCompletedSetup(user.id)
+        setMessage(needsSetup ? `Welcome, ${user.full_name}! Let’s set up your workspace.` : `Welcome back, ${user.full_name}!`)
 
         // Stay on the success screen briefly so the user sees confirmation.
         setTimeout(() => {
-          navigate("/app", { replace: true })
+          navigate(needsSetup ? "/setup" : "/app", { replace: true })
         }, 1500)
       } catch (caught) {
         window.localStorage.removeItem("chronicles_token")

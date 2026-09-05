@@ -1,0 +1,275 @@
+/* A compact workspace rhythm: information stays easy to scan without feeling cramped. */
+:root {
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+}
+
+.app-shell {
+  width: min(1360px, calc(100% - 48px));
+  padding-top: 16px;
+  padding-bottom: 40px;
+}
+
+/* Reserve the sticky bar's initial offset so it does not consume the page gap. */
+.topbar { margin-bottom: 24px; }
+
+.nav-pill { min-height: 54px; padding: 7px 12px; }
+.nav-pill-left { gap: 8px; }
+.brand-name { font-size: .93rem; }
+.nav-pill-center { gap: 2px; }
+.nav-item { min-height: 34px; padding: 7px 11px; font-size: .78rem; }
+.nav-item svg { width: 16px; height: 16px; }
+
+.app-main { gap: 16px; }
+.sidebar-stack { gap: 14px; }
+.sidebar-card, .overview-card, .timeline-card { border-radius: 13px; }
+
+/* One workspace navigator replaces the former Timeline and Overview cards. */
+.workspace-sidebar { padding: 8px; }
+.workspace-sidebar-brand { display:flex; align-items:center; gap:10px; padding:10px 10px 14px; }
+.workspace-sidebar-brand strong { display:block; font-size:.86rem; }
+.workspace-sidebar-brand span:last-child { display:block; margin-top:2px; color:var(--muted); font-size:.7rem; }
+.workspace-sidebar-mark { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--blue); border-radius:50%; color:var(--text); font-size:.9rem; font-weight:800; background:var(--surface-soft); }
+.workspace-sidebar-nav { display:grid; gap:2px; padding:0 2px 10px; border-bottom:1px solid var(--line); }
+.workspace-sidebar-nav button { display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:0; border-radius:7px; background:transparent; color:var(--muted); text-align:left; font:inherit; font-size:.78rem; font-weight:600; }
+.workspace-sidebar-nav button:hover { background:var(--surface-soft); color:var(--text); }
+.workspace-sidebar-nav button.is-active { color:var(--blue); background:var(--blue-bg); }
+.workspace-sidebar-nav button span { width:13px; text-align:center; font-size:.95rem; }
+.workspace-sidebar-stats { display:flex; gap:8px; padding:10px 10px 8px; color:var(--muted); font-size:.68rem; }
+.workspace-sidebar-stats span { flex:1; display:grid; gap:2px; padding:7px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); }
+.workspace-sidebar-stats strong { color:var(--text); font-size:.88rem; font-variant-numeric:tabular-nums; }
+.workspace-sidebar .sidebar-head { margin:0 -8px; padding:12px 18px 8px; border-bottom:0; }
+.workspace-sidebar-search { display:block; padding:0 4px 7px; }
+.workspace-sidebar-search input { width:100%; padding:8px 9px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); color:var(--text); font:inherit; font-size:.8rem; }
+.workspace-sidebar-search input::placeholder { color:var(--muted); opacity:.85; }
+.workspace-sidebar .project-list { padding:2px; }
+.workspace-sidebar .project-list li { position:relative; }
+.workspace-sidebar .project-button { display:grid; gap:2px; padding-right:32px; }
+.workspace-sidebar .project-status { display:flex; align-items:center; gap:5px; color:var(--muted); font-size:.69rem; font-weight:500; }
+.workspace-sidebar .project-status::before { width:6px; height:6px; border-radius:50%; background:var(--success); content:""; }
+.workspace-sidebar .project-list li:nth-child(3n + 2) .project-status::before { background:var(--blue); }
+.workspace-sidebar .project-list li:nth-child(3n) .project-status::before { background:var(--mauve); }
+.workspace-sidebar .project-status.is-attention { color:var(--error); }
+.workspace-sidebar .project-status.is-attention::before { background:var(--error); }
+.project-pin { position:absolute; top:50%; right:5px; width:24px; height:24px; padding:0; border:0; border-radius:6px; transform:translateY(-50%); background:transparent; color:var(--muted); font-size:.78rem; opacity:.45; }
+.project-pin:hover,.project-pin.is-pinned { color:var(--mauve); background:var(--mauve-bg); opacity:1; }
+.workspace-sidebar .project-button { padding:8px 32px 8px 10px; border-left-width:2px; font-size:.8rem; }
+.workspace-sidebar .archived-section { margin-top:6px; padding:5px 2px 0; }
+
+.content > section,
+.workspace-page,
+.integrated-calendar { box-shadow: 0 5px 18px rgba(34, 42, 64, .055); }
+
+.workspace-page { min-height: 500px; border-radius: 14px; }
+.workspace-heading { padding: 24px 28px; }
+.workspace-heading h1 { font-size: 1.55rem; }
+.workspace-heading p { font-size: .84rem; }
+.workspace-body { padding: 24px 28px; }
+.workspace-filters { padding: 16px 28px; }
+
+.integrated-calendar { border-radius: 14px; }
+.ic-toolbar, .ic-connection, .ic-notice { padding-inline: 20px; }
+.ic-day { min-height: 76px; padding: 5px; font-size: .74rem; }
+.ic-event { padding: 3px 5px; font-size: .68rem; }
+
+.today-home-card { gap: 18px; padding: 20px 24px; border-radius: 14px; }
+.today-home-logo { width: 54px; height: 54px; border-radius: 15px; }
+.today-home-heading { min-width: 230px; gap: 12px; }
+.today-home-heading h2 { font-size: 1.1rem; }
+.today-home-stats { gap: 14px; }
+.today-home-stats dd { font-size: 1.14rem; }
+
+.btn-primary, .btn-secondary { min-height: 34px; padding: 7px 13px; font-size: .78rem; }
+
+:root[data-density="compact"] { font-size: 15px; }
+:root[data-density="compact"] .app-shell { width:min(1440px,calc(100% - 36px)); }
+:root[data-density="compact"] .workspace-heading { padding-block:18px; }
+:root[data-density="compact"] .workspace-body { padding-block:18px; }
+:root[data-density="compact"] .workspace-entry { padding:13px; }
+:root[data-density="compact"] .ic-day { min-height:66px; }
+:root[data-density="compact"] .today-home-card { padding-block:16px; }
+
+.density-toggle { display:flex; padding:3px; gap:2px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); }
+.density-toggle button { border:0; border-radius:5px; padding:6px 9px; background:transparent; color:var(--muted); font-size:.72rem; }
+.density-toggle button.is-selected { background:var(--surface); color:var(--blue); box-shadow:0 1px 3px #0001; }
+
+/* The legacy home banner also used .today-panel. Scope the workspace cards
+   so that its large flex layout cannot bleed into the new Today page. */
+.today-page .today-panel {
+  display: block;
+  min-height: 0;
+  padding: 22px 25px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.today-page .today-grid .today-panel + .today-panel { border-left: 1px solid var(--line); }
+.today-page .today-recent { background: var(--surface-soft); }
+
+/* Keep labels and supporting copy readable at a normal viewing distance. */
+.nav-item { font-size: .84rem; font-weight: 650; }
+.workspace-sidebar-brand span:last-child { font-size: .78rem; }
+.workspace-sidebar-nav button { font-size: .84rem; }
+.workspace-sidebar-stats { font-size: .76rem; }
+.sidebar-head h2, .home-hub-eyebrow { font-size: .75rem; }
+.home-hub-header p:not(.home-hub-eyebrow),
+.home-hub-day-link span,
+.home-hub-tools label,
+.home-hub-list-heading,
+.home-hub-project-copy p,
+.home-hub-project-meta { font-size: .84rem; }
+.home-hub-project-name { font-size: .96rem; }
+.home-hub-tools input, .home-hub-tools select { font-size: .9rem; }
+.home-hub-summary { font-size: .8rem; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+/* Every signed-in view shares one workspace frame.  The Home view adds its
+   fixed navigator; the other views use the same canvas with their own content
+   area as the scroll container. */
+.app-shell-workspace {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+.app-shell-workspace .topbar { position:relative; flex: 0 0 auto; top:0; padding: 12px 16px; margin-bottom:0; }
+.workspace-main,
+.workspace-main.app-main-wide {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+}
+.workspace-main > .content {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.workspace-main > .content > .workspace-page,
+.workspace-main > .content > .today-page,
+.workspace-main > .content > .integrated-calendar {
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.workspace-main > .content::-webkit-scrollbar { width: 8px; }
+.workspace-main > .content::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--muted) 50%, transparent); background-clip: padding-box; }
+.workspace-main > .content::-webkit-scrollbar-track { background: transparent; }
+.home-main {
+  grid-template-columns: minmax(278px, .3fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+}
+.home-main .sidebar-stack { height:100%; min-height: 0; overflow: hidden; background: var(--surface-soft); border-right: 1px solid var(--line); }
+.home-main .workspace-sidebar { height: 100%; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.home-main .content { height:100%; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.home-main .home-hub { min-height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.home-main .workspace-sidebar .project-list { max-height: min(36svh, 360px); overflow-y: auto; }
+.home-main .workspace-sidebar .archived-list { max-height: 180px; }
+.home-main .content::-webkit-scrollbar,
+.home-main .workspace-sidebar .project-list::-webkit-scrollbar { width: 8px; }
+.home-main .content::-webkit-scrollbar-thumb,
+.home-main .workspace-sidebar .project-list::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--muted) 50%, transparent); background-clip: padding-box; }
+.home-main .content::-webkit-scrollbar-track,
+.home-main .workspace-sidebar .project-list::-webkit-scrollbar-track { background: transparent; }
+
+/* Home follows the same contained page language as Today and the workspaces.
+   Its project navigator stays available, but no longer turns the browser into
+   a separate full-screen application frame. */
+.app-shell > .home-main {
+  grid-template-columns: minmax(250px, .3fr) minmax(0, 1fr);
+  grid-template-rows: auto;
+  gap: 16px;
+  align-items: start;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  overflow: visible;
+  background: transparent;
+}
+.app-shell > .home-main .sidebar-stack {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+  border-right: 0;
+}
+.app-shell > .home-main .workspace-sidebar {
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 5px 18px rgba(34, 42, 64, .055);
+}
+.app-shell > .home-main .content {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+.app-shell > .home-main .home-hub {
+  min-height: 500px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 5px 18px rgba(34, 42, 64, .055);
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .command-trigger { display: none; }
+}
+
+@media (max-width: 860px) {
+  :root { font-size: 15px; }
+  .app-shell { width: min(100% - 24px, 1360px); padding-top: 12px; }
+  .topbar { top: 12px; margin-bottom: 18px; }
+  .nav-pill { min-height: 50px; }
+  .workspace-heading, .workspace-body, .workspace-filters { padding-inline: 18px; }
+  .app-shell-workspace { position:relative; display:block; width:min(100% - 24px, 1360px); margin:0 auto; height:auto; min-height:100svh; overflow:visible; padding-bottom:40px; }
+  .workspace-main { height: auto; min-height: 0; margin-bottom:0; overflow: visible; border-radius: 14px; }
+  .workspace-main > .content { height:auto; overflow:visible; }
+  .workspace-main > .content > .workspace-page,
+  .workspace-main > .content > .today-page,
+  .workspace-main > .content > .integrated-calendar { min-height:0; border:1px solid var(--line); border-radius:14px; }
+  .home-main .sidebar-stack { overflow: visible; }
+  .home-main .workspace-sidebar { height: auto; }
+  .app-shell > .home-main { grid-template-columns: 1fr; }
+}

@@ -1,24 +1,27 @@
 /* global document */
 
-import { describe, it, expect, vi } from 'vitest'
-import { createRoot } from 'react-dom/client'
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock('react-dom/client')
+const renderMock = vi.fn()
+const createRootMock = vi.fn(() => ({ render: renderMock }))
 
-describe('main', () => {
-  it('renders App into the root element', async () => {
-    const renderMock = vi.fn()
-    vi.mocked(createRoot).mockReturnValue({ render: renderMock })
+vi.mock("react-dom/client", () => ({ createRoot: createRootMock }))
 
-    const rootElement = { id: 'root' }
-    vi.stubGlobal('document', {
-      getElementById: vi.fn(() => rootElement),
-    })
+describe("main", () => {
+  beforeEach(() => {
+    vi.resetModules()
+    renderMock.mockClear()
+    createRootMock.mockClear()
+  })
 
-    await import('./main')
+  it("renders the current routed application into the root element", async () => {
+    const rootElement = document.createElement("div")
+    vi.spyOn(document, "getElementById").mockReturnValue(rootElement)
 
-    expect(document.getElementById).toHaveBeenCalledWith('root')
-    expect(createRoot).toHaveBeenCalledWith(rootElement)
-    expect(renderMock).toHaveBeenCalled()
+    await import("./main.jsx")
+
+    expect(document.getElementById).toHaveBeenCalledWith("root")
+    expect(createRootMock).toHaveBeenCalledWith(rootElement)
+    expect(renderMock).toHaveBeenCalledTimes(1)
   })
 })
