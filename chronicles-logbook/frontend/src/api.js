@@ -225,3 +225,12 @@ export function createCalendarActivity(payload) {
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
 }
+
+// ── AI Assistant ──────────────────────────────────────────────────────
+
+export async function sendAIMessage(message) {
+  return request("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  })
+}

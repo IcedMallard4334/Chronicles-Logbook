@@ -61,3 +61,8 @@ GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
     "GOOGLE_CALENDAR_REDIRECT_URI",
     "http://localhost:8000/auth/google/calendar/callback",
 )
+
+# Gemini AI assistant. The API key is supplied through the local .env file
+# or through Azure Application Settings in production.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")

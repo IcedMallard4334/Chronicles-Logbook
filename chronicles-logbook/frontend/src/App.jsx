@@ -1,7 +1,10 @@
-import { signOut } from "./api"
+import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
-import GoogleConnectionCard from "./GoogleConnectionCard"
+import HomeWorkspace from "./HomeWorkspace"
+import TodayPage from "./TodayPage"
+import CommandPalette from "./CommandPalette"
 import CalendarView from "./CalendarView"
+import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -13,6 +16,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchProjects,
+  fetchTasks,
   unarchiveProject,
   updateProject,
 } from "./api"
@@ -57,7 +61,7 @@ function useTheme() {
   return [theme, cycleTheme]
 }
 
-function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
+function UserMenu({ userName, onSignOut, onDeleteAccount }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -72,26 +76,6 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
     }
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [open])
-
-  const themeIcons = {
-    light: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <circle cx="12" cy="12" r="5" />
-        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-      </svg>
-    ),
-    dark: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-      </svg>
-    ),
-    system: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <rect x="2" y="3" width="20" height="14" rx="2" />
-        <path d="M8 21h8M12 17v4" />
-      </svg>
-    ),
-  }
 
   return (
     <div className="user-menu" ref={menuRef}>
@@ -119,7 +103,7 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
             type="button"
             className="user-dropdown-item"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="11" cy="11" r="8" />
@@ -131,7 +115,7 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
             type="button"
             className="user-dropdown-item"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -179,21 +163,12 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
             </svg>
             <span>Settings</span>
           </button>
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { cycleTheme(); }}
-          >
-            {themeIcons[theme]}
-            <span>Theme: {theme}</span>
-          </button>
           <div className="user-dropdown-divider" />
           <button
             type="button"
             className="user-dropdown-item user-dropdown-profile"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -234,7 +209,6 @@ function UserMenu({ userName, onSignOut, onDeleteAccount, theme, cycleTheme }) {
 }
 
 function AuthActions() {
-  const [theme, cycleTheme] = useTheme()
   const [user, setUser] = useState(() => {
     if (typeof window === "undefined") return null
 
@@ -299,8 +273,6 @@ function AuthActions() {
           userName={user.full_name}
           onSignOut={clearSession}
           onDeleteAccount={openDeleteModal}
-          theme={theme}
-          cycleTheme={cycleTheme}
         />
 
         {accountError && (
@@ -588,20 +560,58 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline, timelineActive }) {
+function ProjectList({ projects, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
+  const [query, setQuery] = useState("")
+  const [pinnedIds, setPinnedIds] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("chronicles-pinned-projects") || "[]") } catch { return [] }
+  })
+  const [projectState, setProjectState] = useState({})
   const activeProjects = projects.filter((project) => !project.archived)
   const archivedProjects = projects.filter((project) => project.archived)
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleActiveProjects = activeProjects.filter((project) => `${project.name} ${project.description || ""}`.toLowerCase().includes(normalizedQuery))
+  const visibleArchivedProjects = archivedProjects.filter((project) => `${project.name} ${project.description || ""}`.toLowerCase().includes(normalizedQuery))
+  const entryCount = projects.reduce((total, project) => total + (project.entries?.length || 0), 0)
+
+  useEffect(() => {
+    let active = true
+    const today = new Date().toLocaleDateString("en-CA")
+    Promise.allSettled(activeProjects.map(project => fetchTasks(project.id, false))).then(results => {
+      if (!active) return
+      setProjectState(Object.fromEntries(results.map((result, index) => {
+        const tasks = result.status === "fulfilled" ? result.value : []
+        const late = tasks.some(task => task.due_date && task.due_date < today)
+        return [activeProjects[index].id, late ? "Needs attention" : tasks.length ? "In progress" : "On track"]
+      })))
+    })
+    return () => { active = false }
+  }, [projects])
+
+  const togglePinned = (id) => setPinnedIds(current => {
+    const next = current.includes(id) ? current.filter(item => item !== id) : [...current, id]
+    window.localStorage.setItem("chronicles-pinned-projects", JSON.stringify(next))
+    return next
+  })
 
   return (
-    <aside className="sidebar">
-      <button
-        type="button"
-        className={`project-button timeline-button ${timelineActive ? "active" : ""}`}
-        onClick={onShowTimeline}
-      >
-        Timeline
-      </button>
+    <aside className="sidebar workspace-sidebar" aria-label="Workspace navigation">
+      <div className="workspace-sidebar-brand">
+        <span className="workspace-sidebar-mark" aria-hidden="true">C</span>
+        <div><strong>Workspace</strong><span>Projects and activity</span></div>
+      </div>
+      <nav className="workspace-sidebar-nav" aria-label="Workspace views">
+        <button type="button" className={homeActive ? "is-active" : ""} onClick={onShowHome}>
+          <span aria-hidden="true">⌂</span> Projects
+        </button>
+        <button type="button" className={timelineActive ? "is-active" : ""} onClick={onShowTimeline}>
+          <span aria-hidden="true">◷</span> Activity
+        </button>
+      </nav>
+      <div className="workspace-sidebar-stats" aria-label="Workspace summary">
+        <span><strong>{activeProjects.length}</strong> active</span>
+        <span><strong>{entryCount}</strong> entries</span>
+      </div>
       <div className="sidebar-head">
         <h2>Projects</h2>
         <button
@@ -614,15 +624,16 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
           +
         </button>
       </div>
+      <label className="workspace-sidebar-search"><span className="sr-only">Search projects</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects…" /></label>
       {activeProjects.length === 0 && archivedProjects.length === 0 ? (
         <p className="sidebar-empty">No projects yet.</p>
       ) : (
         <>
-          {activeProjects.length === 0 ? (
-            <p className="sidebar-empty">No active projects.</p>
+          {visibleActiveProjects.length === 0 ? (
+            <p className="sidebar-empty">{query ? "No matching projects." : "No active projects."}</p>
           ) : (
             <ul className="project-list" role="listbox" aria-label="Projects">
-              {activeProjects.map((project) => (
+              {visibleActiveProjects.sort((a, b) => Number(pinnedIds.includes(b.id)) - Number(pinnedIds.includes(a.id))).map((project) => (
                 <li key={project.id}>
                   <button
                     type="button"
@@ -631,13 +642,15 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                     role="option"
                     aria-selected={project.id === selectedId}
                   >
-                    {project.name}
+                    <span className="project-name">{project.name}</span>
+                    <small className={projectState[project.id] === "Needs attention" ? "project-status is-attention" : "project-status"}>{projectState[project.id] || "Checking…"}</small>
                   </button>
+                  <button type="button" className={`project-pin ${pinnedIds.includes(project.id) ? "is-pinned" : ""}`} onClick={() => togglePinned(project.id)} aria-label={`${pinnedIds.includes(project.id) ? "Unpin" : "Pin"} ${project.name}`} title={pinnedIds.includes(project.id) ? "Unpin project" : "Pin project"}>★</button>
                 </li>
               ))}
             </ul>
           )}
-          {archivedProjects.length > 0 && (
+          {visibleArchivedProjects.length > 0 && (
             <div className="archived-section">
               <button
                 type="button"
@@ -645,7 +658,7 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                 onClick={() => setShowArchived((current) => !current)}
                 aria-expanded={showArchived}
               >
-                {showArchived ? "Hide" : "Show"} archived ({archivedProjects.length})
+                {showArchived ? "Hide" : "Show"} archived ({visibleArchivedProjects.length})
               </button>
               {showArchived && (
                 <ul
@@ -653,7 +666,7 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowTimeline,
                   role="listbox"
                   aria-label="Archived projects"
                 >
-                  {archivedProjects.map((project) => (
+                  {visibleArchivedProjects.map((project) => (
                     <li key={project.id}>
                       <button
                         type="button"
@@ -1380,9 +1393,26 @@ function App() {
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [miraMessages, setMiraMessages] = useState([])
+  const [miraSending, setMiraSending] = useState(false)
+  const [miraError, setMiraError] = useState(null)
+  const [miraPendingAction, setMiraPendingAction] = useState(null)
+  const [miraActionSaving, setMiraActionSaving] = useState(false)
+  const [miraOpen, setMiraOpen] = useState(false)
+  const miraSequence = useRef(0)
+  const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    return params.has("calendar_connected") || params.has("calendar_error") ? "calendar" : ["home", "entries", "tasks", "calendar"].includes(params.get("view")) ? params.get("view") : "home"
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "calendar"]
+    const requestedView = params.get("view")
+    const startView = window.localStorage.getItem("chronicles-start-view")
+    return params.has("calendar_connected") || params.has("calendar_error")
+      ? "calendar"
+      : validViews.includes(requestedView)
+        ? requestedView
+        : validViews.includes(startView)
+          ? startView
+          : "home"
   })
 
   useEffect(() => {
@@ -1390,6 +1420,29 @@ function App() {
     params.set("view", currentView)
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
+
+  const sendMiraMessage = useCallback(async (message) => {
+    const trimmed = message.trim()
+    if (!trimmed || miraSending) return
+    const id = ++miraSequence.current
+    setMiraMessages(previous => [...previous, { id: `user-${id}`, role: "user", content: trimmed }])
+    setMiraSending(true)
+    setMiraError(null)
+    try {
+      const response = await sendAIMessage(trimmed)
+      if (response?.action) {
+        setMiraPendingAction(response.action)
+      } else {
+        const reply = response?.reply?.trim()
+        if (!reply) throw new Error("Mira did not return a reply.")
+        setMiraMessages(previous => [...previous, { id: `mira-${id}`, role: "assistant", content: reply }])
+      }
+    } catch {
+      setMiraError({ message: "Mira could not reply just now. Please try again.", retryMessage: trimmed })
+    } finally {
+      setMiraSending(false)
+    }
+  }, [miraSending])
 
   const loadProjects = useCallback(async () => {
     try {
@@ -1401,6 +1454,55 @@ function App() {
       setLoading(false)
     }
   }, [])
+
+  const handleMiraProjectConfirmation = useCallback(async () => {
+    const action = miraPendingAction
+    const name = action?.type === "create_project" ? action.payload?.name?.trim() : ""
+    const description = action?.payload?.description?.trim() || null
+    if (!name) {
+      setMiraError({ message: "This project proposal is invalid. Please ask Mira again.", retryMessage: null })
+      return
+    }
+    if (projects.some(project => project.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setMiraError({ message: "A project with this name already exists. Choose a different name or cancel this proposal.", retryMessage: null })
+      return
+    }
+    if (miraActionSavingRef.current) return
+    miraActionSavingRef.current = true
+    setMiraActionSaving(true)
+    setMiraError(null)
+    try {
+      const project = await createProject({ name, description, entry_schema: [] })
+      const refreshed = await fetchProjects()
+      setProjects(refreshed)
+      setMiraPendingAction(null)
+      setMiraMessages(previous => [...previous, { id: `mira-created-${project.id}`, role: "assistant", content: `Created “${project.name}”. You can open it whenever you are ready.`, projectId: project.id }])
+    } catch (err) {
+      setMiraError({ message: formatError(err), retryMessage: null })
+    } finally {
+      miraActionSavingRef.current = false
+      setMiraActionSaving(false)
+    }
+  }, [miraPendingAction, projects])
+
+  const openMiraProject = useCallback((projectId) => {
+    setView("project")
+    setSelectedId(projectId)
+    setCurrentView("home")
+  }, [])
+
+  const miraConversation = {
+    messages: miraMessages,
+    sending: miraSending,
+    error: miraError,
+    pendingAction: miraPendingAction,
+    actionSaving: miraActionSaving,
+    onSend: sendMiraMessage,
+    onConfirmAction: handleMiraProjectConfirmation,
+    onCancelAction: () => { setMiraPendingAction(null); setMiraError(null) },
+    onOpenProject: openMiraProject,
+    onClear: () => { setMiraMessages([]); setMiraError(null); setMiraPendingAction(null) },
+  }
 
   useEffect(() => {
     loadProjects()
@@ -1569,13 +1671,25 @@ function App() {
             <button
               type="button"
               className={`nav-item ${currentView === "home" ? "active" : ""}`}
-              onClick={() => setCurrentView("home")}
+              onClick={() => { setCurrentView("home"); setSelectedId(null); setView("project") }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
               <span>Home</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "today" ? "active" : ""}`}
+              onClick={() => setCurrentView("today")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              <span>Today</span>
+            </button>
+            <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
+              <span>Assistant</span>
             </button>
             <button
               type="button"
@@ -1620,7 +1734,7 @@ function App() {
           </div>
         </nav>
       </header>
-      <main className={`app-main ${currentView !== "home" ? "app-main-wide" : ""}`}>
+      <main className={`app-main ${currentView === "home" ? "home-main" : "app-main-wide"}`}>
         {error && (
           <div className="global-error" role="alert">
             <p>{error}</p>
@@ -1635,12 +1749,10 @@ function App() {
             selectedId={selectedId}
             onSelect={handleSelectProject}
             onCreate={() => setIsModalOpen(true)}
+            onShowHome={() => { setSelectedId(null); setView("project") }}
+            homeActive={view !== "timeline" && !selectedProject}
             onShowTimeline={handleShowTimeline}
             timelineActive={view === "timeline"}
-          />
-          <DashboardPanel
-            projects={projects}
-            onCreate={() => setIsModalOpen(true)}
           />
         </div>}
         <div className="content">
@@ -1648,6 +1760,10 @@ function App() {
             <p className="hint">Loading…</p>
           ) : currentView === "calendar" ? (
             <CalendarView projects={projects} />
+          ) : currentView === "today" ? (
+            <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+          ) : currentView === "assistant" ? (
+            <MiraAssistantPage conversation={miraConversation} />
           ) : currentView === "tasks" ? (
             <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
@@ -1663,30 +1779,10 @@ function App() {
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
             />
+          ) : projects.length > 0 ? (
+            <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
           ) : (
-            <>
-              <GoogleConnectionCard
-                projects={projects}
-                selectedProject={selectedProject}
-                onCreateProject={() => setIsModalOpen(true)}
-                onViewCalendar={() => setCurrentView("calendar")}
-              />
-              {selectedProject ? (
-                <ProjectDetail
-                  key={selectedProject.id}
-                  project={selectedProject}
-                  onSchemaSaved={handleProjectUpdate}
-                  onEntryCreated={handleEntryCreated}
-                  onEditProject={() => setIsEditModalOpen(true)}
-                  onToggleArchive={handleToggleArchive}
-                />
-              ) : (
-                <EmptyState
-                  onCreate={() => setIsModalOpen(true)}
-                  onSeedDemoData={handleSeedDemoData}
-                />
-              )}
-            </>
+            <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
           )}
         </div>
       </main>
@@ -1701,6 +1797,8 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
+      <CommandPalette projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+      {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )
 }

@@ -15,6 +15,7 @@ function renderCallback() {
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/app" element={<p>Logbook home</p>} />
+        <Route path="/setup" element={<p>Setup workspace</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -23,6 +24,7 @@ function renderCallback() {
 describe("AuthCallback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     vi.useFakeTimers({ shouldAdvanceTime: true })
   })
 
@@ -30,7 +32,7 @@ describe("AuthCallback", () => {
     vi.useRealTimers()
   })
 
-  it("shows a success message before navigating to the app", async () => {
+  it("takes a first-time user to setup after a successful sign-in", async () => {
     window.history.pushState({}, "", "/auth/callback#token=google-session-token")
     fetchCurrentUser.mockResolvedValue({
       id: "user-1",
@@ -45,7 +47,7 @@ describe("AuthCallback", () => {
       expect(screen.getByRole("heading", { name: "Sign-in successful" })).toBeInTheDocument()
     })
 
-    expect(screen.getByText("Welcome, Ethan Student!")).toBeInTheDocument()
+    expect(screen.getByText("Welcome, Ethan Student! Let’s set up your workspace.")).toBeInTheDocument()
     expect(window.localStorage.getItem("chronicles_token")).toBe("google-session-token")
     expect(JSON.parse(window.localStorage.getItem("chronicles_user"))).toEqual(
       expect.objectContaining({ email: "ethan@example.com" })
@@ -54,6 +56,18 @@ describe("AuthCallback", () => {
     // Advance past the delay to trigger navigation.
     await vi.advanceTimersByTimeAsync(1500)
 
+    expect(await screen.findByText("Setup workspace")).toBeInTheDocument()
+  })
+
+  it("takes a user who completed setup to the app", async () => {
+    window.history.pushState({}, "", "/auth/callback#token=returning-session-token")
+    window.localStorage.setItem("chronicles-setup-complete-user-1", "true")
+    fetchCurrentUser.mockResolvedValue({ id: "user-1", full_name: "Ethan Student", email: "ethan@example.com" })
+
+    renderCallback()
+
+    await waitFor(() => expect(screen.getByText("Welcome back, Ethan Student!")).toBeInTheDocument())
+    await vi.advanceTimersByTimeAsync(1500)
     expect(await screen.findByText("Logbook home")).toBeInTheDocument()
   })
 

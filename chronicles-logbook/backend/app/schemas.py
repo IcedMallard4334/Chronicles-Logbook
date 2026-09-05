@@ -208,3 +208,52 @@ class GoogleCalendarEvent(BaseModel):
     color: str | None = None
     html_link: str | None = None
     location: str | None = None
+
+
+class AIChatRequest(BaseModel):
+    """Message sent by a Chronicles user to the AI assistant."""
+
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class AIChatResponse(BaseModel):
+    """A text reply or a user-confirmed proposal from the AI assistant."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reply: str | None = None
+    action: "AIProjectActionProposal | None" = None
+
+    @model_validator(mode="after")
+    def validate_single_response_kind(self):
+        if (self.reply is None) == (self.action is None):
+            raise ValueError("An AI response must contain one reply or one action.")
+        return self
+
+
+class AIProjectActionPayload(BaseModel):
+    """Safe, allowlisted arguments for a proposed project."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+
+    @model_validator(mode="after")
+    def clean_values(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("Project name cannot be blank.")
+        if self.description is not None:
+            self.description = self.description.strip() or None
+        return self
+
+
+class AIProjectActionProposal(BaseModel):
+    """The only action Mira may propose during Phase 2."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["create_project"]
+    payload: AIProjectActionPayload
+    requires_confirmation: Literal[True] = True

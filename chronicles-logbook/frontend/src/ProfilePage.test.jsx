@@ -88,7 +88,7 @@ describe("ProfilePage", () => {
       expect(window.localStorage.getItem("chronicles_token")).toBeNull()
       expect(window.localStorage.getItem("chronicles_user")).toBeNull()
     })
-    expect(window.location.assign).toHaveBeenCalledWith("/")
+    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/"))
   })
 
   it("deletes the account after typing DELETE", async () => {
@@ -120,7 +120,7 @@ describe("ProfilePage", () => {
       expect(deleteAccount).toHaveBeenCalled()
       expect(window.localStorage.getItem("chronicles_token")).toBeNull()
     })
-    expect(window.location.assign).toHaveBeenCalledWith("/")
+    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/"))
   })
 
   it("shows an error if deleting the account fails", async () => {

@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
 from app.database import Base, async_engine
-from app.routers import activities, auth, calendar, entries, projects, tasks
+from app.routers import activities, ai, auth, calendar, entries, projects, tasks
 
 _DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -55,6 +55,7 @@ app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(calendar.router)
 app.include_router(activities.router)
+app.include_router(ai.router)
 
 
 @app.get("/health")

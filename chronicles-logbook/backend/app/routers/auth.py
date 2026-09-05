@@ -1,6 +1,7 @@
 import uuid
 import hashlib
 import secrets
+import asyncio
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -125,18 +126,30 @@ async def google_callback(
         error = quote("CSRF validation failed. Please try again.")
         return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
 
-    # Exchange the authorisation code directly with Google.
+    # Exchange the authorisation code directly with Google. Keep the normal
+    # environment networking configuration, as local development may require
+    # the machine's approved network route.
+    token_payload = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": OAUTH_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
     async with httpx.AsyncClient(timeout=15) as client:
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": OAUTH_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-        )
+        token_resp = None
+        for attempt in range(2):
+            try:
+                token_resp = await client.post(
+                    "https://oauth2.googleapis.com/token", data=token_payload
+                )
+                break
+            except httpx.RequestError:
+                if attempt == 0:
+                    await asyncio.sleep(0.25)
+                    continue
+                error = quote("Cannot reach Google to complete sign-in. Please try again.")
+                return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
         if token_resp.status_code != 200:
             error = quote("Failed to exchange authorization code.")
             return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
@@ -147,10 +160,14 @@ async def google_callback(
             error = quote("Google did not return an access token.")
             return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
 
-        userinfo_resp = await client.get(
-            "https://openidconnect.googleapis.com/v1/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+        try:
+            userinfo_resp = await client.get(
+                "https://openidconnect.googleapis.com/v1/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        except httpx.RequestError:
+            error = quote("Cannot reach Google to retrieve your profile. Please try again.")
+            return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")
         if userinfo_resp.status_code != 200:
             error = quote("Failed to fetch user profile from Google.")
             return RedirectResponse(f"{FRONTEND_URL}/auth/callback#error={error}")

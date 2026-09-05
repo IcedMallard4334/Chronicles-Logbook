@@ -7,6 +7,7 @@ import {
   fetchEntriesGlobal,
   fetchProjects,
   getGoogleLoginUrl,
+  sendAIMessage,
 } from "./api"
 
 describe("api", () => {
@@ -28,6 +29,18 @@ describe("api", () => {
       credentials: "include", headers: { "Content-Type": "application/json" },
     })
     expect(result).toEqual(projects)
+  })
+
+  it("sends an authenticated AI chat request", async () => {
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reply: "Keep short notes." }) })
+
+    await expect(sendAIMessage("How should I log progress?")).resolves.toEqual({ reply: "Keep short notes." })
+    expect(fetch).toHaveBeenCalledWith("http://localhost:8000/ai/chat", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "How should I log progress?" }),
+    })
   })
 
   it("creates a project", async () => {
