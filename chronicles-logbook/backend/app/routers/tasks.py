@@ -5,19 +5,34 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Project, Task
+from app.models import Project, Task, User
+from app.routers.auth import get_current_user
 from app.schemas import TaskCreate, TaskResponse, TaskUpdate
 
 router = APIRouter(prefix="/projects/{project_id}/tasks", tags=["Tasks"])
 
 
-async def _get_project_or_404(
+async def _get_user_project(
     project_id: UUID,
+    user: User,
     db: AsyncSession,
 ) -> Project:
-    project = await db.get(Project, project_id)
+    """Resolve a project the caller owns, or 404.
+
+    Scoped by user_id rather than id alone: a project belonging to someone
+    else must be indistinguishable from one that does not exist, otherwise
+    the response confirms which project ids are real.
+    """
+    project = await db.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+        )
+    )
+
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
     return project
 
 
@@ -25,9 +40,10 @@ async def _get_project_or_404(
 async def list_tasks(
     project_id: UUID,
     completed: bool | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     query = select(Task).where(Task.project_id == project_id)
     if completed is not None:
@@ -42,9 +58,10 @@ async def list_tasks(
 async def create_task(
     project_id: UUID,
     data: TaskCreate,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     task = Task(
         project_id=project_id,
@@ -63,9 +80,10 @@ async def create_task(
 async def get_task(
     project_id: UUID,
     task_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:
@@ -78,9 +96,10 @@ async def update_task(
     project_id: UUID,
     task_id: UUID,
     data: TaskUpdate,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:
@@ -106,9 +125,10 @@ async def update_task(
 async def toggle_task(
     project_id: UUID,
     task_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:
@@ -124,9 +144,10 @@ async def toggle_task(
 async def delete_task(
     project_id: UUID,
     task_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_user_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:

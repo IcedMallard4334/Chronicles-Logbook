@@ -54,7 +54,12 @@ async function request(path, options = {}, retried = false) {
   })
 
   } catch {
-    throw new Error("Cannot reach the Chronicles API. Check that the backend is running and allows this preview address.")
+    // Flagged rather than identified by message text: offline sync has to
+    // tell "the network is down, try again later" apart from "the server
+    // refused this", and matching on a human-readable string is brittle.
+    const error = new Error("Cannot reach the Chronicles API. Check that the backend is running and allows this preview address.")
+    error.offline = true
+    throw error
   }
 
   if (!response.ok) {
@@ -140,12 +145,22 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null } = hasNestedData
+  const { data, time_spent = null, id, created_at } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
+
+  const body = { data, time_spent }
+
+  // Sent only by offline sync and import, which already know the entry's
+  // identity and when it was captured. Ordinary online capture omits both and
+  // lets the server assign them. Supplying `id` makes the request idempotent,
+  // so a replay after a lost response returns the existing entry.
+  if (id) body.id = id
+  if (created_at) body.created_at = created_at
+
   return request(`/projects/${projectId}/entries`, {
     method: "POST",
-    body: JSON.stringify({ data, time_spent }),
+    body: JSON.stringify(body),
   })
 }
 
