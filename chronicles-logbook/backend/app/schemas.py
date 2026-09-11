@@ -214,6 +214,39 @@ class TaskResponse(BaseModel):
     updated_at: datetime
 
 
+# ── Statistics ───────────────────────────────────────────────────────
+
+
+class ProjectStatistics(BaseModel):
+    project_id: UUID
+    name: str
+    archived: bool
+    entries: int
+    time_spent: int
+    active_days: int
+    first_entry_at: datetime | None
+    last_entry_at: datetime | None
+
+
+class StatisticsTotals(BaseModel):
+    projects: int
+    active_projects: int
+    archived_projects: int
+    entries: int
+    time_spent: int
+    # Distinct days with at least one entry across the whole logbook. This is
+    # not the sum of the per-project figures: a day worked on two projects
+    # counts once here and once in each project.
+    active_days: int
+    first_entry_at: datetime | None
+    last_entry_at: datetime | None
+
+
+class StatisticsResponse(BaseModel):
+    totals: StatisticsTotals
+    projects: list[ProjectStatistics]
+
+
 class TimelineEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
