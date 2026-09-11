@@ -206,3 +206,90 @@ async def test_task_belongs_to_project(authenticated_client, test_project):
         f"/projects/{other_id}/tasks/{task_id}"
     )
     assert response.status_code == 404
+
+
+# ── Authentication and authorization ─────────────────────────────────
+#
+# Every test above uses an authenticated client, which is why this router
+# shipped with no auth at all and nobody noticed. These exercise the paths
+# that were never covered: no credentials, and someone else's project.
+
+
+async def test_task_endpoints_reject_anonymous_callers(
+    async_client, authenticated_client, test_project
+):
+    """No endpoint may be reachable without a token."""
+    project_id = test_project["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Private task"},
+    )
+    task_id = created.json()["id"]
+
+    base = f"/projects/{project_id}/tasks"
+    calls = [
+        ("GET", base, None),
+        ("POST", base, {"title": "Injected"}),
+        ("GET", f"{base}/{task_id}", None),
+        ("PUT", f"{base}/{task_id}", {"title": "Hijacked"}),
+        ("PATCH", f"{base}/{task_id}/toggle", None),
+        ("DELETE", f"{base}/{task_id}", None),
+    ]
+
+    for method, url, body in calls:
+        response = await async_client.request(method, url, json=body)
+        assert response.status_code == 401, f"{method} {url} was reachable"
+
+
+async def test_tasks_are_not_readable_by_another_user(
+    authenticated_client, second_authenticated_client, test_project
+):
+    project_id = test_project["id"]
+    await authenticated_client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Owner's task"},
+    )
+
+    response = await second_authenticated_client.get(
+        f"/projects/{project_id}/tasks"
+    )
+
+    # 404 rather than 403: the response must not confirm the project exists.
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
+async def test_another_user_cannot_create_a_task_in_your_project(
+    second_authenticated_client, test_project
+):
+    project_id = test_project["id"]
+
+    response = await second_authenticated_client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Injected task"},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_another_user_cannot_delete_your_task(
+    authenticated_client, second_authenticated_client, test_project
+):
+    project_id = test_project["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Do not delete"},
+    )
+    task_id = created.json()["id"]
+
+    response = await second_authenticated_client.delete(
+        f"/projects/{project_id}/tasks/{task_id}"
+    )
+    assert response.status_code == 404
+
+    # The task must still be there afterwards.
+    survivor = await authenticated_client.get(
+        f"/projects/{project_id}/tasks/{task_id}"
+    )
+    assert survivor.status_code == 200
+    assert survivor.json()["title"] == "Do not delete"
