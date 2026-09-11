@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -210,11 +210,35 @@ async def unarchive_project(
 async def create_entry(
     project_id: UUID,
     data: EntryCreate,
+    response: Response,
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
+    """Create an entry, or return the existing one when the id is already known.
+
+    Offline sync and import both replay requests that may have already landed
+    (a response can be lost even when the write succeeded). When the caller
+    supplies an id, creation is idempotent: an id we have already stored
+    returns that entry with 200 instead of creating a duplicate with 201.
+    """
     project = await _get_user_project(project_id, user, db)
 
+    if data.id is not None:
+        existing = await db.get(Entry, data.id)
+        if existing is not None:
+            # The id is only ever compared against the project the caller was
+            # just authorised for, so a collision with another user's entry
+            # falls through to the 409 below and never discloses their data.
+            if existing.project_id != project_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="An entry with this id already exists.",
+                )
+            response.status_code = status.HTTP_200_OK
+            return existing
+
+    # Checked after the idempotency lookup on purpose: an entry that synced
+    # before the project was archived should still be returned, not rejected.
     if project.archived:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -228,6 +252,13 @@ async def create_entry(
         data=data.data,
         time_spent=data.time_spent,
     )
+
+    # Preserve the caller's identity and capture time when supplied; the model
+    # defaults cover the ordinary online path.
+    if data.id is not None:
+        entry.id = data.id
+    if data.created_at is not None:
+        entry.created_at = data.created_at
 
     db.add(entry)
 
