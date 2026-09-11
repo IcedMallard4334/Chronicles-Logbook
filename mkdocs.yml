@@ -70,6 +70,7 @@ nav:
     - Projects: api/projects.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
+    - Statistics: api/statistics.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md
