@@ -7,6 +7,9 @@ import CalendarView from "./CalendarView"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
+import OfflineStatus from "./OfflineStatus"
+import { REJECTED, offlineQueue } from "./offlineQueue"
+import { syncEngine } from "./offlineSync"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   archiveProject,
@@ -32,6 +35,15 @@ function generateId() {
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
+}
+
+/** The signed-in user's id, used to scope the offline queue to them. */
+function currentUserId() {
+  try {
+    return JSON.parse(window.localStorage.getItem("chronicles_user"))?.id || null
+  } catch {
+    return null
+  }
 }
 
 /** Render a duration held in minutes as a compact "3h 20m". */
@@ -1137,7 +1149,10 @@ function EntryList({ entries, schema }) {
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
         {entries.map((entry) => (
-          <li key={entry.id} className="log-row">
+          <li
+            key={entry.id}
+            className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+          >
             <div className="log-fields">
               {schema.map((field) => (
                 <div key={field.id} className="log-field">
@@ -1149,6 +1164,15 @@ function EntryList({ entries, schema }) {
               ))}
             </div>
             <span className="log-time">
+              {/* Entries captured offline are shown immediately, so that
+                  nobody re-types one believing it failed to save. */}
+              {entry.pending && (
+                <span
+                  className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
+                >
+                  {entry.rejected ? "Needs attention" : "Not yet synced"}
+                </span>
+              )}
               {new Date(entry.created_at).toLocaleString()}
             </span>
           </li>
@@ -1401,6 +1425,10 @@ async function seedDemoData() {
 function App() {
   const [projects, setProjects] = useState([])
   const [statistics, setStatistics] = useState(null)
+  const [offlineNotice, setOfflineNotice] = useState(null)
+  const [queuedEntries, setQueuedEntries] = useState([])
+  const userId = useMemo(currentUserId, [])
+  const pendingBefore = useRef(0)
   const [selectedId, setSelectedId] = useState(null)
   const [view, setView] = useState("project")
   const [loading, setLoading] = useState(true)
@@ -1522,6 +1550,7 @@ function App() {
     loadProjects()
   }, [loadProjects])
 
+
   // Totals come from the server rather than being counted in the browser.
   // Counting locally was wrong: `entries` is only ever loaded for the project
   // currently open, so a client-side sum reported that one project's count as
@@ -1550,6 +1579,62 @@ function App() {
     () => projects.find((project) => project.id === selectedId) || null,
     [projects, selectedId]
   )
+
+  /**
+   * The open project, with anything captured offline folded into its entry
+   * list.
+   *
+   * Without this an entry logged offline is invisible until it syncs, and
+   * someone would reasonably re-type it — producing a real duplicate, since
+   * the retyped copy gets a different id.
+   *
+   * Queued records carry the id the entry will be created with, so once one
+   * syncs the server copy arrives with the same id and is filtered out here
+   * rather than appearing twice.
+   */
+  const openProject = useMemo(() => {
+    if (!selectedProject) return null
+
+    const saved = selectedProject.entries || []
+    const savedIds = new Set(saved.map((entry) => entry.id))
+
+    const unsynced = queuedEntries
+      .filter((record) => record.projectId === selectedProject.id)
+      .filter((record) => !savedIds.has(record.id))
+      .map((record) => ({
+        id: record.id,
+        project_id: record.projectId,
+        data: record.data,
+        time_spent: record.timeSpent,
+        created_at: record.capturedAt,
+        pending: true,
+        rejected: record.status === REJECTED,
+      }))
+
+    if (unsynced.length === 0) return selectedProject
+
+    return {
+      ...selectedProject,
+      entries: [...unsynced, ...saved].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      ),
+    }
+  }, [selectedProject, queuedEntries])
+
+  const refreshQueued = useCallback(async () => {
+    if (!userId) return
+    try {
+      setQueuedEntries(await offlineQueue.all(userId))
+    } catch {
+      // No local storage available — nothing can be queued, so nothing to show.
+      setQueuedEntries([])
+    }
+  }, [userId])
+
+  useEffect(() => {
+    refreshQueued()
+  }, [refreshQueued])
+
 
   const handleCreateProject = async ({ name, description }) => {
     try {
@@ -1618,16 +1703,43 @@ function App() {
     }
   }
 
-  const handleEntryCreated = async (data) => {
+  const handleEntryCreated = async (payload) => {
     if (!selectedProject) return
-    const entry = await createEntry(selectedProject.id, data)
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === selectedProject.id
-          ? { ...project, entries: [entry, ...(project.entries || [])] }
-          : project
+
+    try {
+      const entry = await createEntry(selectedProject.id, payload)
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === selectedProject.id
+            ? { ...project, entries: [entry, ...(project.entries || [])] }
+            : project
+        )
       )
-    )
+    } catch (err) {
+      // US-2.16: losing the connection must not lose what was typed. Any
+      // other failure — a validation error, an archived project — is the
+      // user's to see and fix, so it is re-thrown for the form to show.
+      if (!err.offline) throw err
+
+      try {
+        await offlineQueue.enqueue({
+          userId,
+          projectId: selectedProject.id,
+          data: payload.data,
+          timeSpent: payload.time_spent ?? null,
+        })
+      } catch {
+        // Offline *and* unable to store locally. Re-throw the original
+        // failure rather than claiming the entry was saved — telling someone
+        // their work is safe when it is not is the worst outcome here.
+        throw err
+      }
+
+      setOfflineNotice(
+        "No connection — saved on this device and queued to sync."
+      )
+      await refreshQueued()
+    }
   }
 
   const loadEntries = useCallback(async () => {
@@ -1647,6 +1759,44 @@ function App() {
   useEffect(() => {
     loadEntries()
   }, [loadEntries])
+
+  // Drain anything captured offline: on load, when the browser reconnects,
+  // and periodically in case that event never arrives.
+  //
+  // Declared after loadEntries because it needs it: loadProjects fetches
+  // /projects, which does not include each project's entries. Reloading
+  // projects alone therefore replaces the open project with a copy that has
+  // no entries, emptying the list — the entries have to be fetched again
+  // straight after, and in that order, or the projects response overwrites
+  // them.
+  useEffect(() => {
+    if (!userId) return undefined
+
+    const stop = syncEngine.start(userId)
+
+    const unsubscribe = syncEngine.subscribe(async (state) => {
+      // Keep the unsynced entries shown in the list in step with the queue.
+      refreshQueued()
+
+      // Reload from the server only on the transition from "work queued" to
+      // "queue empty", rather than after every periodic drain, which is
+      // usually a no-op.
+      if (pendingBefore.current > 0 && state.pending === 0) {
+        pendingBefore.current = state.pending
+        await loadProjects()
+        await loadEntries()
+        setOfflineNotice(null)
+        return
+      }
+
+      pendingBefore.current = state.pending
+    })
+
+    return () => {
+      stop()
+      unsubscribe()
+    }
+  }, [userId, loadProjects, loadEntries, refreshQueued])
 
   return (
     <div className="app-shell">
@@ -1768,6 +1918,7 @@ function App() {
             </button>
           </div>
           <div className="nav-pill-right">
+            <OfflineStatus userId={userId} projects={projects} />
             <AuthActions />
           </div>
         </nav>
@@ -1777,6 +1928,14 @@ function App() {
           <div className="global-error" role="alert">
             <p>{error}</p>
             <button type="button" onClick={() => setError(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        {offlineNotice && (
+          <div className="global-notice" role="status">
+            <p>{offlineNotice}</p>
+            <button type="button" onClick={() => setOfflineNotice(null)}>
               Dismiss
             </button>
           </div>
@@ -1812,7 +1971,7 @@ function App() {
           ) : selectedProject ? (
             <ProjectDetail
               key={selectedProject.id}
-              project={selectedProject}
+              project={openProject}
               onSchemaSaved={handleProjectUpdate}
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
