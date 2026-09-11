@@ -2,3 +2,26 @@
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+
+# Lint rules live here so every developer and CI check the same thing. Without
+# a committed config, `ruff check` fell back to whatever each machine happened
+# to be configured with, and CI — installing a bare ruff — used the defaults.
+# The result was developers seeing warnings that CI never reported.
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Ruff's default set (E4/E7/E9 + F) plus:
+#   I — import sorting, which the codebase already follows by hand
+#   B — flake8-bugbear; the `# noqa: B008` comments throughout the routers show
+#       this was already the intended standard, it just was not enforced
+# E5 (line length) is deliberately left out: applying it now would flag a large
+# amount of existing code for no correctness benefit.
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# conftest sets DATABASE_URL and the secrets before importing anything from
+# `app`, because app.config reads them at import time. The import order is the
+# point, not an oversight — moving those imports to the top breaks every test.
+"tests/conftest.py" = ["E402"]

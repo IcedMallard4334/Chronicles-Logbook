@@ -14,26 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify checkout has the fix
-        shell: pwsh
-        working-directory: .
-        run: |
-          Write-Host "Current commit:"
-          git log -1 --oneline
-          Write-Host "----"
-          Write-Host "Searching for list_projects in projects.py:"
-          Select-String -Path "chronicles-logbook/backend/app/routers/projects.py" -Pattern "list_projects"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install backend dependencies
-        run: |
-          python -m ensurepip --upgrade
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+      # No Python setup or dependency install here on purpose. This job ships
+      # source: the zip is built from the checked-out folder and Azure installs
+      # dependencies itself during the Oryx build
+      # (SCM_DO_BUILD_DURING_DEPLOYMENT=true on the App Service).
+      #
+      # Anything pip installed on the runner went into the runner's own Python
+      # and was never added to the zip, so those steps had no effect on what
+      # was deployed — while actions/setup-python repeatedly damaged the Python
+      # installation on the self-hosted Windows runner.
 
       - name: Zip backend package
         shell: pwsh

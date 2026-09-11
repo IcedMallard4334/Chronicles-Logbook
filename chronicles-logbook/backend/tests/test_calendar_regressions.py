@@ -7,9 +7,9 @@ import httpx
 import jwt
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from app.config import JWT_ALGORITHM, JWT_SECRET_KEY
-from sqlalchemy import select
 from app.models import GoogleCalendarAccount, GoogleCalendarToken
 from app.routers import auth, calendar
 from app.security import (
