@@ -568,3 +568,269 @@ async def test_id_belonging_to_another_user_is_rejected_not_disclosed(
     assert response.status_code == 409
     assert "data" not in response.json()
     assert response.json()["detail"] == "An entry with this id already exists."
+
+
+# ── Read, update and delete a single entry ───────────────────────────
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def existing_entry(authenticated_client, project_with_schema):
+    project_id = project_with_schema["id"]
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "time_spent": 45},
+    )
+    return response.json()
+
+
+async def test_get_single_entry(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.get(
+        f"/projects/{project_id}/entries/{existing_entry['id']}"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == existing_entry["id"]
+
+
+async def test_get_entry_from_wrong_project_is_404(
+    authenticated_client, project_with_schema, existing_entry
+):
+    other = await authenticated_client.post(
+        "/projects", json={"name": "Elsewhere", "entry_schema": []}
+    )
+    other_id = other.json()["id"]
+
+    response = await authenticated_client.get(
+        f"/projects/{other_id}/entries/{existing_entry['id']}"
+    )
+
+    assert response.status_code == 404
+
+
+async def test_update_entry_data(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+    updated = {**VALID_DATA, "field-2": "Corrected the typo"}
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": updated},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["field-2"] == "Corrected the typo"
+
+
+async def test_update_entry_preserves_created_at(
+    authenticated_client, project_with_schema, existing_entry
+):
+    """Editing an entry must not move it in the timeline."""
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": {**VALID_DATA, "field-1": 99}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["created_at"] == existing_entry["created_at"]
+
+
+async def test_update_entry_leaves_time_spent_when_omitted(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": VALID_DATA},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["time_spent"] == 45
+
+
+async def test_update_entry_clears_time_spent_when_explicitly_null(
+    authenticated_client, project_with_schema, existing_entry
+):
+    """An explicit null means "remove the duration", unlike an omitted field."""
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"time_spent": None},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["time_spent"] is None
+
+
+async def test_update_entry_rejects_fields_outside_the_schema(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": {**VALID_DATA, "field-removed": "stale"}},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_update_entry_revalidates_against_the_current_schema(
+    authenticated_client, project_with_schema, existing_entry
+):
+    """An entry written before a schema change must satisfy the new shape.
+
+    This is the agreed trade-off: update behaves exactly like create, so
+    editing an old entry forces it into the current schema rather than
+    letting entry shapes drift apart.
+    """
+    project_id = project_with_schema["id"]
+
+    # Replace "Status" with a new "Mood" field after the entry was written.
+    await authenticated_client.put(
+        f"/projects/{project_id}",
+        json={
+            "name": "Logbook Project",
+            "entry_schema": [
+                {"id": "field-1", "name": "Hours", "type": FieldType.NUMBER.value},
+                {"id": "field-2", "name": "Notes", "type": FieldType.TEXT.value},
+                {"id": "field-4", "name": "Mood", "type": FieldType.TEXT.value},
+            ],
+        },
+    )
+
+    # The entry's original shape is no longer valid.
+    stale = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": VALID_DATA},
+    )
+    assert stale.status_code == 422
+
+    # Supplying the current shape succeeds.
+    migrated = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={
+            "data": {
+                "field-1": 5,
+                "field-2": "Worked on UI",
+                "field-4": "Focused",
+            }
+        },
+    )
+    assert migrated.status_code == 200
+    assert migrated.json()["data"]["field-4"] == "Focused"
+
+
+async def test_update_entry_rejects_incomplete_data(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": {"field-1": 5}},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_update_entry_blocked_when_archived(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+    await authenticated_client.post(f"/projects/{project_id}/archive")
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{existing_entry['id']}",
+        json={"data": VALID_DATA},
+    )
+
+    assert response.status_code == 409
+
+
+async def test_delete_entry(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+    entry_id = existing_entry["id"]
+
+    response = await authenticated_client.delete(
+        f"/projects/{project_id}/entries/{entry_id}"
+    )
+    assert response.status_code == 204
+
+    follow_up = await authenticated_client.get(
+        f"/projects/{project_id}/entries/{entry_id}"
+    )
+    assert follow_up.status_code == 404
+
+
+async def test_delete_entry_blocked_when_archived(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+    await authenticated_client.post(f"/projects/{project_id}/archive")
+
+    response = await authenticated_client.delete(
+        f"/projects/{project_id}/entries/{existing_entry['id']}"
+    )
+
+    assert response.status_code == 409
+
+
+async def test_another_user_cannot_read_update_or_delete_your_entry(
+    authenticated_client,
+    second_authenticated_client,
+    project_with_schema,
+    existing_entry,
+):
+    project_id = project_with_schema["id"]
+    entry_id = existing_entry["id"]
+    url = f"/projects/{project_id}/entries/{entry_id}"
+
+    assert (await second_authenticated_client.get(url)).status_code == 404
+    assert (
+        await second_authenticated_client.put(url, json={"data": VALID_DATA})
+    ).status_code == 404
+    assert (await second_authenticated_client.delete(url)).status_code == 404
+
+    # And the entry is untouched.
+    survivor = await authenticated_client.get(url)
+    assert survivor.status_code == 200
+    assert survivor.json()["data"]["field-2"] == VALID_DATA["field-2"]
+
+
+async def test_list_entries_returns_newest_first(
+    authenticated_client, project_with_schema
+):
+    """The listing had no ORDER BY, so ordering was whatever the database chose."""
+    project_id = project_with_schema["id"]
+
+    older = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+        },
+    )
+    newer = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc).isoformat(),
+        },
+    )
+
+    response = await authenticated_client.get(f"/projects/{project_id}/entries")
+
+    assert response.status_code == 200
+    ids = [entry["id"] for entry in response.json()]
+    assert ids.index(newer.json()["id"]) < ids.index(older.json()["id"])

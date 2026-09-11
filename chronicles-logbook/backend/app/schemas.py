@@ -154,6 +154,17 @@ class EntryCreate(BaseModel):
         return self
 
 
+class EntryUpdate(BaseModel):
+    """Partial update for an existing entry.
+
+    ``created_at`` is deliberately absent: an entry's capture time is set
+    once, at creation, and is not rewritable afterwards.
+    """
+
+    data: dict[str, Any] | None = None
+    time_spent: int | None = Field(default=None, ge=0)
+
+
 class EntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
