@@ -17,11 +17,13 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 try:
     DATABASE_URL = os.environ["DATABASE_URL"]
 except KeyError:
+    # `from None` because the underlying KeyError adds nothing the message
+    # does not already say, and it keeps the startup failure readable.
     raise RuntimeError(
         "CRITICAL: DATABASE_URL environment variable is not set. "
         "Provide a valid asyncpg connection string "
         "(e.g. 'postgresql+asyncpg://user:pass@host:5432/dbname')."
-    )
+    ) from None
 
 # Off by default. Set SQL_DEBUG=true locally to see every SQL statement
 # SQLAlchemy runs — useful while developing, noisy and slightly sensitive
@@ -34,7 +36,7 @@ except KeyError:
     raise RuntimeError(
         "CRITICAL: JWT_SECRET_KEY environment variable is not set. "
         "Generate a long random value and keep it outside source control."
-    )
+    ) from None
 
 if len(JWT_SECRET_KEY) < 32:
     raise RuntimeError("CRITICAL: JWT_SECRET_KEY must be at least 32 characters long.")

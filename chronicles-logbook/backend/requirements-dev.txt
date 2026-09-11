@@ -1,0 +1,18 @@
+# Development and test dependencies.
+#
+# Install with:  python -m pip install -r requirements-dev.txt
+#
+# These were previously listed only inside .gitea/workflows/ci.yml, so a fresh
+# clone could install the application but could not run the test suite.
+
+-r requirements.txt
+
+pytest>=8,<10
+pytest-asyncio>=1.0,<2
+pytest-cov>=5,<8
+
+# Async SQLite driver used by the test fixtures in tests/conftest.py; the
+# application itself runs on PostgreSQL via asyncpg.
+aiosqlite>=0.20,<1
+
+ruff>=0.6,<1

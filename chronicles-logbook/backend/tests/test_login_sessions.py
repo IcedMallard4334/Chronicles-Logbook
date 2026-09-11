@@ -1,10 +1,11 @@
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-import pytest
 import jwt
+import pytest
 from fastapi.responses import Response
-from app.config import JWT_SECRET_KEY, JWT_ALGORITHM
+
+from app.config import JWT_ALGORITHM, JWT_SECRET_KEY
 from app.models import LoginSession
 from app.routers.auth import _create_login_session
 from app.security import decode_access_token

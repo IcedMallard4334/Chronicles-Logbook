@@ -4,7 +4,8 @@ from app.models import GoogleCalendarAccount
 async def test_multiple_accounts_and_scoped_disconnect(authenticated_client, second_authenticated_client, test_user, db_session):
     first=GoogleCalendarAccount(user_id=test_user.id,calendar_id='one@example.com',label='One',refresh_token='secret-one')
     second=GoogleCalendarAccount(user_id=test_user.id,calendar_id='two@example.com',label='Two',refresh_token='secret-two')
-    db_session.add_all([first,second]); await db_session.commit()
+    db_session.add_all([first,second])
+    await db_session.commit()
     status=await authenticated_client.get('/calendar/google/status')
     assert len(status.json()['accounts'])==2
     assert 'refresh_token' not in status.text

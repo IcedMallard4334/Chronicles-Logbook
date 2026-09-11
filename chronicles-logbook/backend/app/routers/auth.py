@@ -1,7 +1,7 @@
-import uuid
+import asyncio
 import hashlib
 import secrets
-import asyncio
+import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -13,8 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
-    FRONTEND_URL,
     COOKIE_SECURE,
+    FRONTEND_URL,
     GOOGLE_CALENDAR_REDIRECT_URI,
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
@@ -22,7 +22,7 @@ from app.config import (
 )
 from app.database import get_db
 from app.email import send_account_deleted_email
-from app.models import GoogleCalendarAccount, User, LoginSession
+from app.models import GoogleCalendarAccount, LoginSession, User
 from app.schemas import AuthResponse, UserResponse
 from app.security import create_access_token, decode_access_token, decode_calendar_state
 
@@ -234,7 +234,7 @@ def _check_session_origin(request):
 
 @router.post("/refresh")
 async def refresh_session(request: Request, response: Response,
-                          db: AsyncSession = Depends(get_db)):
+                          db: AsyncSession = Depends(get_db)):  # noqa: B008
     _check_session_origin(request)
     token = request.cookies.get(_SESSION_COOKIE, "")
     session = await db.get(LoginSession, hashlib.sha256(token.encode()).hexdigest()) if token else None
@@ -249,7 +249,7 @@ async def refresh_session(request: Request, response: Response,
 
 @router.post("/logout", status_code=204)
 async def logout_session(request: Request, response: Response,
-                         db: AsyncSession = Depends(get_db)):
+                         db: AsyncSession = Depends(get_db)):  # noqa: B008
     _check_session_origin(request)
     token = request.cookies.get(_SESSION_COOKIE, "")
     session = await db.get(LoginSession, hashlib.sha256(token.encode()).hexdigest()) if token else None

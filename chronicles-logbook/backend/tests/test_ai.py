@@ -5,13 +5,13 @@ from types import SimpleNamespace
 import pytest
 
 from app.routers import ai as ai_router
+from app.services import gemini_service
 from app.services.gemini_service import (
     CREATE_PROJECT_TOOL,
-    GeminiResponse,
     GeminiNotConfiguredError,
+    GeminiResponse,
     GeminiServiceError,
 )
-from app.services import gemini_service
 
 
 def test_gemini_service_returns_an_unexecuted_project_proposal(monkeypatch):
