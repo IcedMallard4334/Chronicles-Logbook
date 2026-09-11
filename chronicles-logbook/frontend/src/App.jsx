@@ -16,6 +16,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchProjects,
+  fetchStatistics,
   fetchTasks,
   unarchiveProject,
   updateProject,
@@ -31,6 +32,16 @@ function generateId() {
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
+}
+
+/** Render a duration held in minutes as a compact "3h 20m". */
+function formatDuration(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "0m"
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  if (hours === 0) return `${remainder}m`
+  if (remainder === 0) return `${hours}h`
+  return `${hours}h ${remainder}m`
 }
 
 const THEMES = ["light", "dark", "system"]
@@ -560,7 +571,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-function ProjectList({ projects, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
+function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
   const [pinnedIds, setPinnedIds] = useState(() => {
@@ -572,7 +583,7 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowHome, hom
   const normalizedQuery = query.trim().toLowerCase()
   const visibleActiveProjects = activeProjects.filter((project) => `${project.name} ${project.description || ""}`.toLowerCase().includes(normalizedQuery))
   const visibleArchivedProjects = archivedProjects.filter((project) => `${project.name} ${project.description || ""}`.toLowerCase().includes(normalizedQuery))
-  const entryCount = projects.reduce((total, project) => total + (project.entries?.length || 0), 0)
+  const totals = statistics?.totals
 
   useEffect(() => {
     let active = true
@@ -610,7 +621,9 @@ function ProjectList({ projects, selectedId, onSelect, onCreate, onShowHome, hom
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
         <span><strong>{activeProjects.length}</strong> active</span>
-        <span><strong>{entryCount}</strong> entries</span>
+        <span><strong>{totals ? totals.entries : "–"}</strong> entries</span>
+        <span><strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong> logged</span>
+        <span><strong>{totals ? totals.active_days : "–"}</strong> active days</span>
       </div>
       <div className="sidebar-head">
         <h2>Projects</h2>
@@ -1387,6 +1400,7 @@ async function seedDemoData() {
 
 function App() {
   const [projects, setProjects] = useState([])
+  const [statistics, setStatistics] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [view, setView] = useState("project")
   const [loading, setLoading] = useState(true)
@@ -1507,6 +1521,30 @@ function App() {
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
+
+  // Totals come from the server rather than being counted in the browser.
+  // Counting locally was wrong: `entries` is only ever loaded for the project
+  // currently open, so a client-side sum reported that one project's count as
+  // though it were the whole logbook.
+  //
+  // Keyed on `projects` because every action that changes the figures —
+  // creating a project, archiving one, saving an entry — replaces that array.
+  useEffect(() => {
+    let current = true
+
+    fetchStatistics()
+      .then((data) => {
+        if (current) setStatistics(data)
+      })
+      .catch(() => {
+        // The summary is supplementary; the workspace stays usable without it.
+        if (current) setStatistics(null)
+      })
+
+    return () => {
+      current = false
+    }
+  }, [projects])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedId) || null,
@@ -1746,6 +1784,7 @@ function App() {
         {currentView === "home" && <div className="sidebar-stack">
           <ProjectList
             projects={projects}
+            statistics={statistics}
             selectedId={selectedId}
             onSelect={handleSelectProject}
             onCreate={() => setIsModalOpen(true)}

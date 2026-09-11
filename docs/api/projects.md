@@ -126,99 +126,20 @@ Sets `archived` to `false`.
 
 ---
 
-## Create entry
+## Entry endpoints
+
+Entries live under a project, so their routes are project-scoped:
 
 ```
-POST /projects/{project_id}/entries
-```
-
-**Body:**
-
-```json
-{
-  "data": {
-    "field-id-1": 3,
-    "field-id-2": "Finished login page"
-  },
-  "time_spent": 90
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `data` | object | Yes | Values keyed by field ID from the project's `entry_schema` |
-| `time_spent` | integer | No | Time spent on the entry, in minutes |
-
-!!! note
-    The keys in `data` must match the `id` values in the project's `entry_schema`. The backend validates that all required fields are present and that types match.
-
-**Response:** `201 Created` — returns the created entry.
-
-**Errors:** `422` for schema validation failures, `409` if the project is archived.
-
----
-
-## List entries
-
-```
-GET /projects/{project_id}/entries
-```
-
-Returns all entries for a project, ordered newest first.
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": "...",
-    "project_id": "...",
-    "data": { "field-id-1": 3, "field-id-2": "Finished login page" },
-    "time_spent": 90,
-    "created_at": "...",
-    "updated_at": "..."
-  }
-]
-```
-
----
-
-## Get entry
-
-```
-GET /projects/{project_id}/entries/{entry_id}
-```
-
-**Response:** `200 OK` — returns the entry.
-
----
-
-## Update entry
-
-```
-PUT /projects/{project_id}/entries/{entry_id}
-```
-
-**Body:** (all fields optional)
-
-```json
-{
-  "data": { "field-id-1": 4, "field-id-2": "Updated text" },
-  "time_spent": 120
-}
-```
-
-**Response:** `200 OK` — returns the updated entry.
-
----
-
-## Delete entry
-
-```
+POST   /projects/{project_id}/entries
+GET    /projects/{project_id}/entries
+GET    /projects/{project_id}/entries/{entry_id}
+PUT    /projects/{project_id}/entries/{entry_id}
 DELETE /projects/{project_id}/entries/{entry_id}
 ```
 
-**Response:** `204 No Content`
+These are documented in full on the [Entries](entries.md) page, including
+idempotent creation, schema revalidation on update, and error codes.
 
 ---
 
@@ -233,4 +154,4 @@ The `entry_schema` supports the following field types:
 | `date` | ISO date string |
 | `dropdown` | One of a predefined list of `options` |
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5

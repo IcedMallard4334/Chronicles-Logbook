@@ -5,10 +5,20 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  fetchStatistics: vi.fn(),
 }))
 
 import App from "./App"
-import { createProject, fetchEntries, fetchEntriesGlobal, fetchProjects, fetchTasks, sendAIMessage } from "./api"
+import { createProject, fetchEntries, fetchEntriesGlobal, fetchProjects, fetchStatistics, fetchTasks, sendAIMessage } from "./api"
+
+const emptyStatistics = {
+  totals: {
+    projects: 0, active_projects: 0, archived_projects: 0,
+    entries: 0, time_spent: 0, active_days: 0,
+    first_entry_at: null, last_entry_at: null,
+  },
+  projects: [],
+}
 
 const fieldNotes = {
   id: "proj-1", name: "Field Notes", description: "Notes from the field", archived: false,
@@ -23,6 +33,63 @@ beforeEach(() => {
   fetchEntries.mockResolvedValue([])
   fetchEntriesGlobal.mockResolvedValue([])
   fetchTasks.mockResolvedValue([])
+  fetchStatistics.mockResolvedValue(emptyStatistics)
+})
+
+describe("workspace summary", () => {
+  const statistics = {
+    totals: {
+      projects: 3, active_projects: 2, archived_projects: 1,
+      entries: 128, time_spent: 200, active_days: 47,
+      first_entry_at: "2026-01-04T08:12:00Z", last_entry_at: "2026-09-10T17:40:00Z",
+    },
+    projects: [],
+  }
+
+  it("shows server-side totals rather than counting loaded entries", async () => {
+    // The bug this replaces: entries are only loaded for the open project, so
+    // a client-side sum reported one project's count as the whole logbook.
+    fetchStatistics.mockResolvedValue(statistics)
+    fetchEntries.mockResolvedValue([{ id: "e1", data: {}, created_at: "2026-09-10T17:40:00Z" }])
+
+    render(<App />)
+
+    const summary = await screen.findByLabelText("Workspace summary")
+    await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
+    expect(within(summary).getByText("47")).toBeInTheDocument()
+  })
+
+  it("renders time logged as hours and minutes", async () => {
+    fetchStatistics.mockResolvedValue(statistics)
+
+    render(<App />)
+
+    const summary = await screen.findByLabelText("Workspace summary")
+    await waitFor(() => expect(within(summary).getByText("3h 20m")).toBeInTheDocument())
+  })
+
+  it("stays usable when statistics cannot be loaded", async () => {
+    // The summary is supplementary — a failure must not take the sidebar down.
+    fetchStatistics.mockRejectedValue(new Error("offline"))
+
+    render(<App />)
+
+    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
+    expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(3)
+  })
+
+  it("refetches totals when the project list changes", async () => {
+    fetchStatistics.mockResolvedValue(statistics)
+
+    render(<App />)
+    await screen.findByLabelText("Workspace summary")
+
+    const callsBefore = fetchStatistics.mock.calls.length
+    fireEvent.click(within(await screen.findByRole("listbox", { name: "Projects" })).getByText("Field Notes"))
+
+    await waitFor(() => expect(fetchStatistics.mock.calls.length).toBeGreaterThan(callsBefore))
+  })
 })
 
 describe("App workspace", () => {

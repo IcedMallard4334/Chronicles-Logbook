@@ -149,6 +149,35 @@ export async function createEntry(projectId, payload) {
   })
 }
 
+export async function fetchEntry(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}`)
+}
+
+export async function updateEntry(projectId, entryId, { data, time_spent }) {
+  // Only the keys actually passed are sent, so an omitted time_spent leaves
+  // the stored duration alone while an explicit null clears it.
+  const body = {}
+  if (data !== undefined) body.data = data
+  if (time_spent !== undefined) body.time_spent = time_spent
+
+  return request(`/projects/${projectId}/entries/${entryId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteEntry(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}`, {
+    method: "DELETE",
+  })
+}
+
+// ── Statistics ────────────────────────────────────────────────────────
+
+export async function fetchStatistics() {
+  return request("/statistics")
+}
+
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -124,6 +124,46 @@ class EntryCreate(BaseModel):
     data: dict[str, Any]
     time_spent: int | None = Field(default=None, ge=0)
 
+    # Both fields are optional and omitted by ordinary online capture, where
+    # the server assigns them. They exist for two callers that already know
+    # the entry's identity and real capture time:
+    #   - offline sync (US-2.16), so a replayed request is idempotent rather
+    #     than creating a duplicate;
+    #   - import (US-2.17), so a restored logbook keeps its original history
+    #     instead of collapsing onto the import date.
+    id: UUID | None = None
+    created_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def normalise_created_at(self):
+        if self.created_at is None:
+            return self
+
+        # A device that was offline may hand us a naive timestamp. Treat it
+        # as UTC rather than letting the database guess.
+        if self.created_at.tzinfo is None:
+            self.created_at = self.created_at.replace(tzinfo=timezone.utc)
+
+        # Guard against a skewed device clock. A future-dated entry would sit
+        # at the top of the timeline permanently, and the user has no way to
+        # correct it once it is stored.
+        now = datetime.now(timezone.utc)
+        if self.created_at > now:
+            raise ValueError("created_at cannot be in the future.")
+
+        return self
+
+
+class EntryUpdate(BaseModel):
+    """Partial update for an existing entry.
+
+    ``created_at`` is deliberately absent: an entry's capture time is set
+    once, at creation, and is not rewritable afterwards.
+    """
+
+    data: dict[str, Any] | None = None
+    time_spent: int | None = Field(default=None, ge=0)
+
 
 class EntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -172,6 +212,39 @@ class TaskResponse(BaseModel):
     checklist: list[ChecklistItem]
     created_at: datetime
     updated_at: datetime
+
+
+# ── Statistics ───────────────────────────────────────────────────────
+
+
+class ProjectStatistics(BaseModel):
+    project_id: UUID
+    name: str
+    archived: bool
+    entries: int
+    time_spent: int
+    active_days: int
+    first_entry_at: datetime | None
+    last_entry_at: datetime | None
+
+
+class StatisticsTotals(BaseModel):
+    projects: int
+    active_projects: int
+    archived_projects: int
+    entries: int
+    time_spent: int
+    # Distinct days with at least one entry across the whole logbook. This is
+    # not the sum of the per-project figures: a day worked on two projects
+    # counts once here and once in each project.
+    active_days: int
+    first_entry_at: datetime | None
+    last_entry_at: datetime | None
+
+
+class StatisticsResponse(BaseModel):
+    totals: StatisticsTotals
+    projects: list[ProjectStatistics]
 
 
 class TimelineEntryResponse(BaseModel):
