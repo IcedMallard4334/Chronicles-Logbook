@@ -214,6 +214,53 @@ class TaskResponse(BaseModel):
     updated_at: datetime
 
 
+# ── Export and import ────────────────────────────────────────────────
+
+# Marks a file as ours, so importing an unrelated JSON document fails with a
+# clear message rather than a confusing validation error.
+EXPORT_FORMAT = "chronicles-export"
+EXPORT_VERSION = 1
+
+
+class ExportedEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    data: dict[str, Any]
+    time_spent: int | None = None
+    created_at: datetime
+
+
+class ExportedProject(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    archived: bool = False
+    entry_schema: list[FieldDefinition] = Field(default_factory=list)
+    created_at: datetime
+    entries: list[ExportedEntry] = Field(default_factory=list)
+
+
+class ExportDocument(BaseModel):
+    format: Literal["chronicles-export"] = EXPORT_FORMAT
+    version: int = EXPORT_VERSION
+    exported_at: datetime
+    projects: list[ExportedProject] = Field(default_factory=list)
+
+
+class ImportSummary(BaseModel):
+    projects_created: int = 0
+    projects_reused: int = 0
+    entries_created: int = 0
+    entries_skipped: int = 0
+    # Entries that could not be restored, each with the reason. Reported
+    # rather than silently dropped, for the same reason offline sync surfaces
+    # rejections: the user needs to know what did not come back.
+    issues: list[str] = Field(default_factory=list)
+
+
 # ── Statistics ───────────────────────────────────────────────────────
 
 

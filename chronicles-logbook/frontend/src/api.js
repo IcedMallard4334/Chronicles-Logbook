@@ -187,6 +187,49 @@ export async function deleteEntry(projectId, entryId) {
   })
 }
 
+// ── Export and import ─────────────────────────────────────────────────
+
+export async function fetchExportDocument() {
+  return request("/export")
+}
+
+export async function importLogbook(document) {
+  return request("/import", {
+    method: "POST",
+    body: JSON.stringify(document),
+  })
+}
+
+/**
+ * A project's entries as CSV text.
+ *
+ * Not routed through `request`, which parses JSON. The endpoint needs the
+ * bearer token like any other, so it cannot be a plain link either.
+ */
+export async function fetchProjectCsv(projectId) {
+  const token = window.localStorage.getItem("chronicles_token")
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}/projects/${projectId}/export.csv`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+  } catch {
+    const error = new Error("Cannot reach the Chronicles API.")
+    error.offline = true
+    throw error
+  }
+
+  if (!response.ok) {
+    const error = new Error(`Could not export this project (${response.status}).`)
+    error.status = response.status
+    throw error
+  }
+
+  return response.text()
+}
+
 // ── Statistics ────────────────────────────────────────────────────────
 
 export async function fetchStatistics() {

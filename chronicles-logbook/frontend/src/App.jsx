@@ -8,6 +8,7 @@ import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
+import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -147,19 +148,7 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
             <span>Notifications</span>
           </button>
           <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>Export</span>
-          </button>
+          <DataTransfer onClose={() => setOpen(false)} />
           <button
             type="button"
             className="user-dropdown-item"
@@ -1759,6 +1748,19 @@ function App() {
   useEffect(() => {
     loadEntries()
   }, [loadEntries])
+
+  // An import can add projects and entries wholesale, so reload both.
+  // Projects first, then entries: GET /projects omits entries, so the other
+  // order would wipe the list it had just fetched.
+  useEffect(() => {
+    const reload = async () => {
+      await loadProjects()
+      await loadEntries()
+    }
+
+    window.addEventListener("chronicles-imported", reload)
+    return () => window.removeEventListener("chronicles-imported", reload)
+  }, [loadProjects, loadEntries])
 
   // Drain anything captured offline: on load, when the browser reconnects,
   // and periodically in case that event never arrives.

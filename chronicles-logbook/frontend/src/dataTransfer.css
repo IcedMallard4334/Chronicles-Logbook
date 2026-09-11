@@ -1,0 +1,53 @@
+/* Export and import dialog (US-2.17). */
+
+.transfer-card {
+  max-width: 560px;
+  width: 100%;
+  text-align: left;
+}
+
+.transfer-summary {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.transfer-summary strong {
+  display: inline-block;
+  min-width: 2.2em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer-issues {
+  margin-top: 18px;
+}
+
+.transfer-issues h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.transfer-issues ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  /* A long list of skipped entries stays scrollable rather than pushing the
+     Close button off screen. */
+  max-height: 34vh;
+  overflow-y: auto;
+}
+
+.transfer-issues li {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+}

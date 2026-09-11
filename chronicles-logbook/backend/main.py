@@ -16,6 +16,7 @@ from app.routers import (
     projects,
     statistics,
     tasks,
+    transfer,
 )
 
 _DEFAULT_ORIGINS = [
@@ -61,6 +62,7 @@ app.add_middleware(
 app.include_router(projects.router)
 app.include_router(entries.router)
 app.include_router(statistics.router)
+app.include_router(transfer.router)
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(calendar.router)

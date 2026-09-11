@@ -71,6 +71,7 @@ nav:
     - Entries: api/entries.md
     - Tasks: api/tasks.md
     - Statistics: api/statistics.md
+    - Export and import: api/transfer.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md
