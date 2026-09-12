@@ -22,13 +22,21 @@ import {
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  previewSchemaChange,
   unarchiveProject,
   updateProject,
+  updateSchema,
 } from "./api"
+import {
+  FIELD_TYPES,
+  describeExpression,
+  expressionError,
+  fieldTypeLabel,
+  isNumericField,
+  withComputedValues,
+} from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
-
-const FIELD_TYPES = ["text", "number", "date", "dropdown"]
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -831,28 +839,307 @@ function DashboardPanel({ projects, onCreate }) {
   )
 }
 
-function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
-  const [fields, setFields] = useState(() => project.entry_schema || [])
+/**
+ * A field as the API stores it, with the keys that do not apply to its type
+ * left off.
+ *
+ * The builder keeps spare state on a field while it is being edited — the
+ * options you typed before switching the type away from a choice — and
+ * sending that would make an edit look bigger than it is in the review.
+ */
+function cleanField(field) {
+  const cleaned = { id: field.id, name: (field.name || "").trim(), type: field.type }
+  if (field.type === "dropdown") cleaned.options = field.options || []
+  if (field.type === "computed") cleaned.expression = (field.expression || "").trim()
+  return cleaned
+}
+
+const CHANGE_LABELS = {
+  added: "New field",
+  removed: "Removed",
+  renamed: "Renamed",
+  retyped: "Type changed",
+  options_changed: "Choices changed",
+  expression_changed: "Calculation changed",
+}
+
+function plural(count, one, many) {
+  return count === 1 ? one : many
+}
+
+/** What one change costs, in entries, or an empty string when it costs nothing. */
+function impactSentence(change) {
+  const parts = []
+  if (change.values_coerced > 0) {
+    parts.push(
+      `${change.values_coerced} ${plural(change.values_coerced, "value", "values")} rewritten to fit`
+    )
+  }
+  if (change.values_retired > 0) {
+    parts.push(
+      `${change.values_retired} ${plural(change.values_retired, "value", "values")} kept but hidden`
+    )
+  }
+  if (parts.length === 0 && change.entries_affected > 0) {
+    parts.push(
+      `${change.entries_affected} ${plural(change.entries_affected, "entry", "entries")} updated`
+    )
+  }
+  return parts.join(" · ")
+}
+
+/**
+ * What an edit will do to entries already recorded, shown before it is saved.
+ *
+ * Editing a schema is the only action in the logbook that can change data the
+ * user did not just type, so it is the only one that asks twice. The report
+ * comes from the server, which produces it by running the real migration — so
+ * this is what will happen, not an estimate of it.
+ */
+function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
+  const hasWarnings = preview.changes.some((change) => change.severity === "warning")
+
+  return (
+    <div className="schema-review" role="region" aria-label="Review schema changes">
+      <div className="panel-head">
+        <h4>Review these changes</h4>
+        <p>
+          {preview.entries_affected} of {preview.entry_count}{" "}
+          {plural(preview.entry_count, "entry", "entries")} already recorded will be
+          updated.
+        </p>
+      </div>
+      <ul className="change-list" role="list">
+        {preview.changes.map((change) => (
+          <li
+            key={`${change.kind}-${change.field_id}`}
+            className={`change-row is-${change.severity}`}
+          >
+            <span className="change-kind">{CHANGE_LABELS[change.kind] || change.kind}</span>
+            <div className="change-detail">
+              <p className="change-description">{change.description}</p>
+              {impactSentence(change) && (
+                <p className="change-impact">{impactSentence(change)}</p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {hasWarnings && (
+        <p className="hint">
+          Nothing is deleted. A value that no longer fits stays with its entry under
+          <strong> No longer recorded</strong>, and comes back if you restore the field.
+        </p>
+      )}
+      <div className="actions">
+        <button type="button" className="btn-secondary" onClick={onKeepEditing}>
+          Keep editing
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onApply}
+          disabled={isSaving}
+        >
+          {isSaving ? "Applying…" : "Apply changes"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** One field as it reads when the schema is not being edited. */
+function SchemaFieldSummary({ field, schema }) {
+  return (
+    <div className="field-card is-readonly">
+      <div className="field-summary">
+        <span className="field-summary-name">{field.name}</span>
+        <span className="field-summary-type">{fieldTypeLabel(field.type)}</span>
+      </div>
+      {field.type === "dropdown" && (
+        <p className="field-summary-detail">{(field.options || []).join(" · ")}</p>
+      )}
+      {field.type === "computed" && (
+        <p className="field-summary-detail">
+          = {describeExpression(field.expression, schema)}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** One field while the schema is being edited. */
+function SchemaFieldEditor({ field, index, schema, onChange, onRemove }) {
+  // A calculation can only read figures, and only from fields other than
+  // itself, so those are the only ones offered as sources.
+  const sources = schema.filter((other) => isNumericField(other) && other.id !== field.id)
+  const problem =
+    field.type === "computed" ? expressionError(field.expression, field, schema) : null
+
+  return (
+    <div className="field-card">
+      <div className="field-row">
+        <label className="field-label">
+          Name
+          <input
+            type="text"
+            value={field.name}
+            onChange={(event) => onChange(index, { name: event.target.value })}
+            placeholder="Field name"
+          />
+        </label>
+        <label className="field-label">
+          Type
+          <select
+            value={field.type}
+            onChange={(event) =>
+              onChange(index, {
+                type: event.target.value,
+                options: event.target.value === "dropdown" ? field.options || [""] : field.options,
+                expression:
+                  event.target.value === "computed" ? field.expression || "" : field.expression,
+              })
+            }
+          >
+            {FIELD_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="field-type-hint">
+        {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
+      </p>
+      {field.type === "dropdown" && (
+        <label className="field-label full">
+          Options (comma-separated)
+          <input
+            type="text"
+            value={(field.options || []).join(", ")}
+            onChange={(event) =>
+              onChange(index, {
+                options: event.target.value
+                  .split(",")
+                  .map((option) => option.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="Option 1, Option 2, Option 3"
+          />
+        </label>
+      )}
+      {field.type === "computed" && (
+        <>
+          <label className="field-label full">
+            Calculation
+            <input
+              type="text"
+              value={field.expression || ""}
+              onChange={(event) => onChange(index, { expression: event.target.value })}
+              placeholder="e.g. {field-hours} * 60"
+            />
+          </label>
+          {sources.length > 0 ? (
+            <div className="expression-sources">
+              <span className="hint">Add a field:</span>
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className="btn-chip"
+                  onClick={() =>
+                    onChange(index, {
+                      expression: `${field.expression || ""}${
+                        field.expression ? " " : ""
+                      }{${source.id}}`,
+                    })
+                  }
+                >
+                  {source.name || "Unnamed field"}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">
+              Add a number field first — a calculation needs figures to work from.
+            </p>
+          )}
+          {field.expression && !problem && (
+            <p className="field-summary-detail">
+              = {describeExpression(field.expression, schema)}
+            </p>
+          )}
+          {problem && <p className="error">{problem}</p>}
+        </>
+      )}
+      {field.type === "project_reference" && (
+        <p className="hint">
+          Each entry can point at one of your other projects. Leaving it unset is
+          allowed.
+        </p>
+      )}
+      <button type="button" className="btn-text-danger" onClick={() => onRemove(index)}>
+        Remove field
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Define a project's fields, and change them once entries exist.
+ *
+ * Read-only until "Edit schema" is pressed. A schema is a decision about the
+ * shape of everything already recorded, so it should not be possible to alter
+ * one by clicking into a form while reading it.
+ */
+function SchemaBuilder({ project, onPreview, onSave, disabled, onSwitchToEntries }) {
+  const savedFields = useMemo(() => project.entry_schema || [], [project.entry_schema])
+  const [mode, setMode] = useState("view")
+  const [fields, setFields] = useState(savedFields)
+  const [preview, setPreview] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [savedResult, setSavedResult] = useState(null)
 
-  const hasChanges = useMemo(() => {
-    const initialFields = project.entry_schema || []
-    return JSON.stringify(fields) !== JSON.stringify(initialFields)
-  }, [fields, project.entry_schema])
+  const hasChanges = useMemo(
+    () =>
+      JSON.stringify(fields.map(cleanField)) !==
+      JSON.stringify(savedFields.map(cleanField)),
+    [fields, savedFields]
+  )
+
+  // Returning to the read-only view once the saved schema changes is what ends
+  // a successful edit; the notice is left in place, since it is the report of
+  // the edit that just finished.
+  useEffect(() => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }, [project.id, savedFields])
 
   useEffect(() => {
-    setFields(project.entry_schema || [])
+    setSavedResult(null)
+  }, [project.id])
+
+  const startEditing = () => {
+    setMode("edit")
+    setFields(savedFields)
     setError(null)
-    setSaveSuccess(false)
-  }, [project.id, project.entry_schema])
+    setSavedResult(null)
+  }
+
+  const cancelEditing = () => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }
 
   const addField = () => {
-    setFields((prev) => [
-      ...prev,
-      { id: generateId(), name: "", type: "text", options: [] },
-    ])
+    setFields((prev) => [...prev, { id: generateId(), name: "", type: "text", options: [] }])
   }
 
   const removeField = (index) => {
@@ -860,38 +1147,39 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
   }
 
   const updateField = (index, patch) => {
-    setFields((prev) =>
-      prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
-    )
+    setFields((prev) => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)))
   }
 
+  /**
+   * The same rules the server enforces, checked here so a mistake is pointed
+   * out beside the field rather than after a failed save.
+   */
   const validateSchema = () => {
     const names = new Set()
     for (const field of fields) {
-      if (!field.name.trim()) return "Every field needs a name."
-      if (names.has(field.name.trim())) return `Duplicate field name: ${field.name}`
-      names.add(field.name.trim())
-      if (field.type === "dropdown") {
-        if (!Array.isArray(field.options) || field.options.length === 0) {
-          return `Field "${field.name}" needs at least one dropdown option.`
-        }
+      const name = (field.name || "").trim()
+      if (!name) return "Every field needs a name."
+      if (names.has(name.toLowerCase())) return `Two fields are both called "${name}".`
+      names.add(name.toLowerCase())
+
+      if (field.type === "dropdown" && (field.options || []).length === 0) {
+        return `"${name}" needs at least one option.`
+      }
+      if (field.type === "computed") {
+        const problem = expressionError(field.expression, field, fields)
+        if (problem) return `"${name}": ${problem}`
       }
     }
     return null
   }
 
-  const handleSave = async () => {
-    const validationError = validateSchema()
-    if (validationError) {
-      setError(validationError)
-      return
-    }
+  const applyChanges = async () => {
     setIsSaving(true)
     setError(null)
-    setSaveSuccess(false)
     try {
-      await onSave({ entry_schema: fields })
-      setSaveSuccess(true)
+      setSavedResult(await onSave(fields.map(cleanField)))
+      setPreview(null)
+      setMode("view")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -899,110 +1187,241 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
     }
   }
 
+  /**
+   * Ask the server what the edit would do, and only stop to ask the user when
+   * the answer involves an entry they have already recorded.
+   */
+  const handleSave = async () => {
+    const problem = validateSchema()
+    if (problem) {
+      setError(problem)
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    let report
+    try {
+      report = await onPreview(fields.map(cleanField))
+    } catch (err) {
+      setError(formatError(err))
+      setIsSaving(false)
+      return
+    }
+    setIsSaving(false)
+
+    if (report.entries_affected === 0) {
+      await applyChanges()
+      return
+    }
+
+    setPreview(report)
+    setMode("review")
+  }
+
+  if (mode === "review" && preview) {
+    return (
+      <div className="schema-builder">
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <SchemaChangeReview
+          preview={preview}
+          isSaving={isSaving}
+          onApply={applyChanges}
+          onKeepEditing={() => {
+            setPreview(null)
+            setMode("edit")
+          }}
+        />
+      </div>
+    )
+  }
+
+  const isEditing = mode === "edit"
+
   return (
     <div className="schema-builder">
       <div className="panel-head">
         <h3>Entry schema</h3>
-        <p>Define the fields and types for this logbook.</p>
+        <p>
+          {isEditing
+            ? "Existing entries are brought along with any change you make."
+            : "The fields this logbook asks for."}
+        </p>
       </div>
       {fields.length === 0 ? (
-        <p className="hint">No fields yet. Add one to get started.</p>
+        <p className="hint">
+          {isEditing ? "No fields yet. Add one to get started." : "No fields defined yet."}
+        </p>
       ) : (
         <div className="field-list">
-          {fields.map((field, index) => (
-            <div key={index} className="field-card">
-              <div className="field-row">
-                <label className="field-label">
-                  Name
-                  <input
-                    type="text"
-                    value={field.name}
-                    onChange={(e) => updateField(index, { name: e.target.value })}
-                    placeholder="Field name"
-                  />
-                </label>
-                <label className="field-label">
-                  Type
-                  <select
-                    value={field.type}
-                    onChange={(e) =>
-                      updateField(index, {
-                        type: e.target.value,
-                        options:
-                          e.target.value === "dropdown" ? [""] : field.options,
-                      })
-                    }
-                  >
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {field.type === "dropdown" && (
-                <label className="field-label full">
-                  Options (comma-separated)
-                  <input
-                    type="text"
-                    value={field.options.join(", ")}
-                    onChange={(e) =>
-                      updateField(index, {
-                        options: e.target.value
-                          .split(",")
-                          .map((option) => option.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="Option 1, Option 2, Option 3"
-                  />
-                </label>
-              )}
-              <button
-                type="button"
-                className="btn-text-danger"
-                onClick={() => removeField(index)}
-              >
-                Remove field
-              </button>
-            </div>
-          ))}
+          {isEditing
+            ? fields.map((field, index) => (
+                <SchemaFieldEditor
+                  key={field.id}
+                  field={field}
+                  index={index}
+                  schema={fields}
+                  onChange={updateField}
+                  onRemove={removeField}
+                />
+              ))
+            : fields.map((field) => (
+                <SchemaFieldSummary key={field.id} field={field} schema={fields} />
+              ))}
         </div>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
-      {saveSuccess && (
+      {!isEditing && project.retired_schema?.length > 0 && (
+        <p className="hint">
+          {project.retired_schema.length}{" "}
+          {plural(project.retired_schema.length, "field is", "fields are")} no longer asked
+          for. What past entries recorded under{" "}
+          {plural(project.retired_schema.length, "it", "them")} is still kept.
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {savedResult && (
         <div className="success" role="status">
-          <p>Schema saved.</p>
+          <p>
+            Schema saved.
+            {savedResult.entries_affected > 0 &&
+              ` ${savedResult.entries_affected} ${plural(
+                savedResult.entries_affected,
+                "entry was",
+                "entries were"
+              )} updated to match.`}
+          </p>
           <button type="button" className="btn-text" onClick={onSwitchToEntries}>
             Go to Entries to start logging
           </button>
         </div>
       )}
       <div className="actions">
-        <button type="button" className="btn-secondary" onClick={addField}>
-          Add field
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={handleSave}
-          disabled={disabled || isSaving || !hasChanges}
-        >
-          {isSaving ? "Saving…" : "Save schema"}
-        </button>
+        {isEditing ? (
+          <>
+            <button type="button" className="btn-secondary" onClick={addField}>
+              Add field
+            </button>
+            <button type="button" className="btn-text" onClick={cancelEditing}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={disabled || isSaving || !hasChanges}
+            >
+              {isSaving ? "Checking…" : "Save schema"}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={startEditing}
+            disabled={disabled}
+          >
+            {fields.length === 0 ? "Define schema" : "Edit schema"}
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-function EntryForm({ project, onCreated }) {
-  const schema = project.entry_schema || []
+/**
+ * One field on the new-entry form.
+ *
+ * A calculation is shown rather than asked for (US-2.5): it is worked out from
+ * the figures beside it, so an input would invite someone to type a value the
+ * server would immediately overwrite.
+ */
+function EntryFieldInput({ field, value, computed, projects, onChange }) {
+  if (field.type === "computed") {
+    return (
+      <div className="field-label is-computed">
+        <span className="field-label-text">
+          {field.name}
+          <span className="field-readonly-tag">calculated</span>
+        </span>
+        <output className="computed-value">
+          {computed === null || computed === undefined ? "—" : computed}
+        </output>
+      </div>
+    )
+  }
+
+  // A reference is optional (US-2.4), so it is the only field on the form
+  // without `required` — an entry that simply is not about another project
+  // should still be saveable.
+  if (field.type === "project_reference") {
+    return (
+      <label className="field-label">
+        {field.name}
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)}>
+          <option value="">No linked project</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
+  return (
+    <label className="field-label">
+      {field.name}
+      {field.type === "dropdown" ? (
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
+          <option value="" disabled>
+            Select…
+          </option>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.type}
+          value={value || ""}
+          onChange={(e) => onChange(field.id, e.target.value)}
+          placeholder={field.name}
+          required
+        />
+      )}
+    </label>
+  )
+}
+
+function EntryForm({ project, projects = [], onCreated }) {
+  const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  // Recomputed as you type, so a calculation settles while the entry is being
+  // filled in rather than only after it is saved.
+  const computed = useMemo(() => withComputedValues(data, schema), [data, schema])
+
+  // A link to the project you are already in carries no information, so it is
+  // not offered.
+  const linkable = useMemo(
+    () => projects.filter((other) => other.id !== project.id),
+    [projects, project.id]
+  )
 
   useEffect(() => {
     setData({})
@@ -1024,11 +1443,20 @@ function EntryForm({ project, onCreated }) {
     setIsSaving(true)
     setError(null)
     try {
-      const payload = { ...data }
+      const payload = {}
       for (const field of schema) {
-        if (field.type === "number" && payload[field.id] !== undefined) {
-          payload[field.id] = Number(payload[field.id])
+        // The server derives calculations itself; sending one would be a guess
+        // it has to ignore.
+        if (field.type === "computed") continue
+        const value = data[field.id]
+        if (field.type === "number") {
+          payload[field.id] = value === undefined ? undefined : Number(value)
+        } else if (field.type === "project_reference") {
+          payload[field.id] = value ? value : null
+        } else if (value !== undefined) {
+          payload[field.id] = value
         }
+        if (payload[field.id] === undefined) delete payload[field.id]
       }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
@@ -1062,33 +1490,14 @@ function EntryForm({ project, onCreated }) {
       </div>
       <div className="form-grid">
         {schema.map((field) => (
-          <label key={field.id} className="field-label">
-            {field.name}
-            {field.type === "dropdown" ? (
-              <select
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select…
-                </option>
-                {field.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type}
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                placeholder={field.name}
-                required
-              />
-            )}
-          </label>
+          <EntryFieldInput
+            key={field.id}
+            field={field}
+            value={data[field.id]}
+            computed={computed[field.id]}
+            projects={linkable}
+            onChange={handleChange}
+          />
         ))}
       </div>
       <div className="form-grid time-tracking">
@@ -1128,7 +1537,53 @@ function EntryForm({ project, onCreated }) {
   )
 }
 
-function EntryList({ entries, schema }) {
+/**
+ * A stored value as it should read on the page.
+ *
+ * A reference is held as a project id, which is the right thing to store and
+ * the wrong thing to show, so it is resolved to the project's name here.
+ */
+function formatEntryValue(field, value, projectNames) {
+  if (value === null || value === undefined || value === "") return "—"
+  if (field?.type === "project_reference") {
+    return projectNames.get(value) || "A project you no longer have"
+  }
+  return String(value)
+}
+
+/**
+ * What an entry recorded under fields the schema has since dropped (US-2.7).
+ *
+ * Removing a field stops it being asked for; it does not erase what was already
+ * answered. That history is kept out of the way but never out of reach.
+ */
+function RetiredValues({ retiredData, retiredSchema }) {
+  const fields = retiredSchema.filter(
+    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
+  )
+  if (fields.length === 0) return null
+
+  return (
+    <details className="retired-values">
+      <summary>No longer recorded ({fields.length})</summary>
+      <div className="log-fields">
+        {fields.map((field) => (
+          <div key={field.id} className="log-field">
+            <span className="log-label">{field.name}</span>
+            <span className="log-value">{String(retiredData[field.id])}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function EntryList({ entries, schema, retiredSchema = [], projects = [] }) {
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
+
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
   }
@@ -1147,7 +1602,7 @@ function EntryList({ entries, schema }) {
                 <div key={field.id} className="log-field">
                   <span className="log-label">{field.name}</span>
                   <span className="log-value">
-                    {String(entry.data[field.id] ?? "—")}
+                    {formatEntryValue(field, entry.data[field.id], projectNames)}
                   </span>
                 </div>
               ))}
@@ -1164,6 +1619,12 @@ function EntryList({ entries, schema }) {
               )}
               {new Date(entry.created_at).toLocaleString()}
             </span>
+            {/* Last, and collapsed: history worth keeping is not history worth
+                leading with. */}
+            <RetiredValues
+              retiredData={entry.retired_data || {}}
+              retiredSchema={retiredSchema}
+            />
           </li>
         ))}
       </ul>
@@ -1206,11 +1667,13 @@ function Timeline({ projects }) {
     return map
   }, [projects])
 
-  const getFieldName = (entryProjectId, fieldId) => {
-    const schema = schemaByProject[entryProjectId] || []
-    const field = schema.find((f) => f.id === fieldId)
-    return field?.name || fieldId
-  }
+  const getField = (entryProjectId, fieldId) =>
+    (schemaByProject[entryProjectId] || []).find((f) => f.id === fieldId)
+
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
 
   return (
     <section className="timeline" aria-label="Timeline">
@@ -1261,14 +1724,17 @@ function Timeline({ projects }) {
                 </span>
               </div>
               <div className="timeline-fields">
-                {Object.entries(entry.data).map(([fieldId, value]) => (
-                  <div key={fieldId} className="timeline-field">
-                    <span className="timeline-label">
-                      {getFieldName(entry.project_id, fieldId)}
-                    </span>
-                    <span className="timeline-value">{String(value)}</span>
-                  </div>
-                ))}
+                {Object.entries(entry.data).map(([fieldId, value]) => {
+                  const field = getField(entry.project_id, fieldId)
+                  return (
+                    <div key={fieldId} className="timeline-field">
+                      <span className="timeline-label">{field?.name || fieldId}</span>
+                      <span className="timeline-value">
+                        {formatEntryValue(field, value, projectNames)}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </li>
           ))}
@@ -1280,6 +1746,8 @@ function Timeline({ projects }) {
 
 function ProjectDetail({
   project,
+  projects,
+  onSchemaPreview,
   onSchemaSaved,
   onEntryCreated,
   onEditProject,
@@ -1348,14 +1816,21 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} onCreated={onEntryCreated} />
+              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} />
             )}
-            <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
+            <EntryList
+              entries={project.entries || []}
+              schema={project.entry_schema || []}
+              retiredSchema={project.retired_schema || []}
+              projects={projects}
+            />
           </>
         ) : tab === "schema" ? (
           <SchemaBuilder
             project={project}
+            onPreview={onSchemaPreview}
             onSave={onSchemaSaved}
+            disabled={project.archived}
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : (
@@ -1749,6 +2224,32 @@ function App() {
     loadEntries()
   }, [loadEntries])
 
+  /** US-2.6/2.7: what a schema edit would do, asked before it is done. */
+  const handleSchemaPreview = async (entrySchema) => {
+    if (!selectedProject) return null
+    return previewSchemaChange(selectedProject.id, entrySchema)
+  }
+
+  /**
+   * Save an edited schema and take the migrated entries back from the server.
+   *
+   * Declared after loadEntries because it needs it. The entries are refetched
+   * rather than patched in place: a schema change can rewrite, backfill or
+   * retire a value on every one of them, so the copy held here is stale in ways
+   * too varied to reconstruct locally.
+   */
+  const handleSchemaSave = async (entrySchema) => {
+    if (!selectedProject) return null
+    const result = await updateSchema(selectedProject.id, entrySchema)
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === result.project.id ? { ...project, ...result.project } : project
+      )
+    )
+    await loadEntries()
+    return result
+  }
+
   // An import can add projects and entries wholesale, so reload both.
   // Projects first, then entries: GET /projects omits entries, so the other
   // order would wipe the list it had just fetched.
@@ -1974,7 +2475,9 @@ function App() {
             <ProjectDetail
               key={selectedProject.id}
               project={openProject}
-              onSchemaSaved={handleProjectUpdate}
+              projects={projects}
+              onSchemaPreview={handleSchemaPreview}
+              onSchemaSaved={handleSchemaSave}
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
