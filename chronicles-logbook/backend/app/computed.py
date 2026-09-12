@@ -22,8 +22,9 @@ import operator
 import re
 from typing import Any
 
-# A field is referenced by its id in braces, e.g. "{field-abc} * 1.15". Ids
-# contain hyphens, so they cannot be written as bare Python identifiers.
+# A field is referenced in braces, e.g. "{Hours} * 1.15" — by its name,
+# which is what a person knows, or by its id, which is how expressions were
+# stored before names were allowed. Both resolve to the same field.
 PLACEHOLDER = re.compile(r"\{\s*([^{}]+?)\s*\}")
 
 # Long enough for any arithmetic a logbook needs, short enough that parsing
@@ -60,6 +61,59 @@ def referenced_field_ids(expression: str) -> list[str]:
         if field_id not in seen:
             seen.append(field_id)
     return seen
+
+
+def _reference_resolution(entry_schema: list[dict[str, Any]]) -> dict[str, str]:
+    """Map every way of naming a field to that field's id.
+
+    Ids are matched exactly; names are matched ignoring case and surrounding
+    space, mirroring the rule that makes schema names unique. Ids win over a
+    name that happens to look like one, which only a field literally named
+    after another field's id could achieve.
+    """
+    resolution: dict[str, str] = {}
+    for field in entry_schema:
+        resolution[field["id"]] = field["id"]
+    for field in entry_schema:
+        key = str(field.get("name", "")).strip().lower()
+        if key and key not in resolution:
+            resolution[key] = field["id"]
+    return resolution
+
+
+def _resolve_token(token: str, resolution: dict[str, str]) -> str | None:
+    """The field id a reference token names, or ``None`` if it names nothing."""
+    if token in resolution:
+        return resolution[token]
+    return resolution.get(token.strip().lower())
+
+
+def _rewrite_references(expression: str, resolution: dict[str, str]) -> str:
+    """Rewrite every reference in an expression to the field's id.
+
+    Values are stored under field ids, so evaluation stays keyed by id whether
+    an expression was written with names or with ids. A token that resolves to
+    nothing is left as it was: it cannot be looked up at evaluation either, so
+    the field reads as unknown rather than as a crash.
+    """
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(1)
+        resolved = _resolve_token(token, resolution)
+        return match.group(0) if resolved is None else "{%s}" % resolved
+
+    return PLACEHOLDER.sub(replace, expression or "")
+
+
+def canonicalize_expression(expression: str, entry_schema: list[dict[str, Any]]) -> str:
+    """The expression with every reference written as a field id.
+
+    A person writes a reference by name and the builder shows it by name, but
+    the name changes the moment its field is renamed. Storing the id form is
+    what lets a rename leave every expression that mentions the field
+    untouched; the name form is a concern of the editor, resolved afresh each
+    time one is shown.
+    """
+    return _rewrite_references(expression, _reference_resolution(entry_schema))
 
 
 def _substitute(expression: str) -> tuple[str, dict[str, str]]:
@@ -104,8 +158,8 @@ def _reject_disallowed_nodes(node: ast.AST, names: dict[str, str]) -> None:
     if isinstance(node, ast.Name):
         if node.id not in names:
             raise ExpressionError(
-                "Refer to a field as {field id} rather than by name, "
-                "and use numbers for everything else."
+                "Refer to a field by its name in braces, like {Hours}, "
+                "rather than by its bare name, and use numbers for everything else."
             )
         return
 
@@ -208,6 +262,7 @@ def computed_evaluation_order(entry_schema: list[dict[str, Any]]) -> list[str]:
         for field in entry_schema
         if field.get("type") == "computed"
     }
+    resolution = _reference_resolution(entry_schema)
 
     order: list[str] = []
     resolved: set[str] = set()
@@ -226,8 +281,9 @@ def computed_evaluation_order(entry_schema: list[dict[str, Any]]) -> list[str]:
 
         visiting.add(field_id)
         for reference in referenced_field_ids(computed[field_id].get("expression", "")):
-            if reference in computed:
-                visit(reference)
+            resolved_reference = _resolve_token(reference, resolution)
+            if resolved_reference in computed:
+                visit(resolved_reference)
         visiting.discard(field_id)
 
         resolved.add(field_id)
@@ -247,6 +303,7 @@ def validate_computed_fields(entry_schema: list[dict[str, Any]]) -> None:
     moment they wrote it, not by whoever next tries to log an entry.
     """
     by_id = {field["id"]: field for field in entry_schema}
+    resolution = _reference_resolution(entry_schema)
 
     for field in entry_schema:
         if field.get("type") != "computed":
@@ -256,14 +313,15 @@ def validate_computed_fields(entry_schema: list[dict[str, Any]]) -> None:
         compile_expression(field.get("expression", ""))
 
         for reference in referenced_field_ids(field["expression"]):
-            if reference == field["id"]:
+            resolved = _resolve_token(reference, resolution)
+            if resolved == field["id"]:
                 raise ExpressionError(f"Field '{name}' cannot be computed from itself.")
 
-            source = by_id.get(reference)
-            if source is None:
+            if resolved is None:
                 raise ExpressionError(
                     f"Field '{name}' refers to a field that is not in this schema."
                 )
+            source = by_id[resolved]
             if source.get("type") not in NUMERIC_FIELD_TYPES:
                 raise ExpressionError(
                     f"Field '{name}' can only be computed from number "
@@ -293,7 +351,9 @@ def apply_computed_fields(
         return data
 
     result = dict(data)
+    resolution = _reference_resolution(entry_schema)
     for field_id in computed_evaluation_order(entry_schema):
-        result[field_id] = evaluate(computed[field_id].get("expression", ""), result)
+        expression = _rewrite_references(computed[field_id].get("expression", ""), resolution)
+        result[field_id] = evaluate(expression, result)
 
     return result

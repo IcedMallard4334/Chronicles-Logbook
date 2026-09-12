@@ -42,6 +42,12 @@ const otherProject = {
   entry_schema: [], retired_schema: [],
 }
 
+// A second place a link can point, so one can be aimed somewhere else.
+const thesisProject = {
+  id: "proj-3", name: "Thesis", description: null, archived: false,
+  entry_schema: [], retired_schema: [],
+}
+
 const noChanges = { entry_count: 0, entries_affected: 0, changes: [] }
 
 beforeEach(() => {
@@ -110,6 +116,40 @@ describe("reading a schema", () => {
     expect(await screen.findByText(/1 field is no longer asked for/)).toBeInTheDocument()
   })
 
+  it("says which project a link points at", async () => {
+    const LINK = {
+      id: "f-link", name: "Related project", type: "project_reference",
+      linked_project_id: "proj-2",
+    }
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
+
+    await openProject("Schema")
+
+    expect(await screen.findByText("Links to Reading List")).toBeInTheDocument()
+  })
+
+  it("says when a link points at a project that is gone", async () => {
+    const LINK = {
+      id: "f-link", name: "Related project", type: "project_reference",
+      linked_project_id: "proj-gone",
+    }
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }])
+
+    await openProject("Schema")
+
+    expect(await screen.findByText("Links to a project you no longer have")).toBeInTheDocument()
+  })
+
+  it("opens the schema from the field count", async () => {
+    // The count sits exactly where field-related content is being read, so it
+    // doubles as a way in rather than waiting for the tab bar to be found.
+    await openProject()
+
+    fireEvent.click(screen.getByRole("button", { name: "2 fields · Schema" }))
+
+    expect(await screen.findByRole("button", { name: "Edit schema" })).toBeInTheDocument()
+  })
+
   it("cannot be edited while the project is archived", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, archived: true }, otherProject])
 
@@ -175,6 +215,30 @@ describe("editing a schema", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent('Two fields are both called "Hours"')
+    expect(previewSchemaChange).not.toHaveBeenCalled()
+  })
+
+  it("refuses a field name that contains braces", async () => {
+    // A calculation refers to a field by its name in braces, so a brace in a
+    // name would read as half a reference.
+    await openSchemaEditor()
+    fireEvent.change(screen.getAllByLabelText("Name")[0], { target: { value: "Hours {old}" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot contain braces")
+    expect(previewSchemaChange).not.toHaveBeenCalled()
+  })
+
+  it("refuses a link that does not say which project it points at", async () => {
+    await openSchemaEditor()
+    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      '"Notes" needs to say which project it links to'
+    )
     expect(previewSchemaChange).not.toHaveBeenCalled()
   })
 
@@ -309,6 +373,80 @@ describe("reviewing an edit", () => {
   })
 })
 
+// ── Linking a project (US-2.4, schema-level links) ──────────────────────────
+
+describe("linking a project", () => {
+  it("asks which project a link points at, and offers only the other projects", async () => {
+    await openSchemaEditor()
+    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+
+    const select = screen.getByLabelText("Links to")
+    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Choose a project…",
+      "Reading List",
+    ])
+  })
+
+  it("saves the link with the project it points at", async () => {
+    updateSchema.mockResolvedValue({
+      ...noChanges,
+      project: {
+        ...fieldNotes,
+        entry_schema: [
+          HOURS,
+          { id: "f-notes", name: "Notes", type: "project_reference", linked_project_id: "proj-2" },
+        ],
+      },
+    })
+    await openSchemaEditor()
+    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+    fireEvent.change(screen.getByLabelText("Links to"), { target: { value: "proj-2" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
+
+    await waitFor(() =>
+      expect(previewSchemaChange).toHaveBeenCalledWith("proj-1", [
+        HOURS,
+        { id: "f-notes", name: "Notes", type: "project_reference", linked_project_id: "proj-2" },
+      ])
+    )
+  })
+
+  it("reports a link pointed somewhere else as the change it is", async () => {
+    // A link lives in the schema, so aiming it elsewhere is a schema edit like
+    // any other — one that every past entry follows, so it is reviewed first.
+    const LINK = {
+      id: "f-link", name: "Related project", type: "project_reference",
+      linked_project_id: "proj-2",
+    }
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [LINK] },
+      otherProject,
+      thesisProject,
+    ])
+    previewSchemaChange.mockResolvedValue({
+      entry_count: 2,
+      entries_affected: 2,
+      changes: [
+        {
+          kind: "link_changed", field_id: "f-link", field_name: "Related project",
+          description: "'Related project' will point at 'Thesis' and past entries will be relinked.",
+          severity: "warning", entries_affected: 2, values_coerced: 0, values_retired: 0,
+        },
+      ],
+    })
+
+    await openSchemaEditor()
+    fireEvent.change(screen.getByLabelText("Links to"), { target: { value: "proj-3" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
+
+    const review = await screen.findByRole("region", { name: "Review schema changes" })
+    expect(within(review).getByText("Link changed")).toBeInTheDocument()
+    expect(within(review).getByText(/past entries will be relinked/)).toBeInTheDocument()
+    expect(updateSchema).not.toHaveBeenCalled()
+  })
+})
+
 // ── Building a calculation (US-2.5) ──────────────────────────────────────────
 
 describe("building a calculation", () => {
@@ -318,24 +456,82 @@ describe("building a calculation", () => {
     return screen.findByLabelText("Calculation")
   }
 
-  it("offers the number fields as sources rather than asking for an id", async () => {
+  it("offers the number fields as sources, by name", async () => {
     await addCalculation()
 
     fireEvent.click(screen.getByRole("button", { name: "Hours" }))
 
-    expect(screen.getByLabelText("Calculation")).toHaveValue("{f-hours}")
+    expect(screen.getByLabelText("Calculation")).toHaveValue("{Hours}")
+  })
+
+  it("shows a calculation saved by id as the names it was built from", async () => {
+    // The server stores references by field id; the person editing the schema
+    // named the fields, so the names are the form the editor speaks.
+    const COST = {
+      id: "f-cost", name: "Cost", type: "computed", expression: "{f-hours} * 60",
+    }
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [HOURS, COST] },
+      otherProject,
+    ])
+    await openSchemaEditor()
+
+    expect(screen.getByLabelText("Calculation")).toHaveValue("{Hours} * 60")
+    // Reading a stored calculation back is not itself a change to it.
+    expect(screen.getByRole("button", { name: "Save schema" })).toBeDisabled()
   })
 
   it("reads a calculation back using field names", async () => {
     const expression = await addCalculation()
-    fireEvent.change(expression, { target: { value: "{f-hours} * 60" } })
+    fireEvent.change(expression, { target: { value: "{Hours} * 60" } })
 
     expect(await screen.findByText("= Hours * 60")).toBeInTheDocument()
   })
 
+  it("saves a calculation written by name as the ids the server stores", async () => {
+    updateSchema.mockResolvedValue({
+      ...noChanges,
+      project: {
+        ...fieldNotes,
+        entry_schema: [
+          HOURS,
+          { id: "f-notes", name: "Notes", type: "computed", expression: "{f-hours} * 60" },
+        ],
+      },
+    })
+    const expression = await addCalculation()
+    fireEvent.change(expression, { target: { value: "{Hours} * 60" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
+
+    await waitFor(() =>
+      expect(previewSchemaChange).toHaveBeenCalledWith("proj-1", [
+        HOURS,
+        { id: "f-notes", name: "Notes", type: "computed", expression: "{f-hours} * 60" },
+      ])
+    )
+  })
+
+  it("renames a field inside a calculation that refers to it", async () => {
+    // A calculation refers to a field by its name; renaming the field must
+    // carry the calculation along rather than leave it naming a ghost.
+    const COST = {
+      id: "f-cost", name: "Cost", type: "computed", expression: "{f-hours} * 60",
+    }
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [HOURS, COST] },
+      otherProject,
+    ])
+    await openSchemaEditor()
+
+    fireEvent.change(screen.getAllByLabelText("Name")[0], { target: { value: "Minutes" } })
+
+    expect(screen.getByLabelText("Calculation")).toHaveValue("{Minutes} * 60")
+  })
+
   it("previews the answer while the formula is typed", async () => {
     const expression = await addCalculation()
-    fireEvent.change(expression, { target: { value: "{f-hours} * 60" } })
+    fireEvent.change(expression, { target: { value: "{Hours} * 60" } })
 
     expect(
       await screen.findByText("Preview: 120 — with every field as 2")
@@ -351,31 +547,33 @@ describe("building a calculation", () => {
     ])
 
     const expression = await addCalculation()
-    fireEvent.change(expression, { target: { value: "{f-hours} * 60" } })
+    fireEvent.change(expression, { target: { value: "{Hours} * 60" } })
 
     expect(
       await screen.findByText("Preview: 180 — from your latest entry")
     ).toBeInTheDocument()
   })
 
-  it("recognises a field typed by name rather than picked below", async () => {
+  it("accepts a field typed by name rather than picked below", async () => {
     const expression = await addCalculation()
     fireEvent.change(expression, { target: { value: "{Hours} * 2" } })
 
-    expect(await screen.findByText(/click it below/)).toBeInTheDocument()
+    // The "= …" line only appears once a formula reads as valid, so it is the
+    // evidence that the name was understood.
+    expect(await screen.findByText("= Hours * 2")).toBeInTheDocument()
   })
 
   it("explains a broken calculation beside the field", async () => {
     const expression = await addCalculation()
 
-    fireEvent.change(expression, { target: { value: "{f-hours} *" } })
+    fireEvent.change(expression, { target: { value: "{Hours} *" } })
 
     expect(await screen.findByText(/incomplete or mistyped/)).toBeInTheDocument()
   })
 
   it("will not save a broken calculation", async () => {
     const expression = await addCalculation()
-    fireEvent.change(expression, { target: { value: "{f-hours} +" } })
+    fireEvent.change(expression, { target: { value: "{Hours} +" } })
 
     fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
 
@@ -399,7 +597,10 @@ describe("filling in an entry", () => {
   const COST = {
     id: "f-cost", name: "Cost", type: "computed", expression: "{f-hours} * {f-rate}",
   }
-  const LINK = { id: "f-link", name: "Related project", type: "project_reference" }
+  const LINK = {
+    id: "f-link", name: "Related project", type: "project_reference",
+    linked_project_id: "proj-2",
+  }
 
   it("shows a calculation instead of asking for it", async () => {
     fetchProjects.mockResolvedValue([
@@ -451,38 +652,31 @@ describe("filling in an entry", () => {
     )
   })
 
-  it("picks a linked project by name from the ones that exist", async () => {
-    // US-2.4: a reference must resolve to a real project, which is guaranteed
-    // by never letting one be typed.
+  it("shows the linked project rather than asking for it on every entry", async () => {
+    // The link is decided once, in the schema, so an entry reports it rather
+    // than answers for it — the same read-only treatment a calculation gets,
+    // with a tag of its own colour so the two are never confused.
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
 
     await openProject()
 
-    const select = await screen.findByLabelText("Related project")
-    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "No linked project",
-      "Reading List",
-    ])
+    const form = (await screen.findByRole("heading", { name: "New entry" })).closest("form")
+    expect(within(form).getByText("Related project")).toBeInTheDocument()
+    expect(within(form).getByText("linked")).toBeInTheDocument()
+    expect(within(form).getByText("Reading List")).toBeInTheDocument()
+    expect(within(form).queryByRole("combobox")).not.toBeInTheDocument()
   })
 
-  it("sends a chosen link, and null when none is chosen", async () => {
+  it("does not send a link the server would derive from the schema", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
     createEntry.mockResolvedValue({ id: "e1", data: {}, created_at: "2026-09-12T10:00:00Z" })
     await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
 
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
-    await waitFor(() =>
-      expect(createEntry).toHaveBeenCalledWith("proj-1", {
-        data: { "f-link": null }, time_spent: null,
-      })
-    )
 
-    fireEvent.change(screen.getByLabelText("Related project"), { target: { value: "proj-2" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
     await waitFor(() =>
-      expect(createEntry).toHaveBeenLastCalledWith("proj-1", {
-        data: { "f-link": "proj-2" }, time_spent: null,
-      })
+      expect(createEntry).toHaveBeenCalledWith("proj-1", { data: {}, time_spent: null })
     )
   })
 })
@@ -490,7 +684,10 @@ describe("filling in an entry", () => {
 // ── Reading entries back (US-2.4, US-2.7) ────────────────────────────────────
 
 describe("reading entries back", () => {
-  const LINK = { id: "f-link", name: "Related project", type: "project_reference" }
+  const LINK = {
+    id: "f-link", name: "Related project", type: "project_reference",
+    linked_project_id: "proj-2",
+  }
 
   it("shows a linked project's name, not its id", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
@@ -503,8 +700,26 @@ describe("reading entries back", () => {
     expect(within(await entryList()).getByText("Reading List")).toBeInTheDocument()
   })
 
+  it("opens the linked project from beside its value", async () => {
+    // A link you can act on reads as a connection between two projects; one
+    // you cannot read as decoration.
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-link": "proj-2" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    fireEvent.click(within(list).getByTitle("Open Reading List"))
+
+    expect(await screen.findByRole("heading", { name: "Reading List" })).toBeInTheDocument()
+  })
+
   it("says so plainly when a linked project has gone", async () => {
-    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }])
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [{ ...LINK, linked_project_id: "proj-gone" }] },
+    ])
     fetchEntries.mockResolvedValue([
       { id: "e1", data: { "f-link": "proj-gone" }, created_at: "2026-09-12T10:00:00Z" },
     ])
@@ -573,5 +788,22 @@ describe("reading entries back", () => {
     const list = await entryList()
     expect(within(list).getByText("Hours")).toBeInTheDocument()
     expect(within(list).queryByText(/No longer recorded/)).not.toBeInTheDocument()
+  })
+
+  it("shortens a long column label but keeps the full name on hover", async () => {
+    // A header three lines tall sets the height of every row beneath it; the
+    // full name rides along as a tooltip so nothing is lost.
+    const LONG = {
+      id: "f-long", name: "Create a new environment for my level", type: "text",
+    }
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LONG] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-long": "Castle" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+
+    await openProject()
+
+    const label = within(await entryList()).getByTitle("Create a new environment for my level")
+    expect(label).toHaveTextContent("Create a new enviro…")
   })
 })

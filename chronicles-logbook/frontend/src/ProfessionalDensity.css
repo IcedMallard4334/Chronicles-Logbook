@@ -37,8 +37,12 @@
 .workspace-sidebar-nav button.is-active { color:var(--blue); background:var(--blue-bg); }
 .workspace-sidebar-nav button span { width:13px; text-align:center; font-size:.95rem; }
 /* Two columns rather than one row: the summary carries four figures and a
-   single flex row squeezes them past legibility in a narrow sidebar. */
-.workspace-sidebar-stats { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; padding:10px 10px 8px; color:var(--muted); font-size:.68rem; }
+   single flex row squeezes them past legibility in a narrow sidebar.
+   The rule underneath is the break between "here's an overview" and
+   "here's where you click" — a dashboard summary and navigation are two
+   different mental modes, and the sidebar reads better for keeping them
+   apart. */
+.workspace-sidebar-stats { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; padding:10px 10px 12px; margin:0 2px 8px; border-bottom:1px solid var(--line); color:var(--muted); font-size:.68rem; }
 .workspace-sidebar-stats span { display:grid; gap:2px; padding:7px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); }
 .workspace-sidebar-stats strong { color:var(--text); font-size:.88rem; font-variant-numeric:tabular-nums; }
 .workspace-sidebar .sidebar-head { margin:0 -8px; padding:12px 18px 8px; border-bottom:0; }

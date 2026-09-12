@@ -39,6 +39,7 @@ RENAMED = "renamed"
 RETYPED = "retyped"
 OPTIONS_CHANGED = "options_changed"
 EXPRESSION_CHANGED = "expression_changed"
+LINK_CHANGED = "link_changed"
 
 
 @dataclass
@@ -102,7 +103,7 @@ def _as_text(value: Any) -> str:
 def _coerce(
     value: Any,
     field: dict[str, Any],
-    known_project_ids: set[str] | None,
+    known_project_ids: dict[str, str] | set[str] | None,
 ) -> tuple[Any, bool]:
     """Read an existing value as the field's new type.
 
@@ -186,11 +187,14 @@ def _default_value(field: dict[str, Any], captured_at: datetime) -> Any:
 def describe_changes(
     current_schema: list[dict[str, Any]],
     proposed_schema: list[dict[str, Any]],
+    project_names: dict[str, str] | None = None,
 ) -> list[FieldChange]:
     """The structural differences between two schemas, without counting data.
 
     Fields are matched by id, which is why the builder keeps ids stable across
     an edit: it is the difference between renaming a field and replacing it.
+    ``project_names`` maps project ids to names, so a retargeted link can be
+    described by the project it will point at.
     """
     current_by_id = {field["id"]: field for field in current_schema}
     proposed_by_id = {field["id"]: field for field in proposed_schema}
@@ -256,6 +260,28 @@ def describe_changes(
                     ),
                 )
             )
+        elif (
+            field.get("type") == "project_reference"
+            and previous.get("linked_project_id") != field.get("linked_project_id")
+        ):
+            target = field.get("linked_project_id")
+            target_name = (
+                project_names.get(str(target)) if target and project_names else None
+            )
+            changes.append(
+                FieldChange(
+                    kind=LINK_CHANGED,
+                    field_id=field_id,
+                    field_name=field["name"],
+                    description=(
+                        f"'{field['name']}' will point at '{target_name}' and past "
+                        f"entries will be relinked."
+                        if target_name
+                        else f"'{field['name']}' will point at a different project "
+                        "and past entries will be relinked."
+                    ),
+                )
+            )
 
         # A rename is reported alongside any of the above, because it is the
         # change the user will recognise in the entry list.
@@ -304,7 +330,7 @@ def migrate_entry_data(
     captured_at: datetime,
     current_schema: list[dict[str, Any]],
     proposed_schema: list[dict[str, Any]],
-    known_project_ids: set[str] | None = None,
+    known_project_ids: dict[str, str] | set[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Reshape one entry's values to fit a new schema.
 
@@ -326,6 +352,15 @@ def migrate_entry_data(
                 if current_by_id.get(field_id, {}).get("type") != "computed":
                     new_retired[field_id] = data[field_id]
             new_data[field_id] = None
+            continue
+
+        if field.get("type") == "project_reference" and field.get("linked_project_id"):
+            # A link names its target once, in the schema, so it is re-pointed
+            # here rather than coerced: whatever the entry held — a value
+            # chosen per entry, before links moved into the schema, or the
+            # previous target — the new target is what it will show.
+            new_data[field_id] = str(field["linked_project_id"])
+            new_retired.pop(field_id, None)
             continue
 
         # A field that was removed and then added back under the same id finds
@@ -393,7 +428,7 @@ def simulate(
     project: Any,
     entries: list[Any],
     proposed_schema: list[dict[str, Any]],
-    known_project_ids: set[str] | None = None,
+    known_project_ids: dict[str, str] | set[str] | None = None,
 ) -> Simulation:
     """Work out an edit in full without writing any of it.
 
@@ -401,7 +436,9 @@ def simulate(
     the same code for both is what makes the review honest.
     """
     current_schema = project.entry_schema or []
-    changes = describe_changes(current_schema, proposed_schema)
+    changes = describe_changes(
+        current_schema, proposed_schema, known_project_ids if isinstance(known_project_ids, dict) else None
+    )
 
     result = Simulation(changes=changes)
 

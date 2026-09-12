@@ -529,24 +529,140 @@ async def test_changing_an_expression_recalculates_past_entries(authenticated_cl
     assert entries[0]["data"]["field-total"] == 60
 
 
-async def test_a_reference_field_added_to_a_live_schema_is_left_unset(
+async def test_a_link_added_to_a_live_schema_points_every_entry_at_it(
     authenticated_client, logged_project
 ):
+    """A link names its target in the schema, so an added link reaches
+    backwards: the entries that predate it are pointed at the target rather
+    than left to say nothing."""
+    target = await _create_project(authenticated_client, "Dissertation", [])
     project_id = logged_project["id"]
-    await authenticated_client.put(
+    response = await authenticated_client.put(
         f"/projects/{project_id}/schema",
         json={
             "entry_schema": [
                 HOURS,
                 NOTES,
                 STATUS,
-                {"id": "field-for", "name": "Done for", "type": FieldType.PROJECT_REFERENCE.value},
+                {
+                    "id": "field-for",
+                    "name": "Done for",
+                    "type": FieldType.PROJECT_REFERENCE.value,
+                    "linked_project_id": target["id"],
+                },
             ]
         },
     )
+    assert response.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all(entry["data"]["field-for"] is None for entry in entries)
+    assert all(entry["data"]["field-for"] == target["id"] for entry in entries)
+
+
+async def test_retargeting_a_link_relinks_every_entry(
+    authenticated_client, logged_project
+):
+    """Editing a link in the schema is the one route by which a past entry's
+    link changes, and the review says so in the target's own words."""
+    first = await _create_project(authenticated_client, "Dissertation", [])
+    second = await _create_project(authenticated_client, "Thesis", [])
+    project_id = logged_project["id"]
+    link = {
+        "id": "field-for",
+        "name": "Done for",
+        "type": FieldType.PROJECT_REFERENCE.value,
+        "linked_project_id": first["id"],
+    }
+    await authenticated_client.put(
+        f"/projects/{project_id}/schema",
+        json={"entry_schema": [HOURS, NOTES, STATUS, link]},
+    )
+
+    retargeted = {**link, "linked_project_id": second["id"]}
+    preview = await authenticated_client.post(
+        f"/projects/{project_id}/schema/preview",
+        json={"entry_schema": [HOURS, NOTES, STATUS, retargeted]},
+    )
+    change = _change(preview.json(), "link_changed")
+    assert change["description"] == (
+        "'Done for' will point at 'Thesis' and past entries will be relinked."
+    )
+    assert change["entries_affected"] == 2
+
+    applied = await authenticated_client.put(
+        f"/projects/{project_id}/schema",
+        json={"entry_schema": [HOURS, NOTES, STATUS, retargeted]},
+    )
+    assert applied.status_code == 200
+
+    entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
+    assert all(entry["data"]["field-for"] == second["id"] for entry in entries)
+
+
+async def test_an_expression_written_by_name_is_stored_by_field_id(
+    authenticated_client,
+):
+    """A calculation is written by name but stored by field id, so that
+    renaming a field afterwards cannot break it."""
+    project = await _create_project(
+        authenticated_client,
+        "Named",
+        [
+            HOURS,
+            {
+                "id": "field-total",
+                "name": "Total",
+                "type": FieldType.COMPUTED.value,
+                "expression": "{Hours} / 2",
+            },
+        ],
+    )
+
+    stored = (await authenticated_client.get(f"/projects/{project['id']}")).json()
+    total = next(field for field in stored["entry_schema"] if field["id"] == "field-total")
+    assert total["expression"] == "{field-hours} / 2"
+
+
+async def test_renaming_a_field_leaves_a_calculation_that_names_it_alone(
+    authenticated_client,
+):
+    """The point of storing expressions by id: a rename is a change of label,
+    not a change of arithmetic, and past entries keep their values."""
+    project = await _create_project(
+        authenticated_client,
+        "Fieldwork",
+        [
+            HOURS,
+            {
+                "id": "field-total",
+                "name": "Total",
+                "type": FieldType.COMPUTED.value,
+                "expression": "{Hours} * 2",
+            },
+        ],
+    )
+    entry = await _create_entry(authenticated_client, project["id"], {"field-hours": 3})
+    assert entry["data"]["field-total"] == 6
+
+    response = await authenticated_client.put(
+        f"/projects/{project['id']}/schema",
+        json={
+            "entry_schema": [
+                {**HOURS, "name": "Duration"},
+                {
+                    "id": "field-total",
+                    "name": "Total",
+                    "type": FieldType.COMPUTED.value,
+                    "expression": "{Duration} * 2",
+                },
+            ]
+        },
+    )
+    assert response.status_code == 200
+    assert [change["kind"] for change in response.json()["changes"]] == ["renamed"]
+
+    entries = (await authenticated_client.get(f"/projects/{project['id']}/entries")).json()
+    assert entries[0]["data"]["field-total"] == 6
 
 
 # ── Guards ────────────────────────────────────────────────────────────────────

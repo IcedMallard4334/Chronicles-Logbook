@@ -61,6 +61,74 @@ export function referencedFieldIds(expression) {
   return seen
 }
 
+/**
+ * Map every way of naming a field to its id.
+ *
+ * Ids are matched exactly; names are matched ignoring case and surrounding
+ * space, the same rule that keeps schema names unique. Ids win over a name
+ * that happens to look like one — the same order the server resolves in.
+ */
+export function fieldResolution(schema) {
+  const resolution = new Map()
+  for (const field of schema || []) resolution.set(field.id, field.id)
+  for (const field of schema || []) {
+    const key = (field.name || "").trim().toLowerCase()
+    if (key && !resolution.has(key)) resolution.set(key, field.id)
+  }
+  return resolution
+}
+
+/** The field id a reference token names, or null if it names nothing. */
+function resolveToken(token, resolution) {
+  if (resolution.has(token)) return resolution.get(token)
+  return resolution.get(String(token).trim().toLowerCase()) ?? null
+}
+
+/**
+ * The expression with every reference written as a field id.
+ *
+ * The server stores expressions this way, so this is the form a save sends
+ * and the form two schemas are compared in; a reference by name is a person's
+ * shorthand, resolved here the same way the server resolves it.
+ */
+export function expressionCanonical(expression, schema) {
+  const resolution = fieldResolution(schema)
+  return String(expression || "").replace(PLACEHOLDER, (match, token) => {
+    const id = resolveToken(token, resolution)
+    return id ? `{${id}}` : match
+  })
+}
+
+/**
+ * The expression with every reference written as a field name.
+ *
+ * The editing form: a person is shown — and writes — the name they gave the
+ * field, never the id the database knows it by.
+ */
+export function expressionToDisplay(expression, schema) {
+  const resolution = fieldResolution(schema)
+  const byId = new Map((schema || []).map((field) => [field.id, field]))
+  return String(expression || "").replace(PLACEHOLDER, (match, token) => {
+    const field = byId.get(resolveToken(token, resolution))
+    return field ? `{${field.name}}` : match
+  })
+}
+
+/**
+ * A field's new name, wherever a calculation refers to it by the old one.
+ *
+ * Renaming a field in the builder renames it in every calculation at the same
+ * moment — otherwise the calculation would be left referring to a field that
+ * is no longer called that, and the rename would read as a break.
+ */
+export function renameFieldInExpression(expression, fromName, toName) {
+  const from = String(fromName || "").trim().toLowerCase()
+  if (!from) return expression
+  return String(expression || "").replace(PLACEHOLDER, (match, token) =>
+    token.trim().toLowerCase() === from ? `{${toName}}` : match
+  )
+}
+
 function tokenise(source) {
   const tokens = []
   let index = 0
@@ -98,7 +166,7 @@ function tokenise(source) {
     // first attempt. Mirrors the message the server gives an ast.Name node.
     if (/[a-zA-Z]/.test(character)) {
       throw new Error(
-        "Refer to a field as {field} rather than by name, and use numbers for everything else."
+        "Refer to a field by its name in braces, like {Hours}, rather than by its bare name, and use numbers for everything else."
       )
     }
 
@@ -237,6 +305,10 @@ export function evaluateExpression(expression, values) {
  *
  * Ten passes is far more than any real schema needs and cannot loop forever
  * on a circular reference, which the server refuses to save anyway.
+ *
+ * Expressions are canonicalised to ids first: the values they read are keyed
+ * by id, and a schema saved through the builder can hold name references
+ * until the server has stored the canonical form.
  */
 export function withComputedValues(values, schema) {
   const computed = (schema || []).filter((field) => field.type === "computed")
@@ -245,7 +317,10 @@ export function withComputedValues(values, schema) {
   const result = { ...values }
   for (let pass = 0; pass < Math.min(computed.length, 10); pass += 1) {
     for (const field of computed) {
-      result[field.id] = evaluateExpression(field.expression, result)
+      result[field.id] = evaluateExpression(
+        expressionCanonical(field.expression, schema),
+        result
+      )
     }
   }
   return result
@@ -259,21 +334,22 @@ export function withComputedValues(values, schema) {
  * when there is no entry yet, or when the entry cannot produce one. `null`
  * means not even a sample could be worked out.
  */
-export function previewExpressionValue(expression, latestData) {
-  const referenced = referencedFieldIds(expression)
+export function previewExpressionValue(expression, latestData, schema) {
+  const canonical = expressionCanonical(expression, schema)
+  const referenced = referencedFieldIds(canonical)
   if (referenced.length === 0) {
-    const value = evaluateExpression(expression, {})
+    const value = evaluateExpression(canonical, {})
     return value === null ? null : { value, fromEntry: false }
   }
 
   if (latestData) {
-    const value = evaluateExpression(expression, latestData)
+    const value = evaluateExpression(canonical, latestData)
     if (value !== null) return { value, fromEntry: true }
   }
 
   const samples = {}
   for (const id of referenced) samples[id] = 2
-  const value = evaluateExpression(expression, samples)
+  const value = evaluateExpression(canonical, samples)
   return value === null ? null : { value, fromEntry: false }
 }
 
@@ -282,7 +358,8 @@ export function previewExpressionValue(expression, latestData) {
  *
  * The same rules the server applies, checked as the field is typed so the
  * builder can explain the problem next to the input rather than after a
- * failed save.
+ * failed save. References are accepted by name or by id, exactly as the
+ * server accepts them.
  */
 export function expressionError(expression, field, schema) {
   if (!String(expression || "").trim()) return "A calculation needs an expression."
@@ -294,26 +371,16 @@ export function expressionError(expression, field, schema) {
   }
 
   const byId = new Map((schema || []).map((entry) => [entry.id, entry]))
+  const byName = new Map(
+    (schema || []).map((entry) => [(entry.name || "").trim().toLowerCase(), entry])
+  )
 
   for (const reference of referencedFieldIds(expression)) {
-    if (reference === field.id) return "A calculation cannot use its own result."
+    const source =
+      byId.get(reference) || byName.get(String(reference).trim().toLowerCase())
 
-    let source = byId.get(reference)
-    if (!source) {
-      // A braced name rather than a braced id: the instinct is right, the
-      // syntax is not. Names are what a person knows; ids are what the
-      // expression stores, because a name can be renamed out from under it.
-      const byName = (schema || []).find(
-        (entry) =>
-          (entry.name || "").trim().toLowerCase() === reference.trim().toLowerCase()
-      )
-      if (byName?.id === field.id) return "A calculation cannot use its own result."
-      if (byName && isNumericField(byName)) {
-        return `'${byName.name}' is one of your fields — click it below to add it to the calculation.`
-      }
-      source = byName
-    }
     if (!source) return "This calculation uses a field that is no longer in the schema."
+    if (source.id === field.id) return "A calculation cannot use its own result."
     if (!isNumericField(source)) {
       return `'${source.name || "That field"}' is not a number, so it cannot be part of a calculation.`
     }
@@ -322,11 +389,12 @@ export function expressionError(expression, field, schema) {
   return null
 }
 
-/** An expression with field ids replaced by names, for reading rather than editing. */
+/** An expression with references written as names, for reading rather than editing. */
 export function describeExpression(expression, schema) {
+  const resolution = fieldResolution(schema)
   const byId = new Map((schema || []).map((field) => [field.id, field]))
-  return String(expression || "").replace(
-    PLACEHOLDER,
-    (_match, id) => byId.get(id)?.name || "unknown field"
-  )
+  return String(expression || "").replace(PLACEHOLDER, (_match, token) => {
+    const field = byId.get(resolveToken(token, resolution))
+    return field?.name || "unknown field"
+  })
 }

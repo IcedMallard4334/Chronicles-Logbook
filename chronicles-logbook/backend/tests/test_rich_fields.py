@@ -15,7 +15,7 @@ async def _create_project(client, name, schema):
 
 @pytest_asyncio.fixture(loop_scope="function")
 async def linked_projects(authenticated_client):
-    """A project whose entries point at another project (US-2.4)."""
+    """A project whose schema links it to another project (US-2.4)."""
     target = await _create_project(authenticated_client, "Dissertation", [])
     source = await _create_project(
         authenticated_client,
@@ -26,6 +26,7 @@ async def linked_projects(authenticated_client):
                 "id": "field-for",
                 "name": "Read for",
                 "type": FieldType.PROJECT_REFERENCE.value,
+                "linked_project_id": target["id"],
             },
         ],
     )
@@ -54,107 +55,127 @@ async def costed_project(authenticated_client):
 # ── Project reference (US-2.4) ────────────────────────────────────────────────
 
 
-async def test_entry_stores_a_reference_to_another_project(
+async def test_an_entry_stores_the_link_the_schema_names(
     authenticated_client, linked_projects
 ):
+    """The link is a fact about the schema, so an entry written against it
+    carries the target without being asked for it."""
     source, target = linked_projects
-    response = await authenticated_client.post(
-        f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": target["id"]}},
-    )
-    assert response.status_code == 201
-    assert response.json()["data"]["field-for"] == target["id"]
-
-
-async def test_a_reference_may_be_left_blank(authenticated_client, linked_projects):
-    source, _ = linked_projects
-    response = await authenticated_client.post(
-        f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": None}},
-    )
-    assert response.status_code == 201
-    assert response.json()["data"]["field-for"] is None
-
-
-async def test_a_reference_may_be_omitted_altogether(authenticated_client, linked_projects):
-    """Adding a reference to a live schema must not invalidate existing entries."""
-    source, _ = linked_projects
     response = await authenticated_client.post(
         f"/projects/{source['id']}/entries",
         json={"data": {"field-notes": "Chapter 3"}},
     )
     assert response.status_code == 201
+    assert response.json()["data"]["field-for"] == target["id"]
 
 
-async def test_a_reference_to_a_project_that_does_not_exist_is_rejected(
-    authenticated_client, linked_projects
-):
-    source, _ = linked_projects
+async def test_a_value_sent_for_a_link_is_ignored(authenticated_client, linked_projects):
+    """The form shows the link rather than asking for it, but offline sync
+    replays whatever payload it captured, so the server derives it regardless
+    — the same contract a computed field has."""
+    source, target = linked_projects
     response = await authenticated_client.post(
         f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": str(uuid4())}},
+        json={"data": {"field-notes": "Chapter 3", "field-for": None}},
     )
-    assert response.status_code == 422
-    assert "does not exist" in response.json()["detail"]
+    assert response.status_code == 201
+    assert response.json()["data"]["field-for"] == target["id"]
 
 
-async def test_a_reference_to_another_users_project_is_rejected(
-    authenticated_client, second_authenticated_client, linked_projects
-):
-    """A reference is scoped to the caller's own projects, so it cannot be
-    used to confirm that somebody else's project id exists."""
-    source, _ = linked_projects
-    theirs = await _create_project(second_authenticated_client, "Their work", [])
-
-    response = await authenticated_client.post(
-        f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": theirs["id"]}},
-    )
-    assert response.status_code == 422
-    assert "does not exist" in response.json()["detail"]
-
-
-async def test_a_reference_that_is_not_an_id_is_rejected(
-    authenticated_client, linked_projects
-):
-    source, _ = linked_projects
-    response = await authenticated_client.post(
-        f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": "Dissertation"}},
-    )
-    assert response.status_code == 422
-    assert "must reference a project" in response.json()["detail"]
-
-
-async def test_a_reference_can_be_cleared_by_an_update(authenticated_client, linked_projects):
+async def test_an_update_cannot_repoint_a_link_either(authenticated_client, linked_projects):
     source, target = linked_projects
     created = await authenticated_client.post(
         f"/projects/{source['id']}/entries",
-        json={"data": {"field-notes": "Chapter 3", "field-for": target["id"]}},
+        json={"data": {"field-notes": "Chapter 3"}},
     )
     entry_id = created.json()["id"]
 
     response = await authenticated_client.put(
         f"/projects/{source['id']}/entries/{entry_id}",
-        json={"data": {"field-notes": "Chapter 3", "field-for": None}},
+        json={"data": {"field-notes": "Chapter 4", "field-for": None}},
     )
     assert response.status_code == 200
-    assert response.json()["data"]["field-for"] is None
+    assert response.json()["data"]["field-for"] == target["id"]
 
 
-async def test_a_reference_field_can_point_at_its_own_project(authenticated_client):
-    """Self-reference is odd but harmless, and forbidding it would need a rule
-    the user cannot see in the builder."""
-    project = await _create_project(
-        authenticated_client,
-        "Recursive",
-        [{"id": "field-for", "name": "Related to", "type": FieldType.PROJECT_REFERENCE.value}],
-    )
+async def test_a_schema_link_must_name_a_project(authenticated_client):
     response = await authenticated_client.post(
-        f"/projects/{project['id']}/entries",
-        json={"data": {"field-for": project["id"]}},
+        "/projects",
+        json={
+            "name": "Unlinked",
+            "entry_schema": [
+                {"id": "field-for", "name": "Read for", "type": FieldType.PROJECT_REFERENCE.value},
+            ],
+        },
     )
-    assert response.status_code == 201
+    assert response.status_code == 422
+    assert "needs to say which project" in response.json()["detail"]
+
+
+async def test_a_schema_link_must_name_a_project_that_exists(authenticated_client):
+    response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Broken",
+            "entry_schema": [
+                {
+                    "id": "field-for",
+                    "name": "Read for",
+                    "type": FieldType.PROJECT_REFERENCE.value,
+                    "linked_project_id": str(uuid4()),
+                },
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert "does not exist" in response.json()["detail"]
+
+
+async def test_a_schema_link_cannot_name_another_users_project(
+    authenticated_client, second_authenticated_client
+):
+    """A link is scoped to the caller's own projects, so it cannot be used to
+    confirm that somebody else's project id exists."""
+    theirs = await _create_project(second_authenticated_client, "Their work", [])
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Broken",
+            "entry_schema": [
+                {
+                    "id": "field-for",
+                    "name": "Read for",
+                    "type": FieldType.PROJECT_REFERENCE.value,
+                    "linked_project_id": theirs["id"],
+                },
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert "does not exist" in response.json()["detail"]
+
+
+async def test_a_schema_link_cannot_point_at_its_own_project(authenticated_client):
+    """A project linking to itself is a dead end dressed as a connection; the
+    builder only ever offers other projects, so the server holds the same
+    line."""
+    project = await _create_project(authenticated_client, "Recursive", [])
+    response = await authenticated_client.put(
+        f"/projects/{project['id']}",
+        json={
+            "entry_schema": [
+                {
+                    "id": "field-for",
+                    "name": "Related to",
+                    "type": FieldType.PROJECT_REFERENCE.value,
+                    "linked_project_id": project["id"],
+                },
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert "cannot link to its own project" in response.json()["detail"]
 
 
 # ── Computed fields (US-2.5) ──────────────────────────────────────────────────
@@ -247,6 +268,47 @@ async def test_a_computed_value_reaches_the_csv_export(authenticated_client, cos
     assert response.status_code == 200
     assert "Cost" in response.text
     assert "750" in response.text
+
+
+async def test_schema_rejects_a_field_name_containing_braces(authenticated_client):
+    """A calculation refers to a field by its name in braces, so a brace in a
+    name would be read as half a reference."""
+    response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Broken",
+            "entry_schema": [
+                {"id": "field-a", "name": "Hours {ok}", "type": FieldType.NUMBER.value},
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert "cannot contain braces" in response.text
+
+
+async def test_a_computed_field_can_be_written_with_field_names(authenticated_client):
+    """Names are what a person knows, so the expression accepts them; ids are
+    how expressions were stored before names were allowed, and still work."""
+    project = await _create_project(
+        authenticated_client,
+        "Named",
+        [
+            {"id": "field-hours", "name": "Hours", "type": FieldType.NUMBER.value},
+            {
+                "id": "field-cost",
+                "name": "Cost",
+                "type": FieldType.COMPUTED.value,
+                "expression": "{Hours} * 3",
+            },
+        ],
+    )
+
+    response = await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"field-hours": 3}},
+    )
+    assert response.status_code == 201
+    assert response.json()["data"]["field-cost"] == 9
 
 
 # ── Schemas the builder must refuse (US-2.5) ──────────────────────────────────

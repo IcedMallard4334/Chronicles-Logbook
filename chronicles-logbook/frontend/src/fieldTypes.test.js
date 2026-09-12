@@ -4,12 +4,15 @@ import {
   FIELD_TYPES,
   describeExpression,
   evaluateExpression,
+  expressionCanonical,
   expressionError,
+  expressionToDisplay,
   fieldTypeLabel,
   isNumericField,
   parseExpression,
   previewExpressionValue,
   referencedFieldIds,
+  renameFieldInExpression,
   withComputedValues,
 } from "./fieldTypes"
 
@@ -84,7 +87,7 @@ describe("parsing an expression", () => {
   it("explains a field name typed without braces", () => {
     // "Hours * 2" is the natural first attempt, so it is answered in kind
     // rather than reported as a stray character.
-    expect(() => parseExpression("Hours * 2")).toThrow(/Refer to a field as/)
+    expect(() => parseExpression("Hours * 2")).toThrow(/Refer to a field by its name in braces/)
   })
 
   it("rejects anything that is not arithmetic", () => {
@@ -92,7 +95,7 @@ describe("parsing an expression", () => {
     // and the only safe way to run it is to not be able to express much.
     // "alert(1)" leads with a bare name, so it is answered with the same
     // advice a mistyped field name gets; the rest simply cannot be expressed.
-    expect(() => parseExpression("alert(1)")).toThrow(/Refer to a field as/)
+    expect(() => parseExpression("alert(1)")).toThrow(/Refer to a field by its name in braces/)
     expect(() => parseExpression("{a} % 2")).toThrow(/can only contain/)
     expect(() => parseExpression("'text'")).toThrow(/can only contain/)
   })
@@ -175,6 +178,14 @@ describe("computed values on an entry", () => {
     expect(result["f-vat"]).toBe(230)
   })
 
+  it("resolves a calculation written with field names", () => {
+    // The builder edits by name and the server stores by id, so a schema in
+    // either form has to evaluate the same.
+    const namedCost = { ...cost, expression: "{Hours} * {Rate}" }
+    const result = withComputedValues({ "f-hours": 3, "f-rate": 50 }, [hours, rate, namedCost])
+    expect(result["f-cost"]).toBe(150)
+  })
+
   it("does not hang on a circular reference", () => {
     // The server refuses to save one, but a schema can be mid-edit here.
     const a = { id: "a", name: "A", type: "computed", expression: "{b} + 1" }
@@ -226,11 +237,9 @@ describe("expression problems", () => {
   })
 
   it("recognises a field typed by name inside braces", () => {
-    // The instinct is right, the syntax is not: a name is what a person
-    // knows, an id is what the expression stores.
-    expect(expressionError("{Hours} * 2", cost, schema)).toBe(
-      "'Hours' is one of your fields — click it below to add it to the calculation."
-    )
+    // A name is what a person knows and the id is what the server stores;
+    // both name the same field, so both are accepted.
+    expect(expressionError("{Hours} * 2", cost, schema)).toBeNull()
   })
 
   it("still names a non-number typed by name", () => {
@@ -275,6 +284,62 @@ describe("previewing an expression", () => {
   it("gives up quietly on something it cannot evaluate", () => {
     expect(previewExpressionValue("{f-hours} *", null)).toBeNull()
   })
+
+  it("previews a calculation written with field names", () => {
+    expect(
+      previewExpressionValue("{Hours} * {Rate}", { "f-hours": 3, "f-rate": 50 }, [hours, rate])
+    ).toEqual({ value: 150, fromEntry: true })
+  })
+
+  it("samples a calculation written with field names when there is no entry", () => {
+    expect(previewExpressionValue("{Hours} * {Rate}", null, [hours, rate])).toEqual({
+      value: 4,
+      fromEntry: false,
+    })
+  })
+})
+
+// ── Writing a calculation the way the server stores it (US-2.5) ─────────────
+
+describe("the canonical and displayed forms of an expression", () => {
+  it("writes references as ids for the server, from names or from ids", () => {
+    expect(expressionCanonical("{Hours} * {f-rate}", [hours, rate])).toBe("{f-hours} * {f-rate}")
+  })
+
+  it("matches a name ignoring case and surrounding space", () => {
+    expect(expressionCanonical("{ hours } + 1", [hours])).toBe("{f-hours} + 1")
+  })
+
+  it("leaves a reference that names nothing exactly as it was", () => {
+    // It cannot be resolved here either, so the field reads as unknown
+    // rather than being silently rewritten into something else.
+    expect(expressionCanonical("{gone} + 1", [hours])).toBe("{gone} + 1")
+  })
+
+  it("writes references as names for the editor, from ids", () => {
+    expect(expressionToDisplay("{f-hours} * {f-rate}", [hours, rate])).toBe("{Hours} * {Rate}")
+  })
+
+  it("leaves a reference that names nothing for its reader to see", () => {
+    expect(expressionToDisplay("{gone} + 1", [hours])).toBe("{gone} + 1")
+  })
+
+  it("carries a rename into every reference to the field", () => {
+    expect(renameFieldInExpression("{Hours} * {Hours} + {Rate}", "Hours", "Duration")).toBe(
+      "{Duration} * {Duration} + {Rate}"
+    )
+  })
+
+  it("matches the old name ignoring case when carrying a rename", () => {
+    expect(renameFieldInExpression("{hours} + 1", "Hours", "Duration")).toBe(
+      "{Duration} + 1"
+    )
+  })
+
+  it("leaves an empty old name alone rather than rewriting everything", () => {
+    // A field being named for the first time has no old name to replace.
+    expect(renameFieldInExpression("{Hours} + 1", "", "Duration")).toBe("{Hours} + 1")
+  })
 })
 
 // ── Reading a calculation back (US-2.5) ──────────────────────────────────────
@@ -282,6 +347,10 @@ describe("previewing an expression", () => {
 describe("describing an expression", () => {
   it("replaces ids with names, since ids are not for reading", () => {
     expect(describeExpression("{f-hours} * {f-rate}", [hours, rate])).toBe("Hours * Rate")
+  })
+
+  it("reads a reference already written by name", () => {
+    expect(describeExpression("{Hours} + 1", [hours])).toBe("Hours + 1")
   })
 
   it("says so when a source has gone", () => {

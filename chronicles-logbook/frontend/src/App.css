@@ -1232,6 +1232,27 @@
   opacity: 0.8;
 }
 
+/* The "N fields · Schema" pill. The count of fields sits where someone is
+   already looking at field-shaped content, so it doubles as a doorway to the
+   schema itself rather than being read as plain text. */
+.meta-pill {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+
+.meta-pill:hover {
+  border-color: var(--blue-soft);
+  color: var(--blue);
+  cursor: pointer;
+}
+
 .tab-switch {
   display: inline-flex;
   gap: 2px;
@@ -1957,9 +1978,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0;
+  padding: 14px 10px;
+  margin: 0 -10px;
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+  border-radius: var(--radius-sm);
+  transition: background-color 150ms ease;
+}
+
+/* One row is one entry: a hover light answers "where does this entry end
+   and the next begin" and hints that the row is a thing, not a list of
+   loose values. */
+.log-row:hover {
+  background: var(--surface-soft);
 }
 
 .log-row:last-child {
@@ -1981,6 +2012,14 @@
 .log-field {
   display: grid;
   gap: 3px;
+  min-width: 0;
+}
+
+/* Figures are read down a column, not across a row, so a numeric column
+   lines its label and value up on the right like any other table of
+   numbers. */
+.log-field.is-numeric {
+  text-align: right;
 }
 
 .log-label {
@@ -1989,6 +2028,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-value {
@@ -2003,6 +2045,46 @@
   color: var(--mauve);
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+/* A project link among values: the target's name on the sidebar's status
+   dot, clickable wherever a click can be acted on. A reference you cannot
+   act on reads as decoration; one you can click reads as a connection. */
+.log-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+button.log-link-chip {
+  cursor: pointer;
+}
+
+button.log-link-chip:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--blue);
+  text-underline-offset: 3px;
+}
+
+/* The same dot the sidebar paints beside each project: green unless the
+   project needs attention. Reused rather than reinvented so the colour
+   means the same thing in both places. */
+.log-link-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: none;
+}
+
+.log-link-dot.is-attention {
+  background: var(--error);
 }
 
 .log-time {
@@ -2060,6 +2142,23 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
+}
+
+/* A link is as read-only as a calculation, but says so in blue rather than
+   the calculation's mauve, so a glance at the form tells "text field /
+   calculated field / linked field" apart rather than asking the reader to
+   remember which tag meant what. */
+.field-readonly-tag.is-link {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+/* The arrow that marks a linked value, the way ƒ marks a computed one. */
+.computed-value.is-link::before {
+  content: "↗";
+  margin-right: 6px;
+  color: var(--blue);
+  font-weight: 700;
 }
 
 .computed-value {

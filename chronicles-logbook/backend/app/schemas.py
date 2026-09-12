@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.computed import (
     MAX_EXPRESSION_LENGTH,
     ExpressionError,
+    canonicalize_expression,
     compile_expression,
     validate_computed_fields,
 )
@@ -77,6 +78,14 @@ class DropdownFieldDefinition(BaseFieldDefinition):
 class ProjectReferenceFieldDefinition(BaseFieldDefinition):
     type: Literal[FieldType.PROJECT_REFERENCE] = FieldType.PROJECT_REFERENCE
 
+    # The project every entry in this schema points at. The link is a fact
+    # about the project rather than a per-entry answer, so it is chosen here,
+    # in the schema, and derived onto entries when they are written. Kept
+    # optional at the model level so schemas saved before this existed — and
+    # export files from them — still load; the endpoints that save a schema
+    # require it.
+    linked_project_id: UUID | None = None
+
 
 class ComputedFieldDefinition(BaseFieldDefinition):
     type: Literal[FieldType.COMPUTED] = FieldType.COMPUTED
@@ -124,10 +133,39 @@ def _validate_schema_integrity(entry_schema: list[FieldDefinition]) -> None:
     if len(field_names) != len(set(field_names)):
         raise ValueError("Field names within entry_schema must be unique.")
 
+    # Calculations refer to fields by name, so a brace in a name would be read
+    # as half a reference.
+    for field in entry_schema:
+        if "{" in field.name or "}" in field.name:
+            raise ValueError(
+                f"Field '{field.name}' cannot contain braces, because a calculation "
+                "refers to a field by its name."
+            )
+
     try:
         validate_computed_fields([field.model_dump(mode="json") for field in entry_schema])
     except ExpressionError as error:
         raise ValueError(str(error)) from error
+
+    # An expression is written by name but stored by field id: a rename would
+    # otherwise leave every calculation that mentions the field referring to
+    # a name that no longer exists. Canonicalised here, after validation, so
+    # every route that saves a schema stores the same form — and a rename
+    # never reports itself as "worked out differently".
+    dumped = [field.model_dump(mode="json") for field in entry_schema]
+    for field in entry_schema:
+        if not isinstance(field, ComputedFieldDefinition):
+            continue
+        canonical = canonicalize_expression(field.expression, dumped)
+        if len(canonical) > MAX_EXPRESSION_LENGTH:
+            # Names are usually shorter than ids, so an expression at the
+            # limit could grow past it when written out in full. Refused here
+            # rather than stored, where it would fail every entry written
+            # against it with an error far from its cause.
+            raise ValueError(
+                f"Field '{field.name}' is worked out from too many other fields to store."
+            )
+        field.expression = canonical
 
 
 class ProjectCreate(BaseModel):
@@ -191,7 +229,13 @@ class SchemaChange(BaseModel):
     """
 
     kind: Literal[
-        "added", "removed", "renamed", "retyped", "options_changed", "expression_changed"
+        "added",
+        "removed",
+        "renamed",
+        "retyped",
+        "options_changed",
+        "expression_changed",
+        "link_changed",
     ]
     field_id: str
     field_name: str

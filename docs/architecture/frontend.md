@@ -51,7 +51,7 @@ graph TB
 | `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
 | `api.js` | HTTP client wrapping all backend endpoints |
-| `fieldTypes.js` | The field-type catalogue, and the parser and evaluator for computed-field expressions |
+| `fieldTypes.js` | The field-type catalogue, the parser and evaluator for computed-field expressions, and the name↔id resolution those expressions are edited through |
 | `App.css` | Component styles (~2100 lines) |
 | `ProfilePage.css` | Profile page styles |
 | `tasks.css` | Task-specific styles (~250 lines) |
@@ -112,6 +112,7 @@ The frontend supports three modes: **light**, **dark**, and **system**. Themes a
 - **Blue** (`--blue: #6366f1`) — actions, links, interactive elements
 - **Mauve** (`--mauve: #c4b5fd`) — highlights, completed states
 - **Grey tones** (`--muted`) — secondary text, borders
+- **Green (`--success`) / red (`--error`)** — a project's status dot in the sidebar, reused verbatim on linked-project chips elsewhere so one colour language is learned once
 - **Amber** (`--warning: #b45309`) — an action that is allowed but will change data the user did not just type, such as a schema edit that reshapes existing entries. Distinct from `--error`, which marks something that failed
 
 ## State management
@@ -136,7 +137,7 @@ stateDiagram-v2
 | Mode | What it is for |
 |---|---|
 | `view` | Read-only summary of the saved fields. The default, so a schema cannot be altered by clicking into a form while reading it |
-| `edit` | Editable rows — name, type, dropdown options, computed expression. Local only; nothing has been sent |
+| `edit` | Editable rows — name, type, dropdown options, calculation, link target. Local only; nothing has been sent |
 | `review` | The server's report of what the edit would do to existing entries, one row per change, before anything is applied |
 
 Saving is a two-request sequence. `previewSchemaChange` asks the server what the
@@ -166,10 +167,18 @@ One case is left to the server: an indirect cycle (A uses B, B uses A) is caught
 by the server's topological sort, while the client's evaluator simply caps its
 passes so it cannot hang.
 
-A bare field name — typed as `Hours` or `{Hours}` rather than the braced id the
-chips insert — is the natural first attempt, so it is recognised and answered
-with what to do next ("click it below") rather than a generic "unknown field"
-dead end.
+Expressions are **edited by name and stored by id**. The chips insert a field's
+name in braces, a stored id-form expression is converted back to names when the
+editor opens (`expressionToDisplay`), and whatever was typed is canonicalised
+to ids when it is saved (`expressionCanonical`) — on the client and again on
+the server, so both agree on what "unchanged" means. Renaming a field rewrites
+the name inside every calculation that refers to it as the rename happens
+(`renameFieldInExpression`); and since the stored form is by id, a rename is a
+label change and never breaks a calculation.
+
+A bare field name typed without braces — `Hours * 2` — is the natural first
+attempt, so the parser recognises it and answers with what to do next (refer to
+a field by its name in braces) rather than a generic "unknown field" dead end.
 
 While a formula is being written, the builder shows a live preview of its
 answer (`previewExpressionValue`). It prefers the figures from the project's
@@ -185,6 +194,32 @@ no stored calculation until it syncs, and the list should show the same figure
 the form did. Computed values carry a small `ƒ` mark, in the same mauve as the
 form's "calculated" tag, so a derived figure is never mistaken for one that
 was typed in.
+
+## Project links
+
+A link field names its target once, in the schema — `SchemaFieldEditor` offers
+a "Links to" picker of the owner's other projects — and every entry derives its
+value from it. The entry form therefore shows the target as read-only text
+with a blue "linked" tag rather than asking for it, and the payload never
+includes the field: the server fills it from the schema, the same contract a
+calculation has.
+
+Wherever a linked value is shown — the entry list, the timeline — it renders as
+a `LinkChip`: the target's name on the sidebar's status dot, clickable through
+to the project itself. The status is derived from the target's open tasks with
+`useProjectStatuses`, by the same rule the sidebar uses, so the colour means the
+same thing everywhere it appears. Blue is the link's colour, distinct from the
+mauve a calculation is marked with, so a glance at a form or a table cell
+separates "typed in / calculated / linked" without reading anything.
+
+## Entry list
+
+One row is one entry, so the row is the unit of attention: a hover light marks
+where an entry ends and the next begins, and hints that a row is a thing rather
+than a list of loose values. Column labels are truncated past twenty characters
+with the full name riding along as a tooltip, since a header three lines tall
+sets the height of every row beneath it. Figures are right-aligned, because a
+numeric column is read down, not across.
 
 ## Build and tooling
 

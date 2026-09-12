@@ -34,7 +34,7 @@ _OPTIONAL_TYPES = frozenset({"computed", "project_reference"})
 def _validate_entry_data(
     data: dict[str, Any],
     entry_schema: list[dict[str, Any]],
-    known_project_ids: set[str] | None = None,
+    known_project_ids: dict[str, str] | set[str] | None = None,
 ) -> None:
     """Validate entry field values against the project's entry_schema.
 
@@ -114,25 +114,89 @@ def _validate_entry_data(
                 )
 
 
-async def _user_project_ids(user: User, db: AsyncSession) -> set[str]:
-    """Ids of every project the caller owns, as canonical strings."""
-    result = await db.scalars(select(Project.id).where(Project.user_id == user.id))
-    return {str(project_id) for project_id in result}
+async def _user_projects(user: User, db: AsyncSession) -> dict[str, str]:
+    """The caller's projects, as canonical id → name.
+
+    A map rather than a set because a retargeted link is best described by the
+    project it will point at, and the check only ever needs membership.
+    """
+    result = await db.execute(
+        select(Project.id, Project.name).where(Project.user_id == user.id)
+    )
+    return {str(project_id): name for project_id, name in result.all()}
 
 
 async def _reference_scope(
     entry_schema: list[dict[str, Any]],
     user: User,
     db: AsyncSession,
-) -> set[str] | None:
-    """The project ids a schema's references may name, or ``None`` if it has none.
+) -> dict[str, str] | None:
+    """The projects a schema's references may name, or ``None`` if it has none.
 
     Returning ``None`` for the ordinary schema keeps the extra query off every
     entry write that has nothing to reference.
     """
     if not any(field.get("type") == "project_reference" for field in entry_schema):
         return None
-    return await _user_project_ids(user, db)
+    return await _user_projects(user, db)
+
+
+async def _validate_reference_targets(
+    entry_schema: list[dict[str, Any]],
+    user: User,
+    db: AsyncSession,
+    self_id: UUID | None = None,
+) -> None:
+    """A project link names its target once, in the schema (US-2.4).
+
+    Choosing a target per entry asked the owner to re-answer a question the
+    schema had already answered, so the target is a schema-level fact. Checked
+    here rather than in the model so a schema saved before links moved into
+    the schema — and an export file from that era — still loads.
+    """
+    references = [field for field in entry_schema if field.get("type") == "project_reference"]
+    if not references:
+        return
+
+    owned = await _user_projects(user, db)
+    for field in references:
+        name = field.get("name", field["id"])
+        target = field.get("linked_project_id")
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Field '{name}' needs to say which project it links to.",
+            )
+        target = str(target)
+        if target not in owned:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Field '{name}' links to a project that does not exist.",
+            )
+        if self_id is not None and target == str(self_id):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Field '{name}' cannot link to its own project.",
+            )
+
+
+def _apply_project_references(
+    data: dict[str, Any],
+    entry_schema: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Fill each schema-linked reference from the schema's own target.
+
+    The same contract as ``apply_computed_fields``: whatever the client sent
+    for the field is replaced, because the link is defined by the schema
+    rather than chosen per entry, and offline sync replays payloads captured
+    under whatever the schema said at the time. Runs before validation so the
+    target is checked like any other value.
+    """
+    result = dict(data)
+    for field in entry_schema:
+        if field.get("type") == "project_reference" and field.get("linked_project_id"):
+            result[field["id"]] = str(field["linked_project_id"])
+    return result
 
 
 async def _get_user_project(
@@ -189,6 +253,8 @@ async def create_project(
         description=data.description,
         entry_schema=[field.model_dump(mode="json") for field in data.entry_schema],
     )
+    await _validate_reference_targets(project.entry_schema, user, db)
+
     db.add(project)
     await db.commit()
     await db.refresh(project)
@@ -234,9 +300,11 @@ async def update_project(
     if data.description is not None:
         project.description = data.description
     if data.entry_schema is not None:
+        proposed = [field.model_dump(mode="json") for field in data.entry_schema]
+        await _validate_reference_targets(proposed, user, db, self_id=project.id)
         await _replace_schema(
             project,
-            [field.model_dump(mode="json") for field in data.entry_schema],
+            proposed,
             user,
             db,
         )
@@ -340,6 +408,7 @@ async def preview_schema_change(
     project = await _get_user_project(project_id, user, db)
 
     proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
+    await _validate_reference_targets(proposed_schema, user, db, self_id=project.id)
     simulation, entries = await _plan_schema_change(project, proposed_schema, user, db)
 
     return _as_preview(simulation, len(entries))
@@ -360,6 +429,7 @@ async def update_schema(
     project = await _get_user_project(project_id, user, db)
 
     proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
+    await _validate_reference_targets(proposed_schema, user, db, self_id=project.id)
     simulation = await _replace_schema(project, proposed_schema, user, db)
     entry_count = len(simulation.entries)
 
@@ -454,8 +524,9 @@ async def create_entry(
             detail="Cannot add entries to an archived project.",
         )
 
+    payload_data = _apply_project_references(data.data, project.entry_schema)
     _validate_entry_data(
-        data.data,
+        payload_data,
         project.entry_schema,
         await _reference_scope(project.entry_schema, user, db),
     )
@@ -463,8 +534,9 @@ async def create_entry(
     entry = Entry(
         project_id=project_id,
         # Derived last, and from the values that passed validation, so a stale
-        # or hand-crafted payload cannot put a figure in a computed field.
-        data=apply_computed_fields(data.data, project.entry_schema),
+        # or hand-crafted payload cannot put a figure in a computed field or a
+        # project of its choosing in a link.
+        data=apply_computed_fields(payload_data, project.entry_schema),
         time_spent=data.time_spent,
     )
 
@@ -553,12 +625,13 @@ async def update_entry(
         )
 
     if payload.data is not None:
+        payload_data = _apply_project_references(payload.data, project.entry_schema)
         _validate_entry_data(
-            payload.data,
+            payload_data,
             project.entry_schema,
             await _reference_scope(project.entry_schema, user, db),
         )
-        entry.data = apply_computed_fields(payload.data, project.entry_schema)
+        entry.data = apply_computed_fields(payload_data, project.entry_schema)
 
     # Checked against the fields actually sent rather than against None, so
     # that an explicit "time_spent": null clears a recorded duration while
