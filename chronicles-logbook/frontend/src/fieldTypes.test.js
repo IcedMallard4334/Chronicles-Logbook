@@ -8,6 +8,7 @@ import {
   fieldTypeLabel,
   isNumericField,
   parseExpression,
+  previewExpressionValue,
   referencedFieldIds,
   withComputedValues,
 } from "./fieldTypes"
@@ -80,10 +81,18 @@ describe("parsing an expression", () => {
     expect(() => parseExpression("{a + 1")).toThrow(/closing brace/)
   })
 
+  it("explains a field name typed without braces", () => {
+    // "Hours * 2" is the natural first attempt, so it is answered in kind
+    // rather than reported as a stray character.
+    expect(() => parseExpression("Hours * 2")).toThrow(/Refer to a field as/)
+  })
+
   it("rejects anything that is not arithmetic", () => {
     // The grammar is narrow on purpose: an expression is data a user typed,
     // and the only safe way to run it is to not be able to express much.
-    expect(() => parseExpression("alert(1)")).toThrow(/can only contain/)
+    // "alert(1)" leads with a bare name, so it is answered with the same
+    // advice a mistyped field name gets; the rest simply cannot be expressed.
+    expect(() => parseExpression("alert(1)")).toThrow(/Refer to a field as/)
     expect(() => parseExpression("{a} % 2")).toThrow(/can only contain/)
     expect(() => parseExpression("'text'")).toThrow(/can only contain/)
   })
@@ -214,6 +223,57 @@ describe("expression problems", () => {
     expect(expressionError("{f-notes} + 1", cost, schema)).toBe(
       "'Notes' is not a number, so it cannot be part of a calculation."
     )
+  })
+
+  it("recognises a field typed by name inside braces", () => {
+    // The instinct is right, the syntax is not: a name is what a person
+    // knows, an id is what the expression stores.
+    expect(expressionError("{Hours} * 2", cost, schema)).toBe(
+      "'Hours' is one of your fields — click it below to add it to the calculation."
+    )
+  })
+
+  it("still names a non-number typed by name", () => {
+    expect(expressionError("{Notes} + 1", cost, schema)).toBe(
+      "'Notes' is not a number, so it cannot be part of a calculation."
+    )
+  })
+
+  it("refuses a calculation that names itself", () => {
+    expect(expressionError("{Cost} + 1", cost, schema)).toMatch(/its own result/)
+  })
+})
+
+// ── Previewing a calculation (US-2.5) ────────────────────────────────────────
+
+describe("previewing an expression", () => {
+  it("prefers the figures from the latest entry", () => {
+    expect(
+      previewExpressionValue("{f-hours} * {f-rate}", { "f-hours": 3, "f-rate": 50 })
+    ).toEqual({ value: 150, fromEntry: true })
+  })
+
+  it("counts every field as 2 when there is no entry to read", () => {
+    expect(previewExpressionValue("{f-hours} * {f-rate}", null)).toEqual({
+      value: 4,
+      fromEntry: false,
+    })
+  })
+
+  it("falls back to samples when the entry cannot answer the formula", () => {
+    // An entry recorded before a field was added to the schema, say.
+    expect(previewExpressionValue("{f-hours} * {f-rate}", { "f-hours": 3 })).toEqual({
+      value: 4,
+      fromEntry: false,
+    })
+  })
+
+  it("needs no entry at all for plain arithmetic", () => {
+    expect(previewExpressionValue("2 + 3")).toEqual({ value: 5, fromEntry: false })
+  })
+
+  it("gives up quietly on something it cannot evaluate", () => {
+    expect(previewExpressionValue("{f-hours} *", null)).toBeNull()
   })
 })
 

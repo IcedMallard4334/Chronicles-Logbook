@@ -166,6 +166,26 @@ One case is left to the server: an indirect cycle (A uses B, B uses A) is caught
 by the server's topological sort, while the client's evaluator simply caps its
 passes so it cannot hang.
 
+A bare field name — typed as `Hours` or `{Hours}` rather than the braced id the
+chips insert — is the natural first attempt, so it is recognised and answered
+with what to do next ("click it below") rather than a generic "unknown field"
+dead end.
+
+While a formula is being written, the builder shows a live preview of its
+answer (`previewExpressionValue`). It prefers the figures from the project's
+most recent entry, so what gets checked is a number the owner recognises; when
+no entry can answer the formula — a new project, or a field the latest entry
+predates — every referenced field counts as 2 and the preview says which of the
+two it is doing.
+
+The entry list recomputes each entry's values with `withComputedValues` rather
+than reading back what the server stored. The two agree — every write and every
+schema change re-derives the stored values — but an entry captured offline holds
+no stored calculation until it syncs, and the list should show the same figure
+the form did. Computed values carry a small `ƒ` mark, in the same mauve as the
+form's "calculated" tag, so a derived figure is never mistaken for one that
+was typed in.
+
 ## Build and tooling
 
 | Tool | Purpose |

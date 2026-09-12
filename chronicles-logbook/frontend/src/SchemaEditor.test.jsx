@@ -333,6 +333,38 @@ describe("building a calculation", () => {
     expect(await screen.findByText("= Hours * 60")).toBeInTheDocument()
   })
 
+  it("previews the answer while the formula is typed", async () => {
+    const expression = await addCalculation()
+    fireEvent.change(expression, { target: { value: "{f-hours} * 60" } })
+
+    expect(
+      await screen.findByText("Preview: 120 — with every field as 2")
+    ).toBeInTheDocument()
+  })
+
+  it("previews against the project's latest entry when there is one", async () => {
+    // Oldest first on purpose: the newest entry is found by date, not
+    // assumed from the order the list happens to arrive in.
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-hours": 1 }, created_at: "2026-09-11T10:00:00Z" },
+      { id: "e2", data: { "f-hours": 3 }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+
+    const expression = await addCalculation()
+    fireEvent.change(expression, { target: { value: "{f-hours} * 60" } })
+
+    expect(
+      await screen.findByText("Preview: 180 — from your latest entry")
+    ).toBeInTheDocument()
+  })
+
+  it("recognises a field typed by name rather than picked below", async () => {
+    const expression = await addCalculation()
+    fireEvent.change(expression, { target: { value: "{Hours} * 2" } })
+
+    expect(await screen.findByText(/click it below/)).toBeInTheDocument()
+  })
+
   it("explains a broken calculation beside the field", async () => {
     const expression = await addCalculation()
 
@@ -480,6 +512,30 @@ describe("reading entries back", () => {
     await openProject()
 
     expect(await screen.findByText("A project you no longer have")).toBeInTheDocument()
+  })
+
+  it("marks a calculated figure so it is not mistaken for a typed one", async () => {
+    const RATE = { id: "f-rate", name: "Rate", type: "number" }
+    const COST = {
+      id: "f-cost", name: "Cost", type: "computed", expression: "{f-hours} * {f-rate}",
+    }
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [HOURS, RATE, COST] },
+      otherProject,
+    ])
+    // No stored Cost: an entry captured offline holds none until it syncs,
+    // so the list has to work it out from the figures beside it.
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-hours": 3, "f-rate": 60 }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    expect(within(list).getByText("180")).toBeInTheDocument()
+    expect(
+      within(list).getByTitle("Calculated from the other fields on this entry")
+    ).toBeInTheDocument()
   })
 
   it("keeps what a removed field recorded, folded away", async () => {

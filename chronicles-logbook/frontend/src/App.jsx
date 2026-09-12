@@ -33,6 +33,8 @@ import {
   expressionError,
   fieldTypeLabel,
   isNumericField,
+  previewExpressionValue,
+  referencedFieldIds,
   withComputedValues,
 } from "./fieldTypes"
 import "./App.css"
@@ -969,12 +971,20 @@ function SchemaFieldSummary({ field, schema }) {
 }
 
 /** One field while the schema is being edited. */
-function SchemaFieldEditor({ field, index, schema, onChange, onRemove }) {
+function SchemaFieldEditor({ field, index, schema, latestData, onChange, onRemove }) {
   // A calculation can only read figures, and only from fields other than
   // itself, so those are the only ones offered as sources.
   const sources = schema.filter((other) => isNumericField(other) && other.id !== field.id)
   const problem =
     field.type === "computed" ? expressionError(field.expression, field, schema) : null
+
+  // A formula is easier to trust once it has produced a number. The project's
+  // latest entry answers it when it can, so what gets checked is a figure the
+  // owner recognises rather than an abstract example.
+  const preview =
+    field.type === "computed" && !problem
+      ? previewExpressionValue(field.expression, latestData)
+      : null
 
   return (
     <div className="field-card">
@@ -1038,7 +1048,7 @@ function SchemaFieldEditor({ field, index, schema, onChange, onRemove }) {
               type="text"
               value={field.expression || ""}
               onChange={(event) => onChange(index, { expression: event.target.value })}
-              placeholder="e.g. {field-hours} * 60"
+              placeholder="e.g. {field-hours} * 60 — or click a field below"
             />
           </label>
           {sources.length > 0 ? (
@@ -1071,6 +1081,16 @@ function SchemaFieldEditor({ field, index, schema, onChange, onRemove }) {
               = {describeExpression(field.expression, schema)}
             </p>
           )}
+          {preview && (
+            <p className="expression-preview">
+              Preview: {preview.value}
+              {preview.fromEntry
+                ? " — from your latest entry"
+                : referencedFieldIds(field.expression).length > 0
+                  ? " — with every field as 2"
+                  : ""}
+            </p>
+          )}
           {problem && <p className="error">{problem}</p>}
         </>
       )}
@@ -1096,6 +1116,20 @@ function SchemaFieldEditor({ field, index, schema, onChange, onRemove }) {
  */
 function SchemaBuilder({ project, onPreview, onSave, disabled, onSwitchToEntries }) {
   const savedFields = useMemo(() => project.entry_schema || [], [project.entry_schema])
+
+  // The most recent entry's figures, for previewing a calculation against
+  // numbers the owner already recognises. The newest is found by date rather
+  // than assumed from the list's order, since entries captured offline are
+  // folded in ahead of whatever the server returned.
+  const latestData = useMemo(() => {
+    const entries = project.entries || []
+    if (entries.length === 0) return null
+    const latest = entries.reduce((newest, entry) =>
+      new Date(entry.created_at) > new Date(newest.created_at) ? entry : newest
+    )
+    return latest.data || null
+  }, [project.entries])
+
   const [mode, setMode] = useState("view")
   const [fields, setFields] = useState(savedFields)
   const [preview, setPreview] = useState(null)
@@ -1265,6 +1299,7 @@ function SchemaBuilder({ project, onPreview, onSave, disabled, onSwitchToEntries
                   field={field}
                   index={index}
                   schema={fields}
+                  latestData={latestData}
                   onChange={updateField}
                   onRemove={removeField}
                 />
@@ -1592,41 +1627,59 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [] }) {
     <div className="entry-list">
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
-        {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
-          >
-            <div className="log-fields">
-              {schema.map((field) => (
-                <div key={field.id} className="log-field">
-                  <span className="log-label">{field.name}</span>
-                  <span className="log-value">
-                    {formatEntryValue(field, entry.data[field.id], projectNames)}
+        {entries.map((entry) => {
+          // Recomputed rather than read back: an entry captured offline holds
+          // no stored calculation until it syncs, and the current formula is
+          // the honest answer either way. What the server stored agrees with
+          // it, because every write and every schema change re-derives.
+          const data = withComputedValues(entry.data || {}, schema)
+          return (
+            <li
+              key={entry.id}
+              className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+            >
+              <div className="log-fields">
+                {schema.map((field) => (
+                  <div key={field.id} className="log-field">
+                    <span className="log-label">{field.name}</span>
+                    <span className="log-value">
+                      {formatEntryValue(field, data[field.id], projectNames)}
+                      {/* Marked so a derived figure is never mistaken for one
+                          that was typed in. */}
+                      {field.type === "computed" && (
+                        <span
+                          className="calculated-badge"
+                          title="Calculated from the other fields on this entry"
+                          aria-hidden="true"
+                        >
+                          ƒ
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <span className="log-time">
+                {/* Entries captured offline are shown immediately, so that
+                    nobody re-types one believing it failed to save. */}
+                {entry.pending && (
+                  <span
+                    className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
+                  >
+                    {entry.rejected ? "Needs attention" : "Not yet synced"}
                   </span>
-                </div>
-              ))}
-            </div>
-            <span className="log-time">
-              {/* Entries captured offline are shown immediately, so that
-                  nobody re-types one believing it failed to save. */}
-              {entry.pending && (
-                <span
-                  className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
-                >
-                  {entry.rejected ? "Needs attention" : "Not yet synced"}
-                </span>
-              )}
-              {new Date(entry.created_at).toLocaleString()}
-            </span>
-            {/* Last, and collapsed: history worth keeping is not history worth
-                leading with. */}
-            <RetiredValues
-              retiredData={entry.retired_data || {}}
-              retiredSchema={retiredSchema}
-            />
-          </li>
-        ))}
+                )}
+                {new Date(entry.created_at).toLocaleString()}
+              </span>
+              {/* Last, and collapsed: history worth keeping is not history worth
+                  leading with. */}
+              <RetiredValues
+                retiredData={entry.retired_data || {}}
+                retiredSchema={retiredSchema}
+              />
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

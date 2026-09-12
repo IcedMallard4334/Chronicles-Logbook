@@ -94,6 +94,14 @@ function tokenise(source) {
       continue
     }
 
+    // Letters are almost always a field name typed bare, which is the natural
+    // first attempt. Mirrors the message the server gives an ast.Name node.
+    if (/[a-zA-Z]/.test(character)) {
+      throw new Error(
+        "Refer to a field as {field} rather than by name, and use numbers for everything else."
+      )
+    }
+
     throw new Error(
       "An expression can only contain numbers, field references and + - * /."
     )
@@ -244,6 +252,32 @@ export function withComputedValues(values, schema) {
 }
 
 /**
+ * A figure to show beside a formula while it is being written.
+ *
+ * Prefers the project's most recent entry, so what the owner checks against is
+ * a number they recognise from their own logbook; falls back to a fixed sample
+ * when there is no entry yet, or when the entry cannot produce one. `null`
+ * means not even a sample could be worked out.
+ */
+export function previewExpressionValue(expression, latestData) {
+  const referenced = referencedFieldIds(expression)
+  if (referenced.length === 0) {
+    const value = evaluateExpression(expression, {})
+    return value === null ? null : { value, fromEntry: false }
+  }
+
+  if (latestData) {
+    const value = evaluateExpression(expression, latestData)
+    if (value !== null) return { value, fromEntry: true }
+  }
+
+  const samples = {}
+  for (const id of referenced) samples[id] = 2
+  const value = evaluateExpression(expression, samples)
+  return value === null ? null : { value, fromEntry: false }
+}
+
+/**
  * Why an expression cannot be saved, or `null` if it can.
  *
  * The same rules the server applies, checked as the field is typed so the
@@ -264,7 +298,21 @@ export function expressionError(expression, field, schema) {
   for (const reference of referencedFieldIds(expression)) {
     if (reference === field.id) return "A calculation cannot use its own result."
 
-    const source = byId.get(reference)
+    let source = byId.get(reference)
+    if (!source) {
+      // A braced name rather than a braced id: the instinct is right, the
+      // syntax is not. Names are what a person knows; ids are what the
+      // expression stores, because a name can be renamed out from under it.
+      const byName = (schema || []).find(
+        (entry) =>
+          (entry.name || "").trim().toLowerCase() === reference.trim().toLowerCase()
+      )
+      if (byName?.id === field.id) return "A calculation cannot use its own result."
+      if (byName && isNumericField(byName)) {
+        return `'${byName.name}' is one of your fields — click it below to add it to the calculation.`
+      }
+      source = byName
+    }
     if (!source) return "This calculation uses a field that is no longer in the schema."
     if (!isNumericField(source)) {
       return `'${source.name || "That field"}' is not a number, so it cannot be part of a calculation.`
