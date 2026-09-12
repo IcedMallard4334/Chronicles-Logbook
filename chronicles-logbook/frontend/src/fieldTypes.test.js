@@ -124,6 +124,13 @@ describe("parsing an expression", () => {
     expect(() => parseExpression("{a} {b}")).toThrow(/incomplete or mistyped/)
   })
 
+  it("rejects an operator where a value should be", () => {
+    // "* 2" stops the parser where a figure or a reference belongs, and gets
+    // the same words every other misstep gets.
+    expect(() => parseExpression("* 2")).toThrow(/incomplete or mistyped/)
+    expect(() => parseExpression("{a} * * 2")).toThrow(/incomplete or mistyped/)
+  })
+
   it("rejects an empty expression", () => {
     expect(() => parseExpression("   ")).toThrow(/needs an expression/)
   })
@@ -135,6 +142,20 @@ describe("evaluating an expression", () => {
   it("applies the usual precedence", () => {
     expect(evaluateExpression("2 + 3 * 4", {})).toBe(14)
     expect(evaluateExpression("(2 + 3) * 4", {})).toBe(20)
+  })
+
+  it("subtracts and divides as well as it adds and multiplies", () => {
+    expect(evaluateExpression("{f-rate} - {f-hours}", { "f-rate": 50, "f-hours": 3 })).toBe(47)
+    expect(evaluateExpression("{f-rate} / {f-hours}", { "f-rate": 50, "f-hours": 4 })).toBe(12.5)
+  })
+
+  it("applies a leading sign to the figure it stands on", () => {
+    expect(evaluateExpression("-{f-hours} * 2", { "f-hours": 3 })).toBe(-6)
+    expect(evaluateExpression("+{f-hours}", { "f-hours": 3 })).toBe(3)
+  })
+
+  it("is unknown when a sign stands on a figure that is not there", () => {
+    expect(evaluateExpression("-{f-hours}", {})).toBeNull()
   })
 
   it("reads values from the entry", () => {
