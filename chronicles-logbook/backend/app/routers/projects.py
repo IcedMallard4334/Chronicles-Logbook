@@ -9,6 +9,7 @@ from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import Entry, Project, User
 from app.routers.auth import get_current_user
+from app.schema_migration import Simulation, simulate
 from app.schemas import (
     EntryCreate,
     EntryResponse,
@@ -16,6 +17,10 @@ from app.schemas import (
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
+    SchemaChange,
+    SchemaChangePreview,
+    SchemaChangeRequest,
+    SchemaChangeResult,
 )
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -215,6 +220,13 @@ async def update_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
+    """Rename a project, change its description, or replace its schema.
+
+    A schema replacement goes through the same migration as the dedicated
+    schema endpoint, so there is no route by which a schema can change and
+    leave the entries behind it in the old shape. What this endpoint cannot do
+    is report what the migration did — for that, use ``PUT /schema``.
+    """
     project = await _get_user_project(project_id, user, db)
 
     if data.name is not None:
@@ -222,13 +234,149 @@ async def update_project(
     if data.description is not None:
         project.description = data.description
     if data.entry_schema is not None:
-        project.entry_schema = [
-            field.model_dump(mode="json") for field in data.entry_schema
-        ]
+        await _replace_schema(
+            project,
+            [field.model_dump(mode="json") for field in data.entry_schema],
+            user,
+            db,
+        )
 
     await db.commit()
     await db.refresh(project)
     return project
+
+
+# ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
+
+
+async def _project_entries(project_id: UUID, db: AsyncSession) -> list[Entry]:
+    result = await db.execute(
+        select(Entry).where(Entry.project_id == project_id).order_by(Entry.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def _plan_schema_change(
+    project: Project,
+    proposed_schema: list[dict[str, Any]],
+    user: User,
+    db: AsyncSession,
+) -> tuple[Simulation, list[Entry]]:
+    """Work out what replacing a project's schema would do to its entries."""
+    entries = await _project_entries(project.id, db)
+    known_project_ids = await _reference_scope(proposed_schema, user, db)
+    return simulate(project, entries, proposed_schema, known_project_ids), entries
+
+
+def _as_preview(simulation: Simulation, entry_count: int) -> dict[str, Any]:
+    return {
+        "entry_count": entry_count,
+        "entries_affected": simulation.entries_affected,
+        "changes": [
+            SchemaChange(
+                kind=change.kind,
+                field_id=change.field_id,
+                field_name=change.field_name,
+                description=change.description,
+                severity=change.severity,
+                entries_affected=change.entries_affected,
+                values_coerced=change.values_coerced,
+                values_retired=change.values_retired,
+            )
+            for change in simulation.changes
+        ],
+    }
+
+
+def _guard_archived_schema_change(project: Project, proposed_schema: list[dict[str, Any]]) -> None:
+    """Refuse to reshape the entries of an archived project.
+
+    Only when the schema actually differs: re-sending the schema it already has
+    is how the ordinary project form saves a rename, and that should keep
+    working on an archived project.
+    """
+    if project.archived and (project.entry_schema or []) != proposed_schema:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot change the schema of an archived project.",
+        )
+
+
+async def _replace_schema(
+    project: Project,
+    proposed_schema: list[dict[str, Any]],
+    user: User,
+    db: AsyncSession,
+) -> Simulation:
+    """Apply a new schema and bring every existing entry with it."""
+    _guard_archived_schema_change(project, proposed_schema)
+
+    simulation, _ = await _plan_schema_change(project, proposed_schema, user, db)
+
+    for migrated in simulation.entries:
+        migrated.entry.data = migrated.data
+        migrated.entry.retired_data = migrated.retired_data
+
+    project.entry_schema = proposed_schema
+    project.retired_schema = simulation.retired_schema
+
+    return simulation
+
+
+@router.post("/{project_id}/schema/preview", response_model=SchemaChangePreview)
+async def preview_schema_change(
+    project_id: UUID,
+    payload: SchemaChangeRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Report what changing a project's schema would do, changing nothing.
+
+    Editing a schema that already has entries is the one action in the logbook
+    that can alter data the user did not just type, so it is worth showing them
+    first. The report is produced by running the real migration and discarding
+    the result, which is why it cannot drift from what saving actually does.
+    """
+    project = await _get_user_project(project_id, user, db)
+
+    proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
+    simulation, entries = await _plan_schema_change(project, proposed_schema, user, db)
+
+    return _as_preview(simulation, len(entries))
+
+
+@router.put("/{project_id}/schema", response_model=SchemaChangeResult)
+async def update_schema(
+    project_id: UUID,
+    payload: SchemaChangeRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Replace a project's schema and migrate its entries onto it.
+
+    Returns the same report as the preview, so the caller can tell the user
+    what happened rather than only that something did.
+    """
+    project = await _get_user_project(project_id, user, db)
+
+    proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
+    simulation = await _replace_schema(project, proposed_schema, user, db)
+    entry_count = len(simulation.entries)
+
+    await db.commit()
+    await db.refresh(project)
+
+    total_time = await db.scalar(
+        select(func.coalesce(func.sum(Entry.time_spent), 0)).where(Entry.project_id == project_id)
+    )
+
+    return {
+        **_as_preview(simulation, entry_count),
+        "project": {
+            **ProjectResponse.model_validate(project).model_dump(),
+            "total_time_spent": int(total_time or 0),
+        },
+    }
 
 
 @router.post("/{project_id}/archive", response_model=ProjectResponse)

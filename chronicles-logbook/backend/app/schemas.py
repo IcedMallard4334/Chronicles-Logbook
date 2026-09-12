@@ -161,9 +161,59 @@ class ProjectResponse(BaseModel):
     description: str | None
     archived: bool
     entry_schema: list[FieldDefinition]
+    # Definitions for fields that have been removed from the schema, so the
+    # values kept under them can still be labelled (US-2.7).
+    retired_schema: list[FieldDefinition] = Field(default_factory=list)
     total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
+
+
+# ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
+
+
+class SchemaChangeRequest(BaseModel):
+    """A proposed replacement for a project's entry_schema."""
+
+    entry_schema: list[FieldDefinition]
+
+    @model_validator(mode="after")
+    def validate_schema_integrity(self):
+        _validate_schema_integrity(self.entry_schema)
+        return self
+
+
+class SchemaChange(BaseModel):
+    """One difference an edit would make, and what it costs.
+
+    ``severity`` is decided by the server so that the review screen and the
+    API cannot disagree about what is worth stopping for.
+    """
+
+    kind: Literal[
+        "added", "removed", "renamed", "retyped", "options_changed", "expression_changed"
+    ]
+    field_id: str
+    field_name: str
+    description: str
+    severity: Literal["info", "warning"]
+    entries_affected: int = 0
+    values_coerced: int = 0
+    values_retired: int = 0
+
+
+class SchemaChangePreview(BaseModel):
+    """What an edit would do, before it is done."""
+
+    entry_count: int
+    entries_affected: int
+    changes: list[SchemaChange]
+
+
+class SchemaChangeResult(SchemaChangePreview):
+    """What an edit did, with the project as it now stands."""
+
+    project: ProjectResponse
 
 
 class EntryCreate(BaseModel):
@@ -217,6 +267,10 @@ class EntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     data: dict[str, Any]
+    # Values recorded under fields that have since left the schema. Returned so
+    # that "removed but not destroyed" is something the owner can see rather
+    # than only something the database knows (US-2.7).
+    retired_data: dict[str, Any] = Field(default_factory=dict)
     time_spent: int | None
     created_at: datetime
     updated_at: datetime
@@ -273,6 +327,11 @@ class ExportedEntry(BaseModel):
 
     id: UUID
     data: dict[str, Any]
+    # Both retired collections default to empty so that files written before
+    # schema editing existed still import cleanly. Carrying them keeps the
+    # export a full record: a round trip that dropped them would destroy the
+    # history that removing a field was careful to keep (US-2.7).
+    retired_data: dict[str, Any] = Field(default_factory=dict)
     time_spent: int | None = None
     created_at: datetime
 
@@ -285,6 +344,7 @@ class ExportedProject(BaseModel):
     description: str | None = None
     archived: bool = False
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
+    retired_schema: list[FieldDefinition] = Field(default_factory=list)
     created_at: datetime
     entries: list[ExportedEntry] = Field(default_factory=list)
 

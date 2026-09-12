@@ -83,6 +83,18 @@ class Project(Base):
         default=list,
     )
 
+    # Definitions of fields that were removed from entry_schema (US-2.7).
+    # Removing a field hides it from new entries; it does not delete what was
+    # already recorded under it, and a value without its label is not a
+    # record of anything, so the definition is kept here alongside the values
+    # in Entry.retired_data.
+    retired_schema: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -111,6 +123,18 @@ class Entry(Base):
         JSONType,
         nullable=False,
         default=dict,
+    )
+
+    # Values that no longer have a field in the project's entry_schema, moved
+    # here when a field was removed or retyped past what its old value could
+    # be coerced into (US-2.6, US-2.7). Kept out of `data` so that validation,
+    # the CSV export and every other reader see only live fields, while the
+    # history itself survives.
+    retired_data: Mapped[dict[str, Any]] = mapped_column(
+        JSONType,
+        nullable=False,
+        default=dict,
+        server_default="{}",
     )
 
     time_spent: Mapped[int | None] = mapped_column(
