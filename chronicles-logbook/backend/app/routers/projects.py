@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import Entry, Project, User
 from app.routers.auth import get_current_user
@@ -19,14 +20,29 @@ from app.schemas import (
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
+# Field types the caller need not fill in: a computed field is derived by the
+# server (US-2.5), and a reference may legitimately be left blank (US-2.4) so
+# that adding one to a live schema does not invalidate every existing entry.
+_OPTIONAL_TYPES = frozenset({"computed", "project_reference"})
 
-def _validate_entry_data(data: dict[str, Any], entry_schema: list[dict[str, Any]]) -> None:
-    """Validate entry field values against the project's entry_schema."""
+
+def _validate_entry_data(
+    data: dict[str, Any],
+    entry_schema: list[dict[str, Any]],
+    known_project_ids: set[str] | None = None,
+) -> None:
+    """Validate entry field values against the project's entry_schema.
+
+    ``known_project_ids`` is the set of project ids a reference field is
+    allowed to name — the caller's own projects. It is optional because the
+    import path validates a document before any of its projects exist; those
+    references are checked once the ids are known.
+    """
     schema_by_id = {field["id"]: field for field in entry_schema}
 
     for field in entry_schema:
         field_id = field["id"]
-        if field_id not in data:
+        if field_id not in data and field.get("type") not in _OPTIONAL_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Missing required field: {field['name']}",
@@ -69,6 +85,50 @@ def _validate_entry_data(data: dict[str, Any], entry_schema: list[dict[str, Any]
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be one of: {', '.join(options)}",
                 )
+        elif field_type == "project_reference":
+            # Blank is allowed; anything present has to name a project that
+            # exists and belongs to the caller, or the reference is a dead end.
+            if value is None:
+                continue
+            if not isinstance(value, str):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must reference a project",
+                )
+            try:
+                canonical = str(UUID(value))
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must reference a project",
+                ) from None
+            if known_project_ids is not None and canonical not in known_project_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' refers to a project that does not exist",
+                )
+
+
+async def _user_project_ids(user: User, db: AsyncSession) -> set[str]:
+    """Ids of every project the caller owns, as canonical strings."""
+    result = await db.scalars(select(Project.id).where(Project.user_id == user.id))
+    return {str(project_id) for project_id in result}
+
+
+async def _reference_scope(
+    entry_schema: list[dict[str, Any]],
+    user: User,
+    db: AsyncSession,
+) -> set[str] | None:
+    """The project ids a schema's references may name, or ``None`` if it has none.
+
+    Returning ``None`` for the ordinary schema keeps the extra query off every
+    entry write that has nothing to reference.
+    """
+    if not any(field.get("type") == "project_reference" for field in entry_schema):
+        return None
+    return await _user_project_ids(user, db)
+
 
 async def _get_user_project(
     project_id: UUID,
@@ -246,11 +306,17 @@ async def create_entry(
             detail="Cannot add entries to an archived project.",
         )
 
-    _validate_entry_data(data.data, project.entry_schema)
+    _validate_entry_data(
+        data.data,
+        project.entry_schema,
+        await _reference_scope(project.entry_schema, user, db),
+    )
 
     entry = Entry(
         project_id=project_id,
-        data=data.data,
+        # Derived last, and from the values that passed validation, so a stale
+        # or hand-crafted payload cannot put a figure in a computed field.
+        data=apply_computed_fields(data.data, project.entry_schema),
         time_spent=data.time_spent,
     )
 
@@ -339,8 +405,12 @@ async def update_entry(
         )
 
     if payload.data is not None:
-        _validate_entry_data(payload.data, project.entry_schema)
-        entry.data = payload.data
+        _validate_entry_data(
+            payload.data,
+            project.entry_schema,
+            await _reference_scope(project.entry_schema, user, db),
+        )
+        entry.data = apply_computed_fields(payload.data, project.entry_schema)
 
     # Checked against the fields actually sent rather than against None, so
     # that an explicit "time_spent": null clears a recorded duration while

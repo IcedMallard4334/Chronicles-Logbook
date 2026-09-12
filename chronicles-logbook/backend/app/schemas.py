@@ -6,6 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.computed import (
+    MAX_EXPRESSION_LENGTH,
+    ExpressionError,
+    compile_expression,
+    validate_computed_fields,
+)
+
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -28,6 +35,12 @@ class FieldType(str, Enum):
     NUMBER = "number"
     DATE = "date"
     DROPDOWN = "dropdown"
+    # US-2.4: a pointer to another of the owner's projects, for work that
+    # spans more than one of them.
+    PROJECT_REFERENCE = "project_reference"
+    # US-2.5: a value derived from other fields on the same entry rather than
+    # typed in.
+    COMPUTED = "computed"
 
 
 class BaseFieldDefinition(BaseModel):
@@ -61,13 +74,60 @@ class DropdownFieldDefinition(BaseFieldDefinition):
         return self
 
 
+class ProjectReferenceFieldDefinition(BaseFieldDefinition):
+    type: Literal[FieldType.PROJECT_REFERENCE] = FieldType.PROJECT_REFERENCE
+
+
+class ComputedFieldDefinition(BaseFieldDefinition):
+    type: Literal[FieldType.COMPUTED] = FieldType.COMPUTED
+
+    # Arithmetic over other fields on the same entry, which are written as
+    # {field-id}. See app.computed for the grammar and why it is this narrow.
+    expression: str = Field(..., min_length=1, max_length=MAX_EXPRESSION_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_expression_is_parseable(self):
+        # Only checks that the expression itself is well formed. Whether the
+        # fields it refers to exist, and that they do not form a cycle, can
+        # only be answered against the whole schema — see
+        # validate_schema_integrity below.
+        try:
+            compile_expression(self.expression)
+        except ExpressionError as error:
+            raise ValueError(str(error)) from error
+        return self
+
+
 FieldDefinition = Annotated[
     TextFieldDefinition
     | NumberFieldDefinition
     | DateFieldDefinition
-    | DropdownFieldDefinition,
+    | DropdownFieldDefinition
+    | ProjectReferenceFieldDefinition
+    | ComputedFieldDefinition,
     Field(discriminator="type"),
 ]
+
+
+def _validate_schema_integrity(entry_schema: list[FieldDefinition]) -> None:
+    """Check the rules that only make sense across a whole schema.
+
+    Shared by every model that accepts an ``entry_schema``, so a schema saved
+    through project creation, a project update or a schema change is held to
+    the same standard.
+    """
+    field_ids = [field.id for field in entry_schema]
+    if len(field_ids) != len(set(field_ids)):
+        raise ValueError("Field IDs within entry_schema must be unique.")
+
+    field_names = [field.name.strip().lower() for field in entry_schema]
+    if len(field_names) != len(set(field_names)):
+        raise ValueError("Field names within entry_schema must be unique.")
+
+    try:
+        validate_computed_fields([field.model_dump(mode="json") for field in entry_schema])
+    except ExpressionError as error:
+        raise ValueError(str(error)) from error
 
 
 class ProjectCreate(BaseModel):
@@ -77,14 +137,7 @@ class ProjectCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
-        field_ids = [f.id for f in self.entry_schema]
-        if len(field_ids) != len(set(field_ids)):
-            raise ValueError("Field IDs within entry_schema must be unique.")
-
-        field_names = [f.name.strip().lower() for f in self.entry_schema]
-        if len(field_names) != len(set(field_names)):
-            raise ValueError("Field names within entry_schema must be unique.")
-
+        _validate_schema_integrity(self.entry_schema)
         return self
 
 
@@ -96,14 +149,7 @@ class ProjectUpdate(BaseModel):
     @model_validator(mode="after")
     def validate_schema_integrity(self):
         if self.entry_schema is not None:
-            field_ids = [f.id for f in self.entry_schema]
-            if len(field_ids) != len(set(field_ids)):
-                raise ValueError("Field IDs within entry_schema must be unique.")
-
-            field_names = [f.name.strip().lower() for f in self.entry_schema]
-            if len(field_names) != len(set(field_names)):
-                raise ValueError("Field names within entry_schema must be unique.")
-
+            _validate_schema_integrity(self.entry_schema)
         return self
 
 

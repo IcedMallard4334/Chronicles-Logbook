@@ -5,9 +5,12 @@ import uuid
 import pytest
 
 from app.schemas import (
+    ComputedFieldDefinition,
     DropdownFieldDefinition,
     FieldType,
+    NumberFieldDefinition,
     ProjectCreate,
+    ProjectReferenceFieldDefinition,
     ProjectResponse,
     TextFieldDefinition,
 )
@@ -18,6 +21,8 @@ def test_field_type_values():
     assert FieldType.NUMBER == "number"
     assert FieldType.DATE == "date"
     assert FieldType.DROPDOWN == "dropdown"
+    assert FieldType.PROJECT_REFERENCE == "project_reference"
+    assert FieldType.COMPUTED == "computed"
 
 
 def test_text_field_definition_defaults():
@@ -94,3 +99,60 @@ def test_project_response_has_required_fields():
     assert response.id == project_id
     assert response.name == "Response Project"
     assert response.archived is False
+
+
+def test_project_reference_field_definition_defaults():
+    field = ProjectReferenceFieldDefinition(name="Read for")
+    assert field.type == FieldType.PROJECT_REFERENCE
+    assert field.id
+
+
+def test_computed_field_rejects_an_unparseable_expression():
+    with pytest.raises(ValueError, match="incomplete or mistyped"):
+        ComputedFieldDefinition(name="Total", expression="{a} *")
+
+
+def test_computed_field_rejects_an_expression_that_is_not_arithmetic():
+    with pytest.raises(ValueError, match=r"Only \+, -, \* and / can be used"):
+        ComputedFieldDefinition(name="Total", expression="2 ** 32")
+
+
+def test_computed_field_requires_an_expression():
+    with pytest.raises(ValueError):
+        ComputedFieldDefinition(name="Total", expression="")
+
+
+def test_project_create_validates_computed_references_across_the_schema():
+    """A single field cannot tell whether its references exist; only the whole
+    schema can, so the check belongs to the project rather than the field."""
+    with pytest.raises(ValueError, match="not in this schema"):
+        ProjectCreate(
+            name="My Project",
+            entry_schema=[
+                ComputedFieldDefinition(name="Total", expression="{field-gone} * 2"),
+            ],
+        )
+
+
+def test_project_create_rejects_arithmetic_over_a_text_field():
+    notes = TextFieldDefinition(name="Notes")
+    with pytest.raises(ValueError, match="only be computed from number"):
+        ProjectCreate(
+            name="My Project",
+            entry_schema=[
+                notes,
+                ComputedFieldDefinition(name="Total", expression=f"{{{notes.id}}} * 2"),
+            ],
+        )
+
+
+def test_project_create_accepts_a_computed_field_over_a_number_field():
+    hours = NumberFieldDefinition(name="Hours")
+    project = ProjectCreate(
+        name="My Project",
+        entry_schema=[
+            hours,
+            ComputedFieldDefinition(name="Minutes", expression=f"{{{hours.id}}} * 60"),
+        ],
+    )
+    assert project.entry_schema[1].type == FieldType.COMPUTED
