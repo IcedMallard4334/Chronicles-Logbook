@@ -26,6 +26,7 @@ graph TB
 
     subgraph Shared["Shared"]
         API[api.js<br/>HTTP Client]
+        Fields[fieldTypes.js<br/>Field types + expressions]
         CSS_App[App.css]
         CSS_Profile[ProfilePage.css]
         CSS_Tasks[tasks.css]
@@ -36,6 +37,7 @@ graph TB
     Shell --> Sidebar
     Dashboard --> TaskPanel
     Dashboard --> API
+    Dashboard --> Fields
     Auth --> API
     Profile --> API
     Callback --> API
@@ -43,15 +45,16 @@ graph TB
 
 | File | Responsibility |
 |---|---|
-| `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views |
+| `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views, schema builder and editor |
 | `AuthPage.jsx` | Google sign-in page with "Continue with Google" button |
 | `AuthCallback.jsx` | Handles OAuth callback token exchange |
 | `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
 | `api.js` | HTTP client wrapping all backend endpoints |
-| `App.css` | Component styles (~900 lines) |
+| `fieldTypes.js` | The field-type catalogue, and the parser and evaluator for computed-field expressions |
+| `App.css` | Component styles (~2100 lines) |
 | `ProfilePage.css` | Profile page styles |
-| `tasks.css` | Task-specific styles (~190 lines) |
+| `tasks.css` | Task-specific styles (~250 lines) |
 | `index.css` | Global CSS variables, light/dark/system themes |
 
 ## Routing
@@ -109,10 +112,59 @@ The frontend supports three modes: **light**, **dark**, and **system**. Themes a
 - **Blue** (`--blue: #6366f1`) — actions, links, interactive elements
 - **Mauve** (`--mauve: #c4b5fd`) — highlights, completed states
 - **Grey tones** (`--muted`) — secondary text, borders
+- **Amber** (`--warning: #b45309`) — an action that is allowed but will change data the user did not just type, such as a schema edit that reshapes existing entries. Distinct from `--error`, which marks something that failed
 
 ## State management
 
 The app uses React's built-in `useState`, `useEffect`, `useCallback`, `useMemo`, and `useNavigate` hooks. There is no Redux, Zustand, or other external state management library. Each route/component fetches its own data; `api.js` injects the JWT from `localStorage` automatically.
+
+## Schema builder
+
+`SchemaBuilder` in `App.jsx` is the only component with three distinct modes, because editing a schema is the only action in the app that can rewrite data the user did not just type.
+
+```mermaid
+stateDiagram-v2
+    [*] --> view
+    view --> edit: Edit schema
+    edit --> view: Cancel
+    edit --> view: Save (no entries affected)
+    edit --> review: Save (entries affected)
+    review --> edit: Keep editing
+    review --> view: Apply changes
+```
+
+| Mode | What it is for |
+|---|---|
+| `view` | Read-only summary of the saved fields. The default, so a schema cannot be altered by clicking into a form while reading it |
+| `edit` | Editable rows — name, type, dropdown options, computed expression. Local only; nothing has been sent |
+| `review` | The server's report of what the edit would do to existing entries, one row per change, before anything is applied |
+
+Saving is a two-request sequence. `previewSchemaChange` asks the server what the
+edit would do; if it reports `entries_affected === 0` the edit is applied
+immediately, since there is nothing to warn about. Otherwise the report is shown
+in `review` mode and `updateSchema` is only called once the user confirms. See
+[Editing a live schema](../api/schema.md#editing-a-live-schema).
+
+After a successful save the whole entry list is refetched rather than patched in
+place. A migration can backfill, coerce or retire a value on every entry, so the
+copy held in the client is stale in too many ways to reconstruct locally.
+
+## Computed field expressions
+
+`fieldTypes.js` contains a hand-written tokeniser and recursive-descent parser for the arithmetic used by computed fields. It exists so a calculation updates as the user types, without a request per keystroke.
+
+```js
+withComputedValues({ hours: 3, rate: 20 }, schema)
+// → { hours: 3, rate: 20, pay: 60 }
+```
+
+This deliberately duplicates `app/computed.py` on the server. The client copy is a convenience for the entry form; the server's is the authority, and anything a client sends for a computed field is discarded. Neither uses `eval` — the client parses to its own expression tree, the server walks a Python `ast` with a node allowlist.
+
+`expressionError` returns the same class of message the server would, so a
+mistyped expression is reported beside the field instead of after a failed save.
+One case is left to the server: an indirect cycle (A uses B, B uses A) is caught
+by the server's topological sort, while the client's evaluator simply caps its
+passes so it cannot hang.
 
 ## Build and tooling
 
@@ -128,5 +180,6 @@ The app uses React's built-in `useState`, `useEffect`, `useCallback`, `useMemo`,
 - **React Router for view routing** — the app has grown beyond a single view; React Router gives clean URLs (`/app`, `/profile`) and handles auth redirects naturally.
 - **CSS custom properties over CSS-in-JS** — themes are achieved purely through CSS variables, keeping the styling layer simple and performant.
 - **Fetch-based API client** — `api.js` wraps the native `fetch` API with token injection and error handling, rather than using Axios or another library.
+- **Preview before applying a schema change** — the alternative is an undo, which would mean storing a copy of every entry before every edit. Showing what will happen is cheaper than being able to reverse it, and clearer at the moment the decision is made.
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder

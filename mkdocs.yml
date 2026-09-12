@@ -68,6 +68,7 @@ nav:
   - API Reference:
     - Authentication: api/authentication.md
     - Projects: api/projects.md
+    - Schema and field types: api/schema.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
     - Statistics: api/statistics.md

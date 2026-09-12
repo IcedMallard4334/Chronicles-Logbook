@@ -42,6 +42,7 @@ erDiagram
         varchar name
         varchar description
         jsonb entry_schema
+        jsonb retired_schema
         boolean archived
         timestamp created_at
         timestamp updated_at
@@ -51,6 +52,7 @@ erDiagram
         uuid id PK
         uuid project_id FK
         jsonb data
+        jsonb retired_data
         integer time_spent
         timestamp created_at
         timestamp updated_at
@@ -110,11 +112,17 @@ erDiagram
 | `name` | VARCHAR(255) | Project name |
 | `description` | VARCHAR | Optional description |
 | `entry_schema` | JSONB | User-defined field definitions |
+| `retired_schema` | JSONB | Definitions of fields the project no longer asks for (default: `[]`) |
 | `archived` | BOOLEAN | Archive status (default: false) |
 | `created_at` | TIMESTAMP (tz) | Creation time |
 | `updated_at` | TIMESTAMP (tz) | Last update time |
 
 `total_time_spent` is computed at read time by summing `Entry.time_spent` for the project.
+
+`retired_schema` exists because removing a field from a live schema does not
+erase what entries already recorded under it. Keeping the definition alongside
+the values is what lets those values still be labelled and, if the field is
+restored, recovered.
 
 ### entries
 
@@ -123,6 +131,7 @@ erDiagram
 | `id` | UUID (PK) | Primary key |
 | `project_id` | UUID (FK → projects) | Parent project |
 | `data` | JSONB | User-defined field values |
+| `retired_data` | JSONB | Values recorded under fields since removed (default: `{}`) |
 | `time_spent` | INTEGER | Optional time spent on the entry, in minutes |
 | `created_at` | TIMESTAMP (tz) | Creation time |
 | `updated_at` | TIMESTAMP (tz) | Last update time |
@@ -149,11 +158,15 @@ The `entry_schema` column in `projects` stores the user-defined field definition
 [
   { "id": "<uuid>", "name": "Hours spent", "type": "number" },
   { "id": "<uuid>", "name": "What I did", "type": "text" },
-  { "id": "<uuid>", "name": "Status", "type": "dropdown", "options": ["In progress", "Done", "Blocked"] }
+  { "id": "<uuid>", "name": "Status", "type": "dropdown", "options": ["In progress", "Done", "Blocked"] },
+  { "id": "<uuid>", "name": "Related project", "type": "project_reference" },
+  { "id": "<uuid>", "name": "Minutes", "type": "computed", "expression": "{hours-field-id} * 60" }
 ]
 ```
 
-Supported field types: `text`, `number`, `date`, `dropdown` (with `options` array).
+Supported field types: `text`, `number`, `date`, `dropdown` (with `options`
+array), `project_reference`, and `computed` (with `expression`). The last two are
+documented in full on [Schema and field types](../api/schema.md).
 
 The `data` column in `entries` stores values keyed by field ID:
 
@@ -161,7 +174,28 @@ The `data` column in `entries` stores values keyed by field ID:
 {
   "field-uuid-1": 3,
   "field-uuid-2": "Finished the login page",
-  "field-uuid-3": "Done"
+  "field-uuid-3": "Done",
+  "field-uuid-4": "9f2c…",
+  "field-uuid-5": 180
+}
+```
+
+A `project_reference` value is the referenced project's UUID as a string. It is
+**not** a foreign key: enforcing one would mean a JSONB value could block a
+project from being deleted, so referential integrity is checked on write instead
+and a dangling reference is rendered rather than errored.
+
+A `computed` value is written by the server on every entry write, so `data` can
+be read without re-evaluating any expressions.
+
+`retired_schema` and `retired_data` mirror the two formats above — the same field
+definitions and the same id-keyed values, holding what the live schema no longer
+asks for:
+
+```json
+{
+  "retired_schema": [{ "id": "field-uuid-6", "name": "Mood", "type": "text" }],
+  "retired_data": { "field-uuid-6": "Rained all day" }
 }
 ```
 
@@ -178,7 +212,24 @@ The `checklist` column in `tasks` stores an ordered array of items:
 
 Tables are auto-created on app startup via `Base.metadata.create_all`. For production schema changes, migrations should be managed separately.
 
+Raw SQL migrations live in `backend/migrations/` and are written to be safe to
+re-run:
+
+| File | Adds |
+|---|---|
+| `001_schema_updates.sql` | Earlier column additions |
+| `002_calendar_token_timestamps.sql` | Calendar token timestamps |
+| `003_login_sessions.sql` | Login session tracking |
+| `004_retired_schema_fields.sql` | `projects.retired_schema`, `entries.retired_data` |
+
 !!! note
-    Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent`, do require a migration or `ALTER TABLE` in production.
+    Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent` or `entries.retired_data`, do require a migration or `ALTER TABLE` in production.
+
+!!! warning "Two senses of 'migration'"
+    This page uses the word for *database* migrations — changes to the table
+    definitions above. Chronicles also migrates **entry data** when a user edits
+    a project's `entry_schema`, which touches no table definitions at all: it
+    rewrites JSONB values inside `entries.data`. That is described on
+    [Schema and field types](../api/schema.md#editing-a-live-schema).
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder
