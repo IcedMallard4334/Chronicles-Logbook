@@ -612,7 +612,7 @@ describe("filling in an entry", () => {
 
     const form = await screen.findByRole("heading", { name: "New entry" })
     expect(screen.queryByLabelText("Cost")).not.toBeInTheDocument()
-    expect(within(form.closest("form")).getByText("calculated")).toBeInTheDocument()
+    expect(within(form.closest("form")).getByText("Calculated")).toBeInTheDocument()
   })
 
   it("settles a calculation as the figures are typed", async () => {
@@ -662,9 +662,21 @@ describe("filling in an entry", () => {
 
     const form = (await screen.findByRole("heading", { name: "New entry" })).closest("form")
     expect(within(form).getByText("Related project")).toBeInTheDocument()
-    expect(within(form).getByText("linked")).toBeInTheDocument()
+    expect(within(form).getByText("Linked")).toBeInTheDocument()
     expect(within(form).getByText("Reading List")).toBeInTheDocument()
     expect(within(form).queryByRole("combobox")).not.toBeInTheDocument()
+  })
+
+  it("opens the linked project from the entry form", async () => {
+    // The value is a chip, not a boxed read-out: it reads as a thing you act
+    // on, and acting on it takes you to the project it names.
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [LINK] }, otherProject])
+
+    await openProject()
+
+    fireEvent.click(screen.getByTitle("Open Reading List"))
+
+    expect(await screen.findByRole("heading", { name: "Reading List" })).toBeInTheDocument()
   })
 
   it("does not send a link the server would derive from the schema", async () => {
@@ -726,7 +738,11 @@ describe("reading entries back", () => {
 
     await openProject()
 
-    expect(await screen.findByText("A project you no longer have")).toBeInTheDocument()
+    // The form's chip says it too — the schema points at the gone project —
+    // so the assertion is scoped to where the value was recorded.
+    expect(
+      within(await entryList()).getByText("A project you no longer have")
+    ).toBeInTheDocument()
   })
 
   it("marks a calculated figure so it is not mistaken for a typed one", async () => {
@@ -805,5 +821,31 @@ describe("reading entries back", () => {
 
     const label = within(await entryList()).getByTitle("Create a new environment for my level")
     expect(label).toHaveTextContent("Create a new enviro…")
+  })
+
+  it("marks the linked and calculated columns with a quiet dot", async () => {
+    // Most columns get nothing; the two special ones carry the registry's
+    // colour as a dot in their header, with the word on hover.
+    const RATE = { id: "f-rate", name: "Rate", type: "number" }
+    const COST = {
+      id: "f-cost", name: "Cost", type: "computed", expression: "{f-hours} * {f-rate}",
+    }
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [HOURS, RATE, COST, LINK] },
+      otherProject,
+    ])
+    fetchEntries.mockResolvedValue([
+      {
+        id: "e1",
+        data: { "f-hours": 3, "f-rate": 60, "f-link": "proj-2" },
+        created_at: "2026-09-12T10:00:00Z",
+      },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    expect(within(list).getByTitle("Linked")).toBeInTheDocument()
+    expect(within(list).getByTitle("Calculated")).toBeInTheDocument()
   })
 })

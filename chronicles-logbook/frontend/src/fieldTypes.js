@@ -17,22 +17,41 @@
  * or new Function, for the same reason the server does not.
  */
 
-export const FIELD_TYPES = [
-  { value: "text", label: "Text", hint: "A line of writing." },
-  { value: "number", label: "Number", hint: "A figure you can add up." },
-  { value: "date", label: "Date", hint: "A calendar day." },
-  { value: "dropdown", label: "Choice", hint: "One option from a fixed list." },
-  {
-    value: "project_reference",
+/**
+ * Every field type in one place: the label the builder shows, the hint under
+ * it, and — for the two types that are read-only on an entry — the badge that
+ * marks them and the colour it wears.
+ *
+ * `badge: null` means the type gets no callout: a plain field needs no pill,
+ * because being plain is the default a reader assumes. Only the exceptions
+ * (linked, calculated) are pointed out, and only the registry decides what
+ * those callouts say — every view that renders one reads it from here, so
+ * renaming a badge or adding a type is one edit rather than a hunt.
+ */
+export const FIELD_TYPE_META = {
+  text: { label: "Text", hint: "A line of writing.", badge: null },
+  number: { label: "Number", hint: "A figure you can add up.", badge: null },
+  date: { label: "Date", hint: "A calendar day.", badge: null },
+  dropdown: { label: "Choice", hint: "One option from a fixed list.", badge: null },
+  project_reference: {
     label: "Project link",
     hint: "Points at another of your projects.",
+    badge: "Linked",
+    color: "blue",
   },
-  {
-    value: "computed",
+  computed: {
     label: "Calculation",
     hint: "Worked out from the number fields on the same entry.",
+    badge: "Calculated",
+    color: "mauve",
   },
-]
+}
+
+/** The registry as the builder's type list, in the order it is offered. */
+export const FIELD_TYPES = Object.entries(FIELD_TYPE_META).map(([value, meta]) => ({
+  value,
+  ...meta,
+}))
 
 /** Types a calculation is allowed to read. */
 export const NUMERIC_FIELD_TYPES = ["number", "computed"]
@@ -41,7 +60,7 @@ export const NUMERIC_FIELD_TYPES = ["number", "computed"]
 export const READ_ONLY_FIELD_TYPES = ["computed"]
 
 export function fieldTypeLabel(type) {
-  return FIELD_TYPES.find((entry) => entry.value === type)?.label || type
+  return FIELD_TYPE_META[type]?.label || type
 }
 
 export function isNumericField(field) {

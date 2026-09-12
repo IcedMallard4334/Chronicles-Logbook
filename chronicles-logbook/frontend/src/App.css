@@ -2017,9 +2017,14 @@
 
 /* Figures are read down a column, not across a row, so a numeric column
    lines its label and value up on the right like any other table of
-   numbers. */
+   numbers — with fixed-width digits, so the column lines up character by
+   character rather than only at its edge. */
 .log-field.is-numeric {
   text-align: right;
+}
+
+.log-field.is-numeric .log-value {
+  font-variant-numeric: tabular-nums;
 }
 
 .log-label {
@@ -2031,6 +2036,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A quiet mark on a special column header: the registry's colour at a size
+   that keeps the table calm, with the word itself on hover. */
+.log-type-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.log-type-dot.is-mauve {
+  background: var(--mauve);
+}
+
+.log-type-dot.is-blue {
+  background: var(--blue);
 }
 
 .log-value {
@@ -2067,6 +2091,7 @@ button.log-link-chip {
 }
 
 button.log-link-chip:hover {
+  color: var(--blue);
   text-decoration: underline;
   text-decoration-color: var(--blue);
   text-underline-offset: 3px;
@@ -2136,19 +2161,22 @@ button.log-link-chip:hover {
 .field-readonly-tag {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--mauve-bg);
-  color: var(--mauve);
   font-size: 0.66rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
-/* A link is as read-only as a calculation, but says so in blue rather than
-   the calculation's mauve, so a glance at the form tells "text field /
-   calculated field / linked field" apart rather than asking the reader to
-   remember which tag meant what. */
-.field-readonly-tag.is-link {
+/* A tag wears its type's colour, and the colour comes from the field-type
+   registry: mauve for a calculation, blue for a link. The pair is what lets a
+   glance at a form tell "typed in / calculated / linked" apart without asking
+   the reader to remember which tag meant what. */
+.field-readonly-tag.is-mauve {
+  background: var(--mauve-bg);
+  color: var(--mauve);
+}
+
+.field-readonly-tag.is-blue {
   background: var(--blue-bg);
   color: var(--blue);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   FIELD_TYPES,
+  FIELD_TYPE_META,
   describeExpression,
   evaluateExpression,
   expressionCanonical,
@@ -50,6 +51,23 @@ describe("field types", () => {
   it("falls back to the raw type when it does not recognise one", () => {
     // A schema saved by a newer version should still render, not crash.
     expect(fieldTypeLabel("signature")).toBe("signature")
+  })
+
+  it("keeps each type's label, hint and badge in one registry", () => {
+    // One place decides what a type is called and how it is marked, so the
+    // builder, the entry form and the table cannot drift apart. Only the
+    // two read-only types get a badge — a plain field needs no callout,
+    // because being plain is the default a reader assumes.
+    expect(FIELD_TYPE_META.project_reference.badge).toBe("Linked")
+    expect(FIELD_TYPE_META.computed.badge).toBe("Calculated")
+    for (const type of FIELD_TYPES) {
+      if (type.value === "computed" || type.value === "project_reference") {
+        expect(type.badge).toBeTruthy()
+        expect(type.color).toBeTruthy()
+      } else {
+        expect(type.badge).toBeNull()
+      }
+    }
   })
 
   it("treats numbers and calculations as the only figures", () => {

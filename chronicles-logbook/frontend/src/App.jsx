@@ -28,6 +28,7 @@ import {
   updateSchema,
 } from "./api"
 import {
+  FIELD_TYPE_META,
   FIELD_TYPES,
   describeExpression,
   expressionCanonical,
@@ -1540,13 +1541,17 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-function EntryFieldInput({ field, value, computed, projects, onChange }) {
+function EntryFieldInput({ field, value, computed, projects, status, onOpenProject, onChange }) {
   if (field.type === "computed") {
+    // The badge's word and colour come from the field-type registry, so the
+    // form, the table and the schema view can never disagree about what a
+    // type is called or how it is marked.
+    const meta = FIELD_TYPE_META[field.type]
     return (
       <div className="field-label is-computed">
         <span className="field-label-text">
           {field.name}
-          <span className="field-readonly-tag">calculated</span>
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
         </span>
         <output className="computed-value">
           {computed === null || computed === undefined ? "—" : computed}
@@ -1556,20 +1561,28 @@ function EntryFieldInput({ field, value, computed, projects, onChange }) {
   }
 
   // A link is decided once, in the schema (US-2.4), rather than answered
-  // on every entry — so it is shown rather than asked for, with the same
-  // read-only treatment a calculation gets and a tag of its own colour so
-  // the two are never confused.
+  // on every entry — so it is shown rather than asked for. The value is the
+  // same chip the entry list shows: the target's name on its status dot,
+  // clickable through to the project. A boxed read-out would read as a text
+  // box awaiting input; a chip reads as a thing you act on.
   if (field.type === "project_reference") {
-    const target = projects.find((project) => project.id === field.linked_project_id)
+    const meta = FIELD_TYPE_META[field.type]
     return (
       <div className="field-label is-computed">
         <span className="field-label-text">
           {field.name}
-          <span className="field-readonly-tag is-link">linked</span>
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
         </span>
-        <output className="computed-value is-link">
-          {target ? target.name : "—"}
-        </output>
+        {field.linked_project_id ? (
+          <LinkChip
+            targetId={field.linked_project_id}
+            projects={projects}
+            status={status}
+            onOpen={onOpenProject}
+          />
+        ) : (
+          <output className="computed-value is-link">—</output>
+        )}
       </div>
     )
   }
@@ -1601,7 +1614,7 @@ function EntryFieldInput({ field, value, computed, projects, onChange }) {
   )
 }
 
-function EntryForm({ project, projects = [], onCreated }) {
+function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
@@ -1619,6 +1632,20 @@ function EntryForm({ project, projects = [], onCreated }) {
     () => projects.filter((other) => other.id !== project.id),
     [projects, project.id]
   )
+
+  // The status of every project this schema links to, for the chips in the
+  // form — one rule, one dot, learned in the sidebar and read anywhere.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set(
+        schema
+          .filter((field) => field.type === "project_reference" && field.linked_project_id)
+          .map((field) => field.linked_project_id)
+      ),
+    ],
+    [schema]
+  )
+  const statuses = useProjectStatuses(linkedIds)
 
   useEffect(() => {
     setData({})
@@ -1692,6 +1719,8 @@ function EntryForm({ project, projects = [], onCreated }) {
             value={data[field.id]}
             computed={computed[field.id]}
             projects={linkable}
+            status={statuses[field.linked_project_id]}
+            onOpenProject={onOpenProject}
             onChange={handleChange}
           />
         ))}
@@ -1818,39 +1847,52 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
               className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
             >
               <div className="log-fields">
-                {schema.map((field) => (
-                  <div
-                    key={field.id}
-                    className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
-                  >
-                    <span className="log-label" title={field.name}>
-                      {shortLabel(field.name)}
-                    </span>
-                    <span className="log-value">
-                      {field.type === "project_reference" && data[field.id] ? (
-                        <LinkChip
-                          targetId={data[field.id]}
-                          projects={projects}
-                          status={statuses[data[field.id]]}
-                          onOpen={onOpenProject}
-                        />
-                      ) : (
-                        formatEntryValue(field, data[field.id], projectNames)
-                      )}
-                      {/* Marked so a derived figure is never mistaken for one
-                          that was typed in. */}
-                      {field.type === "computed" && (
-                        <span
-                          className="calculated-badge"
-                          title="Calculated from the other fields on this entry"
-                          aria-hidden="true"
-                        >
-                          ƒ
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
+                {schema.map((field) => {
+                  const meta = FIELD_TYPE_META[field.type]
+                  return (
+                    <div
+                      key={field.id}
+                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
+                    >
+                      <span className="log-label" title={field.name}>
+                        {shortLabel(field.name)}
+                        {/* The two special columns carry a quiet dot in their
+                            header — the registry's colours at a size that does
+                            not compete with the values, the word on hover. */}
+                        {meta?.badge && (
+                          <span
+                            className={`log-type-dot is-${meta.color}`}
+                            title={meta.badge}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
+                      <span className="log-value">
+                        {field.type === "project_reference" && data[field.id] ? (
+                          <LinkChip
+                            targetId={data[field.id]}
+                            projects={projects}
+                            status={statuses[data[field.id]]}
+                            onOpen={onOpenProject}
+                          />
+                        ) : (
+                          formatEntryValue(field, data[field.id], projectNames)
+                        )}
+                        {/* Marked so a derived figure is never mistaken for one
+                            that was typed in. */}
+                        {field.type === "computed" && (
+                          <span
+                            className="calculated-badge"
+                            title="Calculated from the other fields on this entry"
+                            aria-hidden="true"
+                          >
+                            ƒ
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
               <span className="log-time">
                 {/* Entries captured offline are shown immediately, so that
@@ -2098,7 +2140,7 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} />
+              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
             )}
             <EntryList
               entries={project.entries || []}

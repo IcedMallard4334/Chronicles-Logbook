@@ -51,7 +51,7 @@ graph TB
 | `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
 | `api.js` | HTTP client wrapping all backend endpoints |
-| `fieldTypes.js` | The field-type catalogue, the parser and evaluator for computed-field expressions, and the name↔id resolution those expressions are edited through |
+| `fieldTypes.js` | The field-type registry (`FIELD_TYPE_META` — label, hint, badge and colour for every type) that the builder, the entry form and the entry table all read from, plus the parser and evaluator for computed-field expressions and the name↔id resolution those expressions are edited through |
 | `App.css` | Component styles (~2100 lines) |
 | `ProfilePage.css` | Profile page styles |
 | `tasks.css` | Task-specific styles (~250 lines) |
@@ -199,18 +199,24 @@ was typed in.
 
 A link field names its target once, in the schema — `SchemaFieldEditor` offers
 a "Links to" picker of the owner's other projects — and every entry derives its
-value from it. The entry form therefore shows the target as read-only text
-with a blue "linked" tag rather than asking for it, and the payload never
-includes the field: the server fills it from the schema, the same contract a
-calculation has.
+value from it. The entry form therefore shows the target as the same chip the
+entry list shows, under a blue "Linked" tag, rather than asking for it, and
+the payload never includes the field: the server fills it from the schema, the
+same contract a calculation has.
 
-Wherever a linked value is shown — the entry list, the timeline — it renders as
-a `LinkChip`: the target's name on the sidebar's status dot, clickable through
-to the project itself. The status is derived from the target's open tasks with
+Wherever a linked value is shown — the entry form, the entry list, the timeline
+— it renders as a `LinkChip`: the target's name on the sidebar's status dot,
+clickable through to the project itself. The status is derived from the target's open tasks with
 `useProjectStatuses`, by the same rule the sidebar uses, so the colour means the
 same thing everywhere it appears. Blue is the link's colour, distinct from the
 mauve a calculation is marked with, so a glance at a form or a table cell
 separates "typed in / calculated / linked" without reading anything.
+
+The tag's word and colour are not decided where they are rendered: both come
+from `FIELD_TYPE_META` in `fieldTypes.js`, the one registry every view reads —
+the builder's type labels, the schema summary's labels, the form's tags and
+the table's header dots. Renaming a badge or adding a type is one edit, and
+the views cannot drift apart.
 
 ## Entry list
 
@@ -218,7 +224,10 @@ One row is one entry, so the row is the unit of attention: a hover light marks
 where an entry ends and the next begins, and hints that a row is a thing rather
 than a list of loose values. Column labels are truncated past twenty characters
 with the full name riding along as a tooltip, since a header three lines tall
-sets the height of every row beneath it. Figures are right-aligned, because a
+sets the height of every row beneath it. The two special columns — a link, a
+calculation — carry a small dot in their header in the registry's colour, the
+word on hover, so the table stays calm while still saying which columns are
+not plain typing. Figures are right-aligned in fixed-width digits, because a
 numeric column is read down, not across.
 
 ## Build and tooling
