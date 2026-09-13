@@ -15,8 +15,10 @@ Recent additions include time tracking per entry with accumulated totals per pro
 
 | | URL |
 |---|---|
-| **Chronicles Live Documentation** | [https://sdp.ms.wits.ac.za/driven-by-design/Chronicles](http://127.0.0.1:8001/docs/) |
-| **Chronicles Logbook Link** | [https://chronicles-frontend.azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
+| **Documentation** | [chronicles-drivenbydesign-docs.azurewebsites.net](https://chronicles-drivenbydesign-docs.azurewebsites.net) |
+| **Live app** | [chronicles-drivenbydesign-app…azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
+| **API (Swagger)** | [chronicles-drivenbydesign-api…azurewebsites.net/docs](https://chronicles-drivenbydesign-api-gub5h0e8aee0gcb0.uaenorth-01.azurewebsites.net/docs) |
+| **Repository** | [sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles) |
 
 
 ## Core idea
@@ -324,7 +326,8 @@ For Azure deployment details (publish profiles, environment variables, etc.), se
 
 ## Documentation
 
-The full project documentation is built with MkDocs. See the **Chronicles Live Documentation** link in the [Links](#links) section above.
+The full project documentation is built with MkDocs and published at
+[chronicles-drivenbydesign-docs.azurewebsites.net](https://chronicles-drivenbydesign-docs.azurewebsites.net).
 
 The documentation site includes:
 
