@@ -3,8 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
-from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_db
 from app.models import Entry, Project, User
@@ -117,10 +117,12 @@ async def _validate_entry_data(
                     try:
                         target_id = UUID(value)
                     except ValueError:
+                        # `from None` because the ValueError only says the string
+                        # is not a UUID, which the detail already states.
                         raise HTTPException(
                             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Field '{field_name}': invalid entry id",
-                        )
+                        ) from None
                     target = await db.get(Entry, target_id)
                     if target is None:
                         raise HTTPException(
