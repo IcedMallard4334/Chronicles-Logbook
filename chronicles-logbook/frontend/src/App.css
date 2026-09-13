@@ -681,115 +681,6 @@
 }
 
 /* --------------------------------------------------
-   TODAY PANEL
-   -------------------------------------------------- */
-
-.today-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-  min-height: 130px;
-  padding: 32px 36px;
-  margin-bottom: 28px;
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--blue-bg) 80%, transparent), color-mix(in srgb, var(--surface) 60%, transparent));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow);
-}
-
-.today-main {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
-.today-date-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 100px;
-  width: auto;
-  height: 92px;
-  padding: 0 14px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: 0 4px 16px rgba(107, 91, 255, 0.12);
-  text-align: center;
-}
-
-.today-day {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.today-date {
-  font-size: 1.55rem;
-  font-weight: 800;
-  color: var(--blue);
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.today-summary h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin-bottom: 6px;
-}
-
-.today-summary p {
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.today-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-shrink: 0;
-}
-
-.today-actions .btn-primary,
-.today-actions .btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 22px;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.today-actions svg {
-  width: 18px;
-  height: 18px;
-}
-
-@media (max-width: 700px) {
-  .today-panel {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .today-actions {
-    width: 100%;
-  }
-
-  .today-actions .btn-primary,
-  .today-actions .btn-secondary {
-    flex: 1;
-    justify-content: center;
-  }
-}
-
-/* --------------------------------------------------
    EMPTY / HOME STATE
    -------------------------------------------------- */
 
@@ -1471,6 +1362,24 @@
 
 .field-label.full {
   grid-column: 1 / -1;
+}
+
+/* A checkbox reads as a statement rather than a labelled box, so its caption
+   sits beside it and it opts out of the full-width input sizing below. */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  align-self: end;
+  gap: 9px;
+  padding-bottom: 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+  accent-color: var(--blue);
 }
 
 .field-label input,
@@ -2598,4 +2507,161 @@ button.log-link-chip:hover {
   color: var(--text-muted, rgba(255,255,255,0.4));
   margin: 0;
   text-align: center;
+}
+
+/* ── Tags field ─────────────────────────────────────────────────── */
+
+.tags-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--accent-light, #e0f2fe);
+  color: var(--accent, #0369a1);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.tag-remove {
+  all: unset;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+}
+
+.tag-chip-small {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  background: var(--accent-light, #e0f2fe);
+  color: var(--accent, #0369a1);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
+.tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+/* ── Checklist field ────────────────────────────────────────────── */
+
+.checklist-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.checklist-item input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.checklist-done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.checklist-actions {
+  display: flex;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
+.btn-text-small {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.3rem;
+  opacity: 0.5;
+  border-radius: 3px;
+}
+
+.btn-text-small:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--surface-hover, #f0f0f0);
+}
+
+.btn-text-small:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.checklist-add input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed var(--border, #ccc);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.checklist-count {
+  font-size: 0.78rem;
+  color: var(--muted, #888);
+}
+
+.checklist-preview {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent, #0369a1);
+}
+
+/* ── Link field ─────────────────────────────────────────────────── */
+
+.link-select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.4rem;
+  background: var(--surface-hover, #f0f0f0);
+  border-radius: 3px;
+  font-size: 0.8rem;
+  color: var(--accent, #0369a1);
+  font-weight: 500;
+}
+
+.log-empty {
+  color: var(--muted, #888);
+}
+
+.field-label-text {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  display: block;
 }

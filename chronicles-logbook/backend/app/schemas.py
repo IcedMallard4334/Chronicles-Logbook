@@ -36,6 +36,9 @@ class FieldType(str, Enum):
     NUMBER = "number"
     DATE = "date"
     DROPDOWN = "dropdown"
+    TAGS = "tags"
+    CHECKLIST = "checklist"
+    LINK = "link"
     # US-2.4: a pointer to another of the owner's projects, for work that
     # spans more than one of them.
     PROJECT_REFERENCE = "project_reference"
@@ -75,6 +78,26 @@ class DropdownFieldDefinition(BaseFieldDefinition):
         return self
 
 
+class TagsFieldDefinition(BaseFieldDefinition):
+    """A free-form tag field. Entry values are stored as a list of strings."""
+
+    type: Literal[FieldType.TAGS] = FieldType.TAGS
+
+
+class ChecklistFieldDefinition(BaseFieldDefinition):
+    """A checklist field. Entry values are a list of {id, text, completed} items."""
+
+    type: Literal[FieldType.CHECKLIST] = FieldType.CHECKLIST
+
+
+class LinkFieldDefinition(BaseFieldDefinition):
+    """A link to another entry. The entry value is a UUID string referencing
+    another entry id. Links are bidirectional — the backend resolves and
+    cleans up broken links when entries are deleted."""
+
+    type: Literal[FieldType.LINK] = FieldType.LINK
+
+
 class ProjectReferenceFieldDefinition(BaseFieldDefinition):
     type: Literal[FieldType.PROJECT_REFERENCE] = FieldType.PROJECT_REFERENCE
 
@@ -112,6 +135,9 @@ FieldDefinition = Annotated[
     | NumberFieldDefinition
     | DateFieldDefinition
     | DropdownFieldDefinition
+    | TagsFieldDefinition
+    | ChecklistFieldDefinition
+    | LinkFieldDefinition
     | ProjectReferenceFieldDefinition
     | ComputedFieldDefinition,
     Field(discriminator="type"),
@@ -264,6 +290,11 @@ class EntryCreate(BaseModel):
     data: dict[str, Any]
     time_spent: int | None = Field(default=None, ge=0)
 
+    # US-2.15: an entry can be logged as work still to do, with an optional
+    # deadline, so it can be surfaced in the outstanding-work view.
+    todo: bool = False
+    due_date: date | None = None
+
     # Both fields are optional and omitted by ordinary online capture, where
     # the server assigns them. They exist for two callers that already know
     # the entry's identity and real capture time:
@@ -303,6 +334,8 @@ class EntryUpdate(BaseModel):
 
     data: dict[str, Any] | None = None
     time_spent: int | None = Field(default=None, ge=0)
+    todo: bool | None = None
+    due_date: date | None = None
 
 
 class EntryResponse(BaseModel):
@@ -316,6 +349,8 @@ class EntryResponse(BaseModel):
     # than only something the database knows (US-2.7).
     retired_data: dict[str, Any] = Field(default_factory=dict)
     time_spent: int | None
+    todo: bool = False
+    due_date: date | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -354,6 +389,52 @@ class TaskResponse(BaseModel):
     due_date: date | None
     completed: bool
     checklist: list[ChecklistItem]
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Saved filters ────────────────────────────────────────────────
+
+
+class FilterCriteria(BaseModel):
+    """The parts of the entries view a saved filter can restore.
+
+    Extra keys are forbidden so a saved filter cannot smuggle unexpected
+    query parameters back into the search endpoint when it is re-applied.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    q: str | None = Field(default=None, max_length=255)
+    project_id: UUID | None = None
+    todo: bool | None = None
+    sort: Literal["newest", "oldest", "due_date"] = "newest"
+
+    @model_validator(mode="after")
+    def clean_keyword(self):
+        if self.q is not None:
+            self.q = self.q.strip() or None
+        return self
+
+
+class SavedFilterCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    criteria: FilterCriteria
+
+    @model_validator(mode="after")
+    def clean_name(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("Filter name cannot be blank.")
+        return self
+
+
+class SavedFilterResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    criteria: FilterCriteria
     created_at: datetime
     updated_at: datetime
 
@@ -452,6 +533,8 @@ class TimelineEntryResponse(BaseModel):
     project_name: str
     data: dict[str, Any]
     time_spent: int | None
+    todo: bool = False
+    due_date: date | None = None
     created_at: datetime
     updated_at: datetime
 

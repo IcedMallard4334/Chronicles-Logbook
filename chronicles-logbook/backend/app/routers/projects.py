@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.computed import apply_computed_fields
 from app.database import get_db
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 # that adding one to a live schema does not invalidate every existing entry.
 _OPTIONAL_TYPES = frozenset({"computed", "project_reference"})
 
+<<<<<<< HEAD
 
 def _validate_entry_data(
     data: dict[str, Any],
@@ -43,6 +45,15 @@ def _validate_entry_data(
     import path validates a document before any of its projects exist; those
     references are checked once the ids are known.
     """
+=======
+async def _validate_entry_data(
+    data: dict[str, Any],
+    entry_schema: list[dict[str, Any]],
+    db: AsyncSession | None = None,
+    user: User | None = None,
+) -> None:
+    """Validate entry field values against the project's entry_schema."""
+>>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
     schema_by_id = {field["id"]: field for field in entry_schema}
 
     for field in entry_schema:
@@ -90,6 +101,7 @@ def _validate_entry_data(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be one of: {', '.join(options)}",
                 )
+<<<<<<< HEAD
         elif field_type == "project_reference":
             # Blank is allowed; anything present has to name a project that
             # exists and belongs to the caller, or the reference is a dead end.
@@ -198,6 +210,62 @@ def _apply_project_references(
             result[field["id"]] = str(field["linked_project_id"])
     return result
 
+=======
+        elif field_type == "tags":
+            if not isinstance(value, list) or not all(
+                isinstance(tag, str) for tag in value
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must be a list of strings",
+                )
+        elif field_type == "checklist":
+            if not isinstance(value, list):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must be a list of checklist items",
+                )
+            for item in value:
+                if not isinstance(item, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': each checklist item must be an object",
+                    )
+                if "id" not in item or "text" not in item:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': checklist items require 'id' and 'text'",
+                    )
+                if not isinstance(item["text"], str):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': checklist item text must be a string",
+                    )
+        elif field_type == "link":
+            if value is not None and value != "":
+                if not isinstance(value, str):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' must be an entry id string",
+                    )
+                # Validate that the linked entry exists (if db and user provided)
+                if db is not None and user is not None:
+                    try:
+                        target_id = UUID(value)
+                    except ValueError:
+                        # `from None` because the ValueError only says the string
+                        # is not a UUID, which the detail already states.
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Field '{field_name}': invalid entry id",
+                        ) from None
+                    target = await db.get(Entry, target_id)
+                    if target is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Field '{field_name}': linked entry does not exist",
+                        )
+>>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
 async def _get_user_project(
     project_id: UUID,
@@ -524,12 +592,16 @@ async def create_entry(
             detail="Cannot add entries to an archived project.",
         )
 
+<<<<<<< HEAD
     payload_data = _apply_project_references(data.data, project.entry_schema)
     _validate_entry_data(
         payload_data,
         project.entry_schema,
         await _reference_scope(project.entry_schema, user, db),
     )
+=======
+    await _validate_entry_data(data.data, project.entry_schema, db=db, user=user)
+>>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
     entry = Entry(
         project_id=project_id,
@@ -538,6 +610,8 @@ async def create_entry(
         # project of its choosing in a link.
         data=apply_computed_fields(payload_data, project.entry_schema),
         time_spent=data.time_spent,
+        todo=data.todo,
+        due_date=data.due_date,
     )
 
     # Preserve the caller's identity and capture time when supplied; the model
@@ -625,6 +699,7 @@ async def update_entry(
         )
 
     if payload.data is not None:
+<<<<<<< HEAD
         payload_data = _apply_project_references(payload.data, project.entry_schema)
         _validate_entry_data(
             payload_data,
@@ -632,6 +707,10 @@ async def update_entry(
             await _reference_scope(project.entry_schema, user, db),
         )
         entry.data = apply_computed_fields(payload_data, project.entry_schema)
+=======
+        await _validate_entry_data(payload.data, project.entry_schema, db=db, user=user)
+        entry.data = payload.data
+>>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
     # Checked against the fields actually sent rather than against None, so
     # that an explicit "time_spent": null clears a recorded duration while
@@ -639,10 +718,43 @@ async def update_entry(
     if "time_spent" in payload.model_fields_set:
         entry.time_spent = payload.time_spent
 
+    # Same treatment for the outstanding-work fields: clearing a due date is
+    # an explicit null, and ticking an outstanding entry off is todo=false.
+    if "todo" in payload.model_fields_set and payload.todo is not None:
+        entry.todo = payload.todo
+    if "due_date" in payload.model_fields_set:
+        entry.due_date = payload.due_date
+
     await db.commit()
     await db.refresh(entry)
 
     return entry
+
+
+async def _clear_broken_links(
+    deleted_entry_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> None:
+    """Find all of the user's entries whose link fields point to
+    *deleted_entry_id* and clear (null-out) those fields so they don't
+    become broken references.
+    """
+    result = await db.execute(
+        select(Entry)
+        .join(Project, Entry.project_id == Project.id)
+        .where(Project.user_id == user.id)
+    )
+    for candidate in result.scalars().all():
+        changed = False
+        for field_id, value in list(candidate.data.items()):
+            if isinstance(value, str) and value == str(deleted_entry_id):
+                candidate.data[field_id] = None
+                changed = True
+        if changed:
+            # SQLAlchemy doesn't detect in-place JSON mutations, so we
+            # explicitly flag the column as dirty.
+            flag_modified(candidate, "data")
 
 
 @router.delete(
@@ -664,5 +776,50 @@ async def delete_entry(
             detail="Cannot delete entries in an archived project.",
         )
 
+    # Clean up any link fields in other entries that point to this one
+    # before deleting, so we don't leave broken references behind.
+    await _clear_broken_links(entry_id, user, db)
+
     await db.delete(entry)
     await db.commit()
+
+
+
+@router.get(
+    "/{project_id}/entries/{entry_id}/links",
+    response_model=list[EntryResponse],
+)
+async def get_entry_links(
+    project_id: UUID,
+    entry_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return all entries (across the user's logbook) that link to this entry.
+
+    This enables the bidirectional-link requirement: when viewing entry A,
+    the UI can show not only the entries A links to (forward links stored in
+    A's data) but also the entries that link back to A (reverse links
+    discovered by this endpoint).
+    """
+    await _get_user_project(project_id, user, db)
+    await _get_project_entry(entry_id, project_id, db)
+
+    target_str = str(entry_id)
+
+    result = await db.execute(
+        select(Entry)
+        .join(Project, Entry.project_id == Project.id)
+        .where(Project.user_id == user.id)
+    )
+
+    backlinks: list[Entry] = []
+    for candidate in result.scalars().all():
+        if candidate.id == entry_id:
+            continue
+        for value in candidate.data.values():
+            if isinstance(value, str) and value == target_str:
+                backlinks.append(candidate)
+                break
+
+    return backlinks

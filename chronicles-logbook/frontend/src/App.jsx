@@ -4,6 +4,8 @@ import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette from "./CommandPalette"
 import CalendarView from "./CalendarView"
+import BoardView from "./BoardView"
+import OutstandingPage from "./OutstandingPage"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -19,6 +21,7 @@ import {
   deleteAccount,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchEntryLinks,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -43,6 +46,8 @@ import {
 } from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
+
+const FIELD_TYPES = ["text", "number", "date", "dropdown", "tags", "checklist", "link"]
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -1534,6 +1539,180 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
+function TagsInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addTag = () => {
+    const tag = input.trim()
+    if (tag && !value.includes(tag)) {
+      onChange([...value, tag])
+    }
+    setInput("")
+  }
+
+  const removeTag = (tag) => {
+    onChange(value.filter((t) => t !== tag))
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addTag()
+    }
+    if (e.key === "Backspace" && input === "" && value.length > 0) {
+      onChange(value.slice(0, -1))
+    }
+  }
+
+  return (
+    <div className="tags-input">
+      <div className="tags-list">
+        {value.map((tag) => (
+          <span key={tag} className="tag-chip">
+            {tag}
+            <button
+              type="button"
+              className="tag-remove"
+              onClick={() => removeTag(tag)}
+              aria-label={`Remove ${tag}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
+      />
+    </div>
+  )
+}
+
+function ChecklistInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addItem = () => {
+    const text = input.trim()
+    if (text) {
+      onChange([
+        ...value,
+        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
+      ])
+    }
+    setInput("")
+  }
+
+  const toggleItem = (id) => {
+    onChange(value.map((item) =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  const removeItem = (id) => {
+    onChange(value.filter((item) => item.id !== id))
+  }
+
+  const moveItem = (index, direction) => {
+    const target = index + direction
+    if (target < 0 || target >= value.length) return
+    const next = [...value]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addItem()
+    }
+  }
+
+  return (
+    <div className="checklist-input">
+      {value.map((item, index) => (
+        <div key={item.id} className="checklist-item">
+          <input
+            type="checkbox"
+            checked={item.completed}
+            onChange={() => toggleItem(item.id)}
+          />
+          <span className={item.completed ? "checklist-done" : ""}>
+            {item.text}
+          </span>
+          <div className="checklist-actions">
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, -1)}
+              disabled={index === 0}
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, 1)}
+              disabled={index === value.length - 1}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              className="btn-text-small btn-text-danger"
+              onClick={() => removeItem(item.id)}
+              aria-label="Remove item"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+      <div className="checklist-add">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add item and press Enter…"
+        />
+      </div>
+      {value.length > 0 && (
+        <span className="checklist-count">
+          {value.filter((i) => i.completed).length}/{value.length} complete
+        </span>
+      )}
+    </div>
+  )
+}
+
+function LinkInput({ value, onChange, entries }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="link-select"
+    >
+      <option value="">No link</option>
+      {entries.map((entry) => {
+        // Build a preview from the first text field value
+        const preview = Object.values(entry.data || {})
+          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
+        return (
+          <option key={entry.id} value={entry.id}>
+            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
+          </option>
+        )
+      })}
+    </select>
+  )
+}
+
 /**
  * One field on the new-entry form.
  *
@@ -1619,8 +1798,21 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
+  const [todo, setTodo] = useState(false)
+  const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [projectEntries, setProjectEntries] = useState([])
+
+  // Load existing entries for the link field selector
+  useEffect(() => {
+    const hasLinkField = schema.some((f) => f.type === "link")
+    if (hasLinkField) {
+      fetchEntries(project.id)
+        .then(setProjectEntries)
+        .catch(() => setProjectEntries([]))
+    }
+  }, [project.id, schema])
 
   // Recomputed as you type, so a calculation settles while the entry is being
   // filled in rather than only after it is saved.
@@ -1651,6 +1843,8 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
+    setTodo(false)
+    setDueDate("")
     setError(null)
   }, [project.id])
 
@@ -1680,14 +1874,35 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
           payload[field.id] = value
         }
         if (payload[field.id] === undefined) delete payload[field.id]
+        // Ensure new field types always have a value, even when the user
+        // didn't interact with them — the backend requires every schema
+        // field to be present.
+        if (field.type === "tags" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "checklist" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "link" && payload[field.id] === undefined) {
+          payload[field.id] = ""
+        }
       }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
-      await onCreated({ data: payload, time_spent: timeSpent === 0 ? null : timeSpent })
+      await onCreated({
+        data: payload,
+        time_spent: timeSpent === 0 ? null : timeSpent,
+        todo,
+        // Sent as null rather than "" so the server reads it as "no deadline"
+        // instead of rejecting an empty date.
+        due_date: dueDate || null,
+      })
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
+      setTodo(false)
+      setDueDate("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1745,6 +1960,26 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
             value={minutesSpent}
             onChange={(e) => setMinutesSpent(e.target.value)}
             placeholder="0"
+          />
+        </label>
+      </div>
+      {/* Logging something that has not happened yet: it is planned work, so it
+          belongs in the outstanding view rather than the record of what was done. */}
+      <div className="form-grid entry-outstanding">
+        <label className="field-label checkbox-label">
+          <input
+            type="checkbox"
+            checked={todo}
+            onChange={(e) => setTodo(e.target.checked)}
+          />
+          This is still to do
+        </label>
+        <label className="field-label">
+          Due date
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
           />
         </label>
       </div>
@@ -1924,6 +2159,7 @@ function Timeline({ projects, onOpenProject }) {
   const [entries, setEntries] = useState([])
   const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
+  const [tagFilter, setTagFilter] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -1933,7 +2169,7 @@ function Timeline({ projects, onOpenProject }) {
       setLoading(true)
       setError(null)
       try {
-        const data = await fetchEntriesGlobal({ q, projectId, page: 1, pageSize: 20 })
+        const data = await fetchEntriesGlobal({ q, projectId, tag: tagFilter || undefined, page: 1, pageSize: 20 })
         if (!cancelled) setEntries(data)
       } catch (err) {
         if (!cancelled) setError(formatError(err))
@@ -1945,7 +2181,7 @@ function Timeline({ projects, onOpenProject }) {
     return () => {
       cancelled = true
     }
-  }, [q, projectId])
+  }, [q, projectId, tagFilter])
 
   const schemaByProject = useMemo(() => {
     const map = {}
@@ -2015,6 +2251,16 @@ function Timeline({ projects, onOpenProject }) {
               </option>
             ))}
           </select>
+        </label>
+        <label className="field-label">
+          Tag
+          <input
+            type="text"
+            value={tagFilter}
+            onChange={(event) => setTagFilter(event.target.value)}
+            placeholder="Filter by tag…"
+            aria-label="Filter by tag"
+          />
         </label>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
@@ -2235,7 +2481,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -2517,6 +2763,8 @@ function App() {
           projectId: selectedProject.id,
           data: payload.data,
           timeSpent: payload.time_spent ?? null,
+          todo: payload.todo ?? false,
+          dueDate: payload.due_date ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original
@@ -2734,6 +2982,30 @@ function App() {
             </button>
             <button
               type="button"
+              className={`nav-item ${currentView === "board" ? "active" : ""}`}
+              onClick={() => setCurrentView("board")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="4" width="5" height="16" rx="1" />
+                <rect x="10" y="4" width="5" height="11" rx="1" />
+                <rect x="17" y="4" width="4" height="7" rx="1" />
+              </svg>
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "outstanding" ? "active" : ""}`}
+              onClick={() => setCurrentView("outstanding")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4l3 2" />
+                <path d="M4 4l2.5 2.5" />
+              </svg>
+              <span>Outstanding</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentView("calendar")}
             >
@@ -2795,6 +3067,10 @@ function App() {
             <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
             <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+          ) : currentView === "board" ? (
+            <BoardView projects={projects} />
+          ) : currentView === "outstanding" ? (
+            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
           ) : view === "timeline" ? (
             <Timeline projects={projects} onOpenProject={handleSelectProject} />
           ) : selectedProject ? (
