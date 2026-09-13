@@ -2139,3 +2139,60 @@
   margin: 0;
   text-align: center;
 }
+
+/* ── Offline status indicator (cherry-pick from feature/person2) ─── */
+
+.offline-status {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  background: #fbbf24;
+  color: #1a1a1a;
+}
+
+.offline-status[data-online="true"] {
+  background: #22c55e;
+  color: #fff;
+}
+
+.offline-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  font-weight: 500;
+}
+
+.offline-status-detail {
+  opacity: 0.8;
+}
+
+.global-notice {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  animation: notice-in 0.25s ease-out;
+}
+
+@keyframes notice-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-0.5rem); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
