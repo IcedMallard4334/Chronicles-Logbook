@@ -1,0 +1,181 @@
+/* Sync status pill and review panel (US-2.16). */
+
+.offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.offline-pill:hover {
+  border-color: var(--muted);
+}
+
+.offline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success, #3fb950);
+}
+
+.offline-pill.is-offline .offline-dot {
+  background: var(--muted);
+}
+
+.offline-pill.is-attention {
+  border-color: var(--error, #f85149);
+  color: var(--error, #f85149);
+}
+
+.offline-pill.is-attention .offline-dot {
+  background: var(--error, #f85149);
+}
+
+.offline-card {
+  max-width: 640px;
+  width: 100%;
+  text-align: left;
+}
+
+.offline-summary {
+  margin: 0 0 4px;
+}
+
+.offline-rejected h3 {
+  margin: 18px 0 4px;
+  font-size: 0.95rem;
+}
+
+.offline-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  /* Long queues stay scrollable rather than pushing the actions off screen. */
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.offline-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-soft);
+}
+
+.offline-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.offline-item-head time {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.offline-reason {
+  margin: 6px 0 10px;
+  color: var(--error, #f85149);
+  font-size: 0.8rem;
+}
+
+.offline-values {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+
+.offline-values div {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.offline-values dt {
+  min-width: 110px;
+  color: var(--muted);
+}
+
+.offline-values dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.offline-edit {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.offline-confirm {
+  margin-right: auto;
+  color: var(--error, #f85149);
+  font-size: 0.78rem;
+}
+
+/* An entry captured offline, shown in the list before it reaches the server. */
+.log-row.is-unsynced {
+  border-left: 2px solid var(--muted);
+}
+
+.sync-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sync-badge.is-rejected {
+  color: var(--error, #f85149);
+}
+
+/* Sibling of .global-error, for confirmations rather than failures. */
+.global-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.global-notice p {
+  margin: 0;
+}
+
+.global-notice button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
