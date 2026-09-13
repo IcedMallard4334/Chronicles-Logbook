@@ -2,6 +2,7 @@
 
 from typing import Any
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import distinct, func, select
@@ -14,6 +15,8 @@ from app.schemas import (
     FieldStatistics,
     FieldStatisticsGroup,
     FieldStatisticsResponse,
+    FieldTimelinePoint,
+    FieldTimelineResponse,
     ProjectStatistics,
     StatisticsResponse,
     StatisticsTotals,
@@ -227,5 +230,114 @@ async def read_field_statistics(
         project_id=project.id,
         schema_version=project.schema_version,
         fields=fields,
+    )
+    
+@router.get(
+    "/projects/{project_id}/fields/{field_id}/timeline",
+    response_model=FieldTimelineResponse,
+)
+async def read_field_timeline(
+    project_id: UUID,
+    field_id: str,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return a field's values over time.
+
+    Each entry is interpreted using its own schema_snapshot so that
+    historical entries remain valid after the project schema changes.
+    """
+    project = await db.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+        )
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
+
+    result = await db.execute(
+        select(Entry)
+        .where(
+            Entry.project_id == project_id,
+            Entry.created_at >= start if start is not None else True,
+            Entry.created_at <= end if end is not None else True,
+        )
+        .order_by(Entry.created_at.asc(), Entry.id.asc())
+    )
+    entries = result.scalars().all()
+
+    field_definition = None
+
+    # Prefer the current schema definition when the field still exists.
+    for field in project.entry_schema:
+        if field["id"] == field_id:
+            field_definition = field
+            break
+
+    # Otherwise find the field in historical schemas.
+    if field_definition is None:
+        for entry in entries:
+            for field in entry.schema_snapshot:
+                if field["id"] == field_id:
+                    field_definition = field
+                    break
+            if field_definition is not None:
+                break
+
+    if field_definition is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Field not found",
+        )
+
+    points: list[FieldTimelinePoint] = []
+
+    for entry in entries:
+        schema_by_id = {
+            field["id"]: field for field in entry.schema_snapshot
+        }
+
+        historical_field = schema_by_id.get(field_id)
+
+        if historical_field is None:
+            continue
+
+        if field_id not in entry.data:
+            continue
+
+        value = entry.data[field_id]
+
+        if value is None:
+            continue
+
+        # Only include the value when its historical field type matches
+        # the selected field's current/historical definition.
+        if historical_field.get("type") != field_definition.get("type"):
+            continue
+
+        points.append(
+            FieldTimelinePoint(
+                entry_id=entry.id,
+                created_at=entry.created_at,
+                value=value,
+                schema_version=entry.schema_version,
+            )
+        )
+
+    return FieldTimelineResponse(
+        project_id=project.id,
+        field_id=field_id,
+        field_name=field_definition.get("name", field_id),
+        field_type=field_definition.get("type", "text"),
+        start=start,
+        end=end,
+        points=points,
     )
 

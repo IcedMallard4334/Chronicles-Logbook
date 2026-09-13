@@ -316,6 +316,21 @@ class FieldStatisticsResponse(BaseModel):
     project_id: UUID
     schema_version: int
     fields: list[FieldStatistics]
+class FieldTimelinePoint(BaseModel):
+    entry_id: UUID
+    created_at: datetime
+    value: Any
+    schema_version: int
+
+
+class FieldTimelineResponse(BaseModel):
+    project_id: UUID
+    field_id: str
+    field_name: str
+    field_type: FieldType
+    start: datetime | None = None
+    end: datetime | None = None
+    points: list[FieldTimelinePoint] = Field(default_factory=list)
 
 class TimelineEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

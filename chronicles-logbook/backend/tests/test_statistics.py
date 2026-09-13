@@ -1,6 +1,7 @@
 """Tests for the statistics endpoint."""
 
 from datetime import datetime, timezone
+from http import client
 
 import pytest_asyncio
 
@@ -334,3 +335,264 @@ async def test_field_statistics_respect_historical_schema_versions(
     assert category["groups"] == [
         {"value": "Work", "count": 1}
     ]
+
+async def test_field_timeline_returns_values_in_chronological_order(
+    authenticated_client,
+):
+    schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Timeline Test", "entry_schema": schema},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 8},
+            "created_at": at(2026, 5, 10),
+        },
+    )
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 3},
+            "created_at": at(2026, 5, 2),
+        },
+    )
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 6},
+            "created_at": at(2026, 5, 7),
+        },
+    )
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/hours/timeline"
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["project_id"] == project_id
+    assert body["field_id"] == "hours"
+    assert body["field_name"] == "Hours"
+    assert body["field_type"] == "number"
+
+    assert [point["value"] for point in body["points"]] == [3, 6, 8]
+
+    assert [
+        point["schema_version"] for point in body["points"]
+    ] == [1, 1, 1]
+
+    assert body["points"][0]["created_at"].startswith("2026-05-02")
+    assert body["points"][1]["created_at"].startswith("2026-05-07")
+    assert body["points"][2]["created_at"].startswith("2026-05-10")
+
+async def test_field_timeline_respects_start_and_end_dates(
+    authenticated_client,
+):
+    schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Timeline Range Test", "entry_schema": schema},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 2},
+            "created_at": at(2026, 5, 1),
+        },
+    )
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 5},
+            "created_at": at(2026, 5, 5),
+        },
+    )
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 8},
+            "created_at": at(2026, 5, 10),
+        },
+    )
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/hours/timeline",
+        params={
+            "start": at(2026, 5, 4),
+            "end": at(2026, 5, 9),
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["start"].startswith("2026-05-04")
+    assert body["end"].startswith("2026-05-09")
+
+    assert [point["value"] for point in body["points"]] == [5]
+    assert body["points"][0]["created_at"].startswith("2026-05-05")
+
+async def test_field_timeline_respects_historical_schema_versions(
+    authenticated_client,
+):
+    schema_v1 = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Versioned Timeline Test", "entry_schema": schema_v1},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    # Entry created using schema version 1.
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {"hours": 4},
+            "created_at": at(2026, 5, 1),
+        },
+    )
+    assert response.status_code == 201
+
+    # Change the project schema to version 2.
+    schema_v2 = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        },
+        {
+            "id": "category",
+            "name": "Category",
+            "type": FieldType.TEXT.value,
+        },
+    ]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}",
+        json={"entry_schema": schema_v2},
+    )
+    assert response.status_code == 200
+
+    # Entry created using schema version 2.
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {
+                "hours": 8,
+                "category": "Work",
+            },
+            "created_at": at(2026, 5, 5),
+        },
+    )
+    assert response.status_code == 201
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/hours/timeline"
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert [point["value"] for point in body["points"]] == [4, 8]
+
+    assert [
+        point["schema_version"] for point in body["points"]
+    ] == [1, 2]
+
+    assert body["points"][0]["created_at"].startswith("2026-05-01")
+    assert body["points"][1]["created_at"].startswith("2026-05-05")
+
+async def test_field_timeline_returns_404_for_unknown_field(
+    authenticated_client,
+):
+    schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Missing Field Timeline Test", "entry_schema": schema},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/not-a-field/timeline"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Field not found"
+
+async def test_field_timeline_cannot_access_another_users_project(
+    authenticated_client,
+    second_authenticated_client,
+):
+    schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    # Create a project for the first user.
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Private Timeline", "entry_schema": schema},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    # The second user must not be able to access the first user's project.
+    response = await second_authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/hours/timeline"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
