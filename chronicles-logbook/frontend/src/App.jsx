@@ -1287,6 +1287,10 @@ function ProjectDetail({
 }) {
   const [tab, setTab] = useState("entries")
 
+  useEffect(() => {
+    setTab("entries")
+  }, [project.id])
+
   return (
     <section className="project-detail">
       <header className="detail-header">
