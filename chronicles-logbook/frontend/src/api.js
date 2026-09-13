@@ -132,6 +132,7 @@ export async function fetchEntries(projectId) {
 export async function fetchEntriesGlobal({
   q,
   projectId,
+  tag,
   todo,
   sort,
   page = 1,
@@ -140,6 +141,7 @@ export async function fetchEntriesGlobal({
   const params = new URLSearchParams()
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
+  if (tag) params.append("tag", tag)
   // Compared against undefined so `todo: false` still narrows the search to
   // completed work rather than being dropped as falsy.
   if (todo !== undefined) params.append("todo", todo)
@@ -347,6 +349,12 @@ export function createCalendarActivity(payload) {
 }
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
+}
+
+// ── Entry links (bidirectional) ──────────────────────────────────────
+
+export async function fetchEntryLinks(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/links`)
 }
 
 // ── AI Assistant ──────────────────────────────────────────────────────

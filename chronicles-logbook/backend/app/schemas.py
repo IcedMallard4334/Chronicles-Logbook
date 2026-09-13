@@ -28,6 +28,9 @@ class FieldType(str, Enum):
     NUMBER = "number"
     DATE = "date"
     DROPDOWN = "dropdown"
+    TAGS = "tags"
+    CHECKLIST = "checklist"
+    LINK = "link"
 
 
 class BaseFieldDefinition(BaseModel):
@@ -61,11 +64,34 @@ class DropdownFieldDefinition(BaseFieldDefinition):
         return self
 
 
+class TagsFieldDefinition(BaseFieldDefinition):
+    """A free-form tag field. Entry values are stored as a list of strings."""
+
+    type: Literal[FieldType.TAGS] = FieldType.TAGS
+
+
+class ChecklistFieldDefinition(BaseFieldDefinition):
+    """A checklist field. Entry values are a list of {id, text, completed} items."""
+
+    type: Literal[FieldType.CHECKLIST] = FieldType.CHECKLIST
+
+
+class LinkFieldDefinition(BaseFieldDefinition):
+    """A link to another entry. The entry value is a UUID string referencing
+    another entry id. Links are bidirectional — the backend resolves and
+    cleans up broken links when entries are deleted."""
+
+    type: Literal[FieldType.LINK] = FieldType.LINK
+
+
 FieldDefinition = Annotated[
     TextFieldDefinition
     | NumberFieldDefinition
     | DateFieldDefinition
-    | DropdownFieldDefinition,
+    | DropdownFieldDefinition
+    | TagsFieldDefinition
+    | ChecklistFieldDefinition
+    | LinkFieldDefinition,
     Field(discriminator="type"),
 ]
 
