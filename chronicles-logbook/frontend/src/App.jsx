@@ -4,6 +4,8 @@ import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette from "./CommandPalette"
 import CalendarView from "./CalendarView"
+import BoardView from "./BoardView"
+import OutstandingPage from "./OutstandingPage"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -1001,6 +1003,8 @@ function EntryForm({ project, onCreated }) {
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
+  const [todo, setTodo] = useState(false)
+  const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -1008,6 +1012,8 @@ function EntryForm({ project, onCreated }) {
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
+    setTodo(false)
+    setDueDate("")
     setError(null)
   }, [project.id])
 
@@ -1033,10 +1039,19 @@ function EntryForm({ project, onCreated }) {
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
-      await onCreated({ data: payload, time_spent: timeSpent === 0 ? null : timeSpent })
+      await onCreated({
+        data: payload,
+        time_spent: timeSpent === 0 ? null : timeSpent,
+        todo,
+        // Sent as null rather than "" so the server reads it as "no deadline"
+        // instead of rejecting an empty date.
+        due_date: dueDate || null,
+      })
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
+      setTodo(false)
+      setDueDate("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1111,6 +1126,26 @@ function EntryForm({ project, onCreated }) {
             value={minutesSpent}
             onChange={(e) => setMinutesSpent(e.target.value)}
             placeholder="0"
+          />
+        </label>
+      </div>
+      {/* Logging something that has not happened yet: it is planned work, so it
+          belongs in the outstanding view rather than the record of what was done. */}
+      <div className="form-grid entry-outstanding">
+        <label className="field-label checkbox-label">
+          <input
+            type="checkbox"
+            checked={todo}
+            onChange={(e) => setTodo(e.target.checked)}
+          />
+          This is still to do
+        </label>
+        <label className="field-label">
+          Due date
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
           />
         </label>
       </div>
@@ -1434,7 +1469,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -1716,6 +1751,8 @@ function App() {
           projectId: selectedProject.id,
           data: payload.data,
           timeSpent: payload.time_spent ?? null,
+          todo: payload.todo ?? false,
+          dueDate: payload.due_date ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original
@@ -1907,6 +1944,30 @@ function App() {
             </button>
             <button
               type="button"
+              className={`nav-item ${currentView === "board" ? "active" : ""}`}
+              onClick={() => setCurrentView("board")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="4" width="5" height="16" rx="1" />
+                <rect x="10" y="4" width="5" height="11" rx="1" />
+                <rect x="17" y="4" width="4" height="7" rx="1" />
+              </svg>
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "outstanding" ? "active" : ""}`}
+              onClick={() => setCurrentView("outstanding")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4l3 2" />
+                <path d="M4 4l2.5 2.5" />
+              </svg>
+              <span>Outstanding</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentView("calendar")}
             >
@@ -1968,6 +2029,10 @@ function App() {
             <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
             <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+          ) : currentView === "board" ? (
+            <BoardView projects={projects} />
+          ) : currentView === "outstanding" ? (
+            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (

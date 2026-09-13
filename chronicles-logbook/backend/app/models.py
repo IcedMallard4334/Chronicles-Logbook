@@ -118,6 +118,18 @@ class Entry(Base):
         nullable=True,
     )
 
+    # Marks the entry as work that is still outstanding rather than a record of
+    # something already done. Kept off the user-defined ``data`` schema so the
+    # outstanding-work view can query it without knowing a project's fields.
+    todo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -169,6 +181,48 @@ class Task(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+
+
+class SavedFilter(Base):
+    """A named search the user can re-apply later (US-2.12).
+
+    The criteria are stored as a JSON blob rather than one column per filter
+    so that adding a filter to the entries view does not need a migration.
+    Names are unique per user, which lets saving over an existing name
+    update it instead of quietly leaving two identical entries in the list.
+    """
+
+    __tablename__ = "saved_filters"
+    __table_args__ = (UniqueConstraint("user_id", "name"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # e.g. {"q": "bug", "project_id": "...", "todo": true, "sort": "due_date"}
+    criteria: Mapped[dict[str, Any]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="{}",
+        default=dict,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class GoogleCalendarAccount(Base):
