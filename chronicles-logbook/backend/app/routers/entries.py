@@ -19,21 +19,23 @@ router = APIRouter(prefix="/entries", tags=["Entries"])
 async def search_entries(
     q: str | None = None,
     project_id: UUID | None = None,
+    tag: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Search across all entries and optionally filter by project.
+    """Search across all entries and optionally filter by project or tag.
 
     The keyword is matched against each entry's field values and its project
-    name. Results are returned newest-first.
+    name. When *tag* is supplied, only entries whose tag-type fields contain
+    that tag are returned. Results are returned newest-first.
 
-    Note: the keyword filter must run before pagination is applied, since
-    the keyword can only be matched in Python (it's matched against decoded
-    JSON field values), not in the SQL query itself. Paginating first and
-    filtering after would silently drop matches that fall outside the
-    current page's raw (unfiltered) rows.
+    Note: the keyword and tag filters must run before pagination is applied,
+    since they can only be matched in Python (against decoded JSON field
+    values), not in the SQL query itself. Paginating first and filtering
+    after would silently drop matches that fall outside the current page's
+    raw (unfiltered) rows.
     """
     stmt = (
         select(Entry, Project.name.label("project_name"))
@@ -48,12 +50,24 @@ async def search_entries(
     rows = result.all()
 
     query = q.strip().lower() if q else ""
+    tag_filter = tag.strip() if tag else ""
     matched: list[dict[str, Any]] = []
     for entry, project_name in rows:
         if query:
             values = " ".join(str(value) for value in entry.data.values())
             searchable = f"{project_name} {values}".lower()
             if query not in searchable:
+                continue
+        # Tag filter: check if any tag-type field in this entry contains
+        # the requested tag. This is a case-insensitive match.
+        if tag_filter:
+            entry_tags: list[str] = []
+            for value in entry.data.values():
+                if isinstance(value, list):
+                    entry_tags.extend(
+                        str(t).lower() for t in value if isinstance(t, str)
+                    )
+            if tag_filter.lower() not in entry_tags:
                 continue
         matched.append(
             {
