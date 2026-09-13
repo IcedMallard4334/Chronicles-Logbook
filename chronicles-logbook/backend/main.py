@@ -14,6 +14,7 @@ from app.routers import (
     calendar,
     entries,
     projects,
+    saved_filters,
     statistics,
     tasks,
     transfer,
@@ -61,6 +62,7 @@ app.add_middleware(
 
 app.include_router(projects.router)
 app.include_router(entries.router)
+app.include_router(saved_filters.router)
 app.include_router(statistics.router)
 app.include_router(transfer.router)
 app.include_router(auth.router)
