@@ -118,6 +118,18 @@ class Entry(Base):
         nullable=True,
     )
 
+    # Marks the entry as work that is still outstanding rather than a record of
+    # something already done. Kept off the user-defined ``data`` schema so the
+    # outstanding-work view can query it without knowing a project's fields.
+    todo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
