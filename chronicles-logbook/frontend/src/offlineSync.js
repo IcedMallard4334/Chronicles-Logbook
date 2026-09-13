@@ -85,6 +85,10 @@ export function createSyncEngine({
             id: record.id,
             data: record.data,
             time_spent: record.timeSpent,
+            // Records queued before these fields existed have neither, so they
+            // fall back to a completed entry with no deadline.
+            todo: record.todo ?? false,
+            due_date: record.dueDate ?? null,
             created_at: record.capturedAt,
           })
 

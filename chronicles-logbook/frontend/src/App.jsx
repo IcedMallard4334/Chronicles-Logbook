@@ -1751,6 +1751,8 @@ function App() {
           projectId: selectedProject.id,
           data: payload.data,
           timeSpent: payload.time_spent ?? null,
+          todo: payload.todo ?? false,
+          dueDate: payload.due_date ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original
