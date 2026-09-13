@@ -4,6 +4,7 @@ import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette from "./CommandPalette"
 import CalendarView from "./CalendarView"
+import BoardView from "./BoardView"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -1434,7 +1435,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -1907,6 +1908,18 @@ function App() {
             </button>
             <button
               type="button"
+              className={`nav-item ${currentView === "board" ? "active" : ""}`}
+              onClick={() => setCurrentView("board")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="4" width="5" height="16" rx="1" />
+                <rect x="10" y="4" width="5" height="11" rx="1" />
+                <rect x="17" y="4" width="4" height="7" rx="1" />
+              </svg>
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentView("calendar")}
             >
@@ -1968,6 +1981,8 @@ function App() {
             <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
             <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+          ) : currentView === "board" ? (
+            <BoardView projects={projects} />
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (
