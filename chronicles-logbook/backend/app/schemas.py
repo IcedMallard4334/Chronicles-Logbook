@@ -115,6 +115,7 @@ class ProjectResponse(BaseModel):
     description: str | None
     archived: bool
     entry_schema: list[FieldDefinition]
+    schema_version: int = Field(ge=1)
     total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
@@ -171,6 +172,8 @@ class EntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     data: dict[str, Any]
+    schema_version: int = Field(ge=1)
+    schema_snapshot: list[FieldDefinition]
     time_spent: int | None
     created_at: datetime
     updated_at: datetime

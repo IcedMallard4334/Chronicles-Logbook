@@ -162,9 +162,12 @@ async def update_project(
     if data.description is not None:
         project.description = data.description
     if data.entry_schema is not None:
-        project.entry_schema = [
+        updated_schema = [
             field.model_dump(mode="json") for field in data.entry_schema
         ]
+        if updated_schema != project.entry_schema:
+            project.entry_schema = updated_schema
+            project.schema_version += 1
 
     await db.commit()
     await db.refresh(project)
@@ -252,6 +255,8 @@ async def create_entry(
         project_id=project_id,
         data=data.data,
         time_spent=data.time_spent,
+        schema_version=project.schema_version,
+        schema_snapshot=project.entry_schema,
     )
 
     # Preserve the caller's identity and capture time when supplied; the model
@@ -325,9 +330,8 @@ async def update_entry(
 ):
     """Update an entry's values or the time spent on it.
 
-    ``data`` is revalidated against the project's *current* schema, exactly
-    as it is on create. If the schema has changed since the entry was
-    written, the update must satisfy the new shape.
+    Entry data is validated against the schema snapshot captured when the
+    entry was created, preserving its historical format across schema changes.
     """
     project = await _get_user_project(project_id, user, db)
     entry = await _get_project_entry(entry_id, project_id, db)
@@ -339,7 +343,7 @@ async def update_entry(
         )
 
     if payload.data is not None:
-        _validate_entry_data(payload.data, project.entry_schema)
+        _validate_entry_data(payload.data, entry.schema_snapshot)
         entry.data = payload.data
 
     # Checked against the fields actually sent rather than against None, so

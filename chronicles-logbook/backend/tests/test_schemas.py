@@ -87,6 +87,7 @@ def test_project_response_has_required_fields():
         "description": None,
         "archived": False,
         "entry_schema": [],
+        "schema_version": 1,
         "created_at": now,
         "updated_at": now,
     }

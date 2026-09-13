@@ -83,6 +83,13 @@ class Project(Base):
         default=list,
     )
 
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -111,6 +118,20 @@ class Entry(Base):
         JSONType,
         nullable=False,
         default=dict,
+    )
+
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+
+    schema_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        default=list,
+        server_default="[]",
     )
 
     time_spent: Mapped[int | None] = mapped_column(

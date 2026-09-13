@@ -683,19 +683,13 @@ async def test_update_entry_rejects_fields_outside_the_schema(
     assert response.status_code == 422
 
 
-async def test_update_entry_revalidates_against_the_current_schema(
+async def test_update_entry_validates_against_its_schema_snapshot(
     authenticated_client, project_with_schema, existing_entry
 ):
-    """An entry written before a schema change must satisfy the new shape.
-
-    This is the agreed trade-off: update behaves exactly like create, so
-    editing an old entry forces it into the current schema rather than
-    letting entry shapes drift apart.
-    """
+    """An existing entry continues using the schema captured at creation."""
     project_id = project_with_schema["id"]
 
-    # Replace "Status" with a new "Mood" field after the entry was written.
-    await authenticated_client.put(
+    schema_update = await authenticated_client.put(
         f"/projects/{project_id}",
         json={
             "name": "Logbook Project",
@@ -706,16 +700,18 @@ async def test_update_entry_revalidates_against_the_current_schema(
             ],
         },
     )
+    assert schema_update.status_code == 200
 
-    # The entry's original shape is no longer valid.
-    stale = await authenticated_client.put(
+    # The original shape remains valid for the historical entry.
+    original_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={"data": VALID_DATA},
     )
-    assert stale.status_code == 422
+    assert original_shape.status_code == 200
+    assert original_shape.json()["data"] == VALID_DATA
 
-    # Supplying the current shape succeeds.
-    migrated = await authenticated_client.put(
+    # The new project shape is invalid for an entry using the old snapshot.
+    current_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={
             "data": {
@@ -725,8 +721,7 @@ async def test_update_entry_revalidates_against_the_current_schema(
             }
         },
     )
-    assert migrated.status_code == 200
-    assert migrated.json()["data"]["field-4"] == "Focused"
+    assert current_shape.status_code == 422
 
 
 async def test_update_entry_rejects_incomplete_data(
