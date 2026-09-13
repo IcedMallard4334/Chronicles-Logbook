@@ -312,6 +312,8 @@ async def create_entry(
         project_id=project_id,
         data=data.data,
         time_spent=data.time_spent,
+        todo=data.todo,
+        due_date=data.due_date,
     )
 
     # Preserve the caller's identity and capture time when supplied; the model
@@ -407,6 +409,13 @@ async def update_entry(
     # omitting the field leaves it untouched.
     if "time_spent" in payload.model_fields_set:
         entry.time_spent = payload.time_spent
+
+    # Same treatment for the outstanding-work fields: clearing a due date is
+    # an explicit null, and ticking an outstanding entry off is todo=false.
+    if "todo" in payload.model_fields_set and payload.todo is not None:
+        entry.todo = payload.todo
+    if "due_date" in payload.model_fields_set:
+        entry.due_date = payload.due_date
 
     await db.commit()
     await db.refresh(entry)
