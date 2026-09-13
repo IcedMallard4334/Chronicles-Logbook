@@ -8,6 +8,15 @@ from app.schemas import FieldType
 
 SCHEMA = [{"id": "note", "name": "Note", "type": FieldType.TEXT.value}]
 
+STATS_SCHEMA = [
+    {"id": "hours", "name": "Hours", "type": FieldType.NUMBER.value},
+    {
+        "id": "category",
+        "name": "Category",
+        "type": FieldType.DROPDOWN.value,
+        "options": ["Work", "Study", "Personal"],
+    },
+]
 
 def at(year: int, month: int, day: int, hour: int = 9) -> str:
     return datetime(year, month, day, hour, tzinfo=timezone.utc).isoformat()
@@ -149,3 +158,179 @@ async def test_statistics_exclude_other_users_data(
     assert body["totals"]["entries"] == 0
     assert body["totals"]["time_spent"] == 0
     assert body["projects"] == []
+
+async def test_field_statistics_sums_and_averages_numeric_fields(
+    authenticated_client,
+):
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Statistics Test", "entry_schema": STATS_SCHEMA},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"hours": 2, "category": "Work"}},
+    )
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"hours": 4, "category": "Study"}},
+    )
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"hours": 6, "category": "Work"}},
+    )
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields"
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["project_id"] == project_id
+    assert body["schema_version"] == 1
+
+    hours = next(field for field in body["fields"] if field["field_id"] == "hours")
+
+    assert hours["name"] == "Hours"
+    assert hours["type"] == "number"
+    assert hours["count"] == 3
+    assert hours["total"] == 12
+    assert hours["average"] == 4
+    assert hours["groups"] == []
+    
+async def test_field_statistics_groups_categorical_fields(authenticated_client):
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Category Statistics", "entry_schema": STATS_SCHEMA},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+
+    for category in ["Work", "Study", "Work", "Personal", "Work", "Study"]:
+        response = await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={"data": {"hours": 1, "category": category}},
+        )
+        assert response.status_code == 201
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields"
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    category = next(
+        field for field in body["fields"] if field["field_id"] == "category"
+    )
+
+    assert category["name"] == "Category"
+    assert category["type"] == "dropdown"
+    assert category["count"] == 6
+    assert category["total"] is None
+    assert category["average"] is None
+
+    groups = {
+        group["value"]: group["count"]
+        for group in category["groups"]
+    }
+
+    assert groups == {
+        "Work": 3,
+        "Study": 2,
+        "Personal": 1,
+    }
+
+async def test_field_statistics_respect_historical_schema_versions(
+    authenticated_client,
+):
+    original_schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        }
+    ]
+
+    response = await authenticated_client.post(
+        "/projects",
+        json={"name": "Versioned Statistics", "entry_schema": original_schema},
+    )
+    assert response.status_code == 201
+
+    project_id = response.json()["id"]
+    assert response.json()["schema_version"] == 1
+
+    old_entry = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"hours": 5}},
+    )
+    assert old_entry.status_code == 201
+    assert old_entry.json()["schema_version"] == 1
+
+    updated_schema = [
+        {
+            "id": "hours",
+            "name": "Hours",
+            "type": FieldType.NUMBER.value,
+        },
+        {
+            "id": "category",
+            "name": "Category",
+            "type": FieldType.DROPDOWN.value,
+            "options": ["Work", "Study"],
+        },
+    ]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}",
+        json={"entry_schema": updated_schema},
+    )
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == 2
+
+    new_entry = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": {
+                "hours": 10,
+                "category": "Work",
+            }
+        },
+    )
+    assert new_entry.status_code == 201
+    assert new_entry.json()["schema_version"] == 2
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields"
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["schema_version"] == 2
+
+    hours = next(
+        field for field in body["fields"] if field["field_id"] == "hours"
+    )
+
+    assert hours["count"] == 2
+    assert hours["total"] == 15
+    assert hours["average"] == 7.5
+
+    category = next(
+        field for field in body["fields"] if field["field_id"] == "category"
+    )
+
+    assert category["count"] == 1
+    assert category["groups"] == [
+        {"value": "Work", "count": 1}
+    ]

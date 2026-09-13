@@ -297,6 +297,26 @@ class StatisticsResponse(BaseModel):
     projects: list[ProjectStatistics]
 
 
+class FieldStatisticsGroup(BaseModel):
+    value: Any
+    count: int
+
+
+class FieldStatistics(BaseModel):
+    field_id: str
+    name: str
+    type: FieldType
+    count: int
+    total: float | None = None
+    average: float | None = None
+    groups: list[FieldStatisticsGroup] = Field(default_factory=list)
+
+
+class FieldStatisticsResponse(BaseModel):
+    project_id: UUID
+    schema_version: int
+    fields: list[FieldStatistics]
+
 class TimelineEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -380,3 +400,4 @@ class AIProjectActionProposal(BaseModel):
     type: Literal["create_project"]
     payload: AIProjectActionPayload
     requires_confirmation: Literal[True] = True
+
