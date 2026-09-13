@@ -1003,6 +1003,8 @@ function EntryForm({ project, onCreated }) {
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
+  const [todo, setTodo] = useState(false)
+  const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -1010,6 +1012,8 @@ function EntryForm({ project, onCreated }) {
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
+    setTodo(false)
+    setDueDate("")
     setError(null)
   }, [project.id])
 
@@ -1035,10 +1039,19 @@ function EntryForm({ project, onCreated }) {
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
-      await onCreated({ data: payload, time_spent: timeSpent === 0 ? null : timeSpent })
+      await onCreated({
+        data: payload,
+        time_spent: timeSpent === 0 ? null : timeSpent,
+        todo,
+        // Sent as null rather than "" so the server reads it as "no deadline"
+        // instead of rejecting an empty date.
+        due_date: dueDate || null,
+      })
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
+      setTodo(false)
+      setDueDate("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1113,6 +1126,26 @@ function EntryForm({ project, onCreated }) {
             value={minutesSpent}
             onChange={(e) => setMinutesSpent(e.target.value)}
             placeholder="0"
+          />
+        </label>
+      </div>
+      {/* Logging something that has not happened yet: it is planned work, so it
+          belongs in the outstanding view rather than the record of what was done. */}
+      <div className="form-grid entry-outstanding">
+        <label className="field-label checkbox-label">
+          <input
+            type="checkbox"
+            checked={todo}
+            onChange={(e) => setTodo(e.target.checked)}
+          />
+          This is still to do
+        </label>
+        <label className="field-label">
+          Due date
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
           />
         </label>
       </div>
