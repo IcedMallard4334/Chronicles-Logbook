@@ -223,6 +223,52 @@ class TaskResponse(BaseModel):
     updated_at: datetime
 
 
+# ── Saved filters ────────────────────────────────────────────────
+
+
+class FilterCriteria(BaseModel):
+    """The parts of the entries view a saved filter can restore.
+
+    Extra keys are forbidden so a saved filter cannot smuggle unexpected
+    query parameters back into the search endpoint when it is re-applied.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    q: str | None = Field(default=None, max_length=255)
+    project_id: UUID | None = None
+    todo: bool | None = None
+    sort: Literal["newest", "oldest", "due_date"] = "newest"
+
+    @model_validator(mode="after")
+    def clean_keyword(self):
+        if self.q is not None:
+            self.q = self.q.strip() or None
+        return self
+
+
+class SavedFilterCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    criteria: FilterCriteria
+
+    @model_validator(mode="after")
+    def clean_name(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("Filter name cannot be blank.")
+        return self
+
+
+class SavedFilterResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    criteria: FilterCriteria
+    created_at: datetime
+    updated_at: datetime
+
+
 # ── Export and import ────────────────────────────────────────────────
 
 # Marks a file as ours, so importing an unrelated JSON document fails with a
