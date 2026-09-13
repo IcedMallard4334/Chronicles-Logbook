@@ -125,6 +125,29 @@ export async function unarchiveProject(id) {
   return request(`/projects/${id}/unarchive`, { method: "POST" })
 }
 
+// ── Editing a live schema ─────────────────────────────────────────────
+
+/**
+ * Ask what changing a project's schema would do, without changing it.
+ *
+ * The server works this out by running the real migration and discarding the
+ * result, so what comes back is what saving will actually do.
+ */
+export async function previewSchemaChange(id, entrySchema) {
+  return request(`/projects/${id}/schema/preview`, {
+    method: "POST",
+    body: JSON.stringify({ entry_schema: entrySchema }),
+  })
+}
+
+/** Save a new schema and migrate the project's existing entries onto it. */
+export async function updateSchema(id, entrySchema) {
+  return request(`/projects/${id}/schema`, {
+    method: "PUT",
+    body: JSON.stringify({ entry_schema: entrySchema }),
+  })
+}
+
 export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }

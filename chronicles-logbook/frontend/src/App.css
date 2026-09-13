@@ -1123,6 +1123,27 @@
   opacity: 0.8;
 }
 
+/* The "N fields · Schema" pill. The count of fields sits where someone is
+   already looking at field-shaped content, so it doubles as a doorway to the
+   schema itself rather than being read as plain text. */
+.meta-pill {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+
+.meta-pill:hover {
+  border-color: var(--blue-soft);
+  color: var(--blue);
+  cursor: pointer;
+}
+
 .tab-switch {
   display: inline-flex;
   gap: 2px;
@@ -1399,6 +1420,153 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* --------------------------------------------------
+   SCHEMA FIELDS
+   -------------------------------------------------- */
+
+/* A field that is being read rather than edited: same card, no controls. */
+.field-card.is-readonly {
+  gap: 6px;
+  background: var(--surface-soft);
+}
+
+.field-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field-summary-name {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field-summary-type {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.field-summary-detail {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.field-type-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* The list of fields a calculation can draw on, offered as one-tap inserts so
+   nobody has to know that a source is written {field-id}. */
+.expression-sources {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+
+.btn-chip:hover {
+  background: var(--blue-bg);
+  border-color: var(--blue-soft);
+  color: var(--blue);
+}
+
+/* The figure a half-written formula produces, so a calculation is tangible
+   before it is saved. */
+.expression-preview {
+  color: var(--blue);
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------
+   SCHEMA CHANGE REVIEW
+   -------------------------------------------------- */
+
+.schema-review {
+  display: grid;
+  gap: 18px;
+}
+
+.change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.change-row {
+  display: grid;
+  grid-template-columns: minmax(0, 130px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.change-row.is-info {
+  border-left-color: var(--blue);
+}
+
+/* A change that rewrites or hides a value the user already recorded is set
+   apart, so the ones worth pausing over are the ones that stand out. */
+.change-row.is-warning {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.change-kind {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding-top: 2px;
+}
+
+.change-row.is-warning .change-kind {
+  color: var(--warning);
+}
+
+.change-detail {
+  display: grid;
+  gap: 4px;
+}
+
+.change-description {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.change-impact {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 /* --------------------------------------------------
@@ -1719,8 +1887,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0;
+  padding: 14px 10px;
+  margin: 0 -10px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  border-radius: var(--radius-sm);
+  transition: background-color 150ms ease;
+}
+
+/* One row is one entry: a hover light answers "where does this entry end
+   and the next begin" and hints that the row is a thing, not a list of
+   loose values. */
+.log-row:hover {
+  background: var(--surface-soft);
 }
 
 .log-row:last-child {
@@ -1742,6 +1921,19 @@
 .log-field {
   display: grid;
   gap: 3px;
+  min-width: 0;
+}
+
+/* Figures are read down a column, not across a row, so a numeric column
+   lines its label and value up on the right like any other table of
+   numbers — with fixed-width digits, so the column lines up character by
+   character rather than only at its edge. */
+.log-field.is-numeric {
+  text-align: right;
+}
+
+.log-field.is-numeric .log-value {
+  font-variant-numeric: tabular-nums;
 }
 
 .log-label {
@@ -1750,6 +1942,28 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A quiet mark on a special column header: the registry's colour at a size
+   that keeps the table calm, with the word itself on hover. */
+.log-type-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.log-type-dot.is-mauve {
+  background: var(--mauve);
+}
+
+.log-type-dot.is-blue {
+  background: var(--blue);
 }
 
 .log-value {
@@ -1757,11 +1971,141 @@
   font-size: 0.92rem;
 }
 
+/* A derived figure, marked so it is never mistaken for one that was typed
+   in. Mauve is the colour the entry form's "calculated" tag already uses. */
+.calculated-badge {
+  margin-left: 6px;
+  color: var(--mauve);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* A project link among values: the target's name on the sidebar's status
+   dot, clickable wherever a click can be acted on. A reference you cannot
+   act on reads as decoration; one you can click reads as a connection. */
+.log-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+button.log-link-chip {
+  cursor: pointer;
+}
+
+button.log-link-chip:hover {
+  color: var(--blue);
+  text-decoration: underline;
+  text-decoration-color: var(--blue);
+  text-underline-offset: 3px;
+}
+
+/* The same dot the sidebar paints beside each project: green unless the
+   project needs attention. Reused rather than reinvented so the colour
+   means the same thing in both places. */
+.log-link-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: none;
+}
+
+.log-link-dot.is-attention {
+  background: var(--error);
+}
+
 .log-time {
   color: var(--muted);
   font-size: 0.76rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Values recorded under fields the schema has since dropped (US-2.7). Folded
+   away by default: they are kept for the record, not for the reading. */
+.retired-values {
+  flex-basis: 100%;
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.retired-values > summary {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.retired-values > summary:hover {
+  color: var(--text);
+}
+
+.retired-values[open] > summary {
+  margin-bottom: 10px;
+}
+
+/* --------------------------------------------------
+   COMPUTED ENTRY FIELDS
+   -------------------------------------------------- */
+
+/* A calculation is reported, not asked for, so it is laid out like a field but
+   reads as an answer rather than an empty box. */
+.field-label.is-computed .field-label-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-readonly-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* A tag wears its type's colour, and the colour comes from the field-type
+   registry: mauve for a calculation, blue for a link. The pair is what lets a
+   glance at a form tell "typed in / calculated / linked" apart without asking
+   the reader to remember which tag meant what. */
+.field-readonly-tag.is-mauve {
+  background: var(--mauve-bg);
+  color: var(--mauve);
+}
+
+.field-readonly-tag.is-blue {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+/* The arrow that marks a linked value, the way ƒ marks a computed one. */
+.computed-value.is-link::before {
+  content: "↗";
+  margin-right: 6px;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.computed-value {
+  padding: 11px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --------------------------------------------------

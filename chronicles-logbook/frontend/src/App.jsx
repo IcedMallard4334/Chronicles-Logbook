@@ -25,9 +25,25 @@ import {
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  previewSchemaChange,
   unarchiveProject,
   updateProject,
+  updateSchema,
 } from "./api"
+import {
+  FIELD_TYPE_META,
+  FIELD_TYPES,
+  describeExpression,
+  expressionCanonical,
+  expressionError,
+  expressionToDisplay,
+  fieldTypeLabel,
+  isNumericField,
+  previewExpressionValue,
+  referencedFieldIds,
+  renameFieldInExpression,
+  withComputedValues,
+} from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
 
@@ -575,6 +591,86 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
+/** The sidebar's status language for a project, read from its open tasks. */
+function deriveProjectStatus(tasks, today) {
+  const late = tasks.some((task) => task.due_date && task.due_date < today)
+  return late ? "Needs attention" : tasks.length ? "In progress" : "On track"
+}
+
+/**
+ * The status of each of a set of projects, as the sidebar shows it.
+ *
+ * A link to another project carries the same dot the sidebar does, so the
+ * status has to be derived the same way — one rule, learned once, read
+ * anywhere. Only the projects asked for are fetched, which for a link chip
+ * means the one or two a schema points at.
+ */
+function useProjectStatuses(projectIds) {
+  const [statuses, setStatuses] = useState({})
+  const key = projectIds.join("\n")
+  const ids = useMemo(() => (key ? key.split("\n") : []), [key])
+
+  useEffect(() => {
+    if (ids.length === 0) return undefined
+
+    let active = true
+    const today = new Date().toLocaleDateString("en-CA")
+    Promise.allSettled(ids.map((id) => fetchTasks(id, false))).then((results) => {
+      if (!active) return
+      setStatuses(
+        Object.fromEntries(
+          results.map((result, index) => [
+            ids[index],
+            deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
+          ])
+        )
+      )
+    })
+    return () => {
+      active = false
+    }
+  }, [ids])
+
+  return statuses
+}
+
+/**
+ * A project link as it reads among values: the target's name on the
+ * sidebar's status dot, and — wherever a click can be acted on — the target
+ * itself.
+ *
+ * The dot is what makes it read as a connection rather than as text: the
+ * same green unless the project needs attention, exactly as the sidebar
+ * shows it.
+ */
+function LinkChip({ targetId, projects, status, onOpen }) {
+  const target = projects.find((project) => project.id === targetId)
+  const content = (
+    <>
+      <span
+        className={`log-link-dot ${status === "Needs attention" ? "is-attention" : ""}`}
+        aria-hidden="true"
+      />
+      {target ? target.name : "A project you no longer have"}
+    </>
+  )
+
+  if (!target || !onOpen) {
+    return <span className="log-link-chip is-static">{content}</span>
+  }
+
+  return (
+    <button
+      type="button"
+      className="log-link-chip"
+      onClick={() => onOpen(targetId)}
+      title={`Open ${target.name}`}
+    >
+      {content}
+    </button>
+  )
+}
+
 function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -594,11 +690,10 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
     const today = new Date().toLocaleDateString("en-CA")
     Promise.allSettled(activeProjects.map(project => fetchTasks(project.id, false))).then(results => {
       if (!active) return
-      setProjectState(Object.fromEntries(results.map((result, index) => {
-        const tasks = result.status === "fulfilled" ? result.value : []
-        const late = tasks.some(task => task.due_date && task.due_date < today)
-        return [activeProjects[index].id, late ? "Needs attention" : tasks.length ? "In progress" : "On track"]
-      })))
+      setProjectState(Object.fromEntries(results.map((result, index) => [
+        activeProjects[index].id,
+        deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
+      ])))
     })
     return () => { active = false }
   }, [projects])
@@ -834,28 +929,389 @@ function DashboardPanel({ projects, onCreate }) {
   )
 }
 
-function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
-  const [fields, setFields] = useState(() => project.entry_schema || [])
+/**
+ * A field as the API stores it, with the keys that do not apply to its type
+ * left off.
+ *
+ * The builder keeps spare state on a field while it is being edited — the
+ * options you typed before switching the type away from a choice — and
+ * sending that would make an edit look bigger than it is in the review.
+ *
+ * Takes the whole schema because a calculation is sent by field id, the form
+ * the server stores: however its references were written in the editor, the
+ * payload — and the change comparison — see the same canonical form.
+ */
+function cleanField(field, schema) {
+  const cleaned = { id: field.id, name: (field.name || "").trim(), type: field.type }
+  if (field.type === "dropdown") cleaned.options = field.options || []
+  if (field.type === "computed") {
+    cleaned.expression = expressionCanonical((field.expression || "").trim(), schema)
+  }
+  if (field.type === "project_reference") {
+    cleaned.linked_project_id = field.linked_project_id || null
+  }
+  return cleaned
+}
+
+const CHANGE_LABELS = {
+  added: "New field",
+  removed: "Removed",
+  renamed: "Renamed",
+  retyped: "Type changed",
+  options_changed: "Choices changed",
+  expression_changed: "Calculation changed",
+  link_changed: "Link changed",
+}
+
+function plural(count, one, many) {
+  return count === 1 ? one : many
+}
+
+/** What one change costs, in entries, or an empty string when it costs nothing. */
+function impactSentence(change) {
+  const parts = []
+  if (change.values_coerced > 0) {
+    parts.push(
+      `${change.values_coerced} ${plural(change.values_coerced, "value", "values")} rewritten to fit`
+    )
+  }
+  if (change.values_retired > 0) {
+    parts.push(
+      `${change.values_retired} ${plural(change.values_retired, "value", "values")} kept but hidden`
+    )
+  }
+  if (parts.length === 0 && change.entries_affected > 0) {
+    parts.push(
+      `${change.entries_affected} ${plural(change.entries_affected, "entry", "entries")} updated`
+    )
+  }
+  return parts.join(" · ")
+}
+
+/**
+ * What an edit will do to entries already recorded, shown before it is saved.
+ *
+ * Editing a schema is the only action in the logbook that can change data the
+ * user did not just type, so it is the only one that asks twice. The report
+ * comes from the server, which produces it by running the real migration — so
+ * this is what will happen, not an estimate of it.
+ */
+function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
+  const hasWarnings = preview.changes.some((change) => change.severity === "warning")
+
+  return (
+    <div className="schema-review" role="region" aria-label="Review schema changes">
+      <div className="panel-head">
+        <h4>Review these changes</h4>
+        <p>
+          {preview.entries_affected} of {preview.entry_count}{" "}
+          {plural(preview.entry_count, "entry", "entries")} already recorded will be
+          updated.
+        </p>
+      </div>
+      <ul className="change-list" role="list">
+        {preview.changes.map((change) => (
+          <li
+            key={`${change.kind}-${change.field_id}`}
+            className={`change-row is-${change.severity}`}
+          >
+            <span className="change-kind">{CHANGE_LABELS[change.kind] || change.kind}</span>
+            <div className="change-detail">
+              <p className="change-description">{change.description}</p>
+              {impactSentence(change) && (
+                <p className="change-impact">{impactSentence(change)}</p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {hasWarnings && (
+        <p className="hint">
+          Nothing is deleted. A value that no longer fits stays with its entry under
+          <strong> No longer recorded</strong>, and comes back if you restore the field.
+        </p>
+      )}
+      <div className="actions">
+        <button type="button" className="btn-secondary" onClick={onKeepEditing}>
+          Keep editing
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onApply}
+          disabled={isSaving}
+        >
+          {isSaving ? "Applying…" : "Apply changes"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** One field as it reads when the schema is not being edited. */
+function SchemaFieldSummary({ field, schema, projects }) {
+  const target = projects.find((project) => project.id === field.linked_project_id)
+
+  return (
+    <div className="field-card is-readonly">
+      <div className="field-summary">
+        <span className="field-summary-name">{field.name}</span>
+        <span className="field-summary-type">{fieldTypeLabel(field.type)}</span>
+      </div>
+      {field.type === "dropdown" && (
+        <p className="field-summary-detail">{(field.options || []).join(" · ")}</p>
+      )}
+      {field.type === "computed" && (
+        <p className="field-summary-detail">
+          = {describeExpression(field.expression, schema)}
+        </p>
+      )}
+      {field.type === "project_reference" && (
+        <p className="field-summary-detail">
+          Links to {target ? target.name : "a project you no longer have"}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** One field while the schema is being edited. */
+function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChange, onRemove }) {
+  // A calculation can only read figures, and only from fields other than
+  // itself, so those are the only ones offered as sources.
+  const sources = schema.filter((other) => isNumericField(other) && other.id !== field.id)
+  const problem =
+    field.type === "computed" ? expressionError(field.expression, field, schema) : null
+
+  // A formula is easier to trust once it has produced a number. The project's
+  // latest entry answers it when it can, so what gets checked is a figure the
+  // owner recognises rather than an abstract example.
+  const preview =
+    field.type === "computed" && !problem
+      ? previewExpressionValue(field.expression, latestData, schema)
+      : null
+
+  return (
+    <div className="field-card">
+      <div className="field-row">
+        <label className="field-label">
+          Name
+          <input
+            type="text"
+            value={field.name}
+            onChange={(event) => onChange(index, { name: event.target.value })}
+            placeholder="Field name"
+          />
+        </label>
+        <label className="field-label">
+          Type
+          <select
+            value={field.type}
+            onChange={(event) =>
+              onChange(index, {
+                type: event.target.value,
+                options: event.target.value === "dropdown" ? field.options || [""] : field.options,
+                expression:
+                  event.target.value === "computed" ? field.expression || "" : field.expression,
+              })
+            }
+          >
+            {FIELD_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="field-type-hint">
+        {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
+      </p>
+      {field.type === "dropdown" && (
+        <label className="field-label full">
+          Options (comma-separated)
+          <input
+            type="text"
+            value={(field.options || []).join(", ")}
+            onChange={(event) =>
+              onChange(index, {
+                options: event.target.value
+                  .split(",")
+                  .map((option) => option.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="Option 1, Option 2, Option 3"
+          />
+        </label>
+      )}
+      {field.type === "computed" && (
+        <>
+          <label className="field-label full">
+            Calculation
+            <input
+              type="text"
+              value={field.expression || ""}
+              onChange={(event) => onChange(index, { expression: event.target.value })}
+              placeholder="e.g. {Hours} * 60 — or click a field below"
+            />
+          </label>
+          {sources.length > 0 ? (
+            <div className="expression-sources">
+              <span className="hint">Add a field:</span>
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className="btn-chip"
+                  onClick={() =>
+                    onChange(index, {
+                      expression: `${field.expression || ""}${
+                        field.expression ? " " : ""
+                      }{${source.name}}`,
+                    })
+                  }
+                >
+                  {source.name || "Unnamed field"}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">
+              Add a number field first — a calculation needs figures to work from.
+            </p>
+          )}
+          {field.expression && !problem && (
+            <p className="field-summary-detail">
+              = {describeExpression(field.expression, schema)}
+            </p>
+          )}
+          {preview && (
+            <p className="expression-preview">
+              Preview: {preview.value}
+              {preview.fromEntry
+                ? " — from your latest entry"
+                : referencedFieldIds(field.expression).length > 0
+                  ? " — with every field as 2"
+                  : ""}
+            </p>
+          )}
+          {problem && <p className="error">{problem}</p>}
+        </>
+      )}
+      {field.type === "project_reference" &&
+        (linkable.length > 0 ? (
+          <label className="field-label full">
+            Links to
+            <select
+              value={field.linked_project_id || ""}
+              onChange={(event) =>
+                onChange(index, { linked_project_id: event.target.value || null })
+              }
+            >
+              <option value="">Choose a project…</option>
+              {linkable.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="hint">
+            A link needs somewhere to point — create another project first.
+          </p>
+        ))}
+      <button type="button" className="btn-text-danger" onClick={() => onRemove(index)}>
+        Remove field
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Define a project's fields, and change them once entries exist.
+ *
+ * Read-only until "Edit schema" is pressed. A schema is a decision about the
+ * shape of everything already recorded, so it should not be possible to alter
+ * one by clicking into a form while reading it.
+ */
+function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitchToEntries }) {
+  const savedFields = useMemo(() => project.entry_schema || [], [project.entry_schema])
+
+  // A project cannot link to itself, so its own entry is never offered as a
+  // target.
+  const linkable = useMemo(
+    () => projects.filter((other) => other.id !== project.id),
+    [projects, project.id]
+  )
+
+  // The most recent entry's figures, for previewing a calculation against
+  // numbers the owner already recognises. The newest is found by date rather
+  // than assumed from the list's order, since entries captured offline are
+  // folded in ahead of whatever the server returned.
+  const latestData = useMemo(() => {
+    const entries = project.entries || []
+    if (entries.length === 0) return null
+    const latest = entries.reduce((newest, entry) =>
+      new Date(entry.created_at) > new Date(newest.created_at) ? entry : newest
+    )
+    return latest.data || null
+  }, [project.entries])
+
+  const [mode, setMode] = useState("view")
+  const [fields, setFields] = useState(savedFields)
+  const [preview, setPreview] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [savedResult, setSavedResult] = useState(null)
 
-  const hasChanges = useMemo(() => {
-    const initialFields = project.entry_schema || []
-    return JSON.stringify(fields) !== JSON.stringify(initialFields)
-  }, [fields, project.entry_schema])
+  const hasChanges = useMemo(
+    () =>
+      JSON.stringify(fields.map((field) => cleanField(field, fields))) !==
+      JSON.stringify(savedFields.map((field) => cleanField(field, savedFields))),
+    [fields, savedFields]
+  )
+
+  // Returning to the read-only view once the saved schema changes is what ends
+  // a successful edit; the notice is left in place, since it is the report of
+  // the edit that just finished.
+  useEffect(() => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }, [project.id, savedFields])
 
   useEffect(() => {
-    setFields(project.entry_schema || [])
+    setSavedResult(null)
+  }, [project.id])
+
+  const startEditing = () => {
+    setMode("edit")
+    // A calculation is stored by field id but edited by field name: the name
+    // is what the person who named the field knows it by, and the id never
+    // was theirs to read.
+    setFields(
+      savedFields.map((field) =>
+        field.type === "computed"
+          ? { ...field, expression: expressionToDisplay(field.expression, savedFields) }
+          : field
+      )
+    )
     setError(null)
-    setSaveSuccess(false)
-  }, [project.id, project.entry_schema])
+    setSavedResult(null)
+  }
+
+  const cancelEditing = () => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }
 
   const addField = () => {
-    setFields((prev) => [
-      ...prev,
-      { id: generateId(), name: "", type: "text", options: [] },
-    ])
+    setFields((prev) => [...prev, { id: generateId(), name: "", type: "text", options: [] }])
   }
 
   const removeField = (index) => {
@@ -863,38 +1319,68 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
   }
 
   const updateField = (index, patch) => {
-    setFields((prev) =>
-      prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
-    )
+    setFields((prev) => {
+      const next = prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
+
+      // Renaming a field renames it in every calculation that refers to it,
+      // so a calculation keeps naming a field that exists rather than
+      // quietly breaking the moment its source is renamed.
+      if (patch.name !== undefined) {
+        const oldName = (prev[index].name || "").trim()
+        const newName = (patch.name || "").trim()
+        if (oldName && newName && oldName !== newName) {
+          return next.map((field) =>
+            field.type === "computed"
+              ? {
+                  ...field,
+                  expression: renameFieldInExpression(field.expression, oldName, newName),
+                }
+              : field
+          )
+        }
+      }
+      return next
+    })
   }
 
+  /**
+   * The same rules the server enforces, checked here so a mistake is pointed
+   * out beside the field rather than after a failed save.
+   */
   const validateSchema = () => {
     const names = new Set()
     for (const field of fields) {
-      if (!field.name.trim()) return "Every field needs a name."
-      if (names.has(field.name.trim())) return `Duplicate field name: ${field.name}`
-      names.add(field.name.trim())
-      if (field.type === "dropdown") {
-        if (!Array.isArray(field.options) || field.options.length === 0) {
-          return `Field "${field.name}" needs at least one dropdown option.`
-        }
+      const name = (field.name || "").trim()
+      if (!name) return "Every field needs a name."
+      if (names.has(name.toLowerCase())) return `Two fields are both called "${name}".`
+      names.add(name.toLowerCase())
+
+      // A calculation refers to a field by its name, so a brace in a name
+      // would be read as half a reference — the same line the server holds.
+      if (/{|}/.test(name)) {
+        return `"${name}" cannot contain braces, because a calculation refers to a field by its name.`
+      }
+      if (field.type === "dropdown" && (field.options || []).length === 0) {
+        return `"${name}" needs at least one option.`
+      }
+      if (field.type === "project_reference" && !field.linked_project_id) {
+        return `"${name}" needs to say which project it links to.`
+      }
+      if (field.type === "computed") {
+        const problem = expressionError(field.expression, field, fields)
+        if (problem) return `"${name}": ${problem}`
       }
     }
     return null
   }
 
-  const handleSave = async () => {
-    const validationError = validateSchema()
-    if (validationError) {
-      setError(validationError)
-      return
-    }
+  const applyChanges = async () => {
     setIsSaving(true)
     setError(null)
-    setSaveSuccess(false)
     try {
-      await onSave({ entry_schema: fields })
-      setSaveSuccess(true)
+      setSavedResult(await onSave(fields.map((field) => cleanField(field, fields))))
+      setPreview(null)
+      setMode("view")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -902,98 +1388,152 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
     }
   }
 
+  /**
+   * Ask the server what the edit would do, and only stop to ask the user when
+   * the answer involves an entry they have already recorded.
+   */
+  const handleSave = async () => {
+    const problem = validateSchema()
+    if (problem) {
+      setError(problem)
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    let report
+    try {
+      report = await onPreview(fields.map((field) => cleanField(field, fields)))
+    } catch (err) {
+      setError(formatError(err))
+      setIsSaving(false)
+      return
+    }
+    setIsSaving(false)
+
+    if (report.entries_affected === 0) {
+      await applyChanges()
+      return
+    }
+
+    setPreview(report)
+    setMode("review")
+  }
+
+  if (mode === "review" && preview) {
+    return (
+      <div className="schema-builder">
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <SchemaChangeReview
+          preview={preview}
+          isSaving={isSaving}
+          onApply={applyChanges}
+          onKeepEditing={() => {
+            setPreview(null)
+            setMode("edit")
+          }}
+        />
+      </div>
+    )
+  }
+
+  const isEditing = mode === "edit"
+
   return (
     <div className="schema-builder">
       <div className="panel-head">
         <h3>Entry schema</h3>
-        <p>Define the fields and types for this logbook.</p>
+        <p>
+          {isEditing
+            ? "Existing entries are brought along with any change you make."
+            : "The fields this logbook asks for."}
+        </p>
       </div>
       {fields.length === 0 ? (
-        <p className="hint">No fields yet. Add one to get started.</p>
+        <p className="hint">
+          {isEditing ? "No fields yet. Add one to get started." : "No fields defined yet."}
+        </p>
       ) : (
         <div className="field-list">
-          {fields.map((field, index) => (
-            <div key={index} className="field-card">
-              <div className="field-row">
-                <label className="field-label">
-                  Name
-                  <input
-                    type="text"
-                    value={field.name}
-                    onChange={(e) => updateField(index, { name: e.target.value })}
-                    placeholder="Field name"
-                  />
-                </label>
-                <label className="field-label">
-                  Type
-                  <select
-                    value={field.type}
-                    onChange={(e) =>
-                      updateField(index, {
-                        type: e.target.value,
-                        options:
-                          e.target.value === "dropdown" ? [""] : field.options,
-                      })
-                    }
-                  >
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {field.type === "dropdown" && (
-                <label className="field-label full">
-                  Options (comma-separated)
-                  <input
-                    type="text"
-                    value={field.options.join(", ")}
-                    onChange={(e) =>
-                      updateField(index, {
-                        options: e.target.value
-                          .split(",")
-                          .map((option) => option.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="Option 1, Option 2, Option 3"
-                  />
-                </label>
-              )}
-              <button
-                type="button"
-                className="btn-text-danger"
-                onClick={() => removeField(index)}
-              >
-                Remove field
-              </button>
-            </div>
-          ))}
+          {isEditing
+            ? fields.map((field, index) => (
+                <SchemaFieldEditor
+                  key={field.id}
+                  field={field}
+                  index={index}
+                  schema={fields}
+                  latestData={latestData}
+                  linkable={linkable}
+                  onChange={updateField}
+                  onRemove={removeField}
+                />
+              ))
+            : fields.map((field) => (
+                <SchemaFieldSummary key={field.id} field={field} schema={fields} projects={projects} />
+              ))}
         </div>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
-      {saveSuccess && (
+      {!isEditing && project.retired_schema?.length > 0 && (
+        <p className="hint">
+          {project.retired_schema.length}{" "}
+          {plural(project.retired_schema.length, "field is", "fields are")} no longer asked
+          for. What past entries recorded under{" "}
+          {plural(project.retired_schema.length, "it", "them")} is still kept.
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {savedResult && (
         <div className="success" role="status">
-          <p>Schema saved.</p>
+          <p>
+            Schema saved.
+            {savedResult.entries_affected > 0 &&
+              ` ${savedResult.entries_affected} ${plural(
+                savedResult.entries_affected,
+                "entry was",
+                "entries were"
+              )} updated to match.`}
+          </p>
           <button type="button" className="btn-text" onClick={onSwitchToEntries}>
             Go to Entries to start logging
           </button>
         </div>
       )}
       <div className="actions">
-        <button type="button" className="btn-secondary" onClick={addField}>
-          Add field
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={handleSave}
-          disabled={disabled || isSaving || !hasChanges}
-        >
-          {isSaving ? "Saving…" : "Save schema"}
-        </button>
+        {isEditing ? (
+          <>
+            <button type="button" className="btn-secondary" onClick={addField}>
+              Add field
+            </button>
+            <button type="button" className="btn-text" onClick={cancelEditing}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={disabled || isSaving || !hasChanges}
+            >
+              {isSaving ? "Checking…" : "Save schema"}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={startEditing}
+            disabled={disabled}
+          >
+            {fields.length === 0 ? "Define schema" : "Edit schema"}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1173,8 +1713,88 @@ function LinkInput({ value, onChange, entries }) {
   )
 }
 
-function EntryForm({ project, onCreated }) {
-  const schema = project.entry_schema || []
+/**
+ * One field on the new-entry form.
+ *
+ * A calculation is shown rather than asked for (US-2.5): it is worked out from
+ * the figures beside it, so an input would invite someone to type a value the
+ * server would immediately overwrite.
+ */
+function EntryFieldInput({ field, value, computed, projects, status, onOpenProject, onChange }) {
+  if (field.type === "computed") {
+    // The badge's word and colour come from the field-type registry, so the
+    // form, the table and the schema view can never disagree about what a
+    // type is called or how it is marked.
+    const meta = FIELD_TYPE_META[field.type]
+    return (
+      <div className="field-label is-computed">
+        <span className="field-label-text">
+          {field.name}
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
+        </span>
+        <output className="computed-value">
+          {computed === null || computed === undefined ? "—" : computed}
+        </output>
+      </div>
+    )
+  }
+
+  // A link is decided once, in the schema (US-2.4), rather than answered
+  // on every entry — so it is shown rather than asked for. The value is the
+  // same chip the entry list shows: the target's name on its status dot,
+  // clickable through to the project. A boxed read-out would read as a text
+  // box awaiting input; a chip reads as a thing you act on.
+  if (field.type === "project_reference") {
+    const meta = FIELD_TYPE_META[field.type]
+    return (
+      <div className="field-label is-computed">
+        <span className="field-label-text">
+          {field.name}
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
+        </span>
+        {field.linked_project_id ? (
+          <LinkChip
+            targetId={field.linked_project_id}
+            projects={projects}
+            status={status}
+            onOpen={onOpenProject}
+          />
+        ) : (
+          <output className="computed-value is-link">—</output>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <label className="field-label">
+      {field.name}
+      {field.type === "dropdown" ? (
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
+          <option value="" disabled>
+            Select…
+          </option>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.type}
+          value={value || ""}
+          onChange={(e) => onChange(field.id, e.target.value)}
+          placeholder={field.name}
+          required
+        />
+      )}
+    </label>
+  )
+}
+
+function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
+  const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
@@ -1193,6 +1813,31 @@ function EntryForm({ project, onCreated }) {
         .catch(() => setProjectEntries([]))
     }
   }, [project.id, schema])
+
+  // Recomputed as you type, so a calculation settles while the entry is being
+  // filled in rather than only after it is saved.
+  const computed = useMemo(() => withComputedValues(data, schema), [data, schema])
+
+  // A link to the project you are already in carries no information, so it is
+  // not offered.
+  const linkable = useMemo(
+    () => projects.filter((other) => other.id !== project.id),
+    [projects, project.id]
+  )
+
+  // The status of every project this schema links to, for the chips in the
+  // form — one rule, one dot, learned in the sidebar and read anywhere.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set(
+        schema
+          .filter((field) => field.type === "project_reference" && field.linked_project_id)
+          .map((field) => field.linked_project_id)
+      ),
+    ],
+    [schema]
+  )
+  const statuses = useProjectStatuses(linkedIds)
 
   useEffect(() => {
     setData({})
@@ -1216,11 +1861,19 @@ function EntryForm({ project, onCreated }) {
     setIsSaving(true)
     setError(null)
     try {
-      const payload = { ...data }
+      const payload = {}
       for (const field of schema) {
-        if (field.type === "number" && payload[field.id] !== undefined) {
-          payload[field.id] = Number(payload[field.id])
+        // The server derives calculations and links itself — a calculation
+        // from the figures beside it, a link from the schema's own target —
+        // so sending either would be a guess it has to ignore.
+        if (field.type === "computed" || field.type === "project_reference") continue
+        const value = data[field.id]
+        if (field.type === "number") {
+          payload[field.id] = value === undefined ? undefined : Number(value)
+        } else if (value !== undefined) {
+          payload[field.id] = value
         }
+        if (payload[field.id] === undefined) delete payload[field.id]
         // Ensure new field types always have a value, even when the user
         // didn't interact with them — the backend requires every schema
         // field to be present.
@@ -1275,49 +1928,16 @@ function EntryForm({ project, onCreated }) {
       </div>
       <div className="form-grid">
         {schema.map((field) => (
-          <div key={field.id} className="field-label">
-            <span className="field-label-text">{field.name}</span>
-            {field.type === "dropdown" ? (
-              <select
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select…
-                </option>
-                {field.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            ) : field.type === "tags" ? (
-              <TagsInput
-                value={data[field.id] || []}
-                onChange={(tags) => handleChange(field.id, tags)}
-              />
-            ) : field.type === "checklist" ? (
-              <ChecklistInput
-                value={data[field.id] || []}
-                onChange={(items) => handleChange(field.id, items)}
-              />
-            ) : field.type === "link" ? (
-              <LinkInput
-                value={data[field.id] || ""}
-                onChange={(linkId) => handleChange(field.id, linkId)}
-                entries={projectEntries}
-              />
-            ) : (
-              <input
-                type={field.type}
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                placeholder={field.name}
-                required
-              />
-            )}
-          </div>
+          <EntryFieldInput
+            key={field.id}
+            field={field}
+            value={data[field.id]}
+            computed={computed[field.id]}
+            projects={linkable}
+            status={statuses[field.linked_project_id]}
+            onOpenProject={onOpenProject}
+            onChange={handleChange}
+          />
         ))}
       </div>
       <div className="form-grid time-tracking">
@@ -1377,72 +1997,165 @@ function EntryForm({ project, onCreated }) {
   )
 }
 
-function EntryList({ entries, schema }) {
+/**
+ * A stored value as it should read on the page.
+ *
+ * A reference is held as a project id, which is the right thing to store and
+ * the wrong thing to show, so it is resolved to the project's name here.
+ */
+function formatEntryValue(field, value, projectNames) {
+  if (value === null || value === undefined || value === "") return "—"
+  if (field?.type === "project_reference") {
+    return projectNames.get(value) || "A project you no longer have"
+  }
+  return String(value)
+}
+
+/**
+ * What an entry recorded under fields the schema has since dropped (US-2.7).
+ *
+ * Removing a field stops it being asked for; it does not erase what was already
+ * answered. That history is kept out of the way but never out of reach.
+ */
+function RetiredValues({ retiredData, retiredSchema }) {
+  const fields = retiredSchema.filter(
+    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
+  )
+  if (fields.length === 0) return null
+
+  return (
+    <details className="retired-values">
+      <summary>No longer recorded ({fields.length})</summary>
+      <div className="log-fields">
+        {fields.map((field) => (
+          <div key={field.id} className="log-field">
+            <span className="log-label">{field.name}</span>
+            <span className="log-value">{String(retiredData[field.id])}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenProject }) {
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
+
+  // The status of every project this schema links to, for the chips below.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set(
+        (schema || [])
+          .filter((field) => field.type === "project_reference")
+          .map((field) => field.linked_project_id)
+          .filter(Boolean)
+      ),
+    ],
+    [schema]
+  )
+  const statuses = useProjectStatuses(linkedIds)
+
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
   }
+
+  // A column header is asked to be short; the full name rides along as a
+  // tooltip so nothing is lost.
+  const shortLabel = (name) => (name.length > 20 ? `${name.slice(0, 19)}…` : name)
 
   return (
     <div className="entry-list">
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
-        {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
-          >
-            <div className="log-fields">
-              {schema.map((field) => (
-                <div key={field.id} className="log-field">
-                  <span className="log-label">{field.name}</span>
-                  <span className="log-value">
-                    {field.type === "tags" ? (
-                      Array.isArray(entry.data[field.id]) && entry.data[field.id].length > 0 ? (
-                        <span className="tag-list">
-                          {entry.data[field.id].map((tag) => (
-                            <span key={tag} className="tag-chip-small">{tag}</span>
-                          ))}
-                        </span>
-                      ) : <span className="log-empty">—</span>
-                    ) : field.type === "checklist" ? (
-                      Array.isArray(entry.data[field.id]) && entry.data[field.id].length > 0 ? (
-                        <span className="checklist-preview">
-                          {entry.data[field.id].filter((i) => i.completed).length}/{entry.data[field.id].length}
-                        </span>
-                      ) : <span className="log-empty">—</span>
-                    ) : field.type === "link" ? (
-                      entry.data[field.id] ? (
-                        <span className="link-badge" title={entry.data[field.id]}>
-                          ↗ Linked
-                        </span>
-                      ) : <span className="log-empty">—</span>
-                    ) : (
-                      String(entry.data[field.id] ?? "—")
-                    )}
+        {entries.map((entry) => {
+          // Recomputed rather than read back: an entry captured offline holds
+          // no stored calculation until it syncs, and the current formula is
+          // the honest answer either way. What the server stored agrees with
+          // it, because every write and every schema change re-derives.
+          const data = withComputedValues(entry.data || {}, schema)
+          return (
+            <li
+              key={entry.id}
+              className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+            >
+              <div className="log-fields">
+                {schema.map((field) => {
+                  const meta = FIELD_TYPE_META[field.type]
+                  return (
+                    <div
+                      key={field.id}
+                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
+                    >
+                      <span className="log-label" title={field.name}>
+                        {shortLabel(field.name)}
+                        {/* The two special columns carry a quiet dot in their
+                            header — the registry's colours at a size that does
+                            not compete with the values, the word on hover. */}
+                        {meta?.badge && (
+                          <span
+                            className={`log-type-dot is-${meta.color}`}
+                            title={meta.badge}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
+                      <span className="log-value">
+                        {field.type === "project_reference" && data[field.id] ? (
+                          <LinkChip
+                            targetId={data[field.id]}
+                            projects={projects}
+                            status={statuses[data[field.id]]}
+                            onOpen={onOpenProject}
+                          />
+                        ) : (
+                          formatEntryValue(field, data[field.id], projectNames)
+                        )}
+                        {/* Marked so a derived figure is never mistaken for one
+                            that was typed in. */}
+                        {field.type === "computed" && (
+                          <span
+                            className="calculated-badge"
+                            title="Calculated from the other fields on this entry"
+                            aria-hidden="true"
+                          >
+                            ƒ
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <span className="log-time">
+                {/* Entries captured offline are shown immediately, so that
+                    nobody re-types one believing it failed to save. */}
+                {entry.pending && (
+                  <span
+                    className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
+                  >
+                    {entry.rejected ? "Needs attention" : "Not yet synced"}
                   </span>
-                </div>
-              ))}
-            </div>
-            <span className="log-time">
-              {/* Entries captured offline are shown immediately, so that
-                  nobody re-types one believing it failed to save. */}
-              {entry.pending && (
-                <span
-                  className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
-                >
-                  {entry.rejected ? "Needs attention" : "Not yet synced"}
-                </span>
-              )}
-              {new Date(entry.created_at).toLocaleString()}
-            </span>
-          </li>
-        ))}
+                )}
+                {new Date(entry.created_at).toLocaleString()}
+              </span>
+              {/* Last, and collapsed: history worth keeping is not history worth
+                  leading with. */}
+              <RetiredValues
+                retiredData={entry.retired_data || {}}
+                retiredSchema={retiredSchema}
+              />
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
 }
 
-function Timeline({ projects }) {
+function Timeline({ projects, onOpenProject }) {
   const [entries, setEntries] = useState([])
   const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
@@ -1478,11 +2191,34 @@ function Timeline({ projects }) {
     return map
   }, [projects])
 
-  const getFieldName = (entryProjectId, fieldId) => {
-    const schema = schemaByProject[entryProjectId] || []
-    const field = schema.find((f) => f.id === fieldId)
-    return field?.name || fieldId
-  }
+  const getField = (entryProjectId, fieldId) =>
+    (schemaByProject[entryProjectId] || []).find((f) => f.id === fieldId)
+
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
+
+  // The status of every project a visible entry links to, so a link chip in
+  // the timeline carries the same dot it does everywhere else.
+  const linkedIds = useMemo(() => {
+    const ids = new Set()
+    for (const entry of entries) {
+      const schema = schemaByProject[entry.project_id] || []
+      for (const [fieldId, value] of Object.entries(entry.data || {})) {
+        const isLink = schema.some(
+          (field) => field.id === fieldId && field.type === "project_reference"
+        )
+        if (isLink && value) {
+          ids.add(value)
+        }
+      }
+    }
+    return [...ids]
+    // schemaByProject is the schemas the entries are read against; entries
+    // is what was just searched for. Both settle together.
+  }, [entries, schemaByProject])
+  const statuses = useProjectStatuses(linkedIds)
 
   return (
     <section className="timeline" aria-label="Timeline">
@@ -1543,14 +2279,26 @@ function Timeline({ projects }) {
                 </span>
               </div>
               <div className="timeline-fields">
-                {Object.entries(entry.data).map(([fieldId, value]) => (
-                  <div key={fieldId} className="timeline-field">
-                    <span className="timeline-label">
-                      {getFieldName(entry.project_id, fieldId)}
-                    </span>
-                    <span className="timeline-value">{String(value)}</span>
-                  </div>
-                ))}
+                {Object.entries(entry.data).map(([fieldId, value]) => {
+                  const field = getField(entry.project_id, fieldId)
+                  return (
+                    <div key={fieldId} className="timeline-field">
+                      <span className="timeline-label">{field?.name || fieldId}</span>
+                      <span className="timeline-value">
+                        {field?.type === "project_reference" && value ? (
+                          <LinkChip
+                            targetId={value}
+                            projects={projects}
+                            status={statuses[value]}
+                            onOpen={onOpenProject}
+                          />
+                        ) : (
+                          formatEntryValue(field, value, projectNames)
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </li>
           ))}
@@ -1562,10 +2310,13 @@ function Timeline({ projects }) {
 
 function ProjectDetail({
   project,
+  projects,
+  onSchemaPreview,
   onSchemaSaved,
   onEntryCreated,
   onEditProject,
   onToggleArchive,
+  onOpenProject,
 }) {
   const [tab, setTab] = useState("entries")
 
@@ -1588,8 +2339,13 @@ function ProjectDetail({
           </div>
           {project.description && <p className="detail-description">{project.description}</p>}
           <p className="detail-meta">
-            {project.entry_schema?.length || 0} field
-            {project.entry_schema?.length === 1 ? "" : "s"}
+            {/* The field count sits exactly where someone is looking at
+                field-related content, so it doubles as a way to reach the
+                schema rather than waiting to be found in the tab bar. */}
+            <button type="button" className="meta-pill" onClick={() => setTab("schema")}>
+              {project.entry_schema?.length || 0}{" "}
+              {project.entry_schema?.length === 1 ? "field" : "fields"} · Schema
+            </button>
           </p>
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
@@ -1630,14 +2386,23 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} onCreated={onEntryCreated} />
+              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
             )}
-            <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
+            <EntryList
+              entries={project.entries || []}
+              schema={project.entry_schema || []}
+              retiredSchema={project.retired_schema || []}
+              projects={projects}
+              onOpenProject={onOpenProject}
+            />
           </>
         ) : tab === "schema" ? (
           <SchemaBuilder
             project={project}
+            projects={projects}
+            onPreview={onSchemaPreview}
             onSave={onSchemaSaved}
+            disabled={project.archived}
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : (
@@ -2033,6 +2798,32 @@ function App() {
     loadEntries()
   }, [loadEntries])
 
+  /** US-2.6/2.7: what a schema edit would do, asked before it is done. */
+  const handleSchemaPreview = async (entrySchema) => {
+    if (!selectedProject) return null
+    return previewSchemaChange(selectedProject.id, entrySchema)
+  }
+
+  /**
+   * Save an edited schema and take the migrated entries back from the server.
+   *
+   * Declared after loadEntries because it needs it. The entries are refetched
+   * rather than patched in place: a schema change can rewrite, backfill or
+   * retire a value on every one of them, so the copy held here is stale in ways
+   * too varied to reconstruct locally.
+   */
+  const handleSchemaSave = async (entrySchema) => {
+    if (!selectedProject) return null
+    const result = await updateSchema(selectedProject.id, entrySchema)
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === result.project.id ? { ...project, ...result.project } : project
+      )
+    )
+    await loadEntries()
+    return result
+  }
+
   // An import can add projects and entries wholesale, so reload both.
   // Projects first, then entries: GET /projects omits entries, so the other
   // order would wipe the list it had just fetched.
@@ -2176,7 +2967,7 @@ function App() {
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
-              <span>Entries</span>
+              <span>All Entries</span>
             </button>
             <button
               type="button"
@@ -2187,7 +2978,7 @@ function App() {
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
               </svg>
-              <span>Tasks</span>
+              <span>All Tasks</span>
             </button>
             <button
               type="button"
@@ -2281,15 +3072,18 @@ function App() {
           ) : currentView === "outstanding" ? (
             <OutstandingPage projects={projects} onNavigate={setCurrentView} />
           ) : view === "timeline" ? (
-            <Timeline projects={projects} />
+            <Timeline projects={projects} onOpenProject={handleSelectProject} />
           ) : selectedProject ? (
             <ProjectDetail
               key={selectedProject.id}
               project={openProject}
-              onSchemaSaved={handleProjectUpdate}
+              projects={projects}
+              onSchemaPreview={handleSchemaPreview}
+              onSchemaSaved={handleSchemaSave}
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
+              onOpenProject={handleSelectProject}
             />
           ) : projects.length > 0 ? (
             <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
