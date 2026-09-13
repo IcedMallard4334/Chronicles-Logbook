@@ -124,6 +124,11 @@ class EntryCreate(BaseModel):
     data: dict[str, Any]
     time_spent: int | None = Field(default=None, ge=0)
 
+    # US-2.15: an entry can be logged as work still to do, with an optional
+    # deadline, so it can be surfaced in the outstanding-work view.
+    todo: bool = False
+    due_date: date | None = None
+
     # Both fields are optional and omitted by ordinary online capture, where
     # the server assigns them. They exist for two callers that already know
     # the entry's identity and real capture time:
@@ -163,6 +168,8 @@ class EntryUpdate(BaseModel):
 
     data: dict[str, Any] | None = None
     time_spent: int | None = Field(default=None, ge=0)
+    todo: bool | None = None
+    due_date: date | None = None
 
 
 class EntryResponse(BaseModel):
@@ -172,6 +179,8 @@ class EntryResponse(BaseModel):
     project_id: UUID
     data: dict[str, Any]
     time_spent: int | None
+    todo: bool = False
+    due_date: date | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -302,6 +311,8 @@ class TimelineEntryResponse(BaseModel):
     project_name: str
     data: dict[str, Any]
     time_spent: int | None
+    todo: bool = False
+    due_date: date | None = None
     created_at: datetime
     updated_at: datetime
 
