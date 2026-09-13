@@ -17,6 +17,7 @@ export default function CommandPalette({ projects, onNavigate, onCreateProject }
     { label: "Go to entries", hint: "Workspace", action: () => onNavigate("entries") },
     { label: "Go to tasks", hint: "Workspace", action: () => onNavigate("tasks") },
     { label: "Go to board", hint: "Workspace", action: () => onNavigate("board") },
+    { label: "Go to outstanding work", hint: "Workspace", action: () => onNavigate("outstanding") },
     { label: "Go to calendar", hint: "Schedule", action: () => onNavigate("calendar") },
     { label: "Create a project", hint: "New", action: onCreateProject },
     ...projects.map(project => ({ label: project.name, hint: "Project", action: () => onNavigate("home") })),

@@ -5,6 +5,7 @@ import TodayPage from "./TodayPage"
 import CommandPalette from "./CommandPalette"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
+import OutstandingPage from "./OutstandingPage"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -1435,7 +1436,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -1920,6 +1921,18 @@ function App() {
             </button>
             <button
               type="button"
+              className={`nav-item ${currentView === "outstanding" ? "active" : ""}`}
+              onClick={() => setCurrentView("outstanding")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4l3 2" />
+                <path d="M4 4l2.5 2.5" />
+              </svg>
+              <span>Outstanding</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentView("calendar")}
             >
@@ -1983,6 +1996,8 @@ function App() {
             <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "board" ? (
             <BoardView projects={projects} />
+          ) : currentView === "outstanding" ? (
+            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
           ) : view === "timeline" ? (
             <Timeline projects={projects} />
           ) : selectedProject ? (
