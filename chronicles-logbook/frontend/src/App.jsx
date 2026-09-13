@@ -19,6 +19,7 @@ import {
   deleteAccount,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchEntryLinks,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -28,7 +29,7 @@ import {
 import "./App.css"
 import "./tasks.css"
 
-const FIELD_TYPES = ["text", "number", "date", "dropdown"]
+const FIELD_TYPES = ["text", "number", "date", "dropdown", "tags", "checklist", "link"]
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -996,6 +997,180 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
   )
 }
 
+function TagsInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addTag = () => {
+    const tag = input.trim()
+    if (tag && !value.includes(tag)) {
+      onChange([...value, tag])
+    }
+    setInput("")
+  }
+
+  const removeTag = (tag) => {
+    onChange(value.filter((t) => t !== tag))
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addTag()
+    }
+    if (e.key === "Backspace" && input === "" && value.length > 0) {
+      onChange(value.slice(0, -1))
+    }
+  }
+
+  return (
+    <div className="tags-input">
+      <div className="tags-list">
+        {value.map((tag) => (
+          <span key={tag} className="tag-chip">
+            {tag}
+            <button
+              type="button"
+              className="tag-remove"
+              onClick={() => removeTag(tag)}
+              aria-label={`Remove ${tag}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
+      />
+    </div>
+  )
+}
+
+function ChecklistInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addItem = () => {
+    const text = input.trim()
+    if (text) {
+      onChange([
+        ...value,
+        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
+      ])
+    }
+    setInput("")
+  }
+
+  const toggleItem = (id) => {
+    onChange(value.map((item) =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  const removeItem = (id) => {
+    onChange(value.filter((item) => item.id !== id))
+  }
+
+  const moveItem = (index, direction) => {
+    const target = index + direction
+    if (target < 0 || target >= value.length) return
+    const next = [...value]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addItem()
+    }
+  }
+
+  return (
+    <div className="checklist-input">
+      {value.map((item, index) => (
+        <div key={item.id} className="checklist-item">
+          <input
+            type="checkbox"
+            checked={item.completed}
+            onChange={() => toggleItem(item.id)}
+          />
+          <span className={item.completed ? "checklist-done" : ""}>
+            {item.text}
+          </span>
+          <div className="checklist-actions">
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, -1)}
+              disabled={index === 0}
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, 1)}
+              disabled={index === value.length - 1}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              className="btn-text-small btn-text-danger"
+              onClick={() => removeItem(item.id)}
+              aria-label="Remove item"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+      <div className="checklist-add">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add item and press Enter…"
+        />
+      </div>
+      {value.length > 0 && (
+        <span className="checklist-count">
+          {value.filter((i) => i.completed).length}/{value.length} complete
+        </span>
+      )}
+    </div>
+  )
+}
+
+function LinkInput({ value, onChange, entries }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="link-select"
+    >
+      <option value="">No link</option>
+      {entries.map((entry) => {
+        // Build a preview from the first text field value
+        const preview = Object.values(entry.data || {})
+          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
+        return (
+          <option key={entry.id} value={entry.id}>
+            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
+          </option>
+        )
+      })}
+    </select>
+  )
+}
+
 function EntryForm({ project, onCreated }) {
   const schema = project.entry_schema || []
   const [data, setData] = useState({})
@@ -1003,6 +1178,17 @@ function EntryForm({ project, onCreated }) {
   const [minutesSpent, setMinutesSpent] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [projectEntries, setProjectEntries] = useState([])
+
+  // Load existing entries for the link field selector
+  useEffect(() => {
+    const hasLinkField = schema.some((f) => f.type === "link")
+    if (hasLinkField) {
+      fetchEntries(project.id)
+        .then(setProjectEntries)
+        .catch(() => setProjectEntries([]))
+    }
+  }, [project.id, schema])
 
   useEffect(() => {
     setData({})
@@ -1028,6 +1214,18 @@ function EntryForm({ project, onCreated }) {
       for (const field of schema) {
         if (field.type === "number" && payload[field.id] !== undefined) {
           payload[field.id] = Number(payload[field.id])
+        }
+        // Ensure new field types always have a value, even when the user
+        // didn't interact with them — the backend requires every schema
+        // field to be present.
+        if (field.type === "tags" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "checklist" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "link" && payload[field.id] === undefined) {
+          payload[field.id] = ""
         }
       }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
@@ -1062,8 +1260,8 @@ function EntryForm({ project, onCreated }) {
       </div>
       <div className="form-grid">
         {schema.map((field) => (
-          <label key={field.id} className="field-label">
-            {field.name}
+          <div key={field.id} className="field-label">
+            <span className="field-label-text">{field.name}</span>
             {field.type === "dropdown" ? (
               <select
                 value={data[field.id] || ""}
@@ -1079,6 +1277,22 @@ function EntryForm({ project, onCreated }) {
                   </option>
                 ))}
               </select>
+            ) : field.type === "tags" ? (
+              <TagsInput
+                value={data[field.id] || []}
+                onChange={(tags) => handleChange(field.id, tags)}
+              />
+            ) : field.type === "checklist" ? (
+              <ChecklistInput
+                value={data[field.id] || []}
+                onChange={(items) => handleChange(field.id, items)}
+              />
+            ) : field.type === "link" ? (
+              <LinkInput
+                value={data[field.id] || ""}
+                onChange={(linkId) => handleChange(field.id, linkId)}
+                entries={projectEntries}
+              />
             ) : (
               <input
                 type={field.type}
@@ -1088,7 +1302,7 @@ function EntryForm({ project, onCreated }) {
                 required
               />
             )}
-          </label>
+          </div>
         ))}
       </div>
       <div className="form-grid time-tracking">
@@ -1147,7 +1361,29 @@ function EntryList({ entries, schema }) {
                 <div key={field.id} className="log-field">
                   <span className="log-label">{field.name}</span>
                   <span className="log-value">
-                    {String(entry.data[field.id] ?? "—")}
+                    {field.type === "tags" ? (
+                      Array.isArray(entry.data[field.id]) && entry.data[field.id].length > 0 ? (
+                        <span className="tag-list">
+                          {entry.data[field.id].map((tag) => (
+                            <span key={tag} className="tag-chip-small">{tag}</span>
+                          ))}
+                        </span>
+                      ) : <span className="log-empty">—</span>
+                    ) : field.type === "checklist" ? (
+                      Array.isArray(entry.data[field.id]) && entry.data[field.id].length > 0 ? (
+                        <span className="checklist-preview">
+                          {entry.data[field.id].filter((i) => i.completed).length}/{entry.data[field.id].length}
+                        </span>
+                      ) : <span className="log-empty">—</span>
+                    ) : field.type === "link" ? (
+                      entry.data[field.id] ? (
+                        <span className="link-badge" title={entry.data[field.id]}>
+                          ↗ Linked
+                        </span>
+                      ) : <span className="log-empty">—</span>
+                    ) : (
+                      String(entry.data[field.id] ?? "—")
+                    )}
                   </span>
                 </div>
               ))}
@@ -1175,6 +1411,7 @@ function Timeline({ projects }) {
   const [entries, setEntries] = useState([])
   const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
+  const [tagFilter, setTagFilter] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -1184,7 +1421,7 @@ function Timeline({ projects }) {
       setLoading(true)
       setError(null)
       try {
-        const data = await fetchEntriesGlobal({ q, projectId, page: 1, pageSize: 20 })
+        const data = await fetchEntriesGlobal({ q, projectId, tag: tagFilter || undefined, page: 1, pageSize: 20 })
         if (!cancelled) setEntries(data)
       } catch (err) {
         if (!cancelled) setError(formatError(err))
@@ -1196,7 +1433,7 @@ function Timeline({ projects }) {
     return () => {
       cancelled = true
     }
-  }, [q, projectId])
+  }, [q, projectId, tagFilter])
 
   const schemaByProject = useMemo(() => {
     const map = {}
@@ -1243,6 +1480,16 @@ function Timeline({ projects }) {
               </option>
             ))}
           </select>
+        </label>
+        <label className="field-label">
+          Tag
+          <input
+            type="text"
+            value={tagFilter}
+            onChange={(event) => setTagFilter(event.target.value)}
+            placeholder="Filter by tag…"
+            aria-label="Filter by tag"
+          />
         </label>
       </div>
       {error && <p className="error" role="alert">{error}</p>}

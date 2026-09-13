@@ -132,12 +132,14 @@ export async function fetchEntries(projectId) {
 export async function fetchEntriesGlobal({
   q,
   projectId,
+  tag,
   page = 1,
   pageSize = 20,
 } = {}) {
   const params = new URLSearchParams()
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
+  if (tag) params.append("tag", tag)
   params.append("page", page)
   params.append("page_size", pageSize)
   return request(`/entries?${params.toString()}`)
@@ -311,6 +313,12 @@ export function createCalendarActivity(payload) {
 }
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
+}
+
+// ── Entry links (bidirectional) ──────────────────────────────────────
+
+export async function fetchEntryLinks(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/links`)
 }
 
 // ── AI Assistant ──────────────────────────────────────────────────────
