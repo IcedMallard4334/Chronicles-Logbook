@@ -90,9 +90,64 @@ Athalia captured all usability changes, new features, and integration work in a 
 
 ---
 
+## Sprint 2 — Meeting 3: Sprint 2 Synchronisation & Rubric Review
+
+| | |
+|---|---|
+| **Date** | 2026-09-11 |
+| **Location** | Discord (voice channel) |
+| **Attendees** | Tebogo, Victor, Ronald, Athalia, Nkosinathi, Ethan |
+| **Format** | Discord voice call |
+| **Duration** | ~60 min |
+| **Minutes taker** | Victor |
+
+### Agenda
+
+1. Synchronise on current progress across all team members
+2. Identify and resolve blockers preventing merges
+3. Review the Sprint 2 rubric for missing requirements
+4. Delegate remaining responsibilities for the sprint
+
+### Discussion
+
+#### Progress synchronisation
+
+The team held a synchronisation meeting to assess the current state of the app and each member's progress. The finding: **all team members are mostly done with their individual parts** — the six workstreams from the [Sprint 2 Plan](sprint-2-plan.md) are near complete. The primary remaining task is to merge all the work to `main` so the team can see the full integrated state of the app.
+
+The blocker: **pull requests have not yet been merged**. Six parallel feature branches are each individually healthy, but nobody can see or test the app as a whole until they land. Merging is not a mechanical afterthought — with six branches touching overlapping areas (the schema editor, `App.jsx`, the entry list), integration needs one person with full context of every branch.
+
+#### Sprint 2 rubric review
+
+The team reviewed the Sprint 2 rubric line by line and identified one significant gap:
+
+- **User interactions / user feedback:** the rubric expects evidence that external users have been consulted on the current state of the app, and the team had not yet gathered any.
+
+### Decisions and Rationale
+
+| ID | Decision | Rationale |
+|---|---|---|
+| **D-001** | Nkosinathi will merge all pull requests to `main` for the remainder of Sprint 2. | Six unmerged branches block everyone from seeing the integrated app. Giving merge ownership to a single person — the Scrum Master — prevents two people attempting conflicting merges of the same branch and keeps integration decisions consistent. Nkosinathi already owns CI/CD and the Gitea pipeline from Sprint 1, so he has the full picture of what every branch does to the build. |
+| **D-002** | Victor will create a Google Form to collect user feedback on the current state of the app. | The rubric review identified user feedback as the main missing requirement. A Google Form is the fastest standardised way to reach external users and collect structured, comparable responses (ratings plus free-text comments). It can be distributed by every team member through their own networks, maximising the number of respondents in the time left. |
+| **D-003** | The team will spend the remainder of the sprint fixing issues identified by users, rather than gathering feedback while still completing development. | With most individual work complete, the scarce remaining time is more valuable spent on quality and usability fixes *informed by real user input* than on gathering feedback in parallel with development. Sequencing feedback → fixes means every fix addresses an actual observed problem rather than a guessed one, and the rubric's user-interaction evidence lands at the point where it can still change the product. |
+
+### Action Items
+
+| Action | Owner(s) | Deadline |
+|---|---|---|
+| Merge all pull requests to `main` | Nkosinathi | Sprint 2 |
+| Create Google Form for user feedback | Victor | Sprint 2 |
+| Distribute Google Form to potential users | Whole team | Sprint 2 |
+| Review and prioritise user feedback for fixes | Whole team | Sprint 2 |
+| Fix issues identified by users | Whole team | Sprint 2 |
+| Finalise Sprint 2 documentation | Whole team | Sprint 2 |
+
+![Sprint 2 Meeting 3 — Discord voice channel](../assets/meetings/sprint2-meeting3-discord.png)
+
+---
+
 ## Cross-Meeting Themes
 
-Several themes emerged across both Sprint 2 meetings and shaped how the sprint is planned:
+Several themes emerged across the three Sprint 2 meetings and shaped how the sprint is planned:
 
 1. **Motivations matter as much as decisions.** The Sprint 1 marking feedback was explicit: every decision needs a *why*. This is why this page and the [Sprint 2 Plan](sprint-2-plan.md) page carry rationale for every entry, and why the [Project Methodology](project-methodology.md) page explains *why* Scrumban fits this team's constraints.
 
@@ -101,5 +156,9 @@ Several themes emerged across both Sprint 2 meetings and shaped how the sprint i
 3. **Group related work to avoid merge conflicts and design drift.** The task decomposition keeps schema-shape changes with one owner (Victor), view-layer features with one owner (Athalia), and infrastructure-leaning work with one owner (Nkosinathi). This reduces the risk of two people editing the same file or making conflicting design choices.
 
 4. **Written records beat verbal agreements.** Every meeting produced a written document — meeting minutes here, task delegation in the central Word document, decisions with rationale. This is deliberate: it lets any team member (or the PO, or the marker) verify what was agreed and why.
+
+5. **Integration is scheduled work, not an afterthought.** Meeting 3 showed the cost of six parallel branches with no merged view: the team could not see or test the app as a whole. Merging was therefore assigned as explicit sprint work with a single owner, the same weight as any user story.
+
+6. **Rubric evidence is planned, not squeezed in.** The user-feedback gap was identified at the rubric review and scheduled deliberately — after development completes — so the fixes that follow are based on real user input rather than guesswork, and the evidence lands while it can still change the product.
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder
