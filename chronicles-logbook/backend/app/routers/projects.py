@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -432,7 +433,9 @@ async def _clear_broken_links(
                 candidate.data[field_id] = None
                 changed = True
         if changed:
-            db.add(candidate)
+            # SQLAlchemy doesn't detect in-place JSON mutations, so we
+            # explicitly flag the column as dirty.
+            flag_modified(candidate, "data")
 
 
 @router.delete(
