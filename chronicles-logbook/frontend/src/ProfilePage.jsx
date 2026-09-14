@@ -201,6 +201,15 @@ export default function ProfilePage() {
       <header className="topbar">
         <nav className="nav-pill">
           <div className="nav-pill-left">
+            <button
+              type="button"
+              className="nav-item"
+              onClick={() => navigate("/app")}
+              aria-label="Back to workspace"
+            >
+              <span aria-hidden="true">←</span>
+              <span>Back</span>
+            </button>
             <button type="button" className="nav-item" onClick={() => navigate("/app")}>
               <LogoIcon size={30} />
               <span className="brand-name">Chronicles</span>
@@ -209,7 +218,11 @@ export default function ProfilePage() {
           <div className="nav-pill-right">
             <div className="account-actions">
               <div className="user-avatar" title={user?.full_name || "User"}>
-                {initials}
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  initials
+                )}
               </div>
             </div>
           </div>
@@ -219,7 +232,13 @@ export default function ProfilePage() {
       <main className="app-main profile-main">
         <div className="profile-card">
           <div className="profile-header">
-            <div className="profile-avatar">{initials}</div>
+            <div className="profile-avatar">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                initials
+              )}
+            </div>
             <div className="profile-titles">
               <h1>{loading ? "Loading…" : user?.full_name || "Profile"}</h1>
               <p className="profile-email">{user?.email || " "}</p>

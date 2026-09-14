@@ -2,7 +2,7 @@ import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
-import CommandPalette from "./CommandPalette"
+import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import OutstandingPage from "./OutstandingPage"
@@ -19,15 +19,19 @@ import {
   createEntry,
   createProject,
   deleteAccount,
+  deleteProject,
   fetchEntries,
   fetchEntriesGlobal,
   fetchEntryLinks,
   fetchFieldTimeline,
+  fetchProjectMembers,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
   previewSchemaChange,
+  shareProject,
   unarchiveProject,
+  unshareProject,
   updateProject,
   updateSchema,
 } from "./api"
@@ -84,35 +88,10 @@ function formatDuration(minutes) {
   return `${hours}h ${remainder}m`
 }
 
-const THEMES = ["light", "dark", "system"]
-
-function useTheme() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "system"
-    return window.localStorage.getItem("chronicles-theme") || "system"
-  })
-
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === "system") {
-      delete root.dataset.theme
-    } else {
-      root.dataset.theme = theme
-    }
-    window.localStorage.setItem("chronicles-theme", theme)
-  }, [theme])
-
-  const cycleTheme = () => {
-    setTheme((current) => {
-      const index = THEMES.indexOf(current)
-      return THEMES[(index + 1) % THEMES.length]
-    })
-  }
-
-  return [theme, cycleTheme]
-}
-
-function UserMenu({ userName, onSignOut, onDeleteAccount }) {
+// Signing out and deleting the account deliberately live only on the profile
+// page. Having them here as well meant two routes to an irreversible action,
+// one of them a single click away from a menu opened for something else.
+function UserMenu({ userName, avatarUrl, initials }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -130,19 +109,23 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
 
   return (
     <div className="user-menu" ref={menuRef}>
+      {/* The avatar is the trigger: one control in the corner rather than a
+          face and a set of lines sitting beside each other doing similar
+          things. Profile itself is the first item in the menu. */}
       <button
         type="button"
-        className="user-menu-trigger"
+        className="user-menu-trigger user-avatar"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label="Account menu"
+        aria-label={`${userName} — account menu`}
+        title={userName}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+        ) : (
+          initials
+        )}
       </button>
 
       {open && (
@@ -154,54 +137,17 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
             type="button"
             className="user-dropdown-item"
             role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
+            onClick={() => { window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE)); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <span>Search</span>
-          </button>
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            <span>Notifications</span>
+            <kbd className="user-dropdown-kbd">Ctrl K</kbd>
           </button>
           <div className="user-dropdown-divider" />
           <DataTransfer onClose={() => setOpen(false)} />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-            <span>Analytics</span>
-          </button>
-          <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            <span>Settings</span>
-          </button>
           <div className="user-dropdown-divider" />
           <button
             type="button"
@@ -214,32 +160,6 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>Profile</span>
-          </button>
-          <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { onSignOut(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span>Sign out</span>
-          </button>
-          <button
-            type="button"
-            className="user-dropdown-item user-dropdown-danger"
-            role="menuitem"
-            onClick={() => { onDeleteAccount(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            <span>Delete account</span>
           </button>
         </div>
       )}
@@ -305,13 +225,12 @@ function AuthActions() {
   return (
     <>
       <div className="account-actions">
-        <div className="user-avatar" title={user.full_name}>
-          {initials}
-        </div>
+        {/* Google already gives us a photo and it was being thrown away.
+            no-referrer matters: Google's CDN refuses the image otherwise. */}
         <UserMenu
           userName={user.full_name}
-          onSignOut={clearSession}
-          onDeleteAccount={openDeleteModal}
+          avatarUrl={user.avatar_url}
+          initials={initials}
         />
 
         {accountError && (
@@ -1075,8 +994,16 @@ function SchemaFieldSummary({ field, schema, projects }) {
         </p>
       )}
       {field.type === "project_reference" && (
+        // Three different states, which all used to read as the middle one:
+        // a link that was never pointed anywhere is not the same as one whose
+        // target has since been deleted, and saying so sends the owner to the
+        // wrong place to fix it.
         <p className="field-summary-detail">
-          Links to {target ? target.name : "a project you no longer have"}
+          {!field.linked_project_id
+            ? "Not pointed at a project yet — choose one in Edit schema."
+            : target
+              ? `Links to ${target.name}`
+              : "Links to a project you no longer have"}
         </p>
       )}
     </div>
@@ -1728,7 +1655,7 @@ function LinkInput({ value, onChange, entries }) {
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-function EntryFieldInput({ field, value, computed, projects, status, onOpenProject, onChange }) {
+function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
   if (field.type === "computed") {
     // The badge's word and colour come from the field-type registry, so the
     // form, the table and the schema view can never disagree about what a
@@ -1768,9 +1695,51 @@ function EntryFieldInput({ field, value, computed, projects, status, onOpenProje
             onOpen={onOpenProject}
           />
         ) : (
-          <output className="computed-value is-link">—</output>
+          <output className="computed-value is-link is-unset">
+            Not pointed at a project yet
+          </output>
         )}
       </div>
+    )
+  }
+
+  // Tags and checklists hold a list, not a string, and each renders several
+  // controls — so they get a div rather than a label, which would bind every
+  // click to whichever control happened to come first.
+  if (field.type === "tags") {
+    return (
+      <div className="field-label">
+        <span className="field-label-text">{field.name}</span>
+        <TagsInput
+          value={Array.isArray(value) ? value : []}
+          onChange={(next) => onChange(field.id, next)}
+        />
+      </div>
+    )
+  }
+
+  if (field.type === "checklist") {
+    return (
+      <div className="field-label">
+        <span className="field-label-text">{field.name}</span>
+        <ChecklistInput
+          value={Array.isArray(value) ? value : []}
+          onChange={(next) => onChange(field.id, next)}
+        />
+      </div>
+    )
+  }
+
+  if (field.type === "link") {
+    return (
+      <label className="field-label">
+        {field.name}
+        <LinkInput
+          value={value || ""}
+          onChange={(next) => onChange(field.id, next)}
+          entries={entries}
+        />
+      </label>
     )
   }
 
@@ -1943,6 +1912,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
             computed={computed[field.id]}
             projects={linkable}
             status={statuses[field.linked_project_id]}
+            entries={projectEntries}
             onOpenProject={onOpenProject}
             onChange={handleChange}
           />
@@ -2148,6 +2118,12 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                   </span>
                 )}
                 {new Date(entry.created_at).toLocaleString()}
+                {/* Only named when known: entries written before a project
+                    could be shared have no author, and an empty "logged by"
+                    reads worse than none at all. */}
+                {entry.created_by_name && (
+                  <span className="entry-author"> · {entry.created_by_name}</span>
+                )}
               </span>
               {/* Last, and collapsed: history worth keeping is not history worth
                   leading with. */}
@@ -2277,7 +2253,7 @@ function Timeline({ projects }) {
 
         <button
           type="submit"
-          className="primary-button"
+          className="btn-primary timeline-submit"
           disabled={loading || !projectId || !fieldId}
         >
           {loading ? "Loading…" : "Generate timeline"}
@@ -2376,6 +2352,7 @@ function ProjectDetail({
   onEntryCreated,
   onEditProject,
   onToggleArchive,
+  onDeleteProject,
   onOpenProject,
 }) {
   const [tab, setTab] = useState("entries")
@@ -2466,7 +2443,7 @@ function ProjectDetail({
             projects={projects}
             onPreview={onSchemaPreview}
             onSave={onSchemaSaved}
-            disabled={project.archived}
+            disabled={project.archived || project.shared}
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : (
@@ -2474,15 +2451,228 @@ function ProjectDetail({
         )}
       </div>
       <footer className="detail-footer">
-        <button
-          type="button"
-          className="btn-secondary detail-archive-btn"
-          onClick={onToggleArchive}
-        >
-          {project.archived ? "Unarchive project" : "Archive project"}
-        </button>
+        {project.shared ? (
+          <p className="detail-shared-note">
+            Shared with you. You can add entries here; changing the project's
+            fields, archiving and exporting stay with its owner.
+          </p>
+        ) : (
+          <>
+            <ShareProjectPanel projectId={project.id} />
+            <div className="detail-footer-actions">
+              <button
+                type="button"
+                className="btn-secondary detail-archive-btn"
+                onClick={onToggleArchive}
+              >
+                {project.archived ? "Unarchive project" : "Archive project"}
+              </button>
+              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
+            </div>
+          </>
+        )}
       </footer>
     </section>
+  )
+}
+
+// Archiving is the ordinary way to finish with a project and it keeps the
+// record, so deletion is deliberately the harder of the two: it asks for the
+// project's name back, the way the account deletion does, rather than putting
+// an irreversible action behind a single click.
+function DeleteProjectControl({ project, onDeleted }) {
+  const [confirming, setConfirming] = useState(false)
+  const [typed, setTyped] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState("")
+
+  const matches = typed.trim() === project.name
+
+  const confirm = async () => {
+    if (!matches) return
+    setIsDeleting(true)
+    setError("")
+    try {
+      await deleteProject(project.id)
+      onDeleted(project.id)
+    } catch (err) {
+      setError(formatError(err))
+      setIsDeleting(false)
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="btn-danger detail-delete-btn"
+        onClick={() => {
+          setConfirming(true)
+          setTyped("")
+          setError("")
+        }}
+      >
+        Delete project
+      </button>
+    )
+  }
+
+  return (
+    <div className="delete-project-confirm">
+      <p className="delete-project-warning">
+        This removes <strong>{project.name}</strong> and every entry and task in it,
+        for good. Archiving it keeps the record instead.
+      </p>
+      <label className="field-label">
+        Type the project&rsquo;s name to confirm
+        <input
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          placeholder={project.name}
+          autoFocus
+        />
+      </label>
+      <div className="delete-project-actions">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setConfirming(false)}
+          disabled={isDeleting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn-danger"
+          onClick={confirm}
+          disabled={!matches || isDeleting}
+        >
+          {isDeleting ? "Deleting…" : "Delete for good"}
+        </button>
+      </div>
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ShareProjectPanel({ projectId }) {
+  const [members, setMembers] = useState([])
+  const [email, setEmail] = useState("")
+  const [isSharing, setIsSharing] = useState(false)
+  const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+
+  useEffect(() => {
+    let active = true
+    fetchProjectMembers(projectId)
+      .then((list) => {
+        if (active) setMembers(list)
+      })
+      .catch(() => {
+        if (active) setMembers([])
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
+  const invite = async (event) => {
+    event.preventDefault()
+    const address = email.trim()
+    if (!address) return
+
+    setIsSharing(true)
+    setError("")
+    setNotice("")
+    try {
+      const member = await shareProject(projectId, address)
+      // Sharing is idempotent on the server, so re-inviting someone returns
+      // them rather than failing — don't list them twice.
+      setMembers((current) =>
+        current.some((person) => person.user_id === member.user_id)
+          ? current
+          : [...current, member]
+      )
+      setEmail("")
+      setNotice(`${member.full_name} can now add entries to this project.`)
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
+  const revoke = async (member) => {
+    setError("")
+    setNotice("")
+    try {
+      await unshareProject(projectId, member.user_id)
+      setMembers((current) =>
+        current.filter((person) => person.user_id !== member.user_id)
+      )
+    } catch (err) {
+      setError(formatError(err))
+    }
+  }
+
+  return (
+    <div className="share-panel">
+      <h4 className="share-title">Shared with</h4>
+      <p className="share-hint">
+        People you add can read this project and write entries in it. Only you can
+        change its fields, archive it or export it.
+      </p>
+
+      {members.length === 0 ? (
+        <p className="share-empty">Not shared with anyone yet.</p>
+      ) : (
+        <ul className="share-members">
+          {members.map((member) => (
+            <li key={member.user_id} className="share-member">
+              <span className="share-member-name">{member.full_name}</span>
+              <span className="share-member-email">{member.email}</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => revoke(member)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form className="share-form" onSubmit={invite}>
+        <label className="field-label">
+          Invite by email
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="them@example.com"
+          />
+        </label>
+        <button type="submit" className="btn-primary" disabled={isSharing || !email.trim()}>
+          {isSharing ? "Sharing…" : "Share"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="share-notice" role="status">
+          {notice}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -2801,6 +2991,14 @@ function App() {
     } catch (err) {
       setError(formatError(err))
     }
+  }
+
+  const handleDeleteProject = (deletedId) => {
+    setProjects((prev) => prev.filter((project) => project.id !== deletedId))
+    // What was on screen no longer exists, so fall back to the timeline rather
+    // than leaving the detail panel pointed at a project that is gone.
+    setSelectedId(null)
+    setView("timeline")
   }
 
   const handleEntryCreated = async (payload) => {
@@ -3147,6 +3345,7 @@ function App() {
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
+              onDeleteProject={handleDeleteProject}
               onOpenProject={handleSelectProject}
             />
           ) : projects.length > 0 ? (
@@ -3167,7 +3366,7 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
-      <CommandPalette projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )
