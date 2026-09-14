@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
@@ -14,6 +15,7 @@ from app.routers import (
     calendar,
     entries,
     projects,
+    saved_filters,
     statistics,
     tasks,
     transfer,
@@ -24,6 +26,17 @@ _DEFAULT_ORIGINS = [
     "https://localhost:5173",
 ]
 
+# Columns added to an existing table after it was first created. ``create_all``
+# below adds missing *tables* but never missing *columns*, so without this a
+# database created before US-2.15 keeps an ``entries`` table with no ``todo``
+# and every entry query fails on the deployed API while working locally.
+# Still not a substitute for Alembic — it only ever adds, never changes or
+# removes — but it keeps the two in step until a migration tool arrives.
+_ADDED_COLUMNS = (
+    ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
+    ("entries", "due_date", "DATE"),
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +46,13 @@ async def lifespan(app: FastAPI):
     # data isn't at risk of being silently out of sync with the models.
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Only Postgres understands the conditional form. SQLite is used for
+        # fresh test databases, which ``create_all`` already builds correctly.
+        if async_engine.dialect.name == "postgresql":
+            for table, column, definition in _ADDED_COLUMNS:
+                await conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
+                )
     yield
 
 
@@ -61,6 +81,7 @@ app.add_middleware(
 
 app.include_router(projects.router)
 app.include_router(entries.router)
+app.include_router(saved_filters.router)
 app.include_router(statistics.router)
 app.include_router(transfer.router)
 app.include_router(auth.router)

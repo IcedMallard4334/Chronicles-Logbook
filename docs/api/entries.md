@@ -22,11 +22,15 @@ Returns all entries for a project, ordered newest first.
       "field-id-2": "Finished login page"
     },
     "time_spent": 90,
+    "retired_data": {},
     "created_at": "...",
     "updated_at": "..."
   }
 ]
 ```
+
+`retired_data` holds values recorded under fields the project no longer asks
+for. See [Schema and field types](schema.md#retired-fields-in-responses).
 
 ---
 
@@ -57,6 +61,10 @@ POST /projects/{project_id}/entries
 
 !!! note
     The keys in `data` must match the `id` values in the project's `entry_schema`. The backend validates that all required fields are present and that types match.
+
+    Two field types are exceptions. A `computed` field is derived by the server
+    and anything sent for it is discarded. A `project_reference` may be omitted
+    or sent as `null`. See [Schema and field types](schema.md#field-types).
 
 **Response:** `201 Created` — returns the created entry.
 
@@ -111,6 +119,10 @@ PUT /projects/{project_id}/entries/{entry_id}
     `data` is validated exactly as it is on create: every field in the project's current `entry_schema` must be present, and no others are allowed.
 
     If the schema changed after the entry was written, the update must satisfy the **new** shape. Values for fields that no longer exist in the schema are not carried over. Editing a typo on an old entry therefore migrates that entry to the current schema.
+
+    In practice a schema change already migrates every entry as it is made — see
+    [Editing a live schema](schema.md#editing-a-live-schema) — so an entry is
+    normally in the current shape before anyone edits it.
 
 `created_at` cannot be changed. An entry's capture time is set once, at creation, so editing an entry never moves it in the timeline.
 

@@ -60,12 +60,15 @@ async def client():
 | File | Coverage |
 |---|---|
 | `test_auth.py` | Google OAuth, account deletion |
+| `test_computed.py` | Expression parsing, safe evaluation, dependency order, cycle rejection |
 | `test_config.py` | Environment variable loading and defaults |
 | `test_database.py` | Database session, engine creation |
 | `test_entries.py` | Entry CRUD, time tracking, global search |
 | `test_main.py` | App startup, lifespan, router registration |
 | `test_models.py` | ORM model definitions and relationships |
+| `test_rich_fields.py` | Project-reference and computed field validation on entry writes |
 | `test_routers_projects.py` | Project CRUD, archiving, schema management |
+| `test_schema_editing.py` | Schema change preview and apply, entry migration, retired fields |
 | `test_schemas.py` | Pydantic schema validation |
 | `test_tasks.py` | Task CRUD, checklists, toggle, filtering |
 
@@ -109,10 +112,15 @@ npm run test -- --run   # Single run
 | `App.test.jsx` | App shell, navigation, project dashboard |
 | `AuthPage.test.jsx` | Sign-in, sign-up form validation |
 | `AuthCallback.test.jsx` | OAuth callback token handling |
+| `fieldTypes.test.js` | Field-type catalogue, expression parsing and evaluation, computed values |
+| `SchemaEditor.test.jsx` | Schema view/edit/review modes, change preview, reference and computed fields on an entry |
 | `TaskPanel.test.jsx` | Task list, filters, checklist creation and toggling |
 | `ProfilePage.test.jsx` | User display, theme cycling, sign-out, delete account |
 | `api.test.js` | HTTP client, token injection, error handling |
 | `main.test.jsx` | Route protection, redirect logic |
+
+The tables list the files that cover the documented API surface. Other suites
+exist alongside them for offline sync, calendar, statistics and the assistant.
 
 ### Writing New Tests
 

@@ -73,6 +73,7 @@ nav:
   - API Reference:
     - Authentication: api/authentication.md
     - Projects: api/projects.md
+    - Schema and field types: api/schema.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
     - Statistics: api/statistics.md
@@ -84,6 +85,8 @@ nav:
   - Methodology:
     - Project Methodology: methodology/project-methodology.md
     - Git Workflow: methodology/git-workflow.md
-    - Sprint Meetings: methodology/sprint-meetings.md
-    - Sprint Review: methodology/sprint-review.md
+    - Sprint 1 Meetings: methodology/sprint-meetings.md
+    - Sprint 1 Review: methodology/sprint-review.md
+    - Sprint 2 Meetings: methodology/sprint-2-meetings.md
+    - Sprint 2 Plan: methodology/sprint-2-plan.md
     - Potential Risks: methodology/risks.md
