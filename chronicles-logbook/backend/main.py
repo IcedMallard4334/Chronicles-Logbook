@@ -35,6 +35,18 @@ _DEFAULT_ORIGINS = [
 _ADDED_COLUMNS = (
     ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
     ("entries", "due_date", "DATE"),
+    ("entries", "time_spent", "INTEGER"),
+    ("entries", "retired_data", "JSONB NOT NULL DEFAULT '{}'::jsonb"),
+    ("entries", "schema_version", "INTEGER NOT NULL DEFAULT 1"),
+    ("entries", "schema_snapshot", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("entries", "created_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
+    ("tasks", "created_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
+    ("tasks", "completed_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
+    ("projects", "retired_schema", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("projects", "schema_version", "INTEGER NOT NULL DEFAULT 1"),
+    ("tasks", "checklist", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("google_calendar_tokens", "created_at", "TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
+    ("google_calendar_tokens", "updated_at", "TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
 )
 
 

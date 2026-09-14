@@ -10,6 +10,12 @@ use_directory_urls: false
 repo_url: https://sdp.ms.wits.ac.za/driven-by-design/Chronicles
 repo_name: driven-by-design/Chronicles
 
+# `mkdocs serve` defaults to port 8000, which is also where the backend runs.
+# On Windows the docs server's 127.0.0.1 bind wins over uvicorn's 0.0.0.0 one,
+# so running both silently sends every API call to the docs site — which answers
+# 404 with no CORS headers, and so reads in the browser as a CORS failure.
+dev_addr: 127.0.0.1:8001
+
 theme:
   name: material
   palette:
@@ -77,10 +83,12 @@ nav:
     - Entries: api/entries.md
     - Tasks: api/tasks.md
     - Statistics: api/statistics.md
+    - Sharing: api/sharing.md
     - Export and import: api/transfer.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md
+    - Third-Party Code: development/third-party-code.md
     - Deployment: development/deployment.md
   - Methodology:
     - Project Methodology: methodology/project-methodology.md
@@ -89,4 +97,5 @@ nav:
     - Sprint 1 Review: methodology/sprint-review.md
     - Sprint 2 Meetings: methodology/sprint-2-meetings.md
     - Sprint 2 Plan: methodology/sprint-2-plan.md
+    - User Feedback: methodology/user-feedback.md
     - Potential Risks: methodology/risks.md

@@ -115,6 +115,91 @@ The frontend supports three modes: **light**, **dark**, and **system**. Themes a
 - **Green (`--success`) / red (`--error`)** — a project's status dot in the sidebar, reused verbatim on linked-project chips elsewhere so one colour language is learned once
 - **Amber** (`--warning: #b45309`) — an action that is allowed but will change data the user did not just type, such as a schema edit that reshapes existing entries. Distinct from `--error`, which marks something that failed
 
+## Responsive layout
+
+The app is built fluid rather than per-device: `.app-shell` is
+`width: min(1360px, calc(100% - 48px))`, so it fills a phone and centres with
+gutters on a desktop without either being a special case. Breakpoints then handle
+what fluidity alone cannot.
+
+| Width | What changes |
+|---|---|
+| ≥ 1360px | Shell stops growing and centres; content keeps a comfortable measure |
+| 860px | Two-column layouts (project detail, workspace grids) collapse to one |
+| 760px | Home hub panels stack; internal padding tightens |
+| 720px | The three-column feature grid becomes one |
+| 680 / 560 / 420px | Setup grids step down; footer actions, the share panel and the invite form go full-width |
+
+Three rules are worth stating because they are the ones that actually break:
+
+- **Reflow the layout, scroll the data.** The entries table cannot be made
+  narrow without becoming unreadable, so it keeps a `min-width` inside a wrapper
+  with `overflow: auto`. The table scrolls; the page never does.
+- **Unbreakable strings need `overflow-wrap: anywhere`.** An email address is a
+  single "word". Without it, one shared collaborator's address is enough to push
+  the panel wider than the viewport and make the whole page scroll sideways —
+  no column count fixes that.
+- **Touch targets key off the pointer, not the width.** A 34px control is fine
+  with a mouse and misses under a thumb, so `@media (pointer: coarse)` raises
+  controls to 44px. Keying off the input device rather than the screen means a
+  touchscreen laptop is covered too, which a width breakpoint would miss.
+
+Appearance across real devices is still checked by hand: `jsdom` runs the
+component tests with no layout engine, so it cannot catch a visual overflow.
+
+## Accents
+
+On top of light/dark, the owner picks an **accent** — Chronicles, Ocean, Forest
+or Rose — on the profile page or during setup. It is stored in `localStorage`
+and applied as a `data-accent` attribute on `<html>` by `applyPreferences()` in
+`preferences.js`, alongside `data-theme` and `data-density`. `main.jsx` reapplies
+all three on load, before React renders, so the first paint is already correct.
+
+Each accent redefines the same palette variables rather than introducing new
+ones, with a separate set for dark:
+
+```css
+:root[data-accent="ocean"]                    { --blue:#1686c8; --blue-bg:#dceff8; … }
+:root[data-theme="dark"][data-accent="ocean"] { --blue:#4baee5; --blue-bg:#193847; … }
+```
+
+Two rules keep this honest, both of which were silently broken:
+
+- **Everything tinted must read from the palette.** Component CSS asks for
+  `--accent` / `--accent-light`, which nothing defined, so eight highlight rules
+  quietly fell back to a hard-coded purple and ignored the accent entirely.
+  `index.css` now aliases them (`--accent: var(--blue)`), and because custom
+  properties resolve where they are *used*, the alias follows whatever the active
+  theme and accent set. Hard-coded hex in a component is the bug to look for.
+- **"System" sets no `data-theme` attribute.** The light `[data-accent]` rules
+  therefore matched on a dark OS too, and beat the dark palette on source order —
+  light accents on a dark background. The dark accents are repeated inside a
+  `@media (prefers-color-scheme: dark)` block guarded with
+  `:not([data-theme="light"])`, so an explicit Light choice still wins.
+
+## Navigation and the account menu
+
+The top bar carries two controls: the **avatar**, which opens the profile, and a
+**menu** holding Search, Export/Import and a Profile link.
+
+- **Sign out and Delete account are only on the profile page.** They were also in
+  this menu, which put an irreversible action one click inside a menu opened for
+  something else, and gave two routes to the same thing.
+- **Search opens the command palette** (`Ctrl`/`Cmd` + `K`), which searches
+  pages, commands and projects. The palette owns its own open state, so the menu
+  asks for it with a `chronicles:open-command-palette` window event rather than
+  threading state through every component in between. Choosing a project in it
+  opens that project — it previously navigated to Home and left you to find it.
+- **The avatar shows the Google profile photo** when the account has one,
+  falling back to initials. The photo already arrived from the OAuth profile and
+  was stored in `users.avatar_url`; the UI simply never rendered it. Images are
+  requested with `referrerPolicy="no-referrer"`, without which Google's CDN
+  refuses them.
+
+Menu entries that do nothing are worse than no entry: Notifications, Analytics
+and Settings sat here doing nothing (two of them navigating to the profile page
+by copy-paste), so they were removed rather than left to be clicked.
+
 ## State management
 
 The app uses React's built-in `useState`, `useEffect`, `useCallback`, `useMemo`, and `useNavigate` hooks. There is no Redux, Zustand, or other external state management library. Each route/component fetches its own data; `api.js` injects the JWT from `localStorage` automatically.
@@ -203,6 +288,23 @@ value from it. The entry form therefore shows the target as the same chip the
 entry list shows, under a blue "Linked" tag, rather than asking for it, and
 the payload never includes the field: the server fills it from the schema, the
 same contract a calculation has.
+
+A link has **three** states, and they must not be collapsed into one. A field
+that was never pointed anywhere is not the same as one whose target has since
+been deleted, and saying the wrong one sends the owner somewhere that cannot fix
+it:
+
+| State | Schema view | Entry form |
+|---|---|---|
+| No target chosen | "Not pointed at a project yet — choose one in Edit schema." | "Not pointed at a project yet" |
+| Target exists | "Links to *name*" | the target's `LinkChip` |
+| Target deleted | "Links to a project you no longer have" | a static chip saying the same |
+
+Saving a reference without a target is rejected by the API
+(`_validate_reference_targets`, `422`), so the first state only occurs in
+schemas written before that rule existed. `linked_project_id` stays optional on
+the Pydantic model precisely so those older schemas and their export files still
+load.
 
 Wherever a linked value is shown — the entry form, the entry list, the timeline
 — it renders as a `LinkChip`: the target's name on the sidebar's status dot,

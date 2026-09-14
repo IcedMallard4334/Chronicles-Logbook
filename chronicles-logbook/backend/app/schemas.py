@@ -232,6 +232,25 @@ class ProjectResponse(BaseModel):
     total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
+    # True when the caller reaches this project through a share rather than
+    # owning it, so the UI can hide the actions only an owner may take.
+    shared: bool = False
+
+
+# ── Sharing a project (US-2.20) ──────────────────────────────────────────────
+
+
+class ProjectShareRequest(BaseModel):
+    email: str
+
+
+class ProjectMemberResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: UUID
+    full_name: str
+    email: str
+    avatar_url: str | None = None
 
 
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
@@ -354,6 +373,10 @@ class EntryResponse(BaseModel):
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    # Who logged it. Null on entries written before a project could be shared,
+    # so the UI has to render "unknown" as readably as a name.
+    created_by: UUID | None = None
+    created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -392,6 +415,12 @@ class TaskResponse(BaseModel):
     due_date: date | None
     completed: bool
     checklist: list[ChecklistItem]
+    # Who added it, and who ticked it off. completed_by is cleared when a task
+    # is reopened, so it always describes the completion currently standing.
+    created_by: UUID | None = None
+    created_by_name: str | None = None
+    completed_by: UUID | None = None
+    completed_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

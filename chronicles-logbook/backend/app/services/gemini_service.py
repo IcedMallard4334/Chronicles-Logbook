@@ -53,36 +53,6 @@ class GeminiResponse:
     action: dict[str, Any] | None = None
 
 
-def generate_reply(message: str) -> str:
-    """Generate a concise assistant reply without accessing Chronicles data."""
-    api_key = config.GEMINI_API_KEY.strip()
-    if not api_key:
-        raise GeminiNotConfiguredError("Gemini is not configured.")
-
-    if not isinstance(message, str):
-        raise ValueError("Message must be text.")
-
-    prompt = message.strip()
-    if not prompt:
-        raise ValueError("Message cannot be empty.")
-
-    try:
-        client = genai.Client(api_key=api_key)
-        result = client.interactions.create(
-            model=config.GEMINI_MODEL,
-            input=prompt,
-            system_instruction=SYSTEM_INSTRUCTION,
-        )
-    except Exception as exc:
-        raise GeminiServiceError("Gemini could not generate a reply. Please try again.") from exc
-
-    output_text = getattr(result, "output_text", "")
-    if not isinstance(output_text, str) or not output_text.strip():
-        raise GeminiServiceError("Gemini returned no usable reply.")
-
-    return output_text.strip()
-
-
 def _validated_prompt(message: str) -> str:
     if not isinstance(message, str):
         raise ValueError("Message must be text.")

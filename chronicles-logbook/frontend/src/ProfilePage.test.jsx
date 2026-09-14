@@ -88,7 +88,13 @@ describe("ProfilePage", () => {
       expect(window.localStorage.getItem("chronicles_token")).toBeNull()
       expect(window.localStorage.getItem("chronicles_user")).toBeNull()
     })
-    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/"))
+    // waitFor allows 1s by default, which the full suite under --coverage can
+    // exceed on the redirect that follows — the assertion was sound and the
+    // budget was not, so CI failed at random rather than on a defect.
+    await waitFor(
+      () => expect(window.location.assign).toHaveBeenCalledWith("/"),
+      { timeout: 4000 }
+    )
   })
 
   it("deletes the account after typing DELETE", async () => {
@@ -120,7 +126,13 @@ describe("ProfilePage", () => {
       expect(deleteAccount).toHaveBeenCalled()
       expect(window.localStorage.getItem("chronicles_token")).toBeNull()
     })
-    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/"))
+    // waitFor allows 1s by default, which the full suite under --coverage can
+    // exceed on the redirect that follows — the assertion was sound and the
+    // budget was not, so CI failed at random rather than on a defect.
+    await waitFor(
+      () => expect(window.location.assign).toHaveBeenCalledWith("/"),
+      { timeout: 4000 }
+    )
   })
 
   it("shows an error if deleting the account fails", async () => {

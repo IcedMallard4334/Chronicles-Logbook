@@ -137,7 +137,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--line);
-  box-shadow: 0 4px 20px rgba(107, 91, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--blue) 6%, transparent), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .nav-pill-left {
@@ -204,7 +204,8 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6b5bff, #4338ca);
+  /* Followed neither the theme nor the chosen accent while it was hard-coded. */
+  background: linear-gradient(135deg, var(--blue), var(--mauve));
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -212,7 +213,13 @@
   font-weight: 800;
   letter-spacing: 0.5px;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(107, 91, 255, 0.3);
+  /* It opens the profile now, so it is a button rather than a div. */
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--blue) 30%, transparent);
 }
 
 .account-actions {
@@ -271,6 +278,19 @@
 .user-menu-trigger:hover {
   background: var(--surface-soft);
   border-color: var(--blue-soft);
+}
+
+/* The trigger is the avatar now. Declared after the plain-circle rules above so
+   their surface colour and border do not paint over the photo or the accent. */
+.user-menu-trigger.user-avatar {
+  background: linear-gradient(135deg, var(--blue), var(--mauve));
+  border-color: transparent;
+  overflow: hidden;
+}
+
+.user-menu-trigger.user-avatar:hover,
+.user-menu-trigger.user-avatar:focus-visible {
+  border-color: transparent;
 }
 
 .user-menu-trigger svg {
@@ -897,7 +917,7 @@
   background: color-mix(in srgb, var(--blue-bg) 70%, transparent);
   border-color: var(--blue-soft);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(107, 91, 255, 0.18);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--blue) 18%, transparent);
 }
 
 .calendar-day.empty {
@@ -917,7 +937,7 @@
 }
 
 .calendar-day.selected {
-  background: linear-gradient(135deg, #6b5bff, #4338ca);
+  background: linear-gradient(135deg, var(--blue), var(--mauve));
   border-color: transparent;
   color: #ffffff;
 }
@@ -1170,8 +1190,8 @@
 
 .tab-switch button[aria-selected="true"] {
   color: #ffffff;
-  background: linear-gradient(135deg, #6b5bff, #4338ca);
-  box-shadow: 0 2px 8px rgba(107, 91, 255, 0.35);
+  background: linear-gradient(135deg, var(--blue), var(--mauve));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--blue) 35%, transparent);
 }
 
 .detail-body {
@@ -1184,12 +1204,165 @@
   border-top: 1px solid var(--line);
   padding: 16px 28px;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
 }
 
 .detail-archive-btn {
+  align-self: flex-end;
   min-width: 160px;
   text-align: center;
+}
+
+.entry-author {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.task-attribution {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+/* Sits in a form grid, so without this it stretches the width of its column. */
+.timeline-submit {
+  justify-self: start;
+  align-self: start;
+  min-width: 180px;
+}
+
+.detail-footer-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  color: var(--error);
+  background: transparent;
+  border-color: var(--line);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--error);
+  border-color: var(--error);
+  color: #ffffff;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Takes the whole row once open, so the confirmation is not squeezed in
+   beside the archive button. */
+.delete-project-confirm {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--error);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.delete-project-warning {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.delete-project-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* --------------------------------------------------
+   SHARING
+   -------------------------------------------------- */
+
+.detail-shared-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.share-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.share-hint,
+.share-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.share-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.share-member-name {
+  font-weight: 600;
+}
+
+.share-member-email {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-right: auto;
+}
+
+.share-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.share-form .field-label {
+  flex: 1 1 220px;
+}
+
+.share-error {
+  margin: 0;
+  color: var(--error);
+  font-size: 0.85rem;
+}
+
+.share-notice {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.85rem;
 }
 
 /* --------------------------------------------------
@@ -1399,7 +1572,7 @@
 .field-label select:focus,
 .field-label textarea:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 8%, transparent);
   outline: none;
 }
 
@@ -1575,6 +1748,7 @@
 
 .btn-primary,
 .btn-secondary,
+.btn-danger,
 .btn-icon,
 .btn-text-danger {
   border: 1px solid transparent;
@@ -1591,12 +1765,12 @@
 
 .btn-primary {
   color: #ffffff;
-  background: linear-gradient(135deg, #6b5bff, #4338ca);
+  background: linear-gradient(135deg, var(--blue), var(--mauve));
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(107, 91, 255, 0.35);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--blue) 35%, transparent);
 }
 
 .btn-primary:disabled {
@@ -1866,7 +2040,7 @@
 
 .duration-field input:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 8%, transparent);
   outline: none;
 }
 
@@ -2091,6 +2265,41 @@ button.log-link-chip:hover {
 }
 
 /* The arrow that marks a linked value, the way ƒ marks a computed one. */
+.user-avatar img,
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.user-avatar:hover,
+.user-avatar:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--blue) 45%, transparent);
+}
+
+.user-dropdown-kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-family: inherit;
+}
+
+/* A link that was never pointed anywhere is a prompt, not a value. */
+.computed-value.is-unset {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.computed-value.is-unset::before {
+  opacity: 0.45;
+}
+
 .computed-value.is-link::before {
   content: "↗";
   margin-right: 6px;
@@ -2695,4 +2904,117 @@ button.log-link-chip:hover {
   font-weight: 500;
   margin-bottom: 0.25rem;
   display: block;
+}
+
+/* --------------------------------------------------
+   RESPONSIVE — remaining gaps
+   --------------------------------------------------
+   The main layouts already collapse at 860px and the entry table scrolls
+   inside its own wrapper. What is left is the content that cannot be reflowed
+   by a column count: unbreakable strings, grids with a hard-coded number of
+   columns, and controls that are comfortable with a mouse and too small for a
+   thumb. Written mobile-last (max-width) to match the rest of this file.
+   -------------------------------------------------- */
+
+/* An email address or a URL is one long "word". Without this it does not wrap,
+   so a single shared member's address pushes the whole panel wider than the
+   screen and the entire page scrolls sideways. */
+.share-member-email,
+.share-member-name,
+.profile-email,
+.workspace-entry-preview,
+.detail-shared-note {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  /* Three fixed columns of feature copy is unreadable on a phone. */
+  .empty-features {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding-top: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Footer actions become full-width rows: side by side they are each too
+     narrow to label clearly, and "Delete project" must not end up a sliver
+     next to "Archive project". */
+  .detail-footer-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .detail-footer-actions .btn-secondary,
+  .detail-footer-actions .btn-danger,
+  .detail-archive-btn,
+  .detail-delete-btn {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .delete-project-actions {
+    flex-direction: column-reverse;
+  }
+
+  .delete-project-actions button {
+    width: 100%;
+  }
+
+  /* The invite field and its button stack rather than squeezing to nothing. */
+  .share-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .share-form .field-label,
+  .share-form .btn-primary {
+    width: 100%;
+  }
+
+  /* Name, address and Remove on one line leaves no room for any of them. */
+  .share-member {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .share-member-email {
+    margin-right: 0;
+  }
+
+  .share-member .btn-secondary {
+    margin-top: 6px;
+    width: 100%;
+  }
+
+  .timeline-submit {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Two columns of numbers at this width leaves each one truncated. */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Coarse pointers get a thumb-sized target regardless of viewport width — a
+   34px control is fine with a mouse and misses under a finger. Keyed off the
+   input device rather than the screen, so it also covers touch laptops. */
+@media (pointer: coarse) {
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .user-dropdown-item {
+    min-height: 44px;
+  }
+
+  /* The avatar is a circle, so it grows on both axes — min-height alone would
+     stretch it into an oval. */
+  .user-menu-trigger,
+  .user-avatar {
+    width: 44px;
+    height: 44px;
+  }
 }

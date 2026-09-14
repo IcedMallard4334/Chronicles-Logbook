@@ -2,13 +2,13 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.computed import apply_computed_fields
 from app.database import get_db
-from app.models import Entry, Project, User
+from app.models import Entry, Project, ProjectMember, Task, User
 from app.routers.auth import get_current_user
 from app.schema_migration import Simulation, simulate
 from app.schemas import (
@@ -16,7 +16,9 @@ from app.schemas import (
     EntryResponse,
     EntryUpdate,
     ProjectCreate,
+    ProjectMemberResponse,
     ProjectResponse,
+    ProjectShareRequest,
     ProjectUpdate,
     SchemaChange,
     SchemaChangePreview,
@@ -278,15 +280,43 @@ async def _get_user_project(
 
     return project
 
+
+# Membership is deliberately not accepted everywhere ``_get_user_project`` is.
+# Reading a project and adding to it are shared; reshaping or removing it —
+# the schema, archiving, deletion, export, and who else may see it — stays with
+# the owner, so being invited to contribute cannot become control of the record.
+async def _get_readable_project(
+    project_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> Project:
+    project = await db.scalar(
+        select(Project)
+        .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(
+            Project.id == project_id,
+            or_(Project.user_id == user.id, ProjectMember.user_id == user.id),
+        )
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    return project
+
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
+    shared_with_me = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
     result = await db.execute(
         select(Project, func.coalesce(func.sum(Entry.time_spent), 0).label("total_time"))
         .outerjoin(Entry, Project.id == Entry.project_id)
-        .where(Project.user_id == user.id)
+        .where(or_(Project.user_id == user.id, Project.id.in_(shared_with_me)))
         .group_by(Project.id)
         .order_by(Project.created_at.desc())
     )
@@ -295,6 +325,7 @@ async def list_projects(
         {
             **ProjectResponse.model_validate(project).model_dump(),
             "total_time_spent": int(total_time or 0),
+            "shared": project.user_id != user.id,
         }
         for project, total_time in result.all()
     ]
@@ -327,7 +358,7 @@ async def get_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    project = await _get_user_project(project_id, user, db)
+    project = await _get_readable_project(project_id, user, db)
     total_time = await db.scalar(
         select(func.coalesce(func.sum(Entry.time_spent), 0)).where(
             Entry.project_id == project_id
@@ -336,7 +367,40 @@ async def get_project(
     return {
         **ProjectResponse.model_validate(project).model_dump(),
         "total_time_spent": int(total_time or 0),
+        "shared": project.user_id != user.id,
     }
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Delete a project and everything recorded in it. Owner only.
+
+    Archiving is the ordinary way to finish with a project, because it keeps
+    the record. This removes it outright, so the UI asks for the project's
+    name back before calling it.
+
+    The children are deleted explicitly rather than left to ON DELETE CASCADE.
+    ``tasks.project_id`` carries no cascade at all, so PostgreSQL would refuse
+    to delete a project that still had tasks; and SQLite does not enforce
+    foreign keys unless asked to, so the test suite would not have caught it.
+
+    A link in another project that pointed here is deliberately left alone. It
+    then reads as "a project you no longer have", which is true — clearing it
+    would make it read as never having been pointed anywhere.
+    """
+    await _get_user_project(project_id, user, db)
+
+    await db.execute(delete(Task).where(Task.project_id == project_id))
+    await db.execute(delete(Entry).where(Entry.project_id == project_id))
+    await db.execute(delete(ProjectMember).where(ProjectMember.project_id == project_id))
+    await db.execute(delete(Project).where(Project.id == project_id))
+    await db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -562,7 +626,7 @@ async def create_entry(
     supplies an id, creation is idempotent: an id we have already stored
     returns that entry with 200 instead of creating a duplicate with 201.
     """
-    project = await _get_user_project(project_id, user, db)
+    project = await _get_readable_project(project_id, user, db)
 
     if data.id is not None:
         existing = await db.get(Entry, data.id)
@@ -603,6 +667,7 @@ async def create_entry(
         time_spent=data.time_spent,
         todo=data.todo,
         due_date=data.due_date,
+        created_by=user.id,
     )
 
     # Preserve the caller's identity and capture time when supplied; the model
@@ -626,7 +691,7 @@ async def list_entries(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
 
     result = await db.execute(
         select(Entry)
@@ -661,7 +726,7 @@ async def get_entry(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
 
     return await _get_project_entry(entry_id, project_id, db)
 
@@ -790,7 +855,7 @@ async def get_entry_links(
     A's data) but also the entries that link back to A (reverse links
     discovered by this endpoint).
     """
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
     await _get_project_entry(entry_id, project_id, db)
 
     target_str = str(entry_id)
@@ -811,3 +876,111 @@ async def get_entry_links(
                 break
 
     return backlinks
+
+
+@router.get("/{project_id}/members", response_model=list[ProjectMemberResponse])
+async def list_project_members(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Who this project is shared with. Readable by the owner and by members."""
+    await _get_readable_project(project_id, user, db)
+
+    result = await db.execute(
+        select(User)
+        .join(ProjectMember, ProjectMember.user_id == User.id)
+        .where(ProjectMember.project_id == project_id)
+        .order_by(User.full_name)
+    )
+
+    return [
+        ProjectMemberResponse(
+            user_id=member.id,
+            full_name=member.full_name,
+            email=member.email,
+            avatar_url=member.avatar_url,
+        )
+        for member in result.scalars().all()
+    ]
+
+
+@router.post(
+    "/{project_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def share_project(
+    project_id: UUID,
+    data: ProjectShareRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Give another Chronicles account access to this project.
+
+    Sharing is idempotent: inviting someone who already has access returns them
+    rather than failing, so a double submit cannot produce an error the person
+    has no way to act on.
+    """
+    project = await _get_user_project(project_id, user, db)
+
+    email = data.email.strip().lower()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An email address is required",
+        )
+
+    invitee = await db.scalar(select(User).where(func.lower(User.email) == email))
+    if invitee is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Chronicles account uses that email address",
+        )
+
+    if invitee.id == project.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already own this project",
+        )
+
+    already_shared = await db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == invitee.id,
+        )
+    )
+    if already_shared is None:
+        db.add(ProjectMember(project_id=project_id, user_id=invitee.id))
+        await db.commit()
+
+    return ProjectMemberResponse(
+        user_id=invitee.id,
+        full_name=invitee.full_name,
+        email=invitee.email,
+        avatar_url=invitee.avatar_url,
+    )
+
+
+@router.delete(
+    "/{project_id}/members/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unshare_project(
+    project_id: UUID,
+    member_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Withdraw someone's access. Only the owner may do this."""
+    await _get_user_project(project_id, user, db)
+
+    await db.execute(
+        delete(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == member_id,
+        )
+    )
+    await db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

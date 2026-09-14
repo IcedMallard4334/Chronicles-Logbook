@@ -121,8 +121,29 @@ export async function archiveProject(id) {
   return request(`/projects/${id}/archive`, { method: "POST" })
 }
 
+export async function deleteProject(id) {
+  return request(`/projects/${id}`, { method: "DELETE" })
+}
+
 export async function unarchiveProject(id) {
   return request(`/projects/${id}/unarchive`, { method: "POST" })
+}
+
+// ── Sharing a project ─────────────────────────────────────────────────
+
+export async function fetchProjectMembers(id) {
+  return request(`/projects/${id}/members`)
+}
+
+export async function shareProject(id, email) {
+  return request(`/projects/${id}/members`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function unshareProject(id, memberId) {
+  return request(`/projects/${id}/members/${memberId}`, { method: "DELETE" })
 }
 
 // ── Editing a live schema ─────────────────────────────────────────────

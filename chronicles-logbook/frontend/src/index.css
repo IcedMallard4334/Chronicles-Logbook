@@ -14,6 +14,13 @@
   --blue-soft: #c9cbff;
   --blue-bg: #e2e5ff;
 
+  /* Aliases, not new colours: custom properties resolve where they are used, so
+     these follow whatever --blue/--blue-bg the active theme and accent set. The
+     highlight styling in App.css asks for --accent, which nothing defined, so
+     every one of those rules silently fell back to a hard-coded purple. */
+  --accent: var(--blue);
+  --accent-light: var(--blue-bg);
+
   --mauve: #7653c8;
   --mauve-soft: #d9cdf7;
   --mauve-bg: #ebe7f8;
@@ -149,6 +156,15 @@
 :root[data-theme="dark"][data-accent="ocean"] { --blue:#4baee5; --blue-soft:#27536d; --blue-bg:#193847; --mauve:#4fc1ae; --mauve-soft:#285d55; --mauve-bg:#1c3d38; --focus:#4baee5; }
 :root[data-theme="dark"][data-accent="forest"] { --blue:#62c58d; --blue-soft:#315f44; --blue-bg:#1c3c29; --mauve:#b0c991; --mauve-soft:#566947; --mauve-bg:#303b28; --focus:#62c58d; }
 :root[data-theme="dark"][data-accent="rose"] { --blue:#ea85b1; --blue-soft:#6d3651; --blue-bg:#442233; --mauve:#ae97eb; --mauve-soft:#564b7c; --mauve-bg:#352d4d; --focus:#ea85b1; }
+
+/* "System" theme sets no data-theme attribute, so the light accent rules above
+   matched on source order and painted light accents onto the dark palette.
+   Excluding an explicit light choice keeps Light-on-dark-OS working. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-accent="ocean"] { --blue:#4baee5; --blue-soft:#27536d; --blue-bg:#193847; --mauve:#4fc1ae; --mauve-soft:#285d55; --mauve-bg:#1c3d38; --focus:#4baee5; }
+  :root:not([data-theme="light"])[data-accent="forest"] { --blue:#62c58d; --blue-soft:#315f44; --blue-bg:#1c3c29; --mauve:#b0c991; --mauve-soft:#566947; --mauve-bg:#303b28; --focus:#62c58d; }
+  :root:not([data-theme="light"])[data-accent="rose"] { --blue:#ea85b1; --blue-soft:#6d3651; --blue-bg:#442233; --mauve:#ae97eb; --mauve-soft:#564b7c; --mauve-bg:#352d4d; --focus:#ea85b1; }
+}
 
 * {
   box-sizing: border-box;

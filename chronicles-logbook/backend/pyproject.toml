@@ -7,6 +7,15 @@ testpaths = ["tests"]
 # a committed config, `ruff check` fell back to whatever each machine happened
 # to be configured with, and CI — installing a bare ruff — used the defaults.
 # The result was developers seeing warnings that CI never reported.
+[tool.coverage.run]
+# SQLAlchemy's asyncio support runs the ORM inside greenlet switches, and
+# coverage traces only the concurrency models it is told about. With the default
+# ("thread") every endpoint body reached through `await db.execute(...)` was
+# recorded as unexecuted, so the reported figure measured how the tests ran
+# rather than what they covered — statistics.py read 23% while seventeen tests
+# were calling its endpoints and asserting on the responses.
+concurrency = ["thread", "greenlet"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

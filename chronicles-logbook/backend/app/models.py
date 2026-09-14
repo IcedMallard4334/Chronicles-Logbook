@@ -11,7 +11,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, JSONType
 
@@ -114,6 +114,41 @@ class Project(Base):
     )
 
 
+class ProjectMember(Base):
+    """Someone other than the owner who has been given access to a project.
+
+    Membership grants reading the project and adding entries to it. Everything
+    that reshapes or removes the project — editing the schema, archiving,
+    deleting, exporting, and changing who else has access — stays with the
+    owner, so a project cannot be restructured out from under the person whose
+    record it is.
+    """
+
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint("project_id", "user_id", name="uq_project_members_project_user"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
 class Entry(Base):
     __tablename__ = "entries"
 
@@ -157,6 +192,27 @@ class Entry(Base):
         default=dict,
         server_default="{}",
     )
+
+    # Who wrote this entry. Null for entries written before a project could be
+    # shared, so "unknown" has to render as gracefully as a name. Cleared
+    # rather than cascaded when an account goes: the record outlives the
+    # contributor, which is the whole point of a logbook.
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # selectin rather than the default lazy load: under asyncio, touching an
+    # unloaded relationship raises instead of quietly emitting a query, and
+    # every response reads the author's name.
+    creator = relationship("User", lazy="selectin", foreign_keys=[created_by])
+
+    @property
+    def created_by_name(self) -> str | None:
+        """Read by ``EntryResponse`` — so every endpoint returning an entry
+        carries the author's name without each one having to join for it."""
+        return self.creator.full_name if self.creator else None
 
     time_spent: Mapped[int | None] = mapped_column(
         Integer,
@@ -207,6 +263,34 @@ class Task(Base):
         default=False,
         server_default="false",
     )
+
+    # Who added the task, and who ticked it off. Both null before sharing
+    # existed; completed_by is cleared again when a task is reopened, so it
+    # always answers "who completed *this* completion".
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    completed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Two foreign keys to the same table, so each relationship has to say which
+    # column it follows.
+    creator = relationship("User", lazy="selectin", foreign_keys=[created_by])
+    completer = relationship("User", lazy="selectin", foreign_keys=[completed_by])
+
+    @property
+    def created_by_name(self) -> str | None:
+        return self.creator.full_name if self.creator else None
+
+    @property
+    def completed_by_name(self) -> str | None:
+        return self.completer.full_name if self.completer else None
 
     checklist: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONType,

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Project, Task, User
 from app.routers.auth import get_current_user
+from app.routers.projects import _get_readable_project
 from app.schemas import TaskCreate, TaskResponse, TaskUpdate
 
 router = APIRouter(prefix="/projects/{project_id}/tasks", tags=["Tasks"])
@@ -43,7 +44,7 @@ async def list_tasks(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
 
     query = select(Task).where(Task.project_id == project_id)
     if completed is not None:
@@ -61,7 +62,7 @@ async def create_task(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
 
     task = Task(
         project_id=project_id,
@@ -69,6 +70,7 @@ async def create_task(
         description=data.description,
         due_date=data.due_date,
         checklist=[item.model_dump() for item in data.checklist],
+        created_by=user.id,
     )
     db.add(task)
     await db.commit()
@@ -83,7 +85,7 @@ async def get_task(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    await _get_readable_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:
@@ -128,13 +130,18 @@ async def toggle_task(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    await _get_user_project(project_id, user, db)
+    # Ticking work off is the point of sharing a task list, so a collaborator
+    # may do it. Editing a task's wording and deleting it stay with the owner.
+    await _get_readable_project(project_id, user, db)
 
     task = await db.get(Task, task_id)
     if not task or task.project_id != project_id:
         raise HTTPException(status_code=404, detail="Task not found")
 
     task.completed = not task.completed
+    # Cleared on reopening, so the field always describes the completion that
+    # currently stands rather than whoever happened to tick it once before.
+    task.completed_by = user.id if task.completed else None
     await db.commit()
     await db.refresh(task)
     return task

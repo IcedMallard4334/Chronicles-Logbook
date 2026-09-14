@@ -195,3 +195,85 @@ async def test_update_project_rejects_other_users_project(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
+
+
+async def _make_project(client, name="Disposable"):
+    response = await client.post(
+        "/projects", json={"name": name, "description": None, "entry_schema": []}
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+async def test_owner_can_delete_a_project(authenticated_client):
+    project_id = await _make_project(authenticated_client)
+
+    response = await authenticated_client.delete(f"/projects/{project_id}")
+
+    assert response.status_code == 204
+    assert (await authenticated_client.get(f"/projects/{project_id}")).status_code == 404
+
+    listed = [project["id"] for project in (await authenticated_client.get("/projects")).json()]
+    assert project_id not in listed
+
+
+async def test_deleting_a_project_removes_its_entries(authenticated_client):
+    project_id = await _make_project(authenticated_client)
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/entries", json={"data": {}}
+    )
+    assert created.status_code == 201
+
+    assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 204
+
+    # The entry is only reachable through its project, so the project going
+    # means the listing is gone too.
+    assert (await authenticated_client.get(f"/projects/{project_id}/entries")).status_code == 404
+
+
+async def test_deleting_a_project_removes_its_tasks(authenticated_client):
+    # tasks.project_id declares no ON DELETE behaviour, so a project with tasks
+    # is exactly the case PostgreSQL would refuse if they were not removed
+    # first. SQLite will not fail on it, so this asserts the rows are gone.
+    project_id = await _make_project(authenticated_client)
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/tasks", json={"title": "Still to do"}
+    )
+    assert created.status_code == 201
+
+    assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 204
+    assert (await authenticated_client.get(f"/projects/{project_id}/tasks")).status_code == 404
+
+
+async def test_someone_else_cannot_delete_your_project(
+    authenticated_client, second_authenticated_client
+):
+    project_id = await _make_project(authenticated_client)
+
+    response = await second_authenticated_client.delete(f"/projects/{project_id}")
+
+    assert response.status_code == 404
+    assert (await authenticated_client.get(f"/projects/{project_id}")).status_code == 200
+
+
+async def test_a_member_cannot_delete_a_shared_project(
+    authenticated_client, second_authenticated_client, second_test_user
+):
+    project_id = await _make_project(authenticated_client)
+    shared = await authenticated_client.post(
+        f"/projects/{project_id}/members", json={"email": "second@example.com"}
+    )
+    assert shared.status_code == 201
+
+    response = await second_authenticated_client.delete(f"/projects/{project_id}")
+
+    assert response.status_code == 404
+    assert (await authenticated_client.get(f"/projects/{project_id}")).status_code == 200
+
+
+async def test_deleting_a_project_twice_is_not_an_error_the_second_time(authenticated_client):
+    project_id = await _make_project(authenticated_client)
+
+    assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 204
+    # It is already gone, so it is no longer yours to delete.
+    assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 404
