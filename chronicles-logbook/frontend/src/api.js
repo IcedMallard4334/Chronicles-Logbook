@@ -415,6 +415,9 @@ export async function fetchEntryLinks(projectId, entryId) {
 
 // ── AI Assistant ──────────────────────────────────────────────────────
 
+export const fetchMiraConsent = () => request('/ai/consent')
+export const saveMiraConsent = (accepted) => request('/ai/consent', { method: 'PUT', body: JSON.stringify({ accepted }) })
+
 export async function sendAIMessage(message) {
   return request("/ai/chat", {
     method: "POST",

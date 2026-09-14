@@ -16,6 +16,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base, JSONType
 
 
+class MiraConsent(Base):
+    __tablename__ = "mira_consents"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    accepted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    version: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class User(Base):
     __tablename__ = "users"
 

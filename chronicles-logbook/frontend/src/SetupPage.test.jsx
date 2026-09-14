@@ -8,7 +8,7 @@ function renderSetup() {
     <MemoryRouter initialEntries={["/setup"]}>
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
-        <Route path="/app" element={<p>Workspace</p>} />
+        <Route path="/mira-permissions" element={<p>Mira permissions</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -25,8 +25,8 @@ it("saves chosen setup preferences before opening the workspace", () => {
   renderSetup()
   fireEvent.click(screen.getByRole("radio", { name: /Ocean/ }))
   fireEvent.click(screen.getByRole("radio", { name: /Light/ }))
-  fireEvent.click(screen.getByRole("button", { name: /Save and open Chronicles/ }))
+  fireEvent.click(screen.getByRole("button", { name: /Save and continue/ }))
   expect(window.localStorage.getItem("chronicles-accent")).toBe("ocean")
   expect(window.localStorage.getItem("chronicles-theme")).toBe("light")
-  expect(screen.getByText("Workspace")).toBeInTheDocument()
+  expect(screen.getByText("Mira permissions")).toBeInTheDocument()
 })

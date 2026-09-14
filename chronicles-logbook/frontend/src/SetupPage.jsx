@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ACCENTS, applyPreferences, readPreference, savePreferences } from "./preferences"
-import { AuthIntro } from "./AuthPage"
 import "./SetupPage.css"
 
 export default function SetupPage() {
@@ -20,13 +19,10 @@ export default function SetupPage() {
   }, [preferences])
   const finish = () => {
     savePreferences(preferences)
-    navigate(`/app?view=${preferences.startView}`, { replace: true })
+    navigate('/mira-permissions', { replace: true })
   }
 
   return (
-    <main className="auth-shell setup-shell">
-      <AuthIntro />
-      <section className="auth-panel setup-panel">
       <section className="setup-card" aria-labelledby="setup-title">
         <header className="setup-header">
           <div><p className="setup-eyebrow">WELCOME TO CHRONICLES</p><h1 id="setup-title">Make it yours</h1><p>Choose a calm starting point. You can change every option later from your profile.</p></div>
@@ -52,9 +48,7 @@ export default function SetupPage() {
           <label><span>Open Chronicles to</span><select value={preferences.startView} onChange={event => choose('startView', event.target.value)}><option value="home">Home workspace</option><option value="today">Today</option><option value="calendar">Calendar</option></select></label>
         </section>
 
-        <footer className="setup-footer"><button type="button" className="btn-secondary" onClick={() => navigate('/app')}>Skip for now</button><button type="button" className="btn-primary" onClick={finish}>Save and open Chronicles →</button></footer>
+        <footer className="setup-footer"><button type="button" className="btn-secondary" onClick={() => navigate('/mira-permissions')}>Skip for now</button><button type="button" className="btn-primary" onClick={finish}>Save and continue →</button></footer>
       </section>
-      </section>
-    </main>
   )
 }

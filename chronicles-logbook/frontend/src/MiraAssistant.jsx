@@ -78,6 +78,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
 export function MiraAssistantPage({ conversation }) {
   return <section className="mira-page workspace-page" aria-labelledby="mira-title">
     <header className="mira-page-header"><div className="mira-heading-identity"><MiraMark /><div><h1 id="mira-title">Mira <span>by Chronicles</span></h1><p>A thinking partner for your project work.</p></div></div><span className="mira-page-badge">Ideas → plans → progress</span></header>
+    <p className="mira-permissions-link"><a href="/mira-permissions">Mira permissions · review or change access</a></p>
     <Conversation {...conversation} />
   </section>
 }

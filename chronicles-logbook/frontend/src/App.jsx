@@ -3190,6 +3190,7 @@ function App() {
       </div>
       <header className="topbar">
         <nav className="nav-pill">
+          <div className="nav-flow" aria-hidden="true"><svg viewBox="0 0 1400 70" preserveAspectRatio="none"><path d="M-100 55 C180 -20 330 100 600 35 S1000 0 1500 45" /><path d="M-100 15 C250 90 420 -25 740 40 S1100 80 1500 10" /><path d="M-100 60 C350 20 500 80 900 15 S1200 65 1500 35" /></svg></div>
           <div className="nav-pill-left">
             <LogoIcon size={30} />
             <span className="brand-name">Chronicles</span>

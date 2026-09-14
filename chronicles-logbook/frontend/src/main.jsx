@@ -1,13 +1,15 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { fetchCurrentUser, refreshSession } from './api'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import AuthCallback from './AuthCallback.jsx'
 import AuthPage from './AuthPage.jsx'
 import ProfilePage from './ProfilePage.jsx'
 import SetupPage from './SetupPage.jsx'
+import OnboardingLayout from './OnboardingLayout.jsx'
+import MiraConsentPage, { MiraConsentGate } from './MiraConsentPage.jsx'
 import { applyPreferences, readPreference } from './preferences'
 import './ProfessionalDensity.css'
 import './WorkspacePolish.css'
@@ -44,7 +46,7 @@ function SessionGate({ children }) {
   }, [])
   if (state === 'loading') return <main className="auth-callback-shell"><p role="status">Restoring your session…</p></main>
   if (state === 'error') return <main className="auth-callback-shell"><div><p>Cannot reach the server to restore your session.</p><button onClick={() => window.location.reload()}>Try again</button></div></main>
-  return children
+  return children || <Outlet />
 }
 
 function LandingRoute() {
@@ -54,12 +56,12 @@ function LandingRoute() {
 
 function ProtectedAppRoute() {
   const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
-  return isSignedIn ? <App /> : <Navigate to="/" replace />
+  return isSignedIn ? <MiraConsentGate><App /></MiraConsentGate> : <Navigate to="/" replace />
 }
 
 function ProtectedSetupRoute() {
   const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
-  return isSignedIn ? <SetupPage /> : <Navigate to="/" replace />
+  return isSignedIn ? <OnboardingLayout /> : <Navigate to="/" replace />
 }
 
 function ProtectedProfileRoute() {
@@ -71,10 +73,15 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<SessionGate><LandingRoute /></SessionGate>} />
-        <Route path="/app" element={<SessionGate><ProtectedAppRoute /></SessionGate>} />
-        <Route path="/setup" element={<SessionGate><ProtectedSetupRoute /></SessionGate>} />
-        <Route path="/profile" element={<SessionGate><ProtectedProfileRoute /></SessionGate>} />
+        <Route element={<SessionGate />}>
+          <Route path="/" element={<LandingRoute />} />
+          <Route path="/app" element={<ProtectedAppRoute />} />
+          <Route element={<ProtectedSetupRoute />}>
+            <Route path="/setup" element={<SetupPage />} />
+            <Route path="/mira-permissions" element={<MiraConsentPage />} />
+          </Route>
+          <Route path="/profile" element={<ProtectedProfileRoute />} />
+        </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -14,6 +14,11 @@ from app.services.gemini_service import (
 )
 
 
+@pytest.fixture(autouse=True)
+async def enable_mira_for_existing_ai_tests(authenticated_client):
+    await authenticated_client.put('/ai/consent', json={'accepted': True})
+
+
 def test_gemini_service_returns_an_unexecuted_project_proposal(monkeypatch):
     calls = []
 
