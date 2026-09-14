@@ -25,12 +25,15 @@ const cost = { id: "f-cost", name: "Cost", type: "computed", expression: "{f-hou
 // ── Field types (US-2.4, US-2.5) ─────────────────────────────────────────────
 
 describe("field types", () => {
-  it("offers a project link and a calculation alongside the original four", () => {
+  it("offers entry-level, link and calculation types alongside the original four", () => {
     expect(FIELD_TYPES.map((type) => type.value)).toEqual([
       "text",
       "number",
       "date",
       "dropdown",
+      "tags",
+      "checklist",
+      "link",
       "project_reference",
       "computed",
     ])

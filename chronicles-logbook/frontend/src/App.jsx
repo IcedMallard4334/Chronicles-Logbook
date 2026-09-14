@@ -47,8 +47,6 @@ import {
 import "./App.css"
 import "./tasks.css"
 
-const FIELD_TYPES = ["text", "number", "date", "dropdown", "tags", "checklist", "link"]
-
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
 }
