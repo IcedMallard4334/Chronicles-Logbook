@@ -1,5 +1,6 @@
 """Tests for entry endpoints."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -282,6 +283,11 @@ async def test_search_entries_returns_newest_first(
             }
         },
     )
+
+    # created_at comes from datetime.now() in Python, and the sort tie-breaks on
+    # a random UUID. Two inserts landing in the same clock tick therefore order
+    # arbitrarily, which made this assertion a coin flip under a loaded suite.
+    await asyncio.sleep(0.01)
 
     second = await authenticated_client.post(
         f"/projects/{project_id}/entries",
