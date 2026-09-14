@@ -19,12 +19,22 @@ import {
   deleteAccount,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchFieldTimeline,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
   unarchiveProject,
   updateProject,
 } from "./api"
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import "./App.css"
 import "./tasks.css"
 
@@ -1172,71 +1182,75 @@ function EntryList({ entries, schema }) {
 }
 
 function Timeline({ projects }) {
-  const [entries, setEntries] = useState([])
-  const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
+  const [fieldId, setFieldId] = useState("")
+  const [start, setStart] = useState("")
+  const [end, setEnd] = useState("")
+  const [timeline, setTimeline] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) || null,
+    [projects, projectId],
+  )
+
+  const fields = selectedProject?.entry_schema || []
+
   useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const data = await fetchEntriesGlobal({ q, projectId, page: 1, pageSize: 20 })
-        if (!cancelled) setEntries(data)
-      } catch (err) {
-        if (!cancelled) setError(formatError(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [q, projectId])
+    setFieldId("")
+    setTimeline(null)
+    setError(null)
+  }, [projectId])
 
-  const schemaByProject = useMemo(() => {
-    const map = {}
-    for (const project of projects) {
-      map[project.id] = project.entry_schema || []
-    }
-    return map
-  }, [projects])
+  const handleLoadTimeline = async (event) => {
+    event.preventDefault()
 
-  const getFieldName = (entryProjectId, fieldId) => {
-    const schema = schemaByProject[entryProjectId] || []
-    const field = schema.find((f) => f.id === fieldId)
-    return field?.name || fieldId
+
+    if (!projectId || !fieldId) {
+      setError("Please select a project and field.")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+
+      const data = await fetchFieldTimeline(
+        projectId,
+        fieldId,
+        start ? `${start}T00:00:00` : null,
+        end ? `${end}T23:59:59` : null,
+      )
+
+      setTimeline(data)
+    } catch (err) {
+      setTimeline(null)
+      setError(formatError(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
+  const selectedField = fields.find((field) => field.id === fieldId)
+
   return (
-    <section className="timeline" aria-label="Timeline">
+    <section className="timeline" aria-label="Field timeline">
       <header className="timeline-header">
-        <h2>Timeline</h2>
-        <p>Search across all entries and filter by project.</p>
+        <h2>Field Timeline</h2>
+        <p>Choose a field and date range to visualise how its values change over time.</p>
       </header>
-      <div className="timeline-filters">
-        <label className="field-label">
-          Search
-          <input
-            type="text"
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            placeholder="Search entries…"
-            aria-label="Search entries"
-          />
-        </label>
+
+      <form className="timeline-filters" onSubmit={handleLoadTimeline}>
         <label className="field-label">
           Project
           <select
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
-            aria-label="Filter by project"
+            aria-label="Select project"
           >
-            <option value="">All projects</option>
+            <option value="">Select a project</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -1244,35 +1258,132 @@ function Timeline({ projects }) {
             ))}
           </select>
         </label>
-      </div>
-      {error && <p className="error" role="alert">{error}</p>}
-      {loading ? (
-        <p className="hint">Loading…</p>
-      ) : entries.length === 0 ? (
-        <p className="hint">No entries found.</p>
-      ) : (
-        <ul className="timeline-list" role="list">
-          {entries.map((entry) => (
-            <li key={entry.id} className="timeline-row">
-              <div className="timeline-meta">
-                <span className="timeline-project">{entry.project_name}</span>
-                <span className="timeline-time">
-                  {new Date(entry.created_at).toLocaleString()}
-                </span>
-              </div>
-              <div className="timeline-fields">
-                {Object.entries(entry.data).map(([fieldId, value]) => (
-                  <div key={fieldId} className="timeline-field">
-                    <span className="timeline-label">
-                      {getFieldName(entry.project_id, fieldId)}
-                    </span>
-                    <span className="timeline-value">{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
+
+        <label className="field-label">
+          Field
+          <select
+            value={fieldId}
+            onChange={(event) => setFieldId(event.target.value)}
+            disabled={!projectId}
+            aria-label="Select field"
+          >
+            <option value="">Select a field</option>
+            {fields.map((field) => (
+              <option key={field.id} value={field.id}>
+                {field.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field-label">
+          Start date
+          <input
+            type="date"
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+            aria-label="Start date"
+          />
+        </label>
+
+        <label className="field-label">
+          End date
+          <input
+            type="date"
+            value={end}
+            onChange={(event) => setEnd(event.target.value)}
+            aria-label="End date"
+          />
+        </label>
+
+        <button
+          type="submit"
+          className="primary-button"
+          disabled={loading || !projectId || !fieldId}
+        >
+          {loading ? "Loading…" : "Generate timeline"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {!loading && !error && !timeline && (
+        <p className="hint">
+          Select a project, field, and optional date range, then generate the timeline.
+        </p>
+      )}
+
+      {timeline && (
+        <div className="timeline-results">
+          <div className="timeline-summary">
+            <h3>{timeline.field_name}</h3>
+            <p>
+              {timeline.points.length} data point
+              {timeline.points.length === 1 ? "" : "s"}
+              {selectedField?.type && (
+                <span className="timeline-field-type"> • {selectedField.type}</span>
+              )}
+            </p>
+          </div>
+
+          {timeline.points.length === 0 ? (
+            <p className="hint">No values found for this field in the selected range.</p>
+          ) : (
+            <>
+              <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart
+                    data={timeline.points.map((point) => ({
+                      ...point,
+                      date: new Date(point.created_at).toLocaleDateString(),
+                      displayValue: String(point.value),
+                      numericValue:
+                        timeline.field_type === "number" ? Number(point.value) : null,
+                    }))}
+                  margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
+                    name={timeline.field_name}
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="timeline-table-wrapper">
+              <table className="timeline-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Value</th>
+                    <th scope="col">Schema version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeline.points.map((point) => (
+                    <tr key={point.entry_id}>
+                      <td>{new Date(point.created_at).toLocaleString()}</td>
+                      <td>{String(point.value)}</td>
+                      <td>{point.schema_version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        </div>
       )}
     </section>
   )

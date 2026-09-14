@@ -236,6 +236,18 @@ export async function fetchStatistics() {
   return request("/statistics")
 }
 
+export async function fetchFieldTimeline(projectId, fieldId, start, end) {
+  const params = new URLSearchParams()
+
+  if (start) params.set("start", start)
+  if (end) params.set("end", end)
+
+  const query = params.toString()
+  const path = `/statistics/projects/${projectId}/fields/${fieldId}/timeline`
+
+  return request(query ? `${path}?${query}` : path)
+}
+
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }

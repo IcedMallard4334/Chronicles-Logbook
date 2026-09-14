@@ -1,17 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
+  archiveProject,
   createEntry,
   createProject,
   deleteAccount,
   deleteEntry,
   fetchCurrentUser,
+  fetchEntries,
   fetchEntriesGlobal,
   fetchEntry,
+  fetchFieldTimeline,
   fetchProjects,
   fetchStatistics,
+  fetchTasks,
   getGoogleLoginUrl,
   sendAIMessage,
+  unarchiveProject,
   updateEntry,
+  updateProject,
 } from "./api"
 
 describe("api", () => {
@@ -161,6 +167,45 @@ describe("api", () => {
     )
     expect(result).toEqual(statistics)
   })
+
+  it("fetches a field timeline with an optional date range", async () => {
+  const timeline = {
+    project_id: "proj-1",
+    field_id: "hours",
+    field_name: "Hours",
+    field_type: "number",
+    start: "2026-05-01T00:00:00+00:00",
+    end: "2026-05-31T23:59:59+00:00",
+    points: [
+      {
+        entry_id: "entry-1",
+        created_at: "2026-05-05T09:00:00+00:00",
+        value: 5,
+        schema_version: 1,
+      },
+    ],
+  }
+
+  fetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => timeline,
+  })
+
+  const result = await fetchFieldTimeline(
+    "proj-1",
+    "hours",
+    "2026-05-01T00:00:00+00:00",
+    "2026-05-31T23:59:59+00:00",
+  )
+
+  expect(fetch).toHaveBeenCalledWith(
+    "http://localhost:8000/statistics/projects/proj-1/fields/hours/timeline?start=2026-05-01T00%3A00%3A00%2B00%3A00&end=2026-05-31T23%3A59%3A59%2B00%3A00",
+    expect.anything(),
+  )
+
+  expect(result).toEqual(timeline)
+})
 
   it("fetches entries globally without filters", async () => {
     const entries = [{ id: "entry-1", data: { hours: 2 } }]
