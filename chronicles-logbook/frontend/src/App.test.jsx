@@ -106,7 +106,7 @@ describe("App workspace", () => {
     render(<App />)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Assistant" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Mira" })).toBeInTheDocument()
   })
 
   it("opens a project from the workspace navigator", async () => {
@@ -218,7 +218,7 @@ describe("Mira project proposals", () => {
 
   async function proposeProject() {
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: "Assistant" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
     fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Create research notes" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     return screen.findByRole("region", { name: "Proposed project" })
