@@ -27,12 +27,16 @@ Returns every project you own — archived ones included — with its schema and
         { "id": "topic", "name": "Topic", "type": "text" },
         { "id": "pages", "name": "Pages", "type": "number" }
       ],
+      "retired_schema": [
+        { "id": "mood", "name": "Mood", "type": "text" }
+      ],
       "created_at": "2026-01-04T08:12:00Z",
       "entries": [
         {
           "id": "b1f0...",
           "data": { "topic": "Shading", "pages": 12 },
           "time_spent": 45,
+          "retired_data": { "mood": "focused" },
           "created_at": "2026-03-02T09:00:00Z"
         }
       ]
@@ -46,6 +50,12 @@ Returns every project you own — archived ones included — with its schema and
 | `format` | Identifies the file as a Chronicles export. Import rejects anything else |
 | `version` | Format version. Import refuses a file from a newer version rather than guessing |
 | `exported_at` | When the export was taken. Informational |
+
+An export carries retired fields as well as current ones. `retired_schema` keeps
+the labels of fields a project no longer asks for and `retired_data` keeps the
+values recorded under them, so a schema edit made before the export does not
+turn into data loss at the point of restore. See
+[Retired fields in responses](schema.md#retired-fields-in-responses).
 
 ## Export one project as CSV
 
@@ -63,7 +73,7 @@ Captured at,Topic,Pages,Time spent (minutes)
 2026-04-15T09:00:00+00:00,Lighting,8,45
 ```
 
-Columns are the project's schema field **names**, between the capture time and the duration.
+Columns are the project's schema field **names**, between the capture time and the duration. A computed field appears as an ordinary column holding its last calculated value; retired fields do not appear at all.
 
 !!! warning "CSV is lossy and cannot be imported"
     A CSV has no way to carry a project's schema, and every project defines its own fields, so there is no single set of columns that covers a logbook. Use the JSON export for anything you intend to restore.
@@ -115,6 +125,17 @@ The first row is deliberate. If you import a month-old backup into a project you
 An entry is validated against the schema of the project it lands in. When a project is reused and its schema has changed since the export, older entries may no longer fit.
 
 Those entries are **not** imported, and each one is named in `issues` with its date, project and the reason. They are reported rather than dropped silently, so you know exactly what did not come back.
+
+!!! note "A reference can survive an import without its target"
+    A `project_reference` value is a project id. On import the value is checked
+    for shape but not for existence, because the project it points at may appear
+    later in the same file. Importing someone else's export remaps every project
+    onto a fresh id, which leaves those references pointing at ids the account
+    does not hold.
+
+    Such a reference is kept rather than blanked — it is a record that a link
+    existed — and the app shows it as *"A project you no longer have"*. Your own
+    export re-imports with its references intact, because the ids are preserved.
 
 ### Idempotency
 
