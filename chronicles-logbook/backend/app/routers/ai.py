@@ -1,6 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
 
-from app.models import User
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, StrictBool
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
+
+from app.database import get_db
+from app.models import MiraConsent, User
 from app.routers.auth import get_current_user
 from app.schemas import AIChatRequest, AIChatResponse, AIProjectActionProposal
 from app.services.gemini_service import (
@@ -10,12 +16,39 @@ from app.services.gemini_service import (
 )
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
+CONSENT_VERSION = "2026-09-14"
+
+
+class ConsentChoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    accepted: StrictBool
+
+
+@router.get("/consent")
+async def get_consent(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):  # noqa: B008
+    choice = await db.get(MiraConsent, user.id)
+    current = choice is not None and choice.version == CONSENT_VERSION
+    return {"decided": current, "accepted": bool(current and choice.accepted), "version": CONSENT_VERSION}
+
+
+@router.put("/consent")
+async def set_consent(payload: ConsentChoice, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):  # noqa: B008
+    choice = await db.get(MiraConsent, user.id)
+    if choice is None:
+        choice = MiraConsent(user_id=user.id)
+        db.add(choice)
+    choice.accepted = payload.accepted
+    choice.version = CONSENT_VERSION
+    choice.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"decided": True, "accepted": choice.accepted, "version": CONSENT_VERSION}
 
 
 @router.post("/chat", response_model=AIChatResponse, response_model_exclude_none=True)
-def chat_with_ai(
+async def chat_with_ai(
     payload: AIChatRequest,
     _user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> AIChatResponse:
     """Send an authenticated user's message to the AI assistant."""
 
@@ -27,8 +60,12 @@ def chat_with_ai(
             detail="Message cannot be blank.",
         )
 
+    choice = await db.get(MiraConsent, _user.id)
+    if not choice or not choice.accepted or choice.version != CONSENT_VERSION:
+        return AIChatResponse(reply="Mira is in limited mode. You can create projects from Home, record work in All Entries, and organise deadlines in All Tasks. For a useful update, note what you did, what you learned, and your next step. Your message was not sent to an AI provider. Open Mira permissions to enable AI replies and project proposals.")
+
     try:
-        result = generate_response(message)
+        result = await run_in_threadpool(generate_response, message)
     except GeminiNotConfiguredError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

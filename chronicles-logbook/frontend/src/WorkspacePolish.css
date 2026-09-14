@@ -1,4 +1,15 @@
 /* Shared workspace surfaces and rhythm. Keep theme and accent preferences intact. */
+.nav-pill { position:relative; isolation:isolate; }
+.nav-flow { position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; z-index:-1; opacity:.58; mask-image:linear-gradient(to bottom,#000 0%,#000 12%,#0004 35%,#0004 65%,#000 88%,#000 100%); }
+.nav-flow svg { width:110%; height:100%; }
+.nav-flow path { fill:none; stroke:#ad86ff; stroke-width:2; vector-effect:non-scaling-stroke; animation:nav-flow-drift 18s ease-in-out infinite alternate; }
+.nav-flow path:nth-child(2) { stroke:#31dcdf; animation-delay:-6s; }
+.nav-flow path:nth-child(3) { stroke:#f185c4; animation-delay:-12s; }
+@keyframes nav-flow-drift { from { transform:translateX(-25px) translateY(-4px); } to { transform:translateX(25px) translateY(4px); } }
+@media(prefers-reduced-motion:reduce) { .nav-flow path { animation:none; } }
+.mira-permissions-link { padding:10px 32px; border-bottom:1px solid var(--line); font-size:.78rem; }
+.mira-permissions-link a { color:var(--blue); }
+.app-shell .mira-page { grid-template-rows:auto auto auto auto auto; }
 .app-shell { width:min(1360px,calc(100% - 48px)); padding-top:20px; }
 .app-bg-grid { opacity:.12; }
 .app-bg-waves { opacity:.3; }
