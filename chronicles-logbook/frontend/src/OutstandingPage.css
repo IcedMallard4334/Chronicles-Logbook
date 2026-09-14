@@ -1,0 +1,18 @@
+/* Outstanding work (US-2.15) */
+.outstanding { display:grid; gap:22px; }
+.outstanding-alarm { flex-shrink:0; margin:0; padding:7px 13px; border-radius:999px; background:color-mix(in srgb,var(--error) 12%,var(--surface)); color:var(--error); font-size:.75rem; font-weight:600; }
+.outstanding-group { display:grid; gap:10px; }
+.outstanding-group-head { display:flex; align-items:center; gap:10px; }
+.outstanding-group-head h2 { margin:0; font-size:.82rem; font-weight:600; letter-spacing:-.01em; }
+.outstanding-group-head span { min-width:22px; padding:2px 7px; border-radius:999px; background:var(--surface-soft); color:var(--muted); font-size:.68rem; text-align:center; }
+.outstanding-group-head p { margin:0; color:var(--muted); font-size:.72rem; }
+.outstanding-group.is-overdue .outstanding-group-head h2 { color:var(--error); }
+.outstanding-group.is-overdue .outstanding-group-head span { background:color-mix(in srgb,var(--error) 12%,var(--surface)); color:var(--error); }
+.outstanding-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.outstanding-row { display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid var(--line); border-radius:10px; }
+.outstanding-row-main { display:flex; flex:1; align-items:center; gap:10px; min-width:0; }
+.outstanding-preview { flex:1; overflow:hidden; color:var(--text); font-size:.82rem; text-overflow:ellipsis; white-space:nowrap; }
+.outstanding-due { flex-shrink:0; color:var(--muted); font-size:.75rem; white-space:nowrap; }
+.outstanding-group.is-overdue .outstanding-due,.outstanding-group.is-today .outstanding-due { color:var(--error); font-weight:600; }
+.outstanding-done { flex-shrink:0; font-size:.72rem; }
+@media(max-width:650px) { .outstanding-row { flex-wrap:wrap; gap:9px; } .outstanding-row-main { flex:1 1 100%; } .outstanding-done { margin-left:auto; } .outstanding-group-head { flex-wrap:wrap; } .outstanding-group-head p { flex:1 1 100%; } }

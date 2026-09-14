@@ -28,6 +28,13 @@
   --success-soft: #bbf7d0;
   --success-bg: #f0fdf4;
 
+  /* Used where an action is allowed but will change data the user did not
+     just type — a schema edit reshaping existing entries. Neither a failure
+     nor a confirmation, so it needs its own colour. */
+  --warning: #b45309;
+  --warning-soft: #fcd9a4;
+  --warning-bg: #fdf6ec;
+
   --shadow: 0 9px 26px rgba(34, 42, 64, 0.10);
 
   --wave-back: #dde1eb;
@@ -81,6 +88,10 @@
     --success-soft: #1a4730;
     --success-bg: #0d2818;
 
+    --warning: #f0b429;
+    --warning-soft: #4a3a16;
+    --warning-bg: #2a1f0c;
+
     --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 
     --wave-back: #171a21;
@@ -119,6 +130,10 @@
   --success: #22c55e;
   --success-soft: #1a4730;
   --success-bg: #0d2818;
+
+  --warning: #f0b429;
+  --warning-soft: #4a3a16;
+  --warning-bg: #2a1f0c;
 
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 

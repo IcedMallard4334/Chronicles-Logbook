@@ -8,7 +8,8 @@ The schema is **user-defined**, not hardcoded. Entries, statistics, filters, and
 
 ## Key Features
 
-- **Custom entry schemas** — define fields with text, number, date, and dropdown types per project
+- **Custom entry schemas** — define fields with text, number, date, dropdown, project-reference, and computed types per project
+- **Editable schemas** — change a project's fields after it has entries, with a preview of what the change does to them before it is applied
 - **Quick capture** — log entries in seconds with pre-filled fields
 - **Time tracking** — record time spent per entry, aggregated per project
 - **Task tracking** — manage to-do items with due dates and checklists per project

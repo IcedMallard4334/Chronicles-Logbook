@@ -15,6 +15,7 @@ class JSONType(TypeDecorator):
     """JSON column that uses JSONB on PostgreSQL and JSON elsewhere (e.g. SQLite)."""
 
     impl = JSON
+    cache_ok = True
 
     def load_dialect_impl(self, dialect):
         if dialect.name == "postgresql":

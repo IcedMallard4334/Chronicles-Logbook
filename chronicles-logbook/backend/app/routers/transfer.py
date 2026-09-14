@@ -76,6 +76,7 @@ async def export_logbook(
                 description=project.description,
                 archived=project.archived,
                 entry_schema=project.entry_schema,
+                retired_schema=project.retired_schema,
                 created_at=project.created_at,
                 entries=[
                     ExportedEntry.model_validate(entry)
@@ -170,6 +171,7 @@ async def _resolve_project(
         description=exported.description,
         archived=exported.archived,
         entry_schema=[field.model_dump(mode="json") for field in exported.entry_schema],
+        retired_schema=[field.model_dump(mode="json") for field in exported.retired_schema],
     )
 
     # The original creation date is part of the record and is kept either way.
@@ -222,7 +224,7 @@ async def import_logbook(
 
         for exported_entry in exported.entries:
             try:
-                _validate_entry_data(exported_entry.data, project.entry_schema)
+                await _validate_entry_data(exported_entry.data, project.entry_schema)
             except HTTPException as error:
                 # The project was reused and its schema has moved on since the
                 # export. Record which entry and why rather than dropping it
@@ -252,6 +254,7 @@ async def import_logbook(
                     id=entry_id,
                     project_id=project.id,
                     data=exported_entry.data,
+                    retired_data=exported_entry.retired_data,
                     time_spent=exported_entry.time_spent,
                     created_at=exported_entry.created_at,
                 )

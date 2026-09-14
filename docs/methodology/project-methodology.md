@@ -35,6 +35,16 @@ The following constraints shaped our methodology choice:
 | **Pure Kanban** | The course's fixed milestone dates already impose a cadence. Abandoning sprint boundaries would decouple our planning from the assessment schedule and remove the natural review points the client expects. |
 | **Extreme Programming (XP)** | While we adopt some XP practices (code review on every PR, CI), we are not practising pair programming full-time, which is a core XP requirement. Claiming XP without pairing would misrepresent our process. |
 
+### Why Scrumban Fits This Team
+
+Scrumban was chosen not just because alternatives were rejected, but because its specific combination of practices maps directly onto this team's constraints:
+
+- **Sprint boundaries match the assessment schedule.** The course imposes three milestone dates. Scrumban's fixed-length sprints align planning, review, and delivery with these dates naturally — each sprint ends at a milestone, and the review ceremony gives the PO a structured point to accept or reject completed work.
+- **Pull-based flow suits divergent timetables.** Team members have no shared free block for daily in-person meetings. Kanban's pull-based backlog — where each person self-assigns the next highest-priority item when they have capacity — means work flows without needing everyone available at the same time.
+- **WIP limits reduce context-switching.** Sprint 1 retrospective identified excessive multitasking. Scrumban's WIP limit of 2 items per member is a deliberate Kanban adaptation that keeps focus without prescribing how or when work gets done.
+- **Retrospectives enable process improvement mid-project.** Over a 70-day project with three sprints, the retrospective is the primary mechanism for surfacing and correcting process failures. The team has already used it to adopt WIP limits and replace standups with informal WhatsApp coordination (see [Process Change Log](#11-process-change-log)).
+- **The team size (4–6 developers) and sprint length (14–23 days) suit Scrum's ceremony overhead.** Planning, review, and retrospective consume approximately 2–3 hours per sprint — an acceptable cost for the structure and accountability they provide.
+
 ### Trade-offs Accepted
 
 Scrumban's ceremony overhead consumes approximately 2–3 hours per sprint that could otherwise be development time. We accepted this cost because the retrospective mechanism is the primary way we surface and correct process failures across a 70-day project, and the sprint review gives the client a structured point to accept or reject completed work.

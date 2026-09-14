@@ -125,6 +125,29 @@ export async function unarchiveProject(id) {
   return request(`/projects/${id}/unarchive`, { method: "POST" })
 }
 
+// ── Editing a live schema ─────────────────────────────────────────────
+
+/**
+ * Ask what changing a project's schema would do, without changing it.
+ *
+ * The server works this out by running the real migration and discarding the
+ * result, so what comes back is what saving will actually do.
+ */
+export async function previewSchemaChange(id, entrySchema) {
+  return request(`/projects/${id}/schema/preview`, {
+    method: "POST",
+    body: JSON.stringify({ entry_schema: entrySchema }),
+  })
+}
+
+/** Save a new schema and migrate the project's existing entries onto it. */
+export async function updateSchema(id, entrySchema) {
+  return request(`/projects/${id}/schema`, {
+    method: "PUT",
+    body: JSON.stringify({ entry_schema: entrySchema }),
+  })
+}
+
 export async function fetchEntries(projectId) {
   return request(`/projects/${projectId}/entries`)
 }
@@ -132,12 +155,20 @@ export async function fetchEntries(projectId) {
 export async function fetchEntriesGlobal({
   q,
   projectId,
+  tag,
+  todo,
+  sort,
   page = 1,
   pageSize = 20,
 } = {}) {
   const params = new URLSearchParams()
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
+  if (tag) params.append("tag", tag)
+  // Compared against undefined so `todo: false` still narrows the search to
+  // completed work rather than being dropped as falsy.
+  if (todo !== undefined) params.append("todo", todo)
+  if (sort) params.append("sort", sort)
   params.append("page", page)
   params.append("page_size", pageSize)
   return request(`/entries?${params.toString()}`)
@@ -145,11 +176,16 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null, id, created_at } = hasNestedData
+  const { data, time_spent = null, todo, due_date, id, created_at } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
 
   const body = { data, time_spent }
+
+  // Outstanding-work fields (US-2.15) are omitted unless the entry is being
+  // logged as something still to do, so the server default of "done" holds.
+  if (todo !== undefined) body.todo = todo
+  if (due_date !== undefined) body.due_date = due_date
 
   // Sent only by offline sync and import, which already know the entry's
   // identity and when it was captured. Ordinary online capture omits both and
@@ -168,12 +204,14 @@ export async function fetchEntry(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}`)
 }
 
-export async function updateEntry(projectId, entryId, { data, time_spent }) {
+export async function updateEntry(projectId, entryId, { data, time_spent, todo, due_date }) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
   const body = {}
   if (data !== undefined) body.data = data
   if (time_spent !== undefined) body.time_spent = time_spent
+  if (todo !== undefined) body.todo = todo
+  if (due_date !== undefined) body.due_date = due_date
 
   return request(`/projects/${projectId}/entries/${entryId}`, {
     method: "PUT",
@@ -187,7 +225,30 @@ export async function deleteEntry(projectId, entryId) {
   })
 }
 
-// ── Export and import ─────────────────────────────────────────────────
+// ── Saved filters ────────────────────────────────────────────
+
+export async function fetchSavedFilters() {
+  return request("/saved-filters")
+}
+
+/**
+ * Store the current entries filters under a name (US-2.12).
+ *
+ * Saving the same name twice updates that filter rather than adding a
+ * duplicate, which is what the server does with a repeated name.
+ */
+export async function saveFilter(name, criteria) {
+  return request("/saved-filters", {
+    method: "POST",
+    body: JSON.stringify({ name, criteria }),
+  })
+}
+
+export async function deleteSavedFilter(filterId) {
+  return request(`/saved-filters/${filterId}`, { method: "DELETE" })
+}
+
+// ── Export and import ───────────────────────────────────────────────────
 
 export async function fetchExportDocument() {
   return request("/export")
@@ -234,6 +295,18 @@ export async function fetchProjectCsv(projectId) {
 
 export async function fetchStatistics() {
   return request("/statistics")
+}
+
+export async function fetchFieldTimeline(projectId, fieldId, start, end) {
+  const params = new URLSearchParams()
+
+  if (start) params.set("start", start)
+  if (end) params.set("end", end)
+
+  const query = params.toString()
+  const path = `/statistics/projects/${projectId}/fields/${fieldId}/timeline`
+
+  return request(query ? `${path}?${query}` : path)
 }
 
 export function getGoogleLoginUrl() {
@@ -311,6 +384,12 @@ export function createCalendarActivity(payload) {
 }
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
+}
+
+// ── Entry links (bidirectional) ──────────────────────────────────────
+
+export async function fetchEntryLinks(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/links`)
 }
 
 // ── AI Assistant ──────────────────────────────────────────────────────
