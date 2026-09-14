@@ -8,12 +8,17 @@ function conversation(overrides = {}) {
 }
 
 describe("Mira assistant interfaces", () => {
-  it("shows the welcome state and sends a suggested prompt", () => {
+  it("lets users edit a suggested prompt before sending", () => {
     const state = conversation()
     render(<MiraAssistantPage conversation={state} />)
-    expect(screen.getByText("Meet Mira")).toBeInTheDocument()
-    fireEvent.click(screen.getByText("How can I keep a better project log?"))
-    expect(state.onSend).toHaveBeenCalledWith("How can I keep a better project log?")
+    expect(screen.getByText("Make room for your next idea.")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Write a clearer update"))
+    expect(state.onSend).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Message Mira")).toHaveFocus()
+    expect(screen.getByLabelText("Message Mira").value).toContain("Help me write a clear project update")
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Help me capture today's research" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(state.onSend).toHaveBeenCalledWith("Help me capture today's research")
   })
 
   it("renders replies, loading state, errors, and retry", () => {
