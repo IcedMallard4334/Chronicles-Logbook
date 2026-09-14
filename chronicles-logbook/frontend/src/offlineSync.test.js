@@ -246,4 +246,29 @@ describe("reacting to the network returning", () => {
       expect.objectContaining({ pending: 0, rejected: 1 })
     )
   })
+
+  it("notifies subscribers that work is still pending before the send resolves", async () => {
+    // Regression: App.jsx only reloads from the server when it observes a
+    // pending>0 state followed by pending==0. A drain that only notified
+    // once, after finishing, could report pending==0 without that
+    // transition ever being seen — leaving a just-synced entry invisible
+    // until the next full reload.
+    await capture()
+    let release
+    createEntry.mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve({ id: "server-id" }) })
+    )
+
+    const seen = []
+    engine.subscribe((state) => seen.push(state.pending))
+
+    const drainPromise = engine.drain(USER)
+    await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0))
+    expect(seen[0]).toBe(1)
+
+    release()
+    await drainPromise
+
+    expect(seen[seen.length - 1]).toBe(0)
+  })
 })

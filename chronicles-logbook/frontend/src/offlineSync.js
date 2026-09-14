@@ -70,6 +70,13 @@ export function createSyncEngine({
     if (draining) return { accepted: 0, rejected: 0, stopped: "already-running" }
 
     draining = true
+    // Let subscribers see the "still pending, now syncing" state before the
+    // send is attempted. Without this, a drain that succeeds on its first
+    // pass only ever notifies once, in the finally block below, with
+    // pending already back at 0 — so a listener trying to detect the
+    // pending>0 -> pending==0 transition (App.jsx does, to know when to
+    // reload from the server) never observes the "before" half of it.
+    await notify(userId)
     let accepted = 0
     let rejected = 0
     let stopped = null
