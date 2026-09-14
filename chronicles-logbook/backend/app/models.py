@@ -83,6 +83,13 @@ class Project(Base):
         default=list,
     )
 
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+
     # Definitions of fields that were removed from entry_schema (US-2.7).
     # Removing a field hides it from new entries; it does not delete what was
     # already recorded under it, and a value without its label is not a
@@ -123,6 +130,20 @@ class Entry(Base):
         JSONType,
         nullable=False,
         default=dict,
+    )
+
+    schema_version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+
+    schema_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        default=list,
+        server_default="[]",
     )
 
     # Values that no longer have a field in the project's entry_schema, moved

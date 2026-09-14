@@ -225,6 +225,7 @@ class ProjectResponse(BaseModel):
     description: str | None
     archived: bool
     entry_schema: list[FieldDefinition]
+    schema_version: int
     # Definitions for fields that have been removed from the schema, so the
     # values kept under them can still be labelled (US-2.7).
     retired_schema: list[FieldDefinition] = Field(default_factory=list)
@@ -344,6 +345,8 @@ class EntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     data: dict[str, Any]
+    schema_version: int
+    schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
     # Values recorded under fields that have since left the schema. Returned so
     # that "removed but not destroyed" is something the owner can see rather
     # than only something the database knows (US-2.7).

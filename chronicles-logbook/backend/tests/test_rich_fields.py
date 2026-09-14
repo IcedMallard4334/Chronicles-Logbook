@@ -418,13 +418,9 @@ async def test_empty_link_value_is_accepted(authenticated_client, rich_project):
     )
     assert response.status_code == 201
     assert response.json()["data"]["f-link"] == ""
-"""Tests for project-reference and computed fields (US-2.4, US-2.5)."""
 
-from uuid import uuid4
 
-import pytest_asyncio
-
-from app.schemas import FieldType
+# ── Project-reference and computed fields (US-2.4, US-2.5) ──────────────────
 
 
 async def _create_project(client, name, schema):
