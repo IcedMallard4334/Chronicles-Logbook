@@ -1,8 +1,8 @@
 """Aggregate statistics over a user's projects and entries."""
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import distinct, func, select
