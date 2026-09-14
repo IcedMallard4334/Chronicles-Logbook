@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
-from app.routers import ai
 from app.models import MiraConsent
+from app.routers import ai
 from app.services.gemini_service import GeminiResponse
 
 
