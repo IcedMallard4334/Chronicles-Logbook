@@ -50,4 +50,19 @@ describe("AuthPage", () => {
       screen.getByText("Continue with your Google account to access your projects and entries.")
     ).toBeInTheDocument()
   })
+
+  it("offers a create-account link that starts the same Google flow", () => {
+    // Google sign-in creates an account on first use (see auth.py's
+    // google_callback), so "sign up" and "sign in" are the same request —
+    // this link exists only to reassure someone who isn't sure they've
+    // signed up yet, not to start a different flow.
+    renderPage()
+
+    const createAccountLink = screen.getByRole("link", { name: "Create one" })
+    expect(createAccountLink).toHaveAttribute(
+      "href",
+      "http://localhost:8000/auth/google/login"
+    )
+    expect(screen.getByText("Don’t have an account?")).toBeInTheDocument()
+  })
 })

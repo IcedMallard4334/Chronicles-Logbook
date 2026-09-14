@@ -86,6 +86,13 @@ function AuthPage() {
             <span>Continue with Google</span>
           </a>
 
+          <p className="auth-signup-note">
+            Don&rsquo;t have an account?{" "}
+            <a className="auth-signup-link" href={getGoogleLoginUrl()}>
+              Create one
+            </a>
+          </p>
+
           <p className="auth-provider-note">
             Google will ask you to choose an account each time.
           </p>

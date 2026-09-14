@@ -227,6 +227,23 @@
   text-align: center;
 }
 
+.auth-signup-note {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.auth-signup-link {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-signup-link:hover {
+  text-decoration: underline;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
