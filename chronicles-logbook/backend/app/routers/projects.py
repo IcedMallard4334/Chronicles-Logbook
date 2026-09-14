@@ -31,12 +31,12 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 # that adding one to a live schema does not invalidate every existing entry.
 _OPTIONAL_TYPES = frozenset({"computed", "project_reference"})
 
-<<<<<<< HEAD
-
-def _validate_entry_data(
+async def _validate_entry_data(
     data: dict[str, Any],
     entry_schema: list[dict[str, Any]],
     known_project_ids: dict[str, str] | set[str] | None = None,
+    db: AsyncSession | None = None,
+    user: User | None = None,
 ) -> None:
     """Validate entry field values against the project's entry_schema.
 
@@ -44,16 +44,11 @@ def _validate_entry_data(
     allowed to name — the caller's own projects. It is optional because the
     import path validates a document before any of its projects exist; those
     references are checked once the ids are known.
+
+    ``db`` and ``user`` enable checks that need the database — a link field
+    (US-2.3) must name an entry that actually exists — and are omitted on
+    paths that validate before a session is available.
     """
-=======
-async def _validate_entry_data(
-    data: dict[str, Any],
-    entry_schema: list[dict[str, Any]],
-    db: AsyncSession | None = None,
-    user: User | None = None,
-) -> None:
-    """Validate entry field values against the project's entry_schema."""
->>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
     schema_by_id = {field["id"]: field for field in entry_schema}
 
     for field in entry_schema:
@@ -101,7 +96,6 @@ async def _validate_entry_data(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be one of: {', '.join(options)}",
                 )
-<<<<<<< HEAD
         elif field_type == "project_reference":
             # Blank is allowed; anything present has to name a project that
             # exists and belongs to the caller, or the reference is a dead end.
@@ -124,6 +118,60 @@ async def _validate_entry_data(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' refers to a project that does not exist",
                 )
+        elif field_type == "tags":
+            if not isinstance(value, list) or not all(
+                isinstance(tag, str) for tag in value
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must be a list of strings",
+                )
+        elif field_type == "checklist":
+            if not isinstance(value, list):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' must be a list of checklist items",
+                )
+            for item in value:
+                if not isinstance(item, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': each checklist item must be an object",
+                    )
+                if "id" not in item or "text" not in item:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': checklist items require 'id' and 'text'",
+                    )
+                if not isinstance(item["text"], str):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': checklist item text must be a string",
+                    )
+        elif field_type == "link":
+            if value is not None and value != "":
+                if not isinstance(value, str):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' must be an entry id string",
+                    )
+                # Validate that the linked entry exists (if db and user provided)
+                if db is not None and user is not None:
+                    try:
+                        target_id = UUID(value)
+                    except ValueError:
+                        # `from None` because the ValueError only says the string
+                        # is not a UUID, which the detail already states.
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Field '{field_name}': invalid entry id",
+                        ) from None
+                    target = await db.get(Entry, target_id)
+                    if target is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Field '{field_name}': linked entry does not exist",
+                        )
 
 
 async def _user_projects(user: User, db: AsyncSession) -> dict[str, str]:
@@ -209,63 +257,6 @@ def _apply_project_references(
         if field.get("type") == "project_reference" and field.get("linked_project_id"):
             result[field["id"]] = str(field["linked_project_id"])
     return result
-
-=======
-        elif field_type == "tags":
-            if not isinstance(value, list) or not all(
-                isinstance(tag, str) for tag in value
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Field '{field_name}' must be a list of strings",
-                )
-        elif field_type == "checklist":
-            if not isinstance(value, list):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Field '{field_name}' must be a list of checklist items",
-                )
-            for item in value:
-                if not isinstance(item, dict):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=f"Field '{field_name}': each checklist item must be an object",
-                    )
-                if "id" not in item or "text" not in item:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=f"Field '{field_name}': checklist items require 'id' and 'text'",
-                    )
-                if not isinstance(item["text"], str):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=f"Field '{field_name}': checklist item text must be a string",
-                    )
-        elif field_type == "link":
-            if value is not None and value != "":
-                if not isinstance(value, str):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=f"Field '{field_name}' must be an entry id string",
-                    )
-                # Validate that the linked entry exists (if db and user provided)
-                if db is not None and user is not None:
-                    try:
-                        target_id = UUID(value)
-                    except ValueError:
-                        # `from None` because the ValueError only says the string
-                        # is not a UUID, which the detail already states.
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Field '{field_name}': invalid entry id",
-                        ) from None
-                    target = await db.get(Entry, target_id)
-                    if target is None:
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Field '{field_name}': linked entry does not exist",
-                        )
->>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
 async def _get_user_project(
     project_id: UUID,
@@ -592,16 +583,14 @@ async def create_entry(
             detail="Cannot add entries to an archived project.",
         )
 
-<<<<<<< HEAD
     payload_data = _apply_project_references(data.data, project.entry_schema)
-    _validate_entry_data(
+    await _validate_entry_data(
         payload_data,
         project.entry_schema,
         await _reference_scope(project.entry_schema, user, db),
+        db=db,
+        user=user,
     )
-=======
-    await _validate_entry_data(data.data, project.entry_schema, db=db, user=user)
->>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
     entry = Entry(
         project_id=project_id,
@@ -699,18 +688,15 @@ async def update_entry(
         )
 
     if payload.data is not None:
-<<<<<<< HEAD
         payload_data = _apply_project_references(payload.data, project.entry_schema)
-        _validate_entry_data(
+        await _validate_entry_data(
             payload_data,
             project.entry_schema,
             await _reference_scope(project.entry_schema, user, db),
+            db=db,
+            user=user,
         )
         entry.data = apply_computed_fields(payload_data, project.entry_schema)
-=======
-        await _validate_entry_data(payload.data, project.entry_schema, db=db, user=user)
-        entry.data = payload.data
->>>>>>> c34067408a7d68c1672bcb60f6f2c07c696129e6
 
     # Checked against the fields actually sent rather than against None, so
     # that an explicit "time_spent": null clears a recorded duration while

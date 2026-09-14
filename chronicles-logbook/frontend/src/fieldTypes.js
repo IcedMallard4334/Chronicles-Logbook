@@ -1,10 +1,10 @@
 /**
  * The field types a schema can use, and how to read their values.
  *
- * The two additions here are a project link (US-2.4) and a calculation
- * (US-2.5). Both are described in the language the builder shows rather than
- * by the name the API uses: "project_reference" is a fine wire format and a
- * poor label.
+ * The original four types are joined by tags, checklist and entry link
+ * (US-2.1–US-2.3), a project link (US-2.4) and a calculation (US-2.5). All
+ * are described in the language the builder shows rather than by the name
+ * the API uses: "project_reference" is a fine wire format and a poor label.
  *
  * Calculations are evaluated here as well as on the server. That duplication
  * is deliberate: the point of a calculated field is watching it settle as you
@@ -33,6 +33,9 @@ export const FIELD_TYPE_META = {
   number: { label: "Number", hint: "A figure you can add up.", badge: null },
   date: { label: "Date", hint: "A calendar day.", badge: null },
   dropdown: { label: "Choice", hint: "One option from a fixed list.", badge: null },
+  tags: { label: "Tags", hint: "Short labels you can filter the entry list by.", badge: null },
+  checklist: { label: "Checklist", hint: "Sub-tasks ticked off inside the entry.", badge: null },
+  link: { label: "Entry link", hint: "Points at another entry, so related work stays traceable.", badge: null },
   project_reference: {
     label: "Project link",
     hint: "Points at another of your projects.",

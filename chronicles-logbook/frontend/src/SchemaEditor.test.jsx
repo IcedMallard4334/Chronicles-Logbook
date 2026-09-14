@@ -173,12 +173,13 @@ describe("editing a schema", () => {
     expect(screen.getAllByLabelText("Type")).toHaveLength(2)
   })
 
-  it("offers a project link and a calculation as field types", async () => {
+  it("offers every field type the builder knows about", async () => {
     await openSchemaEditor()
 
     const options = within(screen.getAllByLabelText("Type")[0]).getAllByRole("option")
     expect(options.map((option) => option.textContent)).toEqual([
-      "Text", "Number", "Date", "Choice", "Project link", "Calculation",
+      "Text", "Number", "Date", "Choice", "Tags", "Checklist", "Entry link",
+      "Project link", "Calculation",
     ])
   })
 
@@ -648,6 +649,8 @@ describe("filling in an entry", () => {
       expect(createEntry).toHaveBeenCalledWith("proj-1", {
         data: { "f-hours": 3, "f-rate": 50 },
         time_spent: null,
+        todo: false,
+        due_date: null,
       })
     )
   })
@@ -688,7 +691,12 @@ describe("filling in an entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     await waitFor(() =>
-      expect(createEntry).toHaveBeenCalledWith("proj-1", { data: {}, time_spent: null })
+      expect(createEntry).toHaveBeenCalledWith("proj-1", {
+        data: {},
+        time_spent: null,
+        todo: false,
+        due_date: null,
+      })
     )
   })
 })
