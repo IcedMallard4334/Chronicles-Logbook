@@ -1,7 +1,6 @@
 """Tests for the statistics endpoint."""
 
 from datetime import datetime, timezone
-from http import client
 
 import pytest_asyncio
 
