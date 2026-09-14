@@ -85,23 +85,13 @@ erDiagram
 | `created_at` | TIMESTAMP (tz) | Account creation time |
 | `updated_at` | TIMESTAMP (tz) | Last update time |
 
-### password_credentials
+### password_credentials, password_reset_tokens (retired)
 
-| Column | Type | Description |
-|---|---|---|
-| `user_id` | UUID (PK, FK → users) | Owner reference |
-| `password_hash` | VARCHAR(512) | Bcrypt-hashed password |
-
-### password_reset_tokens
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID (PK) | Primary key |
-| `user_id` | UUID (FK → users) | Owner reference |
-| `token_hash` | VARCHAR(64) | SHA-256 hash of the reset token |
-| `expires_at` | TIMESTAMP (tz) | Token expiry |
-| `used_at` | TIMESTAMP (tz) | When the token was used (NULL = unused) |
-| `created_at` | TIMESTAMP (tz) | Token creation time |
+Chronicles signs in with Google only. These two tables were created by
+migration `001` when password authentication was still being considered, and
+they still exist in databases built from that migration, but no model maps them
+and no endpoint reads or writes them. They hold no data and are candidates for
+a `DROP TABLE` migration.
 
 ### projects
 
@@ -112,6 +102,7 @@ erDiagram
 | `name` | VARCHAR(255) | Project name |
 | `description` | VARCHAR | Optional description |
 | `entry_schema` | JSONB | User-defined field definitions |
+| `schema_version` | INTEGER | Incremented each time the schema changes (default: 1) |
 | `retired_schema` | JSONB | Definitions of fields the project no longer asks for (default: `[]`) |
 | `archived` | BOOLEAN | Archive status (default: false) |
 | `created_at` | TIMESTAMP (tz) | Creation time |
@@ -131,10 +122,36 @@ restored, recovered.
 | `id` | UUID (PK) | Primary key |
 | `project_id` | UUID (FK → projects) | Parent project |
 | `data` | JSONB | User-defined field values |
+| `schema_version` | INTEGER | The project schema version this entry was written against (default: 1) |
+| `schema_snapshot` | JSONB | The field definitions as they stood when the entry was written (default: `[]`) |
 | `retired_data` | JSONB | Values recorded under fields since removed (default: `{}`) |
 | `time_spent` | INTEGER | Optional time spent on the entry, in minutes |
+| `todo` | BOOLEAN | Marks work still outstanding rather than already done (default: false) |
+| `due_date` | DATE | Optional deadline for an outstanding entry |
 | `created_at` | TIMESTAMP (tz) | Creation time |
 | `updated_at` | TIMESTAMP (tz) | Last update time |
+
+`schema_snapshot` is what lets an older entry stay readable after the project's
+format changes: the entry carries the shape it was written against, so it can
+be displayed as it was rather than reinterpreted through today's schema.
+
+### project_members
+
+Records who, besides the owner, may see and contribute to a project.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID (PK) | Primary key |
+| `project_id` | UUID (FK → projects, cascade) | The shared project |
+| `user_id` | UUID (FK → users, cascade) | The person it is shared with |
+| `created_at` | TIMESTAMP (tz) | When access was granted |
+
+`UNIQUE (project_id, user_id)` — someone is either a member or not, so sharing
+twice is idempotent rather than producing a second row.
+
+Membership grants reading the project and adding entries to it. Changing the
+schema, archiving, deleting, exporting and sharing onward remain with the owner
+in `projects.user_id`. See the [Sharing API](../api/sharing.md).
 
 ### tasks
 

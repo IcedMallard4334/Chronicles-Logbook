@@ -8,7 +8,8 @@ All project endpoints require authentication (`Authorization: Bearer <token>`).
 GET /projects
 ```
 
-Returns all projects owned by the authenticated user, newest first.
+Returns every project the authenticated user can see — the ones they own and the
+ones shared with them — newest first.
 
 **Query parameters:**
 
@@ -31,6 +32,7 @@ Returns all projects owned by the authenticated user, newest first.
     "archived": false,
     "total_time_spent": 240,
     "retired_schema": [],
+    "shared": false,
     "created_at": "...",
     "updated_at": "..."
   }
@@ -38,6 +40,10 @@ Returns all projects owned by the authenticated user, newest first.
 ```
 
 `total_time_spent` is the sum of `time_spent` (in minutes) across all entries in the project.
+
+`shared` is `true` when the project reached you through a share rather than
+being yours, in which case you may read it and add entries but not change its
+schema, archive it or export it. See [Sharing](sharing.md).
 
 `retired_schema` holds fields the project used to ask for. See [Schema and field types](schema.md#retired-fields-in-responses).
 
@@ -150,6 +156,49 @@ POST /projects/{project_id}/unarchive
 Sets `archived` to `false`.
 
 **Response:** `200 OK` — returns the updated project.
+
+---
+
+## Delete project
+
+```
+DELETE /projects/{project_id}
+```
+
+Permanently removes the project together with **every entry, task and share**
+belonging to it. Only the owner may delete; a project shared with you is not
+yours to remove.
+
+**Archiving is the ordinary way to finish with a project**, because it keeps the
+record. Deletion is for a project that should never have existed — a mistake, a
+duplicate, a test. The interface asks for the project's name back before calling
+this, the same bar the account deletion sets.
+
+**Response:** `204 No Content`
+
+**Errors:**
+
+| Status | Meaning |
+|---|---|
+| `404 Not Found` | No such project, or it is not yours — including a project shared with you |
+
+Deleting the same project twice returns `404` the second time: it is no longer
+yours to delete.
+
+### What happens to links pointing at it
+
+A `project_reference` field in *another* project that pointed at this one is
+deliberately left as it is. It then reads as "Links to a project you no longer
+have", which is true. Clearing it would make the field read as though it had
+never been pointed anywhere, which is a different situation with a different fix.
+
+### Why the children are deleted explicitly
+
+`tasks.project_id` carries no `ON DELETE` behaviour, so PostgreSQL would refuse
+to delete a project that still had tasks. SQLite does not enforce foreign keys
+unless asked to, so the test suite would not have caught that. The endpoint
+therefore removes tasks, entries and shares itself rather than relying on the
+database to cascade.
 
 ---
 

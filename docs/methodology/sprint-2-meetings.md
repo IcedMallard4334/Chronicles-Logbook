@@ -145,9 +145,63 @@ The team reviewed the Sprint 2 rubric line by line and identified one significan
 
 ---
 
+## Sprint 2 — Meeting 4: Product Owner Review & Sprint 2 Check-in
+
+| | |
+|---|---|
+| **Date** | 2026-09-14 |
+| **Location** | MSL Laptop Rooms, Wits University |
+| **Attendees** | Ethan, Victor, Ronald, Athalia, Tebogo, Nkosinathi, Matthew (Product Owner / Mentor / Reviewer) |
+| **Format** | In person |
+| **Minutes taker** | Victor |
+
+### Agenda
+
+1. Walkthrough of the current app with the Product Owner
+2. Receive feedback on required fixes and improvements
+3. Confirm documentation completeness
+4. Identify external API integration opportunities
+5. Finalise priorities before the sprint deadline
+
+### Discussion
+
+The team gave Matthew a full walkthrough of the integrated app — the first PO review since the branches were merged at Meeting 3. Matthew was positive about the look, feel and overall progress, and the session then moved through specific gaps.
+
+**Documentation.** Matthew reviewed the documentation site and found several required documents missing. The team agreed to audit the documentation against the assignment's requirements rather than against its own assumptions about what was needed, since the gaps found were ones nobody had noticed precisely because nobody had checked systematically.
+
+**Backend inconsistencies.** Matthew identified inconsistencies in the backend producing errors. This matched what the team had been seeing in deployment: the same day, a production outage traced to database columns that existed in the models but had never been added to the deployed database, because the deploy pipeline does not run the `migrations/` files and the startup patch listing was incomplete.
+
+**Dynamic elements.** Matthew noted that the landing page has animated, dynamic elements that the rest of the app does not, making the app feel less finished than its front door.
+
+**Project sharing.** Matthew suggested project sharing as a way to add functionality and increase the app's usefulness, framing it as an external API integration opportunity.
+
+**Exporting and statistics.** Matthew was explicit that both must be working before the presentation, as they are key deliverables and are easy to demonstrate.
+
+**Terms and conditions.** Matthew advised that terms and conditions are needed for Mira to access information within the app, for compliance and proper data access.
+
+**Tool justification.** Matthew stated that every tool used in the project must be justified — not merely listed, but explained in terms of why it was chosen and what it contributes.
+
+### Decisions and Rationale
+
+| ID | Decision | Rationale |
+|---|---|---|
+| **D-001** | Audit all documentation against the assignment requirements and fill the gaps. | The gaps Matthew found were missed because completeness had never been checked against the source document — only against the team's memory of it. Auditing against the brief itself turns "we think it's all there" into something verifiable. This produced, among others, the [Third-Party Code](../development/third-party-code.md) and [User Feedback](user-feedback.md) pages. |
+| **D-002** | Fix the backend inconsistencies causing errors. | Traced the same day to schema drift: `Base.metadata.create_all()` creates missing *tables* but never adds *columns* to tables that already exist, and the deploy pipeline never applies `migrations/`. Five columns existed in the models and not in production, so every query touching them returned a 500. Fixed by completing the startup column list and adding a test that fails if a migration adds a column the list omits — the drift is now caught in CI instead of in production. |
+| **D-003** | Add dynamic elements to the rest of the app to match the landing page. | Consistency of finish: an app whose landing page moves and whose interior does not reads as unfinished, regardless of how complete the features are. Scoped deliberately — motion behind dense tables harms legibility, so any treatment has to stay low-contrast and respect `prefers-reduced-motion`. |
+| **D-004** | Implement project sharing. | Adopted as a feature on its own merits — it makes a logbook usable by more than one person, which is a genuine increase in usefulness. **Recorded clarification:** sharing is *not* an external API integration. The rubric's Integration criterion asks for a third-party service, and the project already satisfies it twice over, through the Google Calendar API and Google Gemini. Sharing therefore scores under Core Features, not Integration, and was built because it is worth building rather than to fill a requirement that was already met. See [Sharing](../api/sharing.md). |
+| **D-005** | Ensure exporting and statistics are fully functional before the presentation. | Both are high-visibility deliverables that a marker is likely to exercise directly, and both were among the least-tested parts of the backend — `statistics.py` at 23% and `transfer.py` at 39% line coverage when measured. Low coverage on a must-demo feature is the combination most likely to fail live, so both were prioritised for endpoint tests. |
+| **D-006** | Add terms and conditions to the app. | Needed for Mira (the assistant) to access user content with informed consent. A logbook holds a personal record, and an assistant reading it is exactly the kind of processing a user should be told about before it happens rather than after. |
+| **D-007** | Document a justification for every tool used in the project. | Following the same principle as D-006 from Meeting 1 — motivations for everything. A dependency list says what is installed; it does not say why that choice was made or what would have been lost by choosing otherwise. Captured on the [Third-Party Code](../development/third-party-code.md) page, which also records the dependencies found to be unused and why they were left in place rather than removed mid-sprint. |
+
+### Evidence
+
+![Sprint 2 Meeting 4 — MSL Laptop Rooms, Product Owner review with Matthew](../assets/meetings/sprint2-meeting4-photo.png)
+
+---
+
 ## Cross-Meeting Themes
 
-Several themes emerged across the three Sprint 2 meetings and shaped how the sprint is planned:
+Several themes emerged across the four Sprint 2 meetings and shaped how the sprint is planned:
 
 1. **Motivations matter as much as decisions.** The Sprint 1 marking feedback was explicit: every decision needs a *why*. This is why this page and the [Sprint 2 Plan](sprint-2-plan.md) page carry rationale for every entry, and why the [Project Methodology](project-methodology.md) page explains *why* Scrumban fits this team's constraints.
 
