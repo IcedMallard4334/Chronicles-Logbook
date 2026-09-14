@@ -2,8 +2,10 @@ import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
-import CommandPalette from "./CommandPalette"
+import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import CalendarView from "./CalendarView"
+import BoardView from "./BoardView"
+import OutstandingPage from "./OutstandingPage"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -17,18 +19,47 @@ import {
   createEntry,
   createProject,
   deleteAccount,
+  deleteProject,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchEntryLinks,
+  fetchFieldTimeline,
+  fetchProjectMembers,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  previewSchemaChange,
+  shareProject,
   unarchiveProject,
+  unshareProject,
   updateProject,
+  updateSchema,
 } from "./api"
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import {
+  FIELD_TYPE_META,
+  FIELD_TYPES,
+  describeExpression,
+  expressionCanonical,
+  expressionError,
+  expressionToDisplay,
+  fieldTypeLabel,
+  isNumericField,
+  previewExpressionValue,
+  referencedFieldIds,
+  renameFieldInExpression,
+  withComputedValues,
+} from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
-
-const FIELD_TYPES = ["text", "number", "date", "dropdown"]
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -57,35 +88,10 @@ function formatDuration(minutes) {
   return `${hours}h ${remainder}m`
 }
 
-const THEMES = ["light", "dark", "system"]
-
-function useTheme() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "system"
-    return window.localStorage.getItem("chronicles-theme") || "system"
-  })
-
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === "system") {
-      delete root.dataset.theme
-    } else {
-      root.dataset.theme = theme
-    }
-    window.localStorage.setItem("chronicles-theme", theme)
-  }, [theme])
-
-  const cycleTheme = () => {
-    setTheme((current) => {
-      const index = THEMES.indexOf(current)
-      return THEMES[(index + 1) % THEMES.length]
-    })
-  }
-
-  return [theme, cycleTheme]
-}
-
-function UserMenu({ userName, onSignOut, onDeleteAccount }) {
+// Signing out and deleting the account deliberately live only on the profile
+// page. Having them here as well meant two routes to an irreversible action,
+// one of them a single click away from a menu opened for something else.
+function UserMenu({ userName, avatarUrl, initials }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -103,19 +109,23 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
 
   return (
     <div className="user-menu" ref={menuRef}>
+      {/* The avatar is the trigger: one control in the corner rather than a
+          face and a set of lines sitting beside each other doing similar
+          things. Profile itself is the first item in the menu. */}
       <button
         type="button"
-        className="user-menu-trigger"
+        className="user-menu-trigger user-avatar"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label="Account menu"
+        aria-label={`${userName} — account menu`}
+        title={userName}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+        ) : (
+          initials
+        )}
       </button>
 
       {open && (
@@ -127,54 +137,17 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
             type="button"
             className="user-dropdown-item"
             role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
+            onClick={() => { window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE)); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <span>Search</span>
-          </button>
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            <span>Notifications</span>
+            <kbd className="user-dropdown-kbd">Ctrl K</kbd>
           </button>
           <div className="user-dropdown-divider" />
           <DataTransfer onClose={() => setOpen(false)} />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-            <span>Analytics</span>
-          </button>
-          <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            <span>Settings</span>
-          </button>
           <div className="user-dropdown-divider" />
           <button
             type="button"
@@ -187,32 +160,6 @@ function UserMenu({ userName, onSignOut, onDeleteAccount }) {
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>Profile</span>
-          </button>
-          <div className="user-dropdown-divider" />
-          <button
-            type="button"
-            className="user-dropdown-item"
-            role="menuitem"
-            onClick={() => { onSignOut(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span>Sign out</span>
-          </button>
-          <button
-            type="button"
-            className="user-dropdown-item user-dropdown-danger"
-            role="menuitem"
-            onClick={() => { onDeleteAccount(); setOpen(false); }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            <span>Delete account</span>
           </button>
         </div>
       )}
@@ -278,13 +225,12 @@ function AuthActions() {
   return (
     <>
       <div className="account-actions">
-        <div className="user-avatar" title={user.full_name}>
-          {initials}
-        </div>
+        {/* Google already gives us a photo and it was being thrown away.
+            no-referrer matters: Google's CDN refuses the image otherwise. */}
         <UserMenu
           userName={user.full_name}
-          onSignOut={clearSession}
-          onDeleteAccount={openDeleteModal}
+          avatarUrl={user.avatar_url}
+          initials={initials}
         />
 
         {accountError && (
@@ -572,6 +518,86 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
+/** The sidebar's status language for a project, read from its open tasks. */
+function deriveProjectStatus(tasks, today) {
+  const late = tasks.some((task) => task.due_date && task.due_date < today)
+  return late ? "Needs attention" : tasks.length ? "In progress" : "On track"
+}
+
+/**
+ * The status of each of a set of projects, as the sidebar shows it.
+ *
+ * A link to another project carries the same dot the sidebar does, so the
+ * status has to be derived the same way — one rule, learned once, read
+ * anywhere. Only the projects asked for are fetched, which for a link chip
+ * means the one or two a schema points at.
+ */
+function useProjectStatuses(projectIds) {
+  const [statuses, setStatuses] = useState({})
+  const key = projectIds.join("\n")
+  const ids = useMemo(() => (key ? key.split("\n") : []), [key])
+
+  useEffect(() => {
+    if (ids.length === 0) return undefined
+
+    let active = true
+    const today = new Date().toLocaleDateString("en-CA")
+    Promise.allSettled(ids.map((id) => fetchTasks(id, false))).then((results) => {
+      if (!active) return
+      setStatuses(
+        Object.fromEntries(
+          results.map((result, index) => [
+            ids[index],
+            deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
+          ])
+        )
+      )
+    })
+    return () => {
+      active = false
+    }
+  }, [ids])
+
+  return statuses
+}
+
+/**
+ * A project link as it reads among values: the target's name on the
+ * sidebar's status dot, and — wherever a click can be acted on — the target
+ * itself.
+ *
+ * The dot is what makes it read as a connection rather than as text: the
+ * same green unless the project needs attention, exactly as the sidebar
+ * shows it.
+ */
+function LinkChip({ targetId, projects, status, onOpen }) {
+  const target = projects.find((project) => project.id === targetId)
+  const content = (
+    <>
+      <span
+        className={`log-link-dot ${status === "Needs attention" ? "is-attention" : ""}`}
+        aria-hidden="true"
+      />
+      {target ? target.name : "A project you no longer have"}
+    </>
+  )
+
+  if (!target || !onOpen) {
+    return <span className="log-link-chip is-static">{content}</span>
+  }
+
+  return (
+    <button
+      type="button"
+      className="log-link-chip"
+      onClick={() => onOpen(targetId)}
+      title={`Open ${target.name}`}
+    >
+      {content}
+    </button>
+  )
+}
+
 function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -591,11 +617,10 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
     const today = new Date().toLocaleDateString("en-CA")
     Promise.allSettled(activeProjects.map(project => fetchTasks(project.id, false))).then(results => {
       if (!active) return
-      setProjectState(Object.fromEntries(results.map((result, index) => {
-        const tasks = result.status === "fulfilled" ? result.value : []
-        const late = tasks.some(task => task.due_date && task.due_date < today)
-        return [activeProjects[index].id, late ? "Needs attention" : tasks.length ? "In progress" : "On track"]
-      })))
+      setProjectState(Object.fromEntries(results.map((result, index) => [
+        activeProjects[index].id,
+        deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
+      ])))
     })
     return () => { active = false }
   }, [projects])
@@ -831,28 +856,397 @@ function DashboardPanel({ projects, onCreate }) {
   )
 }
 
-function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
-  const [fields, setFields] = useState(() => project.entry_schema || [])
+/**
+ * A field as the API stores it, with the keys that do not apply to its type
+ * left off.
+ *
+ * The builder keeps spare state on a field while it is being edited — the
+ * options you typed before switching the type away from a choice — and
+ * sending that would make an edit look bigger than it is in the review.
+ *
+ * Takes the whole schema because a calculation is sent by field id, the form
+ * the server stores: however its references were written in the editor, the
+ * payload — and the change comparison — see the same canonical form.
+ */
+function cleanField(field, schema) {
+  const cleaned = { id: field.id, name: (field.name || "").trim(), type: field.type }
+  if (field.type === "dropdown") cleaned.options = field.options || []
+  if (field.type === "computed") {
+    cleaned.expression = expressionCanonical((field.expression || "").trim(), schema)
+  }
+  if (field.type === "project_reference") {
+    cleaned.linked_project_id = field.linked_project_id || null
+  }
+  return cleaned
+}
+
+const CHANGE_LABELS = {
+  added: "New field",
+  removed: "Removed",
+  renamed: "Renamed",
+  retyped: "Type changed",
+  options_changed: "Choices changed",
+  expression_changed: "Calculation changed",
+  link_changed: "Link changed",
+}
+
+function plural(count, one, many) {
+  return count === 1 ? one : many
+}
+
+/** What one change costs, in entries, or an empty string when it costs nothing. */
+function impactSentence(change) {
+  const parts = []
+  if (change.values_coerced > 0) {
+    parts.push(
+      `${change.values_coerced} ${plural(change.values_coerced, "value", "values")} rewritten to fit`
+    )
+  }
+  if (change.values_retired > 0) {
+    parts.push(
+      `${change.values_retired} ${plural(change.values_retired, "value", "values")} kept but hidden`
+    )
+  }
+  if (parts.length === 0 && change.entries_affected > 0) {
+    parts.push(
+      `${change.entries_affected} ${plural(change.entries_affected, "entry", "entries")} updated`
+    )
+  }
+  return parts.join(" · ")
+}
+
+/**
+ * What an edit will do to entries already recorded, shown before it is saved.
+ *
+ * Editing a schema is the only action in the logbook that can change data the
+ * user did not just type, so it is the only one that asks twice. The report
+ * comes from the server, which produces it by running the real migration — so
+ * this is what will happen, not an estimate of it.
+ */
+function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
+  const hasWarnings = preview.changes.some((change) => change.severity === "warning")
+
+  return (
+    <div className="schema-review" role="region" aria-label="Review schema changes">
+      <div className="panel-head">
+        <h4>Review these changes</h4>
+        <p>
+          {preview.entries_affected} of {preview.entry_count}{" "}
+          {plural(preview.entry_count, "entry", "entries")} already recorded will be
+          updated.
+        </p>
+      </div>
+      <ul className="change-list" role="list">
+        {preview.changes.map((change) => (
+          <li
+            key={`${change.kind}-${change.field_id}`}
+            className={`change-row is-${change.severity}`}
+          >
+            <span className="change-kind">{CHANGE_LABELS[change.kind] || change.kind}</span>
+            <div className="change-detail">
+              <p className="change-description">{change.description}</p>
+              {impactSentence(change) && (
+                <p className="change-impact">{impactSentence(change)}</p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {hasWarnings && (
+        <p className="hint">
+          Nothing is deleted. A value that no longer fits stays with its entry under
+          <strong> No longer recorded</strong>, and comes back if you restore the field.
+        </p>
+      )}
+      <div className="actions">
+        <button type="button" className="btn-secondary" onClick={onKeepEditing}>
+          Keep editing
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onApply}
+          disabled={isSaving}
+        >
+          {isSaving ? "Applying…" : "Apply changes"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** One field as it reads when the schema is not being edited. */
+function SchemaFieldSummary({ field, schema, projects }) {
+  const target = projects.find((project) => project.id === field.linked_project_id)
+
+  return (
+    <div className="field-card is-readonly">
+      <div className="field-summary">
+        <span className="field-summary-name">{field.name}</span>
+        <span className="field-summary-type">{fieldTypeLabel(field.type)}</span>
+      </div>
+      {field.type === "dropdown" && (
+        <p className="field-summary-detail">{(field.options || []).join(" · ")}</p>
+      )}
+      {field.type === "computed" && (
+        <p className="field-summary-detail">
+          = {describeExpression(field.expression, schema)}
+        </p>
+      )}
+      {field.type === "project_reference" && (
+        // Three different states, which all used to read as the middle one:
+        // a link that was never pointed anywhere is not the same as one whose
+        // target has since been deleted, and saying so sends the owner to the
+        // wrong place to fix it.
+        <p className="field-summary-detail">
+          {!field.linked_project_id
+            ? "Not pointed at a project yet — choose one in Edit schema."
+            : target
+              ? `Links to ${target.name}`
+              : "Links to a project you no longer have"}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** One field while the schema is being edited. */
+function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChange, onRemove }) {
+  // A calculation can only read figures, and only from fields other than
+  // itself, so those are the only ones offered as sources.
+  const sources = schema.filter((other) => isNumericField(other) && other.id !== field.id)
+  const problem =
+    field.type === "computed" ? expressionError(field.expression, field, schema) : null
+
+  // A formula is easier to trust once it has produced a number. The project's
+  // latest entry answers it when it can, so what gets checked is a figure the
+  // owner recognises rather than an abstract example.
+  const preview =
+    field.type === "computed" && !problem
+      ? previewExpressionValue(field.expression, latestData, schema)
+      : null
+
+  return (
+    <div className="field-card">
+      <div className="field-row">
+        <label className="field-label">
+          Name
+          <input
+            type="text"
+            value={field.name}
+            onChange={(event) => onChange(index, { name: event.target.value })}
+            placeholder="Field name"
+          />
+        </label>
+        <label className="field-label">
+          Type
+          <select
+            value={field.type}
+            onChange={(event) =>
+              onChange(index, {
+                type: event.target.value,
+                options: event.target.value === "dropdown" ? field.options || [""] : field.options,
+                expression:
+                  event.target.value === "computed" ? field.expression || "" : field.expression,
+              })
+            }
+          >
+            {FIELD_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="field-type-hint">
+        {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
+      </p>
+      {field.type === "dropdown" && (
+        <label className="field-label full">
+          Options (comma-separated)
+          <input
+            type="text"
+            value={(field.options || []).join(", ")}
+            onChange={(event) =>
+              onChange(index, {
+                options: event.target.value
+                  .split(",")
+                  .map((option) => option.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="Option 1, Option 2, Option 3"
+          />
+        </label>
+      )}
+      {field.type === "computed" && (
+        <>
+          <label className="field-label full">
+            Calculation
+            <input
+              type="text"
+              value={field.expression || ""}
+              onChange={(event) => onChange(index, { expression: event.target.value })}
+              placeholder="e.g. {Hours} * 60 — or click a field below"
+            />
+          </label>
+          {sources.length > 0 ? (
+            <div className="expression-sources">
+              <span className="hint">Add a field:</span>
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className="btn-chip"
+                  onClick={() =>
+                    onChange(index, {
+                      expression: `${field.expression || ""}${
+                        field.expression ? " " : ""
+                      }{${source.name}}`,
+                    })
+                  }
+                >
+                  {source.name || "Unnamed field"}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">
+              Add a number field first — a calculation needs figures to work from.
+            </p>
+          )}
+          {field.expression && !problem && (
+            <p className="field-summary-detail">
+              = {describeExpression(field.expression, schema)}
+            </p>
+          )}
+          {preview && (
+            <p className="expression-preview">
+              Preview: {preview.value}
+              {preview.fromEntry
+                ? " — from your latest entry"
+                : referencedFieldIds(field.expression).length > 0
+                  ? " — with every field as 2"
+                  : ""}
+            </p>
+          )}
+          {problem && <p className="error">{problem}</p>}
+        </>
+      )}
+      {field.type === "project_reference" &&
+        (linkable.length > 0 ? (
+          <label className="field-label full">
+            Links to
+            <select
+              value={field.linked_project_id || ""}
+              onChange={(event) =>
+                onChange(index, { linked_project_id: event.target.value || null })
+              }
+            >
+              <option value="">Choose a project…</option>
+              {linkable.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="hint">
+            A link needs somewhere to point — create another project first.
+          </p>
+        ))}
+      <button type="button" className="btn-text-danger" onClick={() => onRemove(index)}>
+        Remove field
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Define a project's fields, and change them once entries exist.
+ *
+ * Read-only until "Edit schema" is pressed. A schema is a decision about the
+ * shape of everything already recorded, so it should not be possible to alter
+ * one by clicking into a form while reading it.
+ */
+function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitchToEntries }) {
+  const savedFields = useMemo(() => project.entry_schema || [], [project.entry_schema])
+
+  // A project cannot link to itself, so its own entry is never offered as a
+  // target.
+  const linkable = useMemo(
+    () => projects.filter((other) => other.id !== project.id),
+    [projects, project.id]
+  )
+
+  // The most recent entry's figures, for previewing a calculation against
+  // numbers the owner already recognises. The newest is found by date rather
+  // than assumed from the list's order, since entries captured offline are
+  // folded in ahead of whatever the server returned.
+  const latestData = useMemo(() => {
+    const entries = project.entries || []
+    if (entries.length === 0) return null
+    const latest = entries.reduce((newest, entry) =>
+      new Date(entry.created_at) > new Date(newest.created_at) ? entry : newest
+    )
+    return latest.data || null
+  }, [project.entries])
+
+  const [mode, setMode] = useState("view")
+  const [fields, setFields] = useState(savedFields)
+  const [preview, setPreview] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [savedResult, setSavedResult] = useState(null)
 
-  const hasChanges = useMemo(() => {
-    const initialFields = project.entry_schema || []
-    return JSON.stringify(fields) !== JSON.stringify(initialFields)
-  }, [fields, project.entry_schema])
+  const hasChanges = useMemo(
+    () =>
+      JSON.stringify(fields.map((field) => cleanField(field, fields))) !==
+      JSON.stringify(savedFields.map((field) => cleanField(field, savedFields))),
+    [fields, savedFields]
+  )
+
+  // Returning to the read-only view once the saved schema changes is what ends
+  // a successful edit; the notice is left in place, since it is the report of
+  // the edit that just finished.
+  useEffect(() => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }, [project.id, savedFields])
 
   useEffect(() => {
-    setFields(project.entry_schema || [])
+    setSavedResult(null)
+  }, [project.id])
+
+  const startEditing = () => {
+    setMode("edit")
+    // A calculation is stored by field id but edited by field name: the name
+    // is what the person who named the field knows it by, and the id never
+    // was theirs to read.
+    setFields(
+      savedFields.map((field) =>
+        field.type === "computed"
+          ? { ...field, expression: expressionToDisplay(field.expression, savedFields) }
+          : field
+      )
+    )
     setError(null)
-    setSaveSuccess(false)
-  }, [project.id, project.entry_schema])
+    setSavedResult(null)
+  }
+
+  const cancelEditing = () => {
+    setMode("view")
+    setFields(savedFields)
+    setPreview(null)
+    setError(null)
+  }
 
   const addField = () => {
-    setFields((prev) => [
-      ...prev,
-      { id: generateId(), name: "", type: "text", options: [] },
-    ])
+    setFields((prev) => [...prev, { id: generateId(), name: "", type: "text", options: [] }])
   }
 
   const removeField = (index) => {
@@ -860,38 +1254,68 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
   }
 
   const updateField = (index, patch) => {
-    setFields((prev) =>
-      prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
-    )
+    setFields((prev) => {
+      const next = prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
+
+      // Renaming a field renames it in every calculation that refers to it,
+      // so a calculation keeps naming a field that exists rather than
+      // quietly breaking the moment its source is renamed.
+      if (patch.name !== undefined) {
+        const oldName = (prev[index].name || "").trim()
+        const newName = (patch.name || "").trim()
+        if (oldName && newName && oldName !== newName) {
+          return next.map((field) =>
+            field.type === "computed"
+              ? {
+                  ...field,
+                  expression: renameFieldInExpression(field.expression, oldName, newName),
+                }
+              : field
+          )
+        }
+      }
+      return next
+    })
   }
 
+  /**
+   * The same rules the server enforces, checked here so a mistake is pointed
+   * out beside the field rather than after a failed save.
+   */
   const validateSchema = () => {
     const names = new Set()
     for (const field of fields) {
-      if (!field.name.trim()) return "Every field needs a name."
-      if (names.has(field.name.trim())) return `Duplicate field name: ${field.name}`
-      names.add(field.name.trim())
-      if (field.type === "dropdown") {
-        if (!Array.isArray(field.options) || field.options.length === 0) {
-          return `Field "${field.name}" needs at least one dropdown option.`
-        }
+      const name = (field.name || "").trim()
+      if (!name) return "Every field needs a name."
+      if (names.has(name.toLowerCase())) return `Two fields are both called "${name}".`
+      names.add(name.toLowerCase())
+
+      // A calculation refers to a field by its name, so a brace in a name
+      // would be read as half a reference — the same line the server holds.
+      if (/{|}/.test(name)) {
+        return `"${name}" cannot contain braces, because a calculation refers to a field by its name.`
+      }
+      if (field.type === "dropdown" && (field.options || []).length === 0) {
+        return `"${name}" needs at least one option.`
+      }
+      if (field.type === "project_reference" && !field.linked_project_id) {
+        return `"${name}" needs to say which project it links to.`
+      }
+      if (field.type === "computed") {
+        const problem = expressionError(field.expression, field, fields)
+        if (problem) return `"${name}": ${problem}`
       }
     }
     return null
   }
 
-  const handleSave = async () => {
-    const validationError = validateSchema()
-    if (validationError) {
-      setError(validationError)
-      return
-    }
+  const applyChanges = async () => {
     setIsSaving(true)
     setError(null)
-    setSaveSuccess(false)
     try {
-      await onSave({ entry_schema: fields })
-      setSaveSuccess(true)
+      setSavedResult(await onSave(fields.map((field) => cleanField(field, fields))))
+      setPreview(null)
+      setMode("view")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -899,115 +1323,505 @@ function SchemaBuilder({ project, onSave, disabled, onSwitchToEntries }) {
     }
   }
 
+  /**
+   * Ask the server what the edit would do, and only stop to ask the user when
+   * the answer involves an entry they have already recorded.
+   */
+  const handleSave = async () => {
+    const problem = validateSchema()
+    if (problem) {
+      setError(problem)
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    let report
+    try {
+      report = await onPreview(fields.map((field) => cleanField(field, fields)))
+    } catch (err) {
+      setError(formatError(err))
+      setIsSaving(false)
+      return
+    }
+    setIsSaving(false)
+
+    if (report.entries_affected === 0) {
+      await applyChanges()
+      return
+    }
+
+    setPreview(report)
+    setMode("review")
+  }
+
+  if (mode === "review" && preview) {
+    return (
+      <div className="schema-builder">
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <SchemaChangeReview
+          preview={preview}
+          isSaving={isSaving}
+          onApply={applyChanges}
+          onKeepEditing={() => {
+            setPreview(null)
+            setMode("edit")
+          }}
+        />
+      </div>
+    )
+  }
+
+  const isEditing = mode === "edit"
+
   return (
     <div className="schema-builder">
       <div className="panel-head">
         <h3>Entry schema</h3>
-        <p>Define the fields and types for this logbook.</p>
+        <p>
+          {isEditing
+            ? "Existing entries are brought along with any change you make."
+            : "The fields this logbook asks for."}
+        </p>
       </div>
       {fields.length === 0 ? (
-        <p className="hint">No fields yet. Add one to get started.</p>
+        <p className="hint">
+          {isEditing ? "No fields yet. Add one to get started." : "No fields defined yet."}
+        </p>
       ) : (
         <div className="field-list">
-          {fields.map((field, index) => (
-            <div key={index} className="field-card">
-              <div className="field-row">
-                <label className="field-label">
-                  Name
-                  <input
-                    type="text"
-                    value={field.name}
-                    onChange={(e) => updateField(index, { name: e.target.value })}
-                    placeholder="Field name"
-                  />
-                </label>
-                <label className="field-label">
-                  Type
-                  <select
-                    value={field.type}
-                    onChange={(e) =>
-                      updateField(index, {
-                        type: e.target.value,
-                        options:
-                          e.target.value === "dropdown" ? [""] : field.options,
-                      })
-                    }
-                  >
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {field.type === "dropdown" && (
-                <label className="field-label full">
-                  Options (comma-separated)
-                  <input
-                    type="text"
-                    value={field.options.join(", ")}
-                    onChange={(e) =>
-                      updateField(index, {
-                        options: e.target.value
-                          .split(",")
-                          .map((option) => option.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="Option 1, Option 2, Option 3"
-                  />
-                </label>
-              )}
-              <button
-                type="button"
-                className="btn-text-danger"
-                onClick={() => removeField(index)}
-              >
-                Remove field
-              </button>
-            </div>
-          ))}
+          {isEditing
+            ? fields.map((field, index) => (
+                <SchemaFieldEditor
+                  key={field.id}
+                  field={field}
+                  index={index}
+                  schema={fields}
+                  latestData={latestData}
+                  linkable={linkable}
+                  onChange={updateField}
+                  onRemove={removeField}
+                />
+              ))
+            : fields.map((field) => (
+                <SchemaFieldSummary key={field.id} field={field} schema={fields} projects={projects} />
+              ))}
         </div>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
-      {saveSuccess && (
+      {!isEditing && project.retired_schema?.length > 0 && (
+        <p className="hint">
+          {project.retired_schema.length}{" "}
+          {plural(project.retired_schema.length, "field is", "fields are")} no longer asked
+          for. What past entries recorded under{" "}
+          {plural(project.retired_schema.length, "it", "them")} is still kept.
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {savedResult && (
         <div className="success" role="status">
-          <p>Schema saved.</p>
+          <p>
+            Schema saved.
+            {savedResult.entries_affected > 0 &&
+              ` ${savedResult.entries_affected} ${plural(
+                savedResult.entries_affected,
+                "entry was",
+                "entries were"
+              )} updated to match.`}
+          </p>
           <button type="button" className="btn-text" onClick={onSwitchToEntries}>
             Go to Entries to start logging
           </button>
         </div>
       )}
       <div className="actions">
-        <button type="button" className="btn-secondary" onClick={addField}>
-          Add field
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={handleSave}
-          disabled={disabled || isSaving || !hasChanges}
-        >
-          {isSaving ? "Saving…" : "Save schema"}
-        </button>
+        {isEditing ? (
+          <>
+            <button type="button" className="btn-secondary" onClick={addField}>
+              Add field
+            </button>
+            <button type="button" className="btn-text" onClick={cancelEditing}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSave}
+              disabled={disabled || isSaving || !hasChanges}
+            >
+              {isSaving ? "Checking…" : "Save schema"}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={startEditing}
+            disabled={disabled}
+          >
+            {fields.length === 0 ? "Define schema" : "Edit schema"}
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-function EntryForm({ project, onCreated }) {
-  const schema = project.entry_schema || []
+function TagsInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addTag = () => {
+    const tag = input.trim()
+    if (tag && !value.includes(tag)) {
+      onChange([...value, tag])
+    }
+    setInput("")
+  }
+
+  const removeTag = (tag) => {
+    onChange(value.filter((t) => t !== tag))
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addTag()
+    }
+    if (e.key === "Backspace" && input === "" && value.length > 0) {
+      onChange(value.slice(0, -1))
+    }
+  }
+
+  return (
+    <div className="tags-input">
+      <div className="tags-list">
+        {value.map((tag) => (
+          <span key={tag} className="tag-chip">
+            {tag}
+            <button
+              type="button"
+              className="tag-remove"
+              onClick={() => removeTag(tag)}
+              aria-label={`Remove ${tag}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
+      />
+    </div>
+  )
+}
+
+function ChecklistInput({ value, onChange }) {
+  const [input, setInput] = useState("")
+
+  const addItem = () => {
+    const text = input.trim()
+    if (text) {
+      onChange([
+        ...value,
+        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
+      ])
+    }
+    setInput("")
+  }
+
+  const toggleItem = (id) => {
+    onChange(value.map((item) =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  const removeItem = (id) => {
+    onChange(value.filter((item) => item.id !== id))
+  }
+
+  const moveItem = (index, direction) => {
+    const target = index + direction
+    if (target < 0 || target >= value.length) return
+    const next = [...value]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      addItem()
+    }
+  }
+
+  return (
+    <div className="checklist-input">
+      {value.map((item, index) => (
+        <div key={item.id} className="checklist-item">
+          <input
+            type="checkbox"
+            checked={item.completed}
+            onChange={() => toggleItem(item.id)}
+          />
+          <span className={item.completed ? "checklist-done" : ""}>
+            {item.text}
+          </span>
+          <div className="checklist-actions">
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, -1)}
+              disabled={index === 0}
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="btn-text-small"
+              onClick={() => moveItem(index, 1)}
+              disabled={index === value.length - 1}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              className="btn-text-small btn-text-danger"
+              onClick={() => removeItem(item.id)}
+              aria-label="Remove item"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+      <div className="checklist-add">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add item and press Enter…"
+        />
+      </div>
+      {value.length > 0 && (
+        <span className="checklist-count">
+          {value.filter((i) => i.completed).length}/{value.length} complete
+        </span>
+      )}
+    </div>
+  )
+}
+
+function LinkInput({ value, onChange, entries }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="link-select"
+    >
+      <option value="">No link</option>
+      {entries.map((entry) => {
+        // Build a preview from the first text field value
+        const preview = Object.values(entry.data || {})
+          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
+        return (
+          <option key={entry.id} value={entry.id}>
+            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
+          </option>
+        )
+      })}
+    </select>
+  )
+}
+
+/**
+ * One field on the new-entry form.
+ *
+ * A calculation is shown rather than asked for (US-2.5): it is worked out from
+ * the figures beside it, so an input would invite someone to type a value the
+ * server would immediately overwrite.
+ */
+function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
+  if (field.type === "computed") {
+    // The badge's word and colour come from the field-type registry, so the
+    // form, the table and the schema view can never disagree about what a
+    // type is called or how it is marked.
+    const meta = FIELD_TYPE_META[field.type]
+    return (
+      <div className="field-label is-computed">
+        <span className="field-label-text">
+          {field.name}
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
+        </span>
+        <output className="computed-value">
+          {computed === null || computed === undefined ? "—" : computed}
+        </output>
+      </div>
+    )
+  }
+
+  // A link is decided once, in the schema (US-2.4), rather than answered
+  // on every entry — so it is shown rather than asked for. The value is the
+  // same chip the entry list shows: the target's name on its status dot,
+  // clickable through to the project. A boxed read-out would read as a text
+  // box awaiting input; a chip reads as a thing you act on.
+  if (field.type === "project_reference") {
+    const meta = FIELD_TYPE_META[field.type]
+    return (
+      <div className="field-label is-computed">
+        <span className="field-label-text">
+          {field.name}
+          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
+        </span>
+        {field.linked_project_id ? (
+          <LinkChip
+            targetId={field.linked_project_id}
+            projects={projects}
+            status={status}
+            onOpen={onOpenProject}
+          />
+        ) : (
+          <output className="computed-value is-link is-unset">
+            Not pointed at a project yet
+          </output>
+        )}
+      </div>
+    )
+  }
+
+  // Tags and checklists hold a list, not a string, and each renders several
+  // controls — so they get a div rather than a label, which would bind every
+  // click to whichever control happened to come first.
+  if (field.type === "tags") {
+    return (
+      <div className="field-label">
+        <span className="field-label-text">{field.name}</span>
+        <TagsInput
+          value={Array.isArray(value) ? value : []}
+          onChange={(next) => onChange(field.id, next)}
+        />
+      </div>
+    )
+  }
+
+  if (field.type === "checklist") {
+    return (
+      <div className="field-label">
+        <span className="field-label-text">{field.name}</span>
+        <ChecklistInput
+          value={Array.isArray(value) ? value : []}
+          onChange={(next) => onChange(field.id, next)}
+        />
+      </div>
+    )
+  }
+
+  if (field.type === "link") {
+    return (
+      <label className="field-label">
+        {field.name}
+        <LinkInput
+          value={value || ""}
+          onChange={(next) => onChange(field.id, next)}
+          entries={entries}
+        />
+      </label>
+    )
+  }
+
+  return (
+    <label className="field-label">
+      {field.name}
+      {field.type === "dropdown" ? (
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
+          <option value="" disabled>
+            Select…
+          </option>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.type}
+          value={value || ""}
+          onChange={(e) => onChange(field.id, e.target.value)}
+          placeholder={field.name}
+          required
+        />
+      )}
+    </label>
+  )
+}
+
+function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
+  const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
+  const [todo, setTodo] = useState(false)
+  const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [projectEntries, setProjectEntries] = useState([])
+
+  // Load existing entries for the link field selector
+  useEffect(() => {
+    const hasLinkField = schema.some((f) => f.type === "link")
+    if (hasLinkField) {
+      fetchEntries(project.id)
+        .then(setProjectEntries)
+        .catch(() => setProjectEntries([]))
+    }
+  }, [project.id, schema])
+
+  // Recomputed as you type, so a calculation settles while the entry is being
+  // filled in rather than only after it is saved.
+  const computed = useMemo(() => withComputedValues(data, schema), [data, schema])
+
+  // A link to the project you are already in carries no information, so it is
+  // not offered.
+  const linkable = useMemo(
+    () => projects.filter((other) => other.id !== project.id),
+    [projects, project.id]
+  )
+
+  // The status of every project this schema links to, for the chips in the
+  // form — one rule, one dot, learned in the sidebar and read anywhere.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set(
+        schema
+          .filter((field) => field.type === "project_reference" && field.linked_project_id)
+          .map((field) => field.linked_project_id)
+      ),
+    ],
+    [schema]
+  )
+  const statuses = useProjectStatuses(linkedIds)
 
   useEffect(() => {
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
+    setTodo(false)
+    setDueDate("")
     setError(null)
   }, [project.id])
 
@@ -1024,19 +1838,48 @@ function EntryForm({ project, onCreated }) {
     setIsSaving(true)
     setError(null)
     try {
-      const payload = { ...data }
+      const payload = {}
       for (const field of schema) {
-        if (field.type === "number" && payload[field.id] !== undefined) {
-          payload[field.id] = Number(payload[field.id])
+        // The server derives calculations and links itself — a calculation
+        // from the figures beside it, a link from the schema's own target —
+        // so sending either would be a guess it has to ignore.
+        if (field.type === "computed" || field.type === "project_reference") continue
+        const value = data[field.id]
+        if (field.type === "number") {
+          payload[field.id] = value === undefined ? undefined : Number(value)
+        } else if (value !== undefined) {
+          payload[field.id] = value
+        }
+        if (payload[field.id] === undefined) delete payload[field.id]
+        // Ensure new field types always have a value, even when the user
+        // didn't interact with them — the backend requires every schema
+        // field to be present.
+        if (field.type === "tags" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "checklist" && payload[field.id] === undefined) {
+          payload[field.id] = []
+        }
+        if (field.type === "link" && payload[field.id] === undefined) {
+          payload[field.id] = ""
         }
       }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
-      await onCreated({ data: payload, time_spent: timeSpent === 0 ? null : timeSpent })
+      await onCreated({
+        data: payload,
+        time_spent: timeSpent === 0 ? null : timeSpent,
+        todo,
+        // Sent as null rather than "" so the server reads it as "no deadline"
+        // instead of rejecting an empty date.
+        due_date: dueDate || null,
+      })
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
+      setTodo(false)
+      setDueDate("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1062,33 +1905,17 @@ function EntryForm({ project, onCreated }) {
       </div>
       <div className="form-grid">
         {schema.map((field) => (
-          <label key={field.id} className="field-label">
-            {field.name}
-            {field.type === "dropdown" ? (
-              <select
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select…
-                </option>
-                {field.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type}
-                value={data[field.id] || ""}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                placeholder={field.name}
-                required
-              />
-            )}
-          </label>
+          <EntryFieldInput
+            key={field.id}
+            field={field}
+            value={data[field.id]}
+            computed={computed[field.id]}
+            projects={linkable}
+            status={statuses[field.linked_project_id]}
+            entries={projectEntries}
+            onOpenProject={onOpenProject}
+            onChange={handleChange}
+          />
         ))}
       </div>
       <div className="form-grid time-tracking">
@@ -1114,6 +1941,26 @@ function EntryForm({ project, onCreated }) {
           />
         </label>
       </div>
+      {/* Logging something that has not happened yet: it is planned work, so it
+          belongs in the outstanding view rather than the record of what was done. */}
+      <div className="form-grid entry-outstanding">
+        <label className="field-label checkbox-label">
+          <input
+            type="checkbox"
+            checked={todo}
+            onChange={(e) => setTodo(e.target.checked)}
+          />
+          This is still to do
+        </label>
+        <label className="field-label">
+          Due date
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </label>
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button
@@ -1128,115 +1975,237 @@ function EntryForm({ project, onCreated }) {
   )
 }
 
-function EntryList({ entries, schema }) {
+/**
+ * A stored value as it should read on the page.
+ *
+ * A reference is held as a project id, which is the right thing to store and
+ * the wrong thing to show, so it is resolved to the project's name here.
+ */
+function formatEntryValue(field, value, projectNames) {
+  if (value === null || value === undefined || value === "") return "—"
+  if (field?.type === "project_reference") {
+    return projectNames.get(value) || "A project you no longer have"
+  }
+  return String(value)
+}
+
+/**
+ * What an entry recorded under fields the schema has since dropped (US-2.7).
+ *
+ * Removing a field stops it being asked for; it does not erase what was already
+ * answered. That history is kept out of the way but never out of reach.
+ */
+function RetiredValues({ retiredData, retiredSchema }) {
+  const fields = retiredSchema.filter(
+    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
+  )
+  if (fields.length === 0) return null
+
+  return (
+    <details className="retired-values">
+      <summary>No longer recorded ({fields.length})</summary>
+      <div className="log-fields">
+        {fields.map((field) => (
+          <div key={field.id} className="log-field">
+            <span className="log-label">{field.name}</span>
+            <span className="log-value">{String(retiredData[field.id])}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenProject }) {
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
+  )
+
+  // The status of every project this schema links to, for the chips below.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set(
+        (schema || [])
+          .filter((field) => field.type === "project_reference")
+          .map((field) => field.linked_project_id)
+          .filter(Boolean)
+      ),
+    ],
+    [schema]
+  )
+  const statuses = useProjectStatuses(linkedIds)
+
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
   }
+
+  // A column header is asked to be short; the full name rides along as a
+  // tooltip so nothing is lost.
+  const shortLabel = (name) => (name.length > 20 ? `${name.slice(0, 19)}…` : name)
 
   return (
     <div className="entry-list">
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
-        {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
-          >
-            <div className="log-fields">
-              {schema.map((field) => (
-                <div key={field.id} className="log-field">
-                  <span className="log-label">{field.name}</span>
-                  <span className="log-value">
-                    {String(entry.data[field.id] ?? "—")}
+        {entries.map((entry) => {
+          // Recomputed rather than read back: an entry captured offline holds
+          // no stored calculation until it syncs, and the current formula is
+          // the honest answer either way. What the server stored agrees with
+          // it, because every write and every schema change re-derives.
+          const data = withComputedValues(entry.data || {}, schema)
+          return (
+            <li
+              key={entry.id}
+              className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+            >
+              <div className="log-fields">
+                {schema.map((field) => {
+                  const meta = FIELD_TYPE_META[field.type]
+                  return (
+                    <div
+                      key={field.id}
+                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
+                    >
+                      <span className="log-label" title={field.name}>
+                        {shortLabel(field.name)}
+                        {/* The two special columns carry a quiet dot in their
+                            header — the registry's colours at a size that does
+                            not compete with the values, the word on hover. */}
+                        {meta?.badge && (
+                          <span
+                            className={`log-type-dot is-${meta.color}`}
+                            title={meta.badge}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
+                      <span className="log-value">
+                        {field.type === "project_reference" && data[field.id] ? (
+                          <LinkChip
+                            targetId={data[field.id]}
+                            projects={projects}
+                            status={statuses[data[field.id]]}
+                            onOpen={onOpenProject}
+                          />
+                        ) : (
+                          formatEntryValue(field, data[field.id], projectNames)
+                        )}
+                        {/* Marked so a derived figure is never mistaken for one
+                            that was typed in. */}
+                        {field.type === "computed" && (
+                          <span
+                            className="calculated-badge"
+                            title="Calculated from the other fields on this entry"
+                            aria-hidden="true"
+                          >
+                            ƒ
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <span className="log-time">
+                {/* Entries captured offline are shown immediately, so that
+                    nobody re-types one believing it failed to save. */}
+                {entry.pending && (
+                  <span
+                    className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
+                  >
+                    {entry.rejected ? "Needs attention" : "Not yet synced"}
                   </span>
-                </div>
-              ))}
-            </div>
-            <span className="log-time">
-              {/* Entries captured offline are shown immediately, so that
-                  nobody re-types one believing it failed to save. */}
-              {entry.pending && (
-                <span
-                  className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
-                >
-                  {entry.rejected ? "Needs attention" : "Not yet synced"}
-                </span>
-              )}
-              {new Date(entry.created_at).toLocaleString()}
-            </span>
-          </li>
-        ))}
+                )}
+                {new Date(entry.created_at).toLocaleString()}
+                {/* Only named when known: entries written before a project
+                    could be shared have no author, and an empty "logged by"
+                    reads worse than none at all. */}
+                {entry.created_by_name && (
+                  <span className="entry-author"> · {entry.created_by_name}</span>
+                )}
+              </span>
+              {/* Last, and collapsed: history worth keeping is not history worth
+                  leading with. */}
+              <RetiredValues
+                retiredData={entry.retired_data || {}}
+                retiredSchema={retiredSchema}
+              />
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
 }
 
 function Timeline({ projects }) {
-  const [entries, setEntries] = useState([])
-  const [q, setQ] = useState("")
   const [projectId, setProjectId] = useState("")
+  const [fieldId, setFieldId] = useState("")
+  const [start, setStart] = useState("")
+  const [end, setEnd] = useState("")
+  const [timeline, setTimeline] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) || null,
+    [projects, projectId],
+  )
+
+  const fields = selectedProject?.entry_schema || []
+
   useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const data = await fetchEntriesGlobal({ q, projectId, page: 1, pageSize: 20 })
-        if (!cancelled) setEntries(data)
-      } catch (err) {
-        if (!cancelled) setError(formatError(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [q, projectId])
+    setFieldId("")
+    setTimeline(null)
+    setError(null)
+  }, [projectId])
 
-  const schemaByProject = useMemo(() => {
-    const map = {}
-    for (const project of projects) {
-      map[project.id] = project.entry_schema || []
-    }
-    return map
-  }, [projects])
+  const handleLoadTimeline = async (event) => {
+    event.preventDefault()
 
-  const getFieldName = (entryProjectId, fieldId) => {
-    const schema = schemaByProject[entryProjectId] || []
-    const field = schema.find((f) => f.id === fieldId)
-    return field?.name || fieldId
+    if (!projectId || !fieldId) {
+      setError("Please select a project and field.")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const data = await fetchFieldTimeline(
+        projectId,
+        fieldId,
+        start ? `${start}T00:00:00` : null,
+        end ? `${end}T23:59:59` : null,
+      )
+      setTimeline(data)
+    } catch (err) {
+      setTimeline(null)
+      setError(formatError(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
+  const selectedField = fields.find((field) => field.id === fieldId)
+
   return (
-    <section className="timeline" aria-label="Timeline">
+    <section className="timeline" aria-label="Field timeline">
       <header className="timeline-header">
-        <h2>Timeline</h2>
-        <p>Search across all entries and filter by project.</p>
+        <h2>Field Timeline</h2>
+        <p>Choose a field and date range to visualise how its values change over time.</p>
       </header>
-      <div className="timeline-filters">
-        <label className="field-label">
-          Search
-          <input
-            type="text"
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            placeholder="Search entries…"
-            aria-label="Search entries"
-          />
-        </label>
+
+      <form className="timeline-filters" onSubmit={handleLoadTimeline}>
         <label className="field-label">
           Project
           <select
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
-            aria-label="Filter by project"
+            aria-label="Select project"
           >
-            <option value="">All projects</option>
+            <option value="">Select a project</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -1244,35 +2213,132 @@ function Timeline({ projects }) {
             ))}
           </select>
         </label>
-      </div>
-      {error && <p className="error" role="alert">{error}</p>}
-      {loading ? (
-        <p className="hint">Loading…</p>
-      ) : entries.length === 0 ? (
-        <p className="hint">No entries found.</p>
-      ) : (
-        <ul className="timeline-list" role="list">
-          {entries.map((entry) => (
-            <li key={entry.id} className="timeline-row">
-              <div className="timeline-meta">
-                <span className="timeline-project">{entry.project_name}</span>
-                <span className="timeline-time">
-                  {new Date(entry.created_at).toLocaleString()}
-                </span>
-              </div>
-              <div className="timeline-fields">
-                {Object.entries(entry.data).map(([fieldId, value]) => (
-                  <div key={fieldId} className="timeline-field">
-                    <span className="timeline-label">
-                      {getFieldName(entry.project_id, fieldId)}
-                    </span>
-                    <span className="timeline-value">{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
+
+        <label className="field-label">
+          Field
+          <select
+            value={fieldId}
+            onChange={(event) => setFieldId(event.target.value)}
+            disabled={!projectId}
+            aria-label="Select field"
+          >
+            <option value="">Select a field</option>
+            {fields.map((field) => (
+              <option key={field.id} value={field.id}>
+                {field.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field-label">
+          Start date
+          <input
+            type="date"
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+            aria-label="Start date"
+          />
+        </label>
+
+        <label className="field-label">
+          End date
+          <input
+            type="date"
+            value={end}
+            onChange={(event) => setEnd(event.target.value)}
+            aria-label="End date"
+          />
+        </label>
+
+        <button
+          type="submit"
+          className="btn-primary timeline-submit"
+          disabled={loading || !projectId || !fieldId}
+        >
+          {loading ? "Loading…" : "Generate timeline"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {!loading && !error && !timeline && (
+        <p className="hint">
+          Select a project, field, and optional date range, then generate the timeline.
+        </p>
+      )}
+
+      {timeline && (
+        <div className="timeline-results">
+          <div className="timeline-summary">
+            <h3>{timeline.field_name}</h3>
+            <p>
+              {timeline.points.length} data point
+              {timeline.points.length === 1 ? "" : "s"}
+              {selectedField?.type && (
+                <span className="timeline-field-type"> • {selectedField.type}</span>
+              )}
+            </p>
+          </div>
+
+          {timeline.points.length === 0 ? (
+            <p className="hint">No values found for this field in the selected range.</p>
+          ) : (
+            <>
+              <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart
+                    data={timeline.points.map((point) => ({
+                      ...point,
+                      date: new Date(point.created_at).toLocaleDateString(),
+                      displayValue: String(point.value),
+                      numericValue:
+                        timeline.field_type === "number" ? Number(point.value) : null,
+                    }))}
+                  margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
+                    name={timeline.field_name}
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="timeline-table-wrapper">
+              <table className="timeline-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Value</th>
+                    <th scope="col">Schema version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeline.points.map((point) => (
+                    <tr key={point.entry_id}>
+                      <td>{new Date(point.created_at).toLocaleString()}</td>
+                      <td>{String(point.value)}</td>
+                      <td>{point.schema_version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        </div>
       )}
     </section>
   )
@@ -1280,12 +2346,20 @@ function Timeline({ projects }) {
 
 function ProjectDetail({
   project,
+  projects,
+  onSchemaPreview,
   onSchemaSaved,
   onEntryCreated,
   onEditProject,
   onToggleArchive,
+  onDeleteProject,
+  onOpenProject,
 }) {
   const [tab, setTab] = useState("entries")
+
+  useEffect(() => {
+    setTab("entries")
+  }, [project.id])
 
   return (
     <section className="project-detail">
@@ -1306,8 +2380,13 @@ function ProjectDetail({
           </div>
           {project.description && <p className="detail-description">{project.description}</p>}
           <p className="detail-meta">
-            {project.entry_schema?.length || 0} field
-            {project.entry_schema?.length === 1 ? "" : "s"}
+            {/* The field count sits exactly where someone is looking at
+                field-related content, so it doubles as a way to reach the
+                schema rather than waiting to be found in the tab bar. */}
+            <button type="button" className="meta-pill" onClick={() => setTab("schema")}>
+              {project.entry_schema?.length || 0}{" "}
+              {project.entry_schema?.length === 1 ? "field" : "fields"} · Schema
+            </button>
           </p>
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
@@ -1348,14 +2427,23 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} onCreated={onEntryCreated} />
+              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
             )}
-            <EntryList entries={project.entries || []} schema={project.entry_schema || []} />
+            <EntryList
+              entries={project.entries || []}
+              schema={project.entry_schema || []}
+              retiredSchema={project.retired_schema || []}
+              projects={projects}
+              onOpenProject={onOpenProject}
+            />
           </>
         ) : tab === "schema" ? (
           <SchemaBuilder
             project={project}
+            projects={projects}
+            onPreview={onSchemaPreview}
             onSave={onSchemaSaved}
+            disabled={project.archived || project.shared}
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : (
@@ -1363,15 +2451,228 @@ function ProjectDetail({
         )}
       </div>
       <footer className="detail-footer">
-        <button
-          type="button"
-          className="btn-secondary detail-archive-btn"
-          onClick={onToggleArchive}
-        >
-          {project.archived ? "Unarchive project" : "Archive project"}
-        </button>
+        {project.shared ? (
+          <p className="detail-shared-note">
+            Shared with you. You can add entries here; changing the project's
+            fields, archiving and exporting stay with its owner.
+          </p>
+        ) : (
+          <>
+            <ShareProjectPanel projectId={project.id} />
+            <div className="detail-footer-actions">
+              <button
+                type="button"
+                className="btn-secondary detail-archive-btn"
+                onClick={onToggleArchive}
+              >
+                {project.archived ? "Unarchive project" : "Archive project"}
+              </button>
+              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
+            </div>
+          </>
+        )}
       </footer>
     </section>
+  )
+}
+
+// Archiving is the ordinary way to finish with a project and it keeps the
+// record, so deletion is deliberately the harder of the two: it asks for the
+// project's name back, the way the account deletion does, rather than putting
+// an irreversible action behind a single click.
+function DeleteProjectControl({ project, onDeleted }) {
+  const [confirming, setConfirming] = useState(false)
+  const [typed, setTyped] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState("")
+
+  const matches = typed.trim() === project.name
+
+  const confirm = async () => {
+    if (!matches) return
+    setIsDeleting(true)
+    setError("")
+    try {
+      await deleteProject(project.id)
+      onDeleted(project.id)
+    } catch (err) {
+      setError(formatError(err))
+      setIsDeleting(false)
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="btn-danger detail-delete-btn"
+        onClick={() => {
+          setConfirming(true)
+          setTyped("")
+          setError("")
+        }}
+      >
+        Delete project
+      </button>
+    )
+  }
+
+  return (
+    <div className="delete-project-confirm">
+      <p className="delete-project-warning">
+        This removes <strong>{project.name}</strong> and every entry and task in it,
+        for good. Archiving it keeps the record instead.
+      </p>
+      <label className="field-label">
+        Type the project&rsquo;s name to confirm
+        <input
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          placeholder={project.name}
+          autoFocus
+        />
+      </label>
+      <div className="delete-project-actions">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setConfirming(false)}
+          disabled={isDeleting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn-danger"
+          onClick={confirm}
+          disabled={!matches || isDeleting}
+        >
+          {isDeleting ? "Deleting…" : "Delete for good"}
+        </button>
+      </div>
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ShareProjectPanel({ projectId }) {
+  const [members, setMembers] = useState([])
+  const [email, setEmail] = useState("")
+  const [isSharing, setIsSharing] = useState(false)
+  const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+
+  useEffect(() => {
+    let active = true
+    fetchProjectMembers(projectId)
+      .then((list) => {
+        if (active) setMembers(list)
+      })
+      .catch(() => {
+        if (active) setMembers([])
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
+  const invite = async (event) => {
+    event.preventDefault()
+    const address = email.trim()
+    if (!address) return
+
+    setIsSharing(true)
+    setError("")
+    setNotice("")
+    try {
+      const member = await shareProject(projectId, address)
+      // Sharing is idempotent on the server, so re-inviting someone returns
+      // them rather than failing — don't list them twice.
+      setMembers((current) =>
+        current.some((person) => person.user_id === member.user_id)
+          ? current
+          : [...current, member]
+      )
+      setEmail("")
+      setNotice(`${member.full_name} can now add entries to this project.`)
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
+  const revoke = async (member) => {
+    setError("")
+    setNotice("")
+    try {
+      await unshareProject(projectId, member.user_id)
+      setMembers((current) =>
+        current.filter((person) => person.user_id !== member.user_id)
+      )
+    } catch (err) {
+      setError(formatError(err))
+    }
+  }
+
+  return (
+    <div className="share-panel">
+      <h4 className="share-title">Shared with</h4>
+      <p className="share-hint">
+        People you add can read this project and write entries in it. Only you can
+        change its fields, archive it or export it.
+      </p>
+
+      {members.length === 0 ? (
+        <p className="share-empty">Not shared with anyone yet.</p>
+      ) : (
+        <ul className="share-members">
+          {members.map((member) => (
+            <li key={member.user_id} className="share-member">
+              <span className="share-member-name">{member.full_name}</span>
+              <span className="share-member-email">{member.email}</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => revoke(member)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form className="share-form" onSubmit={invite}>
+        <label className="field-label">
+          Invite by email
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="them@example.com"
+          />
+        </label>
+        <button type="submit" className="btn-primary" disabled={isSharing || !email.trim()}>
+          {isSharing ? "Sharing…" : "Share"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="share-notice" role="status">
+          {notice}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -1434,7 +2735,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -1692,6 +2993,14 @@ function App() {
     }
   }
 
+  const handleDeleteProject = (deletedId) => {
+    setProjects((prev) => prev.filter((project) => project.id !== deletedId))
+    // What was on screen no longer exists, so fall back to the timeline rather
+    // than leaving the detail panel pointed at a project that is gone.
+    setSelectedId(null)
+    setView("timeline")
+  }
+
   const handleEntryCreated = async (payload) => {
     if (!selectedProject) return
 
@@ -1716,6 +3025,8 @@ function App() {
           projectId: selectedProject.id,
           data: payload.data,
           timeSpent: payload.time_spent ?? null,
+          todo: payload.todo ?? false,
+          dueDate: payload.due_date ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original
@@ -1748,6 +3059,32 @@ function App() {
   useEffect(() => {
     loadEntries()
   }, [loadEntries])
+
+  /** US-2.6/2.7: what a schema edit would do, asked before it is done. */
+  const handleSchemaPreview = async (entrySchema) => {
+    if (!selectedProject) return null
+    return previewSchemaChange(selectedProject.id, entrySchema)
+  }
+
+  /**
+   * Save an edited schema and take the migrated entries back from the server.
+   *
+   * Declared after loadEntries because it needs it. The entries are refetched
+   * rather than patched in place: a schema change can rewrite, backfill or
+   * retire a value on every one of them, so the copy held here is stale in ways
+   * too varied to reconstruct locally.
+   */
+  const handleSchemaSave = async (entrySchema) => {
+    if (!selectedProject) return null
+    const result = await updateSchema(selectedProject.id, entrySchema)
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === result.project.id ? { ...project, ...result.project } : project
+      )
+    )
+    await loadEntries()
+    return result
+  }
 
   // An import can add projects and entries wholesale, so reload both.
   // Projects first, then entries: GET /projects omits entries, so the other
@@ -1879,7 +3216,7 @@ function App() {
             </button>
             <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
-              <span>Assistant</span>
+              <span>Mira</span>
             </button>
             <button
               type="button"
@@ -1892,7 +3229,7 @@ function App() {
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
-              <span>Entries</span>
+              <span>All Entries</span>
             </button>
             <button
               type="button"
@@ -1903,7 +3240,31 @@ function App() {
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
               </svg>
-              <span>Tasks</span>
+              <span>All Tasks</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "board" ? "active" : ""}`}
+              onClick={() => setCurrentView("board")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="4" width="5" height="16" rx="1" />
+                <rect x="10" y="4" width="5" height="11" rx="1" />
+                <rect x="17" y="4" width="4" height="7" rx="1" />
+              </svg>
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "outstanding" ? "active" : ""}`}
+              onClick={() => setCurrentView("outstanding")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4l3 2" />
+                <path d="M4 4l2.5 2.5" />
+              </svg>
+              <span>Outstanding</span>
             </button>
             <button
               type="button"
@@ -1968,16 +3329,24 @@ function App() {
             <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
           ) : currentView === "entries" ? (
             <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+          ) : currentView === "board" ? (
+            <BoardView projects={projects} />
+          ) : currentView === "outstanding" ? (
+            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
           ) : view === "timeline" ? (
-            <Timeline projects={projects} />
+            <Timeline projects={projects} onOpenProject={handleSelectProject} />
           ) : selectedProject ? (
             <ProjectDetail
               key={selectedProject.id}
               project={openProject}
-              onSchemaSaved={handleProjectUpdate}
+              projects={projects}
+              onSchemaPreview={handleSchemaPreview}
+              onSchemaSaved={handleSchemaSave}
               onEntryCreated={handleEntryCreated}
               onEditProject={() => setIsEditModalOpen(true)}
               onToggleArchive={handleToggleArchive}
+              onDeleteProject={handleDeleteProject}
+              onOpenProject={handleSelectProject}
             />
           ) : projects.length > 0 ? (
             <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
@@ -1997,7 +3366,7 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
-      <CommandPalette projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )

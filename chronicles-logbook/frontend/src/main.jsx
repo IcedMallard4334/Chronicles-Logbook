@@ -10,6 +10,7 @@ import ProfilePage from './ProfilePage.jsx'
 import SetupPage from './SetupPage.jsx'
 import { applyPreferences, readPreference } from './preferences'
 import './ProfessionalDensity.css'
+import './WorkspacePolish.css'
 
 applyPreferences({
   theme: readPreference('theme', 'system'),

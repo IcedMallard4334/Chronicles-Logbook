@@ -34,6 +34,46 @@ async def lifespan(app: FastAPI):
 | `tasks` | `/projects/{project_id}/tasks` | Task CRUD, toggle completion, filtering, checklists |
 | `entries` | `/entries` | Global entry search across projects |
 
+## Supporting modules
+
+Logic that is neither routing nor persistence lives in its own module, so a
+router reads as a sequence of decisions rather than an implementation.
+
+| Module | Responsibility |
+|---|---|
+| `app/config.py` | Settings, read from the environment |
+| `app/database.py` | Async engine, session factory, `JSONType` |
+| `app/models.py` | SQLAlchemy ORM models |
+| `app/schemas.py` | Pydantic request and response models, including schema-field validation |
+| `app/security.py` | Token issuing and verification |
+| `app/email.py` | Outbound mail |
+| `app/computed.py` | Evaluates `computed` field expressions |
+| `app/schema_migration.py` | Works out and applies what a schema edit does to existing entries |
+
+### `app/computed.py`
+
+A `computed` field carries an `expression` a user typed, which the server has to
+evaluate on every entry write. It is parsed with Python's `ast` module and walked
+against an allowlist of node types — numbers, field references, `+ - * /`, unary
+minus, parentheses. Anything else raises. `eval` is never called.
+
+Computed fields may read other computed fields, so evaluation order is decided by
+a topological sort, which is also what detects a cycle. The grammar and its
+failure modes are documented on
+[Schema and field types](../api/schema.md#computed-fields).
+
+### `app/schema_migration.py`
+
+Editing a schema on a project with entries is the only operation in Chronicles
+that changes data the user did not just type, so it is built around one function,
+`simulate`, which takes a project, its entries and a proposed schema, and returns
+both a report of the differences and the migrated entries.
+
+The preview endpoint calls it and discards the entries; the apply endpoint calls
+it and writes them. Sharing that single path is what stops the report a user
+approves from disagreeing with what is saved. See
+[Editing a live schema](../api/schema.md#editing-a-live-schema).
+
 ## Authentication Flow
 
 ### Google OAuth Accounts

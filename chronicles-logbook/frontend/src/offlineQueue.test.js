@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   PENDING,
   REJECTED,
@@ -137,5 +137,42 @@ describe("offline queue", () => {
     await writer.enqueue(capture)
 
     expect(await reader.pending("user-1")).toHaveLength(1)
+  })
+})
+
+describe("newEntryId on a browser without crypto.randomUUID", () => {
+  // The whole point of capturing offline is that it works on whatever device
+  // is to hand, which includes older browsers. That fallback only runs where
+  // randomUUID is missing, so it never executes in the test environment — and
+  // an id generator that is never exercised is exactly the kind of thing that
+  // is discovered to be broken in the field.
+  beforeEach(() => {
+    // Replacing the whole global rather than deleting the property: crypto's
+    // own properties are not configurable, so deleting randomUUID silently
+    // does nothing and the test passes against the real implementation.
+    vi.stubGlobal("crypto", {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("falls back rather than throwing when randomUUID is absent", () => {
+    expect(globalThis.crypto.randomUUID).toBeUndefined()
+    expect(() => newEntryId()).not.toThrow()
+  })
+
+  it("still produces a syntactically valid version 4 uuid", () => {
+    const id = newEntryId()
+
+    expect(id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
+  })
+
+  it("still produces distinct ids", () => {
+    const ids = new Set(Array.from({ length: 200 }, () => newEntryId()))
+
+    expect(ids.size).toBe(200)
   })
 })

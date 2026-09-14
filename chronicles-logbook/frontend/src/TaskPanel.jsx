@@ -348,6 +348,15 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
             {formatDate(task.due_date)}
           </span>
         )}
+        {/* Only worth the line when someone is named: a logbook nobody shares
+            would otherwise repeat its owner's name on every row. */}
+        {(task.created_by_name || task.completed_by_name) && (
+          <span className="task-attribution">
+            {task.created_by_name && `Added by ${task.created_by_name}`}
+            {task.created_by_name && task.completed_by_name && " · "}
+            {task.completed_by_name && `Completed by ${task.completed_by_name}`}
+          </span>
+        )}
       </div>
       <div className="task-actions">
         <button

@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react"
 import "./MiraAssistant.css"
 
 const PROMPTS = [
-  "How can I keep a better project log?",
-  "What should I capture in a daily update?",
-  "Help me plan a focused work session.",
+  { title: "Write a clearer update", detail: "Turn rough notes into a useful log entry.", prompt: "Help me write a clear project update. Ask me what I worked on, what I learned, and what comes next." },
+  { title: "Plan a focused session", detail: "Give your next work session a direction.", prompt: "Help me plan a focused work session." },
+  { title: "Start a project", detail: "Shape an idea into a project proposal.", prompt: "Help me create a project. Ask me for its name and description before proposing it." },
 ]
 
 function MiraMark() {
-  return <span className="mira-mark" aria-hidden="true"><b>C</b><sup>M</sup></span>
+  return <span className="mira-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17V7l8 8 8-8v10" /><path d="M12 3v3M10.5 4.5h3" /></svg></span>
 }
 
 function ProjectProposal({ action, saving, onConfirm, onCancel }) {
@@ -51,10 +51,9 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
   return <>
     <div className="mira-feed" ref={feedRef} aria-live="polite" aria-label="Mira conversation">
       {!messages.length && !sending && <div className="mira-welcome">
-        <MiraMark />
-        <div><h2>Meet Mira</h2><p>Your Chronicles assistant for ideas, clearer updates, and useful work habits.</p></div>
+        <div><h2>Make room for your next idea.</h2><p>Bring a rough idea, a work update, or a plan. Let’s give it a clear next step.</p></div>
         <div className="mira-prompts" aria-label="Suggested prompts">
-          {PROMPTS.map(prompt => <button type="button" key={prompt} onClick={() => send(prompt)}>{prompt}</button>)}
+          {PROMPTS.map(({ title, detail, prompt }, index) => <button type="button" key={title} onClick={() => { setDraft(prompt); document.getElementById(compact ? "mira-compact-input" : "mira-full-input")?.focus() }}><span className="mira-prompt-number" aria-hidden="true">0{index + 1}</span><strong>{title}</strong><span>{detail}</span><span className="mira-prompt-arrow" aria-hidden="true">↗</span></button>)}
         </div>
       </div>}
       {messages.map(message => <article className={`mira-message mira-message-${message.role}`} key={message.id}>
@@ -68,8 +67,9 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
     </div>
     <form className="mira-composer" onSubmit={(event) => { event.preventDefault(); send() }}>
       <label className="sr-only" htmlFor={compact ? "mira-compact-input" : "mira-full-input"}>Message Mira</label>
-      <textarea id={compact ? "mira-compact-input" : "mira-full-input"} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} maxLength={2000} rows={compact ? 2 : 3} placeholder="Ask Mira anything about keeping a log…" />
-      <div className="mira-composer-actions"><span>{draft.length}/2000</span><button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
+      <textarea id={compact ? "mira-compact-input" : "mira-full-input"} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} maxLength={2000} rows={compact ? 2 : 3} placeholder="What are you working on?" />
+      <div className="mira-composer-actions"><span><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span><button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
+      <p className="mira-footnote">Review Mira’s suggestions. Project creation always needs your confirmation. Chats clear when you refresh.</p>
     </form>
     {messages.length > 0 && <button type="button" className="mira-clear" onClick={onClear}>Clear conversation</button>}
   </>
@@ -77,7 +77,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
 
 export function MiraAssistantPage({ conversation }) {
   return <section className="mira-page workspace-page" aria-labelledby="mira-title">
-    <header className="mira-page-header"><div><p className="workspace-kicker">CHRONICLES ASSISTANT</p><h1 id="mira-title">Mira</h1><p>Think through your work, then capture it in Chronicles when you are ready.</p></div><MiraMark /></header>
+    <header className="mira-page-header"><div className="mira-heading-identity"><MiraMark /><div><h1 id="mira-title">Mira <span>by Chronicles</span></h1><p>A thinking partner for your project work.</p></div></div><span className="mira-page-badge">Ideas → plans → progress</span></header>
     <Conversation {...conversation} />
   </section>
 }

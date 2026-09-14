@@ -38,8 +38,29 @@ jobs:
         env:
           AZURE_DOCS_PUBLISH_PROFILE: ${{ secrets.AZURE_DOCS_PUBLISH_PROFILE }}
         run: |
-          $publishProfile = [xml]$env:AZURE_DOCS_PUBLISH_PROFILE
+          # The [xml] cast fails on the whole document if a single attribute
+          # anywhere in the profile is malformed, and PowerShell then prints the
+          # entire profile as its error. That buries the cause in forty lines of
+          # XML and puts the secret's structure in the log, so the value is
+          # checked here and reported as one actionable line instead.
+          $raw = $env:AZURE_DOCS_PUBLISH_PROFILE
+          if ([string]::IsNullOrWhiteSpace($raw)) {
+            throw "AZURE_DOCS_PUBLISH_PROFILE is empty or unset. Add the docs App Service publish profile as a repository secret."
+          }
+          # A byte-order mark or stray whitespace survives a copy-paste into a
+          # secret and breaks the cast before it reads a single element.
+          $raw = $raw.Trim([char]0xFEFF, [char]0x200B, ' ', "`t", "`r", "`n")
+
+          try {
+            $publishProfile = [xml]$raw
+          } catch {
+            throw "AZURE_DOCS_PUBLISH_PROFILE is not valid XML ($($_.Exception.Message.Split([char]10)[0])). Re-download the publish profile for the docs App Service from the Azure portal and paste the file verbatim into the secret — an unescaped quote in a password, or a truncated paste, will produce this."
+          }
+
           $entry = $publishProfile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
+          if (-not $entry -or [string]::IsNullOrWhiteSpace($entry.publishUrl)) {
+            throw "No ZipDeploy entry found in AZURE_DOCS_PUBLISH_PROFILE. The profile must be the App Service one, not a deployment-slot or FTP-only profile."
+          }
           Write-Host "Deploying documentation to: $($entry.publishUrl)"
           $uri = "https://$($entry.publishUrl)/api/zipdeploy"
           $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))

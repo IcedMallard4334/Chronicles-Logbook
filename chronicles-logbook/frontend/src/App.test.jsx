@@ -5,11 +5,21 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
-  fetchStatistics: vi.fn(),
+  fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
 }))
 
 import App from "./App"
-import { createProject, fetchEntries, fetchEntriesGlobal, fetchProjects, fetchStatistics, fetchTasks, sendAIMessage } from "./api"
+import {
+  createProject,
+  fetchEntries,
+  fetchEntriesGlobal,
+  fetchFieldTimeline,
+  fetchProjects,
+  fetchStatistics,
+  fetchTasks,
+  sendAIMessage,
+} from "./api"
 
 const emptyStatistics = {
   totals: {
@@ -97,7 +107,7 @@ describe("App workspace", () => {
     render(<App />)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Assistant" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Mira" })).toBeInTheDocument()
   })
 
   it("opens a project from the workspace navigator", async () => {
@@ -107,12 +117,91 @@ describe("App workspace", () => {
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
 
-  it("opens the current activity view from the sidebar", async () => {
+  it("opens the field timeline view from the sidebar", async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    expect(await screen.findByRole("heading", { name: "Timeline" })).toBeInTheDocument()
-    expect(fetchEntriesGlobal).toHaveBeenCalledWith({ q: "", projectId: "", page: 1, pageSize: 20 })
+    expect(await screen.findByRole("heading", { name: "Field Timeline" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Select project")).toBeInTheDocument()
+    expect(screen.getByLabelText("Select field")).toBeInTheDocument()
+    expect(screen.getByLabelText("Start date")).toBeInTheDocument()
+    expect(screen.getByLabelText("End date")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeInTheDocument()
   })
+
+  it("generates a field timeline for a selected project and field", async () => {
+  fetchFieldTimeline.mockResolvedValueOnce({
+    project_id: "proj-1",
+    field_id: "hours",
+    field_name: "Hours",
+    field_type: "number",
+    start: "2026-05-01T00:00:00+00:00",
+    end: "2026-05-31T23:59:59+00:00",
+    points: [
+      {
+        entry_id: "entry-1",
+        created_at: "2026-05-05T09:00:00+00:00",
+        value: 5,
+        schema_version: 1,
+      },
+      {
+        entry_id: "entry-2",
+        created_at: "2026-05-10T09:00:00+00:00",
+        value: 8,
+        schema_version: 1,
+      },
+    ],
+  })
+
+  render(<App />)
+
+  fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+
+  fireEvent.change(screen.getByLabelText("Select project"), {
+    target: { value: "proj-1" },
+  })
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Select field")).toBeEnabled()
+    expect(screen.getByLabelText("Select field")).toHaveValue("")
+  })
+
+  fireEvent.change(screen.getByLabelText("Select field"), {
+    target: { value: "hours" },
+  })
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Select field")).toHaveValue("hours")
+  })
+
+  fireEvent.change(screen.getByLabelText("Start date"), {
+    target: { value: "2026-05-01" },
+  })
+
+  fireEvent.change(screen.getByLabelText("End date"), {
+    target: { value: "2026-05-31" },
+  })
+
+  console.log("ABOUT TO SUBMIT")
+
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Generate timeline" }).closest("form"),
+  )
+
+  console.log("SUBMIT FINISHED")
+
+  await waitFor(() => {
+    expect(fetchFieldTimeline).toHaveBeenCalledWith(
+      "proj-1",
+      "hours",
+      "2026-05-01T00:00:00",
+      "2026-05-31T23:59:59",
+    )
+  })
+
+  expect(await screen.findByText("2 data points")).toBeInTheDocument()
+  expect(screen.getByText("5")).toBeInTheDocument()
+  expect(screen.getByText("8")).toBeInTheDocument()
+})
 
   it("keeps standard project creation available", async () => {
     fetchProjects.mockResolvedValue([])
@@ -130,7 +219,7 @@ describe("Mira project proposals", () => {
 
   async function proposeProject() {
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: "Assistant" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
     fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Create research notes" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     return screen.findByRole("region", { name: "Proposed project" })

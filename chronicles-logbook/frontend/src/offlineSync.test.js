@@ -72,10 +72,25 @@ describe("draining the queue", () => {
       id: record.id,
       data: { note: "captured offline" },
       time_spent: 30,
+      todo: false,
+      due_date: null,
       created_at: record.capturedAt,
     })
     expect(result.accepted).toBe(1)
     expect(await queue.pending(USER)).toHaveLength(0)
+  })
+
+  it("keeps outstanding work outstanding across the queue", async () => {
+    await capture({ todo: true, dueDate: "2026-10-01" })
+
+    await engine.drain(USER)
+
+    // Something planned while offline must still be waiting in the outstanding
+    // view once it reaches the server, deadline intact.
+    expect(createEntry).toHaveBeenCalledWith(
+      "proj-1",
+      expect.objectContaining({ todo: true, due_date: "2026-10-01" }),
+    )
   })
 
   it("sends oldest captures first", async () => {

@@ -59,6 +59,114 @@ def test_gemini_service_rejects_unknown_function_calls(monkeypatch):
         gemini_service.generate_response("Delete a project")
 
 
+def _client_returning(steps):
+    """A stand-in Gemini client whose one call returns *steps*."""
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.interactions = SimpleNamespace(
+                create=lambda **_kwargs: SimpleNamespace(steps=steps, output_text="Noted.")
+            )
+
+    return FakeClient
+
+
+def _configured(monkeypatch, steps):
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(gemini_service.genai, "Client", _client_returning(steps))
+
+
+def test_a_blank_message_is_refused_before_the_provider_is_called(monkeypatch):
+    # Nothing is sent upstream, so an empty prompt cannot spend a request.
+    def explode(**_kwargs):
+        raise AssertionError("the provider should not have been called")
+
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(gemini_service.genai, "Client", explode)
+
+    with pytest.raises(ValueError, match="empty"):
+        gemini_service.generate_response("   ")
+
+
+def test_a_non_text_message_is_refused(monkeypatch):
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "test-key")
+
+    with pytest.raises(ValueError, match="text"):
+        gemini_service.generate_response(1234)
+
+
+def test_a_reply_with_no_proposed_action_comes_back_as_text(monkeypatch):
+    _configured(monkeypatch, steps=[])
+
+    result = gemini_service.generate_response("How many entries did I write?")
+
+    assert result.action is None
+    assert result.reply == "Noted."
+
+
+def test_a_step_that_is_not_a_function_call_is_ignored(monkeypatch):
+    # Providers interleave reasoning steps with calls; only the call matters.
+    _configured(monkeypatch, steps=[SimpleNamespace(type="thinking", name=None, arguments=None)])
+
+    result = gemini_service.generate_response("Think about it")
+
+    assert result.action is None
+    assert result.reply == "Noted."
+
+
+def test_a_function_call_shaped_as_a_dict_is_read_the_same_way(monkeypatch):
+    # The SDK yields plain dicts in some versions, so both shapes must work.
+    _configured(
+        monkeypatch,
+        steps=[{
+            "type": "function_call",
+            "name": "create_project",
+            "arguments": {"name": "From a dict"},
+        }],
+    )
+
+    result = gemini_service.generate_response("Start a project")
+
+    assert result.action["type"] == "create_project"
+    assert result.action["payload"] == {"name": "From a dict"}
+    assert result.action["requires_confirmation"] is True
+
+
+def test_a_malformed_function_call_is_rejected_rather_than_guessed_at(monkeypatch):
+    # Arguments that are not an object cannot be turned into a project, and
+    # inventing one from a malformed proposal is worse than refusing it.
+    _configured(
+        monkeypatch,
+        steps=[SimpleNamespace(type="function_call", name="create_project", arguments="oops")],
+    )
+
+    with pytest.raises(GeminiServiceError, match="invalid proposed action"):
+        gemini_service.generate_response("Start a project")
+
+
+def test_a_missing_api_key_is_reported_as_unconfigured(monkeypatch):
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "   ")
+
+    with pytest.raises(GeminiNotConfiguredError):
+        gemini_service.generate_response("Anything")
+
+
+def test_a_provider_failure_is_wrapped_rather_than_leaked(monkeypatch):
+    class ExplodingClient:
+        def __init__(self, **_kwargs):
+            self.interactions = SimpleNamespace(create=self.create)
+
+        def create(self, **_kwargs):
+            raise RuntimeError("upstream is down")
+
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(gemini_service.genai, "Client", ExplodingClient)
+
+    # The caller sees a Chronicles error, not whatever the SDK happened to raise.
+    with pytest.raises(GeminiServiceError, match="could not generate"):
+        gemini_service.generate_response("Anything")
+
+
 async def test_ai_chat_requires_authentication(async_client):
     response = await async_client.post(
         "/ai/chat",

@@ -1,5 +1,6 @@
 """Tests for entry endpoints."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -282,6 +283,11 @@ async def test_search_entries_returns_newest_first(
             }
         },
     )
+
+    # created_at comes from datetime.now() in Python, and the sort tie-breaks on
+    # a random UUID. Two inserts landing in the same clock tick therefore order
+    # arbitrarily, which made this assertion a coin flip under a loaded suite.
+    await asyncio.sleep(0.01)
 
     second = await authenticated_client.post(
         f"/projects/{project_id}/entries",
@@ -683,19 +689,13 @@ async def test_update_entry_rejects_fields_outside_the_schema(
     assert response.status_code == 422
 
 
-async def test_update_entry_revalidates_against_the_current_schema(
+async def test_update_entry_validates_against_its_schema_snapshot(
     authenticated_client, project_with_schema, existing_entry
 ):
-    """An entry written before a schema change must satisfy the new shape.
-
-    This is the agreed trade-off: update behaves exactly like create, so
-    editing an old entry forces it into the current schema rather than
-    letting entry shapes drift apart.
-    """
+    """An existing entry continues using the schema captured at creation."""
     project_id = project_with_schema["id"]
 
-    # Replace "Status" with a new "Mood" field after the entry was written.
-    await authenticated_client.put(
+    schema_update = await authenticated_client.put(
         f"/projects/{project_id}",
         json={
             "name": "Logbook Project",
@@ -706,16 +706,18 @@ async def test_update_entry_revalidates_against_the_current_schema(
             ],
         },
     )
+    assert schema_update.status_code == 200
 
-    # The entry's original shape is no longer valid.
-    stale = await authenticated_client.put(
+    # The original shape remains valid for the historical entry.
+    original_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={"data": VALID_DATA},
     )
-    assert stale.status_code == 422
+    assert original_shape.status_code == 200
+    assert original_shape.json()["data"] == VALID_DATA
 
-    # Supplying the current shape succeeds.
-    migrated = await authenticated_client.put(
+    # The new project shape is invalid for an entry using the old snapshot.
+    current_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={
             "data": {
@@ -725,8 +727,7 @@ async def test_update_entry_revalidates_against_the_current_schema(
             }
         },
     )
-    assert migrated.status_code == 200
-    assert migrated.json()["data"]["field-4"] == "Focused"
+    assert current_shape.status_code == 422
 
 
 async def test_update_entry_rejects_incomplete_data(
@@ -834,3 +835,179 @@ async def test_list_entries_returns_newest_first(
     assert response.status_code == 200
     ids = [entry["id"] for entry in response.json()]
     assert ids.index(newer.json()["id"]) < ids.index(older.json()["id"])
+
+
+# ── Outstanding work (US-2.15) ───────────────────────────────────────
+
+
+async def test_create_entry_defaults_to_completed_work(
+    authenticated_client, project_with_schema
+):
+    """An ordinary log entry records work already done, so todo stays false."""
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["todo"] is False
+    assert response.json()["due_date"] is None
+
+
+async def test_create_entry_as_outstanding_work(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["todo"] is True
+    assert response.json()["due_date"] == "2026-10-01"
+
+
+async def test_update_entry_marks_outstanding_work_done(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01"},
+    )
+    entry_id = created.json()["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}",
+        json={"todo": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["todo"] is False
+    # Completing the work leaves the deadline it was set against intact.
+    assert response.json()["due_date"] == "2026-10-01"
+
+
+async def test_update_entry_clears_due_date_with_explicit_null(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01"},
+    )
+    entry_id = created.json()["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}",
+        json={"due_date": None},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["due_date"] is None
+
+
+async def test_update_entry_leaves_outstanding_fields_when_omitted(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01"},
+    )
+    entry_id = created.json()["id"]
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}",
+        json={"time_spent": 30},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["todo"] is True
+    assert response.json()["due_date"] == "2026-10-01"
+
+
+async def test_search_entries_filters_outstanding_work(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    outstanding = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True},
+    )
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA},
+    )
+
+    response = await authenticated_client.get("/entries?todo=true")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [entry["id"] for entry in data] == [outstanding.json()["id"]]
+
+
+async def test_search_entries_sorted_by_due_date_puts_undated_last(
+    authenticated_client, project_with_schema
+):
+    """A deadline that exists outranks one that was never set."""
+    project_id = project_with_schema["id"]
+
+    undated = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True},
+    )
+    later = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-12-01"},
+    )
+    sooner = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01"},
+    )
+
+    response = await authenticated_client.get("/entries?todo=true&sort=due_date")
+
+    assert response.status_code == 200
+    assert [entry["id"] for entry in response.json()] == [
+        sooner.json()["id"],
+        later.json()["id"],
+        undated.json()["id"],
+    ]
+
+
+async def test_search_entries_sorted_oldest_first(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+
+    older = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+        },
+    )
+    newer = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc).isoformat(),
+        },
+    )
+
+    response = await authenticated_client.get("/entries?sort=oldest")
+
+    assert response.status_code == 200
+    ids = [entry["id"] for entry in response.json()]
+    assert ids.index(older.json()["id"]) < ids.index(newer.json()["id"])
+
+
+async def test_search_entries_rejects_unknown_sort(authenticated_client):
+    response = await authenticated_client.get("/entries?sort=whenever")
+
+    assert response.status_code == 422
