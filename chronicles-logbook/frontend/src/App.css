@@ -2999,6 +2999,68 @@ button.log-link-chip:hover {
   }
 }
 
+/* The layout stacks correctly on a phone — there is no horizontal overflow —
+   but stacking is not the same as being usable at that size. These three are
+   what a 390px render actually shows going wrong. */
+
+@media (max-width: 700px) {
+  /* 1. The nav became eight unlabelled icons in a three-wide keypad, because
+        `.nav-item span { display: none }` strips every label below 520px. An
+        icon-only bar works when there are four familiar destinations; with
+        eight, nothing is identifiable. The label goes back, under the icon. */
+  .app-shell .nav-pill-center .nav-item {
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 4px;
+    min-height: 52px;
+    line-height: 1.1;
+  }
+
+  .app-shell .nav-pill-center .nav-item span {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-align: center;
+  }
+
+  /* Four across rather than three: eight destinations then make two even rows
+     instead of three ragged ones. Needs the extra class to outrank the
+     three-column rule in WorkspacePolish.css, which is loaded after this file
+     and carries the same specificity. */
+  .app-shell .nav-pill .nav-pill-center {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  /* Both floating controls are position:fixed, so without room reserved at the
+     bottom they permanently cover the last line of the page. */
+  .app-shell {
+    padding-bottom: 88px;
+  }
+
+  /* 2. The command trigger and Mira's launcher are both pinned bottom-right
+        and sat on top of each other. Mira keeps the corner; search moves to
+        the opposite one, where nothing else is. */
+  .command-trigger {
+    right: auto;
+    left: 16px;
+    bottom: 16px;
+  }
+
+  /* 3. The sidebar repeats the brand the top bar is already showing, so a
+        phone spends its first screenful on the word "Chronicles" twice before
+        any content. */
+  .home-main .workspace-sidebar-brand {
+    display: none;
+  }
+
+  .workspace-sidebar-stats {
+    gap: 6px;
+    padding: 8px;
+  }
+}
+
 /* Coarse pointers get a thumb-sized target regardless of viewport width — a
    34px control is fine with a mouse and misses under a finger. Keyed off the
    input device rather than the screen, so it also covers touch laptops. */
