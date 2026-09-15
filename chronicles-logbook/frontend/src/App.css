@@ -1499,6 +1499,124 @@
   gap: 12px;
 }
 
+/* --------------------------------------------------
+   FIELD STATISTICS (US-2.10)
+   -------------------------------------------------- */
+
+.field-stats {
+  margin-bottom: 24px;
+}
+
+.field-stats-status {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.field-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.field-stats-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.field-stats-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.field-stats-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.field-stats-figures {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+}
+
+.field-stats-figures div {
+  min-width: 0;
+}
+
+.field-stats-figures dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field-stats-figures dd {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Grouped values read as a tiny horizontal bar chart: the bar is scaled to the
+   largest group so the proportions are visible at a glance without an axis. */
+.field-stats-groups {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+
+.field-stats-groups li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.field-stats-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.field-stats-bar {
+  display: block;
+  height: 8px;
+  min-width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--blue), var(--mauve));
+}
+
+.field-stats-group-count {
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .field-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-stats-figures {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+}
+
 .timeline-row {
   padding: 16px;
   border: 1px solid var(--line);

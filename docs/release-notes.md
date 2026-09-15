@@ -101,6 +101,9 @@ Recorded rather than hidden; each is a candidate for Milestone 3.
   project and its entries but not its statistics page or export.
 - **Sharing has no roles.** Everyone a project is shared with gets the same
   access.
+- **Calculation fields are not totalled** in the statistics view — they are
+  grouped by their distinct results. Total the number fields they are built
+  from instead.
 - **No reminders yet.** The most-requested feature from user feedback,
   deliberately deferred until it can be built with scheduling designed in.
 

@@ -19,6 +19,7 @@ import {
   deleteTask,
   disconnectGoogleCalendar,
   fetchEntryLinks,
+  fetchFieldStatistics,
   fetchGoogleCalendarStatus,
   fetchProject,
   fetchProjectMembers,
@@ -264,6 +265,12 @@ describe("api client — endpoint contracts", () => {
     await deleteSavedFilter("f1")
     expect(urlOf()).toBe(`${BASE}/saved-filters/f1`)
     expect(optionsOf().method).toBe("DELETE")
+  })
+
+  it("reads every field's totals and groups for a project", async () => {
+    fetch.mockResolvedValueOnce(ok({ project_id: "p1", schema_version: 1, fields: [] }))
+    await fetchFieldStatistics("p1")
+    expect(urlOf()).toBe(`${BASE}/statistics/projects/p1/fields`)
   })
 
   it("reads the entries that link to an entry", async () => {

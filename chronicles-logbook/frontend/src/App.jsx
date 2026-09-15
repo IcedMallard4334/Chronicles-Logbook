@@ -23,6 +23,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchEntryLinks,
+  fetchFieldStatistics,
   fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
@@ -641,8 +642,10 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
         <button type="button" className={homeActive ? "is-active" : ""} onClick={onShowHome}>
           <span aria-hidden="true">⌂</span> Projects
         </button>
+        {/* Was "Activity". The PO named statistics as a must-demo feature and
+            a user looking for them would not think to click that word. */}
         <button type="button" className={timelineActive ? "is-active" : ""} onClick={onShowTimeline}>
-          <span aria-hidden="true">◷</span> Activity
+          <span aria-hidden="true">◷</span> Statistics
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -2147,6 +2150,139 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
   )
 }
 
+function formatStat(value) {
+  if (value === null || value === undefined) return "—"
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}
+
+/**
+ * Every field of a project, totalled or grouped according to its type
+ * (US-2.10). The server reads each entry's schema snapshot, so a field that
+ * has changed type still reports correctly for the entries written under the
+ * old one.
+ */
+function FieldStatisticsPanel({ projectId }) {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!projectId) {
+      setStats(null)
+      return undefined
+    }
+    let active = true
+    setLoading(true)
+    setError(null)
+    fetchFieldStatistics(projectId)
+      .then((data) => {
+        if (active) setStats(data)
+      })
+      .catch((err) => {
+        if (active) {
+          setStats(null)
+          setError(formatError(err))
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
+  if (!projectId) return null
+
+  if (loading) {
+    return <p className="field-stats-status" role="status">Working out the numbers…</p>
+  }
+
+  if (error) {
+    return (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    )
+  }
+
+  if (!stats || stats.fields.length === 0) {
+    return (
+      <p className="field-stats-status">
+        Nothing to total yet — this project has no entries, or its fields are all free text.
+      </p>
+    )
+  }
+
+  return (
+    <section className="field-stats" aria-label="Field statistics">
+      <div className="timeline-summary">
+        <h3>By field</h3>
+        <p>
+          {stats.fields.length} field{stats.fields.length === 1 ? "" : "s"} across the
+          entries written so far. Numbers are totalled and averaged; choices and tags are
+          grouped and counted.
+        </p>
+      </div>
+      <div className="field-stats-grid">
+        {stats.fields.map((field) => {
+          const meta = FIELD_TYPE_META[field.type]
+          const isNumeric = field.total !== null && field.total !== undefined
+          // The API groups every non-number field by distinct value, in the
+          // order first seen. Bars are only drawn for the types where a
+          // breakdown by value means something — free text would be forty
+          // bars of one — and are sorted so the largest group reads first.
+          const groups = ["dropdown", "tags"].includes(field.type)
+            ? [...field.groups].sort((a, b) => b.count - a.count)
+            : []
+          const largest = groups.reduce((max, group) => Math.max(max, group.count), 0)
+          return (
+            <article key={field.field_id} className="field-stats-card">
+              <header className="field-stats-head">
+                <h4>{field.name}</h4>
+                <span className="field-summary-type">{meta?.label || field.type}</span>
+              </header>
+              <dl className="field-stats-figures">
+                <div>
+                  <dt>Entries</dt>
+                  <dd>{field.count}</dd>
+                </div>
+                {isNumeric && (
+                  <>
+                    <div>
+                      <dt>Total</dt>
+                      <dd>{formatStat(field.total)}</dd>
+                    </div>
+                    <div>
+                      <dt>Average</dt>
+                      <dd>{formatStat(field.average)}</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+              {groups.length > 0 && (
+                <ul className="field-stats-groups" aria-label={`${field.name} by value`}>
+                  {groups.map((group) => (
+                    <li key={String(group.value)}>
+                      <span className="field-stats-group-label">{String(group.value)}</span>
+                      <span
+                        className="field-stats-bar"
+                        style={{ width: `${largest ? (group.count / largest) * 100 : 0}%` }}
+                        aria-hidden="true"
+                      />
+                      <span className="field-stats-group-count">{group.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function Timeline({ projects }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
@@ -2199,10 +2335,13 @@ function Timeline({ projects }) {
   const selectedField = fields.find((field) => field.id === fieldId)
 
   return (
-    <section className="timeline" aria-label="Field timeline">
+    <section className="timeline" aria-label="Statistics">
       <header className="timeline-header">
-        <h2>Field Timeline</h2>
-        <p>Choose a field and date range to visualise how its values change over time.</p>
+        <h2>Statistics</h2>
+        <p>
+          Pick a project to total and group every field you have defined, then choose a
+          field and date range to plot it over time.
+        </p>
       </header>
 
       <form className="timeline-filters" onSubmit={handleLoadTimeline}>
@@ -2267,6 +2406,11 @@ function Timeline({ projects }) {
           {loading ? "Loading…" : "Generate timeline"}
         </button>
       </form>
+
+      {/* Every field, totalled or grouped, as soon as a project is chosen —
+          before any field or date range is picked. That is US-2.10; the chart
+          below it is US-2.11. */}
+      <FieldStatisticsPanel projectId={projectId} />
 
       {error && (
         <p className="error" role="alert">
@@ -3375,7 +3519,7 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
-      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
+      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} onShowStatistics={handleShowTimeline} />
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )

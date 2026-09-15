@@ -6,6 +6,7 @@ vi.mock("./api", () => ({
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchFieldStatistics: vi.fn(() => Promise.resolve({ project_id: "", schema_version: 1, fields: [] })),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
 }))
 
@@ -14,6 +15,7 @@ import {
   createProject,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchFieldStatistics,
   fetchFieldTimeline,
   fetchProjects,
   fetchStatistics,
@@ -149,15 +151,74 @@ describe("App workspace", () => {
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
 
-  it("opens the field timeline view from the sidebar", async () => {
+  it("opens the statistics view from the sidebar", async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    expect(await screen.findByRole("heading", { name: "Field Timeline" })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
+    expect(await screen.findByRole("heading", { name: "Statistics" })).toBeInTheDocument()
     expect(screen.getByLabelText("Select project")).toBeInTheDocument()
     expect(screen.getByLabelText("Select field")).toBeInTheDocument()
     expect(screen.getByLabelText("Start date")).toBeInTheDocument()
     expect(screen.getByLabelText("End date")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Generate timeline" })).toBeInTheDocument()
+  })
+
+  it("totals and groups every field as soon as a project is chosen", async () => {
+    // US-2.10. This existed as an endpoint with tests and no interface: an
+    // owner could not total or group by a field anywhere in the app.
+    fetchFieldStatistics.mockResolvedValueOnce({
+      project_id: "proj-1",
+      schema_version: 2,
+      fields: [
+        { field_id: "hours", name: "Hours", type: "number", count: 4, total: 13, average: 3.25, groups: [] },
+        {
+          field_id: "status", name: "Status", type: "dropdown", count: 4, total: null, average: null,
+          // Deliberately smallest first: the API returns groups in the order it
+          // first saw them, and the panel must sort, not merely pass through.
+          groups: [{ value: "Closed", count: 1 }, { value: "Open", count: 3 }],
+        },
+        {
+          // Free text is grouped by the API too — every distinct note becomes a
+          // group of one — and drawing that as bars would be noise.
+          field_id: "note", name: "Note", type: "text", count: 2, total: null, average: null,
+          groups: [{ value: "fixed the build", count: 1 }, { value: "wrote tests", count: 1 }],
+        },
+      ],
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+
+    const panel = await screen.findByRole("region", { name: "Field statistics" })
+    expect(fetchFieldStatistics).toHaveBeenCalledWith("proj-1")
+
+    // A number field is totalled and averaged …
+    const hours = within(panel).getByRole("heading", { name: "Hours" }).closest("article")
+    expect(within(hours).getByText("13")).toBeInTheDocument()
+    expect(within(hours).getByText("3.25")).toBeInTheDocument()
+
+    // … a choice field is grouped and counted, sorted largest first …
+    const status = within(panel).getByRole("list", { name: "Status by value" })
+    const rows = within(status).getAllByRole("listitem")
+    expect(rows[0]).toHaveTextContent("Open")
+    expect(rows[0]).toHaveTextContent("3")
+    expect(rows[1]).toHaveTextContent("Closed")
+    expect(rows[1]).toHaveTextContent("1")
+
+    // … and a free-text field gets its count but no bars.
+    const note = within(panel).getByRole("heading", { name: "Note" }).closest("article")
+    expect(within(note).getByText("2")).toBeInTheDocument()
+    expect(within(panel).queryByRole("list", { name: "Note by value" })).toBeNull()
+  })
+
+  it("says so when there is nothing to total", async () => {
+    fetchFieldStatistics.mockResolvedValueOnce({ project_id: "proj-1", schema_version: 1, fields: [] })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+
+    expect(await screen.findByText(/Nothing to total yet/)).toBeInTheDocument()
   })
 
   it("generates a field timeline for a selected project and field", async () => {
@@ -186,7 +247,7 @@ describe("App workspace", () => {
 
   render(<App />)
 
-  fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+  fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
 
   fireEvent.change(screen.getByLabelText("Select project"), {
     target: { value: "proj-1" },

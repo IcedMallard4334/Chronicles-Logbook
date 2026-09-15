@@ -6,7 +6,7 @@ import "./CommandPalette.css"
 // state through every component that sits between them.
 export const OPEN_COMMAND_PALETTE = "chronicles:open-command-palette"
 
-export default function CommandPalette({ projects, onNavigate, onOpenProject, onCreateProject }) {
+export default function CommandPalette({ projects, onNavigate, onOpenProject, onCreateProject, onShowStatistics }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   useEffect(() => {
@@ -29,6 +29,7 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
     { label: "Go to board", hint: "Workspace", action: () => onNavigate("board") },
     { label: "Go to outstanding work", hint: "Workspace", action: () => onNavigate("outstanding") },
     { label: "Go to calendar", hint: "Schedule", action: () => onNavigate("calendar") },
+    ...(onShowStatistics ? [{ label: "Go to statistics", hint: "Insights", action: onShowStatistics }] : []),
     { label: "Create a project", hint: "New", action: onCreateProject },
     // Picking a project by name opens that project. It used to land on Home
     // and leave the person to find it again, which made searching for one
@@ -38,7 +39,7 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
       hint: "Project",
       action: () => (onOpenProject ? onOpenProject(project.id) : onNavigate("home")),
     })),
-  ].filter(command => command.label.toLowerCase().includes(query.toLowerCase())), [projects, query, onNavigate, onOpenProject, onCreateProject])
+  ].filter(command => command.label.toLowerCase().includes(query.toLowerCase())), [projects, query, onNavigate, onOpenProject, onCreateProject, onShowStatistics])
   if (!open) return <button className="command-trigger" type="button" onClick={() => setOpen(true)} aria-label="Open command menu">⌘<span>Search</span><kbd>Ctrl K</kbd></button>
   return <div className="command-backdrop" role="presentation" onMouseDown={() => setOpen(false)}><section className="command-palette" role="dialog" aria-modal="true" aria-label="Command menu" onMouseDown={event => event.stopPropagation()}><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search commands, pages and projects…" /><div className="command-results">{commands.length ? commands.map(command => <button key={`${command.hint}-${command.label}`} type="button" onClick={() => { command.action(); setOpen(false) }}><span>{command.label}</span><small>{command.hint}</small></button>) : <p>No matching commands.</p>}</div><p className="command-help"><kbd>Esc</kbd> close · <kbd>Ctrl K</kbd> toggle</p></section></div>
 }

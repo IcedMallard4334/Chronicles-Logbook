@@ -80,8 +80,17 @@ board and not by the product for roughly two weeks, which is discussed in
 
 | Story | Title | Evidence |
 |---|---|---|
-| US-2.10 | Total and group by any field | `GET /statistics/projects/{id}/fields` — numeric fields summed and averaged, categorical fields grouped and counted, respecting each entry's schema version |
-| US-2.11 | Plot any field over time | `GET …/fields/{field}/timeline` with a date range; charted with Recharts |
+| US-2.10 | Total and group by any field | Statistics view: choosing a project totals and averages every number field and groups and counts every choice or tag field, respecting each entry's schema version. Backed by `GET /statistics/projects/{id}/fields` |
+| US-2.11 | Plot any field over time | Same view: choose a field and date range; charted with Recharts. Backed by `GET …/fields/{field}/timeline` |
+
+A note on US-2.10, in the same spirit as the one on the rich fields above: the
+endpoint was built, tested, and documented — and until 2026-09-15 had **no
+interface**. No screen called it; an owner could not total or group by a field
+anywhere in the app. The first draft of this very review marked the story
+complete on the strength of the endpoint, which is the mistake *What the sprint
+taught us* describes. The statistics view (formerly the sidebar's "Activity"
+button, now labelled Statistics and reachable from the command palette) was
+added the same day. Acceptance criteria are met by the product or not at all.
 | US18 *(carried)* | Statistics | Overall and per-project totals, time, active days — and, added 2026-09-15, the current and longest **streak**, which the base tier names ("where a run of days has been kept up") and which had been a placeholder |
 
 ### Multiple views (Person 4)

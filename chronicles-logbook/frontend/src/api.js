@@ -318,6 +318,10 @@ export async function fetchStatistics() {
   return request("/statistics")
 }
 
+export async function fetchFieldStatistics(projectId) {
+  return request(`/statistics/projects/${projectId}/fields`)
+}
+
 export async function fetchFieldTimeline(projectId, fieldId, start, end) {
   const params = new URLSearchParams()
 
