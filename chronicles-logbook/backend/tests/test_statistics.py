@@ -595,3 +595,110 @@ async def test_field_timeline_cannot_access_another_users_project(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
+
+
+# ── Streaks (basic tier: "where a run of days has been kept up") ─────────────
+#
+# Dates are built relative to today so the "is the run still alive" rule can be
+# tested honestly rather than against a fixed calendar that will drift.
+
+from datetime import date, timedelta  # noqa: E402
+
+from app.routers.statistics import _streaks  # noqa: E402
+
+
+def _days_ago(n: int) -> str:
+    # Keeps the current time of day rather than pinning one: "today at 09:00"
+    # is in the future for anyone running the suite before 09:00 UTC, and the
+    # API rightly refuses a future-dated entry.
+    return (datetime.now(timezone.utc) - timedelta(days=n)).isoformat()
+
+
+def test_streaks_of_an_empty_logbook_are_zero():
+    assert _streaks(set(), date(2026, 9, 15)) == (0, 0)
+
+
+def test_a_single_day_is_a_streak_of_one():
+    today = date(2026, 9, 15)
+    assert _streaks({today}, today) == (1, 1)
+
+
+def test_consecutive_days_count_as_one_run():
+    today = date(2026, 9, 15)
+    days = {today - timedelta(days=i) for i in range(4)}
+    assert _streaks(days, today) == (4, 4)
+
+
+def test_a_gap_ends_the_run_and_the_longest_survives_it():
+    today = date(2026, 9, 15)
+    # Five days, a gap, then two days ending today.
+    earlier = {today - timedelta(days=i) for i in range(4, 9)}
+    recent = {today, today - timedelta(days=1)}
+    assert _streaks(earlier | recent, today) == (2, 5)
+
+
+def test_a_run_that_reached_yesterday_is_still_alive():
+    # Not having written *yet* today is not the same as having stopped.
+    today = date(2026, 9, 15)
+    days = {today - timedelta(days=i) for i in range(1, 4)}
+    assert _streaks(days, today) == (3, 3)
+
+
+def test_a_run_that_ended_two_days_ago_has_been_broken():
+    today = date(2026, 9, 15)
+    days = {today - timedelta(days=i) for i in range(2, 6)}
+    assert _streaks(days, today) == (0, 4)
+
+
+def test_input_order_does_not_matter():
+    today = date(2026, 9, 15)
+    days = [today - timedelta(days=i) for i in (2, 0, 1)]
+    assert _streaks(set(days), today) == (3, 3)
+
+
+async def test_statistics_report_the_current_and_longest_streak(
+    authenticated_client, project
+):
+    project_id = project["id"]
+    for n in (0, 1, 2):
+        await _log(authenticated_client, project_id, f"day -{n}", when=_days_ago(n))
+    # An older, longer run that has since been broken.
+    for n in (10, 11, 12, 13):
+        await _log(authenticated_client, project_id, f"day -{n}", when=_days_ago(n))
+
+    body = (await authenticated_client.get("/statistics")).json()
+
+    assert body["totals"]["current_streak"] == 3
+    assert body["totals"]["longest_streak"] == 4
+    assert body["projects"][0]["current_streak"] == 3
+    assert body["projects"][0]["longest_streak"] == 4
+
+
+async def test_the_overall_streak_joins_days_across_projects(authenticated_client):
+    # Writing in project A yesterday and project B today is two days kept up,
+    # even though neither project alone has a run longer than one.
+    a = (await authenticated_client.post(
+        "/projects", json={"name": "A", "entry_schema": SCHEMA}
+    )).json()["id"]
+    b = (await authenticated_client.post(
+        "/projects", json={"name": "B", "entry_schema": SCHEMA}
+    )).json()["id"]
+    await _log(authenticated_client, a, "yesterday", when=_days_ago(1))
+    await _log(authenticated_client, b, "today", when=_days_ago(0))
+
+    body = (await authenticated_client.get("/statistics")).json()
+
+    assert body["totals"]["current_streak"] == 2
+    by_name = {p["name"]: p for p in body["projects"]}
+    # Each project alone is a run of one — A's is still alive because
+    # yesterday counts as kept up — but only the logbook as a whole reaches 2.
+    assert by_name["A"]["current_streak"] == 1
+    assert by_name["B"]["current_streak"] == 1
+
+
+async def test_a_project_with_no_entries_has_no_streak(authenticated_client, project):
+    body = (await authenticated_client.get("/statistics")).json()
+
+    assert body["projects"][0]["current_streak"] == 0
+    assert body["projects"][0]["longest_streak"] == 0
+    assert body["totals"]["current_streak"] == 0

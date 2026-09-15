@@ -534,6 +534,8 @@ class ProjectStatistics(BaseModel):
     entries: int
     time_spent: int
     active_days: int
+    current_streak: int = 0
+    longest_streak: int = 0
     first_entry_at: datetime | None
     last_entry_at: datetime | None
 
@@ -548,6 +550,12 @@ class StatisticsTotals(BaseModel):
     # not the sum of the per-project figures: a day worked on two projects
     # counts once here and once in each project.
     active_days: int
+    # A run of consecutive days with at least one entry (basic tier: "where a
+    # run of days has been kept up"). current_streak is the run that reaches
+    # today or yesterday — it is still alive if nothing was written yet today.
+    # A run that ended two or more days ago has been broken and reads as 0.
+    current_streak: int = 0
+    longest_streak: int = 0
     first_entry_at: datetime | None
     last_entry_at: datetime | None
 
