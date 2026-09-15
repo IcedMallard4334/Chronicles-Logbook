@@ -65,6 +65,7 @@ extra_javascript:
 
 nav:
   - Home: index.md
+  - Release Notes: release-notes.md
   - Getting Started:
     - Prerequisites: getting-started/prerequisites.md
     - Installation: getting-started/installation.md
