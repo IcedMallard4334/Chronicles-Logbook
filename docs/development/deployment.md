@@ -132,17 +132,71 @@ The built site can be deployed to any static hosting service (Gitea Pages, GitHu
 
 ## Database Migrations
 
-For production Azure PostgreSQL deployments, schema changes are managed via SQL migration scripts in `chronicles-logbook/backend/migrations/`. The initial migration (`001_schema_updates.sql`) is idempotent and covers:
+How a schema change reaches the production database is the part of deployment
+that has actually broken, so it is worth being precise about.
 
-- `entries.time_spent` column addition
-- `tasks.checklist` JSONB column addition
-- Backwards-compatible column renames
+### What runs automatically
 
-Run migrations against your Azure PostgreSQL instance:
+On startup the API calls `Base.metadata.create_all()`, which creates any
+**table** that does not yet exist — so a brand-new model (for example
+`project_members`, `mira_consents`) needs no manual step. It then runs every
+statement in `_ADDED_COLUMNS` in `main.py` as
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS …`.
+
+That list exists because `create_all()` **never adds a column to a table that
+already exists**. A model that gains a field works on every developer's
+machine — their database is rebuilt from the models — and fails in production,
+where the table predates the field, with `UndefinedColumnError` on every query
+that selects it.
+
+### What does not run automatically
+
+The deploy workflow zips the backend and ships it. **It does not run the files
+in `migrations/`.** Those files are the human-readable record of each change
+and are safe to apply by hand (every statement is idempotent), but nothing in
+the pipeline applies them.
+
+The rule that follows: **any migration that adds a column to an existing table
+must also add that column to `_ADDED_COLUMNS`.** A test
+(`tests/test_main.py::test_added_columns_covers_every_migration_column`)
+parses the migration files and fails CI if one adds a column the list omits.
+
+### The incident this comes from
+
+On 2026-09-14 the deployed API returned 500 on every project endpoint. Five
+columns — `projects.retired_schema`, `entries.retired_data`,
+`projects.schema_version`, `entries.schema_version`, `entries.schema_snapshot`
+— existed in the models and not in production. `_ADDED_COLUMNS` listed two
+columns while the migrations added nine, and two feature branches had each
+numbered their migration `004`, which is how the second was missed in the
+merge. The list was completed, the later migration renumbered `005`, and the
+guard test added, all the same day.
+
+### Applying a migration by hand
+
+For a change that the startup patch cannot express (a data backfill, a
+constraint, a rename), apply the file directly. The local network used for
+development blocks outbound port 5432, so this is done from **Azure Cloud
+Shell**, which runs inside Azure:
 
 ```bash
-psql "postgresql://user:password@host:5432/dbname" -f migrations/001_schema_updates.sql
+psql "host=<server>.postgres.database.azure.com port=5432 dbname=chronicles user=<admin> password=<password> sslmode=require"
 ```
+
+then paste the migration's statements at the `psql` prompt, and verify with
+`\d projects` / `\d entries`.
+
+### The migration files
+
+| File | Adds |
+|---|---|
+| `001_schema_updates.sql` | Base tables, `entries.time_spent`, `tasks.checklist`, legacy renames |
+| `002_calendar_token_timestamps.sql` | `google_calendar_tokens.created_at` / `updated_at` |
+| `003_login_sessions.sql` | `login_sessions` table |
+| `004_retired_schema_fields.sql` | `projects.retired_schema`, `entries.retired_data` |
+| `005_schema_versioning.sql` | `schema_version` on both, `entries.schema_snapshot`, backfill |
+| `006_project_members.sql` | `project_members` table |
+| `007_authorship.sql` | `created_by` on entries and tasks, `tasks.completed_by`, backfill to owner |
 
 ## Environment Configuration
 
