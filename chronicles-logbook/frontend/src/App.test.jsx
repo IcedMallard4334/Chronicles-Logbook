@@ -51,10 +51,41 @@ describe("workspace summary", () => {
     totals: {
       projects: 3, active_projects: 2, archived_projects: 1,
       entries: 128, time_spent: 200, active_days: 47,
+      current_streak: 6, longest_streak: 19,
       first_entry_at: "2026-01-04T08:12:00Z", last_entry_at: "2026-09-10T17:40:00Z",
     },
     projects: [],
   }
+
+  it("shows the run of days being kept up, with the best run on hover", async () => {
+    // Basic tier: "where a run of days has been kept up". The longest run is
+    // kept to a tooltip so a broken streak still shows what was achieved.
+    fetchStatistics.mockResolvedValue(statistics)
+
+    render(<App />)
+
+    const summary = await screen.findByLabelText("Workspace summary")
+    await waitFor(() => expect(within(summary).getByText("6")).toBeInTheDocument())
+    const streak = within(summary).getByText("6").closest("span")
+    expect(streak).toHaveTextContent("day streak")
+    expect(streak).toHaveAttribute("title", "Longest run: 19 days")
+    expect(streak).toHaveClass("is-streak-alive")
+  })
+
+  it("does not mark a broken streak as alive", async () => {
+    fetchStatistics.mockResolvedValue({
+      ...statistics,
+      totals: { ...statistics.totals, current_streak: 0, longest_streak: 1 },
+    })
+
+    render(<App />)
+
+    const summary = await screen.findByLabelText("Workspace summary")
+    await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
+    const streak = within(summary).getByText("day streak").closest("span")
+    expect(streak).not.toHaveClass("is-streak-alive")
+    expect(streak).toHaveAttribute("title", "Longest run: 1 day")
+  })
 
   it("shows server-side totals rather than counting loaded entries", async () => {
     // The bug this replaces: entries are only loaded for the open project, so
@@ -86,7 +117,8 @@ describe("workspace summary", () => {
 
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
-    expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(3)
+    // entries, logged, active days, day streak — every server-derived figure.
+    expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(4)
   })
 
   it("refetches totals when the project list changes", async () => {
