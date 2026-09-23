@@ -45,3 +45,279 @@
 .saved-filter-remove:hover { color:var(--error); }
 .saved-filters .workspace-error { flex:1 1 100%; margin:0; font-size:.75rem; }
 @media(max-width:650px) { .saved-filters { padding:14px 20px; } .saved-filters-save,.saved-filters-save label { flex:1 1 100%; } .saved-filters-save input { min-width:0; width:100%; } }
+
+/* --------------------------------------------------
+   ENTRIES TABLE — rows you can open and act on
+   -------------------------------------------------- */
+
+.we-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.we-summary strong { color: var(--text); }
+
+.we-clear {
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+
+.we-clear:hover { background: var(--surface-soft); color: var(--text); }
+
+.we-table td { vertical-align: top; }
+
+.we-row { transition: background-color 150ms ease; }
+.we-row.is-selected { background: var(--blue-bg); }
+.we-row.is-expanded td { border-bottom-color: transparent; }
+
+.we-pick { width: 36px; }
+.we-open { width: 46px; text-align: right; }
+
+.we-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The disclosure arrow rotates rather than swapping glyph, so the control
+   reads as the same control in both states. */
+.we-disclose {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  transition: transform 200ms cubic-bezier(0.2, 0.9, 0.25, 1), background-color 150ms ease;
+}
+
+.we-disclose svg { width: 13px; height: 13px; }
+.we-disclose:hover { background: var(--surface-soft); color: var(--text); }
+.we-disclose[aria-expanded="true"] { transform: rotate(90deg); }
+
+.we-main-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.we-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.we-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+}
+
+.we-preview-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.78rem;
+}
+
+.we-preview-name {
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.we-preview-more { font-size: 0.72rem; color: var(--muted); opacity: 0.8; }
+
+/* Each project keeps the colour it wears on the timeline, so the two views
+   agree about which project is which without a legend. */
+.we-project {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: hsl(var(--project-hue) 62% 55% / 0.14);
+  color: hsl(var(--project-hue) 55% 40%);
+  font-size: 0.73rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .we-project { color: hsl(var(--project-hue) 70% 72%); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .we-project { color: hsl(var(--project-hue) 70% 72%); }
+}
+
+.we-flag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.we-quiet { color: var(--muted); font-size: 0.78rem; }
+.we-time { font-variant-numeric: tabular-nums; font-size: 0.82rem; white-space: nowrap; }
+
+.we-open-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.we-row:hover .we-open-button,
+.we-row:focus-within .we-open-button { opacity: 1; }
+
+@media (hover: none) { .we-open-button { opacity: 1; } }
+
+.we-open-button:hover { color: var(--blue); border-color: var(--line); }
+.we-open-button svg { width: 14px; height: 14px; }
+
+/* ── The expanded detail ─────────────────────────── */
+
+.we-detail-row td {
+  padding: 0 14px 14px 44px;
+  background: var(--surface-soft);
+}
+
+.we-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  animation: we-open 220ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+.we-detail dt {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.we-detail dd {
+  margin: 0;
+  font-size: 0.86rem;
+  word-break: break-word;
+}
+
+.we-detail .is-retired { opacity: 0.72; }
+
+.we-retired-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.56rem;
+  letter-spacing: 0.03em;
+}
+
+.we-tag-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* A tag is a search you can run. "Show me everything tagged draft" is the
+   question a tag exists to answer, and it used to be unanswerable here. */
+.we-tag {
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: border-color 150ms ease, filter 150ms ease;
+}
+
+.we-tag:hover { border-color: var(--blue); filter: brightness(1.04); }
+
+@keyframes we-open {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
+@media (max-width: 860px) {
+  .we-detail-row td { padding-left: 14px; }
+  .we-detail { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .we-detail { animation: none; }
+  .we-disclose { transition: none; }
+}
+
+/* ── The entries table at phone width ────────────── */
+/* Seven columns do not fit in 390px, and forcing a 680px minimum made the
+   whole page scroll sideways rather than the table. Below 760px the four
+   secondary columns are dropped and their content reappears on one line under
+   the entry title — the same data, laid out for the space there is. */
+
+.we-compact-meta { display: none; }
+
+@media (max-width: 760px) {
+  .workspace-table.we-table { min-width: 0; }
+
+  .we-table thead th:nth-child(3),
+  .we-table thead th:nth-child(4),
+  .we-table thead th:nth-child(5),
+  .we-table thead th:nth-child(6),
+  .we-table tbody td:nth-child(3),
+  .we-table tbody td:nth-child(4),
+  .we-table tbody td:nth-child(5),
+  .we-table tbody td:nth-child(6) {
+    display: none;
+  }
+
+  .we-compact-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 8px;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .we-preview { gap: 3px 10px; }
+  .we-preview-field { font-size: 0.74rem; }
+  .we-detail-row td { padding-left: 14px; }
+  .we-open-button { opacity: 1; }
+  .we-title { font-size: 0.86rem; }
+}

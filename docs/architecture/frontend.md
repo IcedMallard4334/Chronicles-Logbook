@@ -22,20 +22,38 @@ graph TB
 
     subgraph Features["Feature Components"]
         TaskPanel[TaskPanel.jsx<br/>Tasks + Checklists]
+        Timeline[TimelinePage.jsx<br/>The record, by day]
+        Editor[EntryEditor.jsx<br/>Read / correct / remove]
+        Capture[QuickCapture.jsx<br/>Ctrl+Enter capture]
+        Invites[Invitations.jsx<br/>Accept / decline]
+        Tour[GuidedTour.jsx<br/>First-run guidance]
+        Picker[FieldTypePicker.jsx<br/>Explained type cards]
     end
 
     subgraph Shared["Shared"]
         API[api.js<br/>HTTP Client]
         Fields[fieldTypes.js<br/>Field types + expressions]
-        CSS_App[App.css]
-        CSS_Profile[ProfilePage.css]
-        CSS_Tasks[tasks.css]
+        Values[entryValues.jsx<br/>Rendering + format reconciliation]
+        Inputs[EntryFields.jsx<br/>One control per field type]
+        Motion[ViewTransition.jsx<br/>Transitions + waiting states]
+        Ambient[AmbientBackground.jsx<br/>Per-accent backdrop]
         CSS_Index[index.css<br/>Theme Variables]
     end
 
     Shell --> Dashboard
     Shell --> Sidebar
+    Shell --> Capture
+    Shell --> Invites
+    Shell --> Tour
+    Shell --> Motion
+    Shell --> Ambient
     Dashboard --> TaskPanel
+    Dashboard --> Editor
+    Dashboard --> Values
+    Dashboard --> Picker
+    Timeline --> Values
+    Editor --> Inputs
+    Capture --> Inputs
     Dashboard --> API
     Dashboard --> Fields
     Auth --> API
@@ -45,17 +63,30 @@ graph TB
 
 | File | Responsibility |
 |---|---|
-| `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views, schema builder and editor |
-| `AuthPage.jsx` | Google sign-in page with "Continue with Google" button |
+| `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, statistics, schema builder and editor |
+| `AuthPage.jsx` | Sign-in page |
 | `AuthCallback.jsx` | Handles OAuth callback token exchange |
-| `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
+| `ProfilePage.jsx` | Account details, theme and accent, replaying the guided tour, sign-out, delete-account confirmation |
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
+| `TimelinePage.jsx` | The record end to end: entries grouped by day on an alternating spine, searchable and narrowable to one project |
+| `WorkspacePages.jsx` | The entries table (rows open in place) and the tasks workspace |
+| `EntryEditor.jsx` | One entry, read then corrected or removed. Builds its form from the entry's own format, never the project's current one |
+| `QuickCapture.jsx` | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> capture from anywhere, with the predictable values remembered per project |
+| `Invitations.jsx` | The notification for invitations to other people's projects, and answering them |
+| `GuidedTour.jsx` | The first-run walkthrough and each page's first-visit card. Anchors are measured at the moment a step is shown, and a step whose anchor is off screen is skipped |
+| `tourSteps.js` | What the guidance says, and per-account memory of what has been shown |
+| `FieldTypePicker.jsx` | The field-type chooser: a grid of cards carrying each type's purpose, a worked example and what capture looks like |
 | `api.js` | HTTP client wrapping all backend endpoints |
-| `fieldTypes.js` | The field-type registry (`FIELD_TYPE_META` — label, hint, badge and colour for every type) that the builder, the entry form and the entry table all read from, plus the parser and evaluator for computed-field expressions and the name↔id resolution those expressions are edited through |
-| `App.css` | Component styles (~2100 lines) |
-| `ProfilePage.css` | Profile page styles |
-| `tasks.css` | Task-specific styles (~250 lines) |
-| `index.css` | Global CSS variables, light/dark/system themes |
+| `fieldTypes.js` | The field-type registry (`FIELD_TYPE_META` — label, hint, badge, colour, purpose, example and capture note for every type) that the builder, the picker, the entry form and the entry table all read from, plus the parser and evaluator for computed-field expressions |
+| `entryValues.jsx` | How a stored value renders as the kind of thing it is, and how one list shows entries written under different versions of a format (`columnsFor`, `cellFor`, `sameFormat`) |
+| `EntryFields.jsx` | One input per field type, shared by the capture form, the editor and quick capture, so "press Enter to add a tag" cannot behave three different ways |
+| `ViewTransition.jsx` | The entrance animation between views, the flowing-lines loader, and skeleton rows |
+| `AmbientBackground.jsx` | The backdrop, one scene per accent, drawn rather than photographed |
+| `App.css` | Component styles |
+| `index.css` | Global CSS variables, light/dark/system themes, accents |
+
+Each feature component has a stylesheet of the same name; only the shared ones
+are listed above.
 
 ## Routing
 
@@ -176,6 +207,31 @@ Two rules keep this honest, both of which were silently broken:
   light accents on a dark background. The dark accents are repeated inside a
   `@media (prefers-color-scheme: dark)` block guarded with
   `:not([data-theme="light"])`, so an explicit Light choice still wins.
+
+### The backdrop follows the accent
+
+Each accent also has a **scene** behind the workspace, rendered by
+`AmbientBackground.jsx`: light through a canopy for Forest, deep water for
+Ocean, drifting petals for Rose, folded violet for Chronicles.
+
+They are drawn with layered gradients and a little SVG rather than shipped as
+photographs, for three reasons that all point the same way — a photograph is a
+megabyte the app has to load before it looks like anything, it cannot follow a
+colour change without a second copy of every file, and it crops badly between a
+phone and an ultrawide.
+
+Two things keep them out of the way of the work:
+
+- **The veil sits above the scene, not below it.** It is a wash of `--bg` that
+  dims whatever the scene happens to put behind a word, and it is heavier in
+  dark mode. Every surface on top is opaque and blurred, so the backdrop can
+  afford to be seen.
+- **`prefers-reduced-motion` stops the drift** in the stylesheet, so it is
+  honoured whether or not the component re-renders.
+
+The component watches `data-accent` and `data-theme` on `<html>` with a
+`MutationObserver`, so the scene changes in the same frame as the colour without
+`preferences.js` having to know a background exists.
 
 ## Navigation and the account menu
 
@@ -331,6 +387,44 @@ calculation — carry a small dot in their header in the registry's colour, the
 word on hover, so the table stays calm while still saying which columns are
 not plain typing. Figures are right-aligned in fixed-width digits, because a
 numeric column is read down, not across.
+
+### Values are not strings
+
+Every value renders through `ValueView` in `entryValues.jsx`, and every list
+imports it, so a tag looks like a tag in the entry list, the timeline, the
+entries table and the CSV export alike. Before that each view called
+`String(value)` on whatever it found, which turned tags into `a,b`, checklists
+into `[object Object]` and links into bare uuids — the richer field types
+looked broken everywhere except the form that had just created them.
+
+| Type | Renders as |
+|---|---|
+| `tags` | A chip per tag |
+| `checklist` | A progress bar and `done/total`, with the items on hover |
+| `link` | The target entry's own title, clickable |
+| `project_reference` | The target project's name, clickable |
+| `computed` | The figure, marked ƒ so it is not mistaken for one that was typed |
+
+### One table over several formats
+
+A format change leaves past entries alone, so a list has to show one set of
+columns over entries that do not all agree about what the columns are.
+
+- `columnsFor(project, entries)` works out that set: the project's current
+  fields first, then anything an entry recorded under a field the project has
+  since dropped, marked `retired`.
+- `cellFor(entry, column, project)` decides, per entry, whether a value was
+  recorded under the field as it is defined now (`current`), under an earlier
+  version of it (`earlier`, shown as written with a dotted underline), or never
+  at all (`missing`, shown as *not recorded* — distinct from blank).
+- A retired column is rendered only on the entries that actually recorded
+  something under it. Printing "not recorded" for a dropped field on every
+  entry written since would bury the live fields in history.
+- `sameFormat(a, b)` compares two formats field by field on the properties that
+  define one. Stringifying them does not work: the API fills every optional key
+  in (`options: null`) while a stored snapshot carries only the keys it was
+  saved with, so a raw comparison reported every entry as written under an
+  older format and badged the whole logbook.
 
 ## Build and tooling
 

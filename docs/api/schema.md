@@ -6,14 +6,33 @@ already exist.
 
 ## Field types
 
-| Type | Value in `data` | Required on create | Extra keys |
-|---|---|---|---|
-| `text` | string | Yes | — |
-| `number` | integer or float | Yes | — |
-| `date` | ISO date string (`YYYY-MM-DD`) | Yes | — |
-| `dropdown` | one of `options` | Yes | `options` (non-empty array of strings) |
-| `project_reference` | project UUID | Never — server-derived | `linked_project_id` |
-| `computed` | number or `null` | Never — server-derived | `expression` |
+| Type | Shown as | Value in `data` | Required on create | Extra keys |
+|---|---|---|---|---|
+| `text` | Text | string | Yes | — |
+| `number` | Number | integer or float | Yes | — |
+| `date` | Date | ISO date string (`YYYY-MM-DD`) | Yes | — |
+| `dropdown` | Choice | one of `options` | Yes | `options` (non-empty array of strings) |
+| `tags` | Tags | array of strings | Yes (may be `[]`) | — |
+| `checklist` | Checklist | array of `{id, text, completed}` | Yes (may be `[]`) | — |
+| `link` | Entry link | entry UUID, or `""` | Yes (may be `""`) | — |
+| `project_reference` | Project link | project UUID | Never — server-derived | `linked_project_id` |
+| `computed` | Calculation | number or `null` | Never — server-derived | `expression` |
+
+The "Shown as" column is the name the interface uses. The wire format is a fine
+identifier and a poor label: `project_reference` tells a developer what it is
+and tells an owner nothing, so the builder shows each type with the question it
+answers, a worked example and a line about what filling it in is like. That
+copy lives in one place, `src/fieldTypes.js`, and every screen reads from it.
+
+### Choosing between the list-shaped types
+
+Three types hold something list-like and are easy to confuse:
+
+| You want | Use | Why |
+|---|---|---|
+| Exactly one answer from a settled set | `dropdown` | The set is fixed in the schema, so it can be grouped and charted |
+| Several labels, made up as you go | `tags` | No list to maintain; statistics group one tag at a time |
+| Steps within one entry, ticked off | `checklist` | Progress inside an entry, not across entries — for that, use tasks |
 
 A field definition is `{ "id": "...", "name": "...", "type": "..." }` plus the
 extra keys its type requires. Field names must be unique within a schema
@@ -42,9 +61,11 @@ The target must be a project **owned by the same user**, and cannot be the
 project itself. The check is a lookup against the caller's own projects, so a
 link cannot be used to probe for another user's project ids.
 
-Changing the target is a schema edit: every past entry is re-pointed at the new
-target, and the change is reported as `link_changed` in the
-[preview](#preview-a-schema-change) before it is applied.
+Changing the target is a schema edit. Entries written from then on carry the
+new target; entries already written keep the project they pointed at, because a
+format change never rewrites what is already recorded (see
+[Editing a live schema](#editing-a-live-schema)). The change is reported as
+`link_changed` in the [preview](#preview-a-schema-change) before it is applied.
 
 !!! note "Referenced projects are not cascade-protected"
     Deleting a project does not rewrite entries that referenced it. A dangling
@@ -124,35 +145,58 @@ Results are rounded to six decimal places, so `0.1 + 0.2` stores as `0.3`.
 
 ## Editing a live schema
 
-Changing the schema of a project that already has entries has to bring those
-entries along. Three rules make that safe:
+**A schema change writes nothing to any entry.** This is the single most
+important guarantee the API makes, and it was not always true: an earlier
+design reshaped every entry onto the new format — backfilling new fields,
+coercing old values, replacing what it could not read with a default. That kept
+one tidy table and it was wrong. It wrote values into a logbook its owner never
+wrote, and it could turn a figure somebody recorded into a default they did not
+choose. A logbook whose past changes when you edit a form is not a record of
+anything.
 
-1. **A new field is backfilled** on every existing entry with a default suited
-   to its type: `""` for text, `0` for number, the first choice for a dropdown,
-   the link's target for a reference, and for a date the day that entry was
-   captured. (The entry's own capture date is the only honest guess available;
-   today's date would be wrong on every historical entry.)
-2. **A value that cannot survive the change is retired, not deleted.** It moves
-   to `entries.retired_data`, and its field definition to
-   `projects.retired_schema` — a value without its label is not a record of
-   anything.
-3. **A field restored under the same id finds its values waiting.** This is what
-   makes removing a field by mistake recoverable.
+What a change does:
+
+1. **The project takes the new format.** Every entry written from then on is
+   captured under it.
+2. **Every existing entry keeps its own values**, byte for byte, and keeps the
+   format it was written under in `entries.schema_snapshot`. An entry written
+   before snapshots were stored has one filled in from the schema being
+   replaced — the last moment its original format is knowable. This is the only
+   write a schema change makes to an entry, and it adds a label rather than
+   changing an answer.
+3. **A field that leaves the live format keeps its definition** in
+   `projects.retired_schema`, so the values already recorded under it still
+   have a label. A value without its label is not a record of anything.
+
+Reading is where the two formats meet. An entry is shown under the project's
+current format wherever the field ids line up, and under its own snapshot
+wherever they do not. A field an entry predates reads as *not recorded* —
+distinct from a blank, because nobody answered it. That reconciliation is done
+fresh on every read, so it can never damage the record, which is the whole point
+of doing it there rather than in the database.
+
+!!! note "`retired_data` still exists and is now always empty"
+    Nothing moves values into it any more, because nothing removes them from
+    `data`. It stays on the model, in responses and in the export format so
+    that logbooks written under the old behaviour — and export files from that
+    era — still load and still show what they recorded.
 
 ### Changes that are detected
 
 | `kind` | Meaning | Severity |
 |---|---|---|
-| `added` | A field is new to the schema | `info` |
-| `removed` | A field is no longer asked for | `warning` if any entry had a value |
-| `renamed` | The field's name changed; values are untouched | `info` |
-| `retyped` | The field's type changed; values are coerced or retired | `warning` if any value moves |
-| `options_changed` | A dropdown's choices changed; values outside the new list are retired | `warning` if any value moves |
-| `expression_changed` | A calculation was rewritten; every entry is recomputed | `info` |
-| `link_changed` | A link now points at a different project; every entry is relinked | `info` |
+| `added` | A field is new; earlier entries have nothing to show under it | `info` |
+| `removed` | A field is no longer asked for; what was recorded stays readable | `warning` if any entry recorded a value |
+| `renamed` | The field's name changed; nothing else does | `info` |
+| `retyped` | The field's type changed from now on; past values stay as written | `warning` if any past value could not have come from the new type |
+| `options_changed` | A dropdown's choices changed; entries that chose a withdrawn option keep it | `warning` if any entry did |
+| `expression_changed` | A calculation is worked out differently from now on; past figures stand | `info` |
+| `link_changed` | A link points somewhere else from now on; past entries keep their target | `info` |
 
 `severity` is decided by the server so that the review screen and the API
-cannot form different opinions about which changes are worth stopping for.
+cannot form different opinions about which changes are worth stopping for. It
+no longer means "you are about to lose something" — nothing is lost — but
+"part of your record will read under the older format from here on".
 
 ---
 
@@ -186,7 +230,7 @@ Reports what a change *would* do. Writes nothing.
       "kind": "removed",
       "field_id": "f-notes",
       "field_name": "Notes",
-      "description": "'Notes' is no longer asked for.",
+      "description": "'Notes' will no longer be asked for. What past entries recorded under it is kept and stays readable.",
       "severity": "warning",
       "entries_affected": 3,
       "values_coerced": 0,
@@ -199,10 +243,10 @@ Reports what a change *would* do. Writes nothing.
 | Field | Description |
 |---|---|
 | `entry_count` | Entries the project has |
-| `entries_affected` | How many would change. `0` means the edit is free of consequence |
-| `changes` | One record per difference, with what it costs |
-| `values_coerced` | Values rewritten to fit the new type or option list |
-| `values_retired` | Values moved to `retired_data` |
+| `entries_affected` | How many would **read** differently. Their stored values do not change |
+| `changes` | One record per difference |
+| `values_coerced` | Always `0`. It counted values a migration rewrote in place, and nothing is rewritten now; kept so a client built against the older API still parses this one |
+| `values_retired` | Entries holding a value the new format would not ask for. They keep it — "retired" here means no longer collected, never gone |
 
 **Errors:** `422` for an invalid schema, `404` if the project is not the
 caller's.
@@ -215,7 +259,8 @@ caller's.
 PUT /projects/{project_id}/schema
 ```
 
-Same body as the preview. Replaces the schema and migrates every entry.
+Same body as the preview. Replaces the project's format. Entry values are not
+touched.
 
 **Response:** `200 OK` — the preview payload plus the updated project:
 
@@ -239,15 +284,15 @@ Same body as the preview. Replaces the schema and migrates every entry.
 caller's, `409` if the project is archived.
 
 !!! tip "Preview and apply cannot disagree"
-    Both endpoints call the same migration function against the same entries.
-    Preview discards the result; apply writes it. The report a user approves is
-    therefore what happens, not an estimate of it.
+    Both endpoints run the same analysis against the same entries. Preview
+    discards the result; apply writes the format change. The report a user
+    approves is therefore what happens, not an estimate of it.
 
-!!! note "PUT /projects also migrates"
+!!! note "PUT /projects behaves the same way"
     Sending a different `entry_schema` to
-    [`PUT /projects/{project_id}`](projects.md#update-project) runs the same
-    migration, so there is no route by which a schema changes and its entries
-    do not. Use the schema endpoints when you want the change report; use the
+    [`PUT /projects/{project_id}`](projects.md#update-project) goes through the
+    same code, so there is no route by which a schema change reaches the
+    record. Use the schema endpoints when you want the change report; use the
     project endpoint when you are editing a name or description and the schema
     happens to be part of the payload.
 
@@ -261,12 +306,20 @@ caller's, `409` if the project is archived.
 
 | Field | On | Description |
 |---|---|---|
-| `retired_schema` | `ProjectResponse` | Definitions of fields no longer asked for |
-| `retired_data` | `EntryResponse` | Values recorded under those fields, keyed by field id |
+| `retired_schema` | `ProjectResponse` | Definitions of fields no longer asked for, so values recorded under them still have a label |
+| `schema_snapshot` | `EntryResponse` | The format this entry was written under |
+| `schema_version` | `EntryResponse`, `ProjectResponse` | Which revision of the format |
+| `retired_data` | `EntryResponse` | Legacy. Values moved out of `data` by the old migrating behaviour; always empty on new data |
 
-Both are returned by the API and carried through
-[export and import](transfer.md), because "removed but not destroyed" that only
-the database can see is a claim rather than a feature. Both default to empty, so
-export files written before this feature still import.
+All are returned by the API and carried through
+[export and import](transfer.md). `schema_snapshot` is the important one for a
+round trip: a project's format moves on while its past entries keep theirs, so
+an export carrying only the project's current format would restore a logbook
+whose older half no longer has labels for what it recorded. Import validates
+each entry against its own snapshot for the same reason.
+
+Every field defaults to empty, so export files written before any of this
+existed still import — those entries simply fall back to the project's format,
+which is what they were already being read under.
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5

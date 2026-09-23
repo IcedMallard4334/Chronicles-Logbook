@@ -112,23 +112,44 @@ PUT /projects/{project_id}/entries/{entry_id}
 
 | Field | Type | Description |
 |---|---|---|
-| `data` | object | Replacement values. Revalidated against the project's **current** schema |
+| `data` | object | Replacement values. Validated against **the entry's own** `schema_snapshot` |
 | `time_spent` | integer \| null | Omit to leave unchanged; send `null` to clear a recorded duration |
+| `todo` | boolean | Whether this is still outstanding |
+| `due_date` | date \| null | Omit to leave unchanged; send `null` to clear a deadline |
 
-!!! warning "Editing an entry after the schema has changed"
-    `data` is validated exactly as it is on create: every field in the project's current `entry_schema` must be present, and no others are allowed.
+!!! note "An edit is a correction, never a migration"
+    `data` is validated against the format the entry was **written** under, not
+    the project's current one. A project's fields change over time and its past
+    entries keep theirs — see
+    [Editing a live schema](schema.md#editing-a-live-schema) — so correcting a
+    two-month-old entry asks for the fields it actually has.
 
-    If the schema changed after the entry was written, the update must satisfy the **new** shape. Values for fields that no longer exist in the schema are not carried over. Editing a typo on an old entry therefore migrates that entry to the current schema.
+    Validating against today's schema would quietly turn every correction into
+    a migration: fixing a typo would demand values for fields that did not exist
+    when the entry was written, and drop the ones that did. The client builds
+    its edit form from `schema_snapshot` for the same reason.
 
-    In practice a schema change already migrates every entry as it is made — see
-    [Editing a live schema](schema.md#editing-a-live-schema) — so an entry is
-    normally in the current shape before anyone edits it.
+### Who may edit
+
+| Caller | May edit or delete |
+|---|---|
+| The project's owner | Any entry in it |
+| An accepted collaborator | Only the entries they wrote themselves |
+| Anyone else | Nothing — `404` |
+
+A contributor who cannot fix their own typo has to ask the owner to do it; a
+contributor who can rewrite everybody else's entries is no longer contributing
+to somebody's record. Attempting to edit somebody else's entry in a project you
+can read is `403`, not `404`: you are allowed to know the entry exists, because
+you can already see it.
 
 `created_at` cannot be changed. An entry's capture time is set once, at creation, so editing an entry never moves it in the timeline.
 
 **Response:** `200 OK` — returns the updated entry.
 
-**Errors:** `422` for schema validation failures, `404` if the entry does not exist in that project, `409` if the project is archived.
+**Errors:** `422` for schema validation failures, `403` if the entry is somebody
+else's and the project is not yours, `404` if the entry does not exist in that
+project, `409` if the project is archived.
 
 ---
 
@@ -138,11 +159,17 @@ PUT /projects/{project_id}/entries/{entry_id}
 DELETE /projects/{project_id}/entries/{entry_id}
 ```
 
-Deletion is permanent; there is no soft delete or restore.
+Deletion is permanent; there is no soft delete or restore. The same rule about
+who may delete applies as for [editing](#who-may-edit).
+
+Link fields in the caller's other entries that pointed at this one are cleared,
+so deleting an entry does not leave dangling references behind it.
 
 **Response:** `204 No Content`
 
-**Errors:** `404` if the entry does not exist in that project, `409` if the project is archived.
+**Errors:** `403` if the entry is somebody else's and the project is not yours,
+`404` if the entry does not exist in that project, `409` if the project is
+archived.
 
 ---
 

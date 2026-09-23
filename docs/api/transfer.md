@@ -68,15 +68,32 @@ A flat CSV of one project's entries, for opening in a spreadsheet.
 **Response:** `200 OK`, `text/csv`, as a file download.
 
 ```csv
-Captured at,Topic,Pages,Time spent (minutes)
-2026-03-02T09:00:00+00:00,Shading,12,45
-2026-04-15T09:00:00+00:00,Lighting,8,45
+Captured at,Logged by,Topic,Pages,Mood (no longer collected),Time spent (minutes),Still to do,Due
+2026-03-02T09:00:00+00:00,Thandi Mokoena,Shading,12,Focused,45,no,
+2026-04-15T09:00:00+00:00,Thandi Mokoena,Lighting,8,,45,no,2026-04-20
 ```
 
-Columns are the project's schema field **names**, between the capture time and the duration. A computed field appears as an ordinary column holding its last calculated value; retired fields do not appear at all.
+Columns cover **every field the project has ever had**, not only the ones it
+asks for today. Past entries keep the format they were written under, so a file
+limited to the current schema would silently drop whole columns of real work;
+fields no longer collected are marked in the header rather than left looking
+like a gap in the record.
+
+Rich values are rendered the way their own screen renders them, not by
+stringifying the stored JSON: tags become `reading, draft`, and a checklist
+becomes `1/2 — x Outline; Draft`. `['reading', 'draft']` and a row of
+`[object Object]` are not what somebody opening this in Excel came for.
+
+A computed field appears as an ordinary column holding the figure it was saved
+with.
 
 !!! warning "CSV is lossy and cannot be imported"
     A CSV has no way to carry a project's schema, and every project defines its own fields, so there is no single set of columns that covers a logbook. Use the JSON export for anything you intend to restore.
+
+!!! tip "Statistics have their own exports"
+    This file is the entries. For the figures — time per project, streaks, every
+    field totalled and grouped, activity over time — see
+    [Export statistics as CSV](statistics.md#export-statistics-as-csv).
 
 **Errors:** `404` if the project does not exist or is not yours.
 

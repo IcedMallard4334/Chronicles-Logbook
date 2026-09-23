@@ -1,34 +1,42 @@
 """Editing a schema that already has entries (US-2.6, US-2.7).
 
 Adding a field to an empty project is trivial. Doing it to a project with two
-hundred entries is not, because every one of those entries was validated
-against the old shape and has to satisfy the new one. Left alone, the entry
-form would demand a value that no historical entry has, and the entry list
-would show gaps it cannot explain.
+hundred entries is not — but the difficulty is not what it first looks like.
+The tempting answer is to reshape every existing entry onto the new format:
+backfill the new field, coerce what can be coerced, replace what cannot. That
+keeps one tidy table, and it is wrong. It writes values into a logbook that
+its owner never wrote, and it can turn a figure somebody recorded into a
+default they did not choose. A logbook whose past changes when you edit a form
+is not a record of anything.
 
-Three rules make an edit safe:
+So a schema change here touches **no entry data at all**. What it does:
 
-  - a new field is backfilled on every existing entry with a default that
-    suits its type, so the entry stays valid and the list stays complete;
-  - a value that cannot survive the edit is moved to ``Entry.retired_data``
-    rather than deleted, and the field's definition to
-    ``Project.retired_schema`` so the value still has a label. "Removed from
-    the schema" means "no longer offered", not "erased";
-  - a field that comes back under the same id gets its retired value back.
+  - the project takes the new format, and every entry written from now on is
+    captured under it;
+  - every existing entry keeps its own values, and keeps the format it was
+    written under in ``Entry.schema_snapshot``, so an earlier version stays
+    readable rather than breaking (the brief's requirement);
+  - a field that leaves the live format keeps its definition in
+    ``Project.retired_schema``, so values already recorded under it still have
+    a label.
 
-The impact of an edit is worked out by running the migration against the real
-entries and reporting what happened, then, if the user accepts, running it
-again to write the result. Both paths call ``simulate``, so the review the
-user approves cannot disagree with what is saved.
+Reading is where the two formats meet: an entry is shown under the current
+format wherever the field ids line up, and under its own snapshot wherever
+they do not. That is a display decision, made fresh every time, and it can
+never damage the record — which is the whole point of doing it there rather
+than in the database.
+
+The impact of an edit is worked out by running this against the real entries
+and reporting what a reader would notice, then, if the user accepts, applying
+the format change. Both paths call ``simulate``, so the review the user
+approves cannot disagree with what is saved.
 """
 
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 from uuid import UUID
-
-from app.computed import apply_computed_fields
 
 # What happened to one field in an edit. The kinds are deliberately about the
 # schema rather than about the data, because that is what the user changed and
@@ -41,6 +49,13 @@ OPTIONS_CHANGED = "options_changed"
 EXPRESSION_CHANGED = "expression_changed"
 LINK_CHANGED = "link_changed"
 
+# Kinds where past entries can hold values the new format would not ask for
+# again. Nothing is destroyed — the values stay on the entries and stay
+# readable — but the reader is told, because "this field now means something
+# different from what the older half of your logbook recorded" is worth
+# knowing before you agree to it.
+_DIVERGING = frozenset({REMOVED, RETYPED, OPTIONS_CHANGED, LINK_CHANGED})
+
 
 @dataclass
 class FieldChange:
@@ -50,33 +65,49 @@ class FieldChange:
     field_id: str
     field_name: str
     description: str
+    # How many existing entries a reader would see differently because of this
+    # change. For an added field: the entries that predate it and so have
+    # nothing to show under it. For the rest: the entries holding a value the
+    # new definition would not have produced.
     entries_affected: int = 0
+    # Kept at zero. It counted values a migration rewrote in place, and
+    # nothing is rewritten any more. It stays in the response so that a client
+    # built against the older API still parses this one.
     values_coerced: int = 0
+    # Values a reader will find under the entry's own format rather than under
+    # the project's. "Retired" in the sense of no longer asked for, never in
+    # the sense of gone.
     values_retired: int = 0
 
     @property
     def severity(self) -> str:
-        """``warning`` when data changes shape or leaves the live entry.
+        """``warning`` when the live format stops asking for recorded values.
 
         Derived here rather than in the UI so that the review screen and the
-        API agree on what counts as worth stopping for.
+        API agree on what is worth stopping for. It no longer means "you are
+        about to lose something" — nothing is lost — but "part of your record
+        will read under the older format from here on".
         """
-        if self.values_retired or self.values_coerced:
-            return "warning"
-        return "info"
+        return "warning" if self.kind in _DIVERGING and self.values_retired else "info"
 
 
 @dataclass
-class MigratedEntry:
-    """The result of migrating one entry, before anything is written."""
+class PreservedEntry:
+    """An existing entry and the format it goes on being read under.
+
+    ``snapshot`` is what the entry was captured against. ``needs_snapshot`` is
+    true for entries written before snapshots were stored, whose format has to
+    be filled in from the schema that is about to be replaced — the last
+    moment at which it is still knowable.
+
+    ``diverges`` says only whether a reader will see this entry differently;
+    the entry's own data is identical before and after either way.
+    """
 
     entry: Any
-    data: dict[str, Any]
-    retired_data: dict[str, Any]
-
-    @property
-    def changed(self) -> bool:
-        return self.data != self.entry.data or self.retired_data != self.entry.retired_data
+    snapshot: list[dict[str, Any]]
+    needs_snapshot: bool = False
+    diverges: bool = False
 
 
 @dataclass
@@ -84,104 +115,81 @@ class Simulation:
     """What an edit would do, in full, without having done any of it."""
 
     changes: list[FieldChange] = dataclass_field(default_factory=list)
-    entries: list[MigratedEntry] = dataclass_field(default_factory=list)
+    entries: list[PreservedEntry] = dataclass_field(default_factory=list)
     retired_schema: list[dict[str, Any]] = dataclass_field(default_factory=list)
 
     @property
     def entries_affected(self) -> int:
-        return sum(1 for migrated in self.entries if migrated.changed)
+        return sum(1 for preserved in self.entries if preserved.diverges)
 
 
 def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _as_text(value: Any) -> str:
-    return "" if value is None else str(value)
+def reads_as(value: Any, field: dict[str, Any]) -> bool:
+    """Whether a recorded value still reads correctly under a field's new type.
 
-
-def _coerce(
-    value: Any,
-    field: dict[str, Any],
-    known_project_ids: dict[str, str] | set[str] | None,
-) -> tuple[Any, bool]:
-    """Read an existing value as the field's new type.
-
-    Returns the value and whether it survived. A value that did not survive is
-    retired rather than discarded, so this only has to decide what the new type
-    can honestly represent — never what to throw away.
+    Nothing is converted here and nothing is written. This only decides
+    whether the review should say that part of the record will be read under
+    its original format from now on — and, at display time, whether a stored
+    value can be shown in the current format's column at all.
     """
     field_type = field.get("type")
 
-    if value is None:
-        return None, False
+    if value is None or value == "":
+        return True
 
     if field_type == "text":
-        # Anything can be written down, so a change to text never loses data.
-        return (value, True) if isinstance(value, str) else (_as_text(value), True)
+        # Anything can be written down, so text can always show what is there.
+        return True
 
     if field_type == "number":
         if _is_number(value):
-            return value, True
+            return True
         if isinstance(value, str):
             try:
-                number = float(value.strip())
+                float(value.strip())
             except ValueError:
-                return None, False
-            return (int(number) if number == int(number) else number), True
-        return None, False
+                return False
+            return True
+        return False
 
     if field_type == "date":
-        if isinstance(value, str):
-            try:
-                date.fromisoformat(value[:10])
-            except ValueError:
-                return None, False
-            return value[:10], True
-        return None, False
+        if not isinstance(value, str):
+            return False
+        try:
+            date.fromisoformat(value[:10])
+        except ValueError:
+            return False
+        return True
 
     if field_type == "dropdown":
-        text = value if isinstance(value, str) else _as_text(value)
-        return (text, True) if text in (field.get("options") or []) else (None, False)
+        return value in (field.get("options") or [])
 
     if field_type == "project_reference":
         if not isinstance(value, str):
-            return None, False
+            return False
         try:
-            canonical = str(UUID(value))
+            UUID(value)
         except ValueError:
-            return None, False
-        if known_project_ids is not None and canonical not in known_project_ids:
-            return None, False
-        return canonical, True
+            return False
+        target = field.get("linked_project_id")
+        return target is None or str(value) == str(target)
 
-    # A computed field's value is never carried over; it is derived again from
-    # whatever the migrated entry ends up holding.
-    return None, False
+    if field_type == "tags":
+        return isinstance(value, list) and all(isinstance(tag, str) for tag in value)
 
+    if field_type == "checklist":
+        return isinstance(value, list) and all(isinstance(item, dict) for item in value)
 
-def _default_value(field: dict[str, Any], captured_at: datetime) -> Any:
-    """The value a field takes on an entry written before it existed.
+    if field_type == "link":
+        return isinstance(value, str)
 
-    A date defaults to the day the entry was captured rather than to today or
-    to a blank: for a field added later, the entry's own date is the only
-    honest guess available, and it keeps the column readable.
-    """
-    field_type = field.get("type")
-
-    if field_type == "text":
-        return ""
-    if field_type == "number":
-        return 0
-    if field_type == "date":
-        return captured_at.date().isoformat()
-    if field_type == "dropdown":
-        options = field.get("options") or []
-        return options[0] if options else ""
-
-    # A reference nobody has chosen yet, and a computed field with nothing to
-    # compute from, are both genuinely unknown.
-    return None
+    # A calculation's stored figure came from the expression in force when the
+    # entry was written. Under a new expression it is that older answer, which
+    # is exactly what a record should keep.
+    return field_type != "computed"
 
 
 def describe_changes(
@@ -210,7 +218,10 @@ def describe_changes(
                     kind=ADDED,
                     field_id=field_id,
                     field_name=field["name"],
-                    description=f"'{field['name']}' is new and will be filled in on past entries.",
+                    description=(
+                        f"'{field['name']}' is new. Entries written from now on will "
+                        "carry it; entries already written are left exactly as they are."
+                    ),
                 )
             )
             continue
@@ -223,7 +234,9 @@ def describe_changes(
                     field_name=field["name"],
                     description=(
                         f"'{field['name']}' changes from "
-                        f"{_type_label(previous.get('type'))} to {_type_label(field.get('type'))}."
+                        f"{_type_label(previous.get('type'))} to "
+                        f"{_type_label(field.get('type'))}. Entries already written "
+                        "keep what they recorded."
                     ),
                 )
             )
@@ -237,8 +250,9 @@ def describe_changes(
             if removed:
                 description = (
                     f"'{', '.join(removed)}' "
-                    f"{'is' if len(removed) == 1 else 'are'} no longer a choice "
-                    f"for '{field['name']}'."
+                    f"{'is' if len(removed) == 1 else 'are'} no longer offered for "
+                    f"'{field['name']}'. Entries that already chose "
+                    f"{'it' if len(removed) == 1 else 'one of them'} keep it."
                 )
             changes.append(
                 FieldChange(
@@ -255,8 +269,8 @@ def describe_changes(
                     field_id=field_id,
                     field_name=field["name"],
                     description=(
-                        f"'{field['name']}' is worked out differently and will be "
-                        f"recalculated on past entries."
+                        f"'{field['name']}' is worked out differently from now on. "
+                        "Entries already written keep the figure they were saved with."
                     ),
                 )
             )
@@ -274,11 +288,11 @@ def describe_changes(
                     field_id=field_id,
                     field_name=field["name"],
                     description=(
-                        f"'{field['name']}' will point at '{target_name}' and past "
-                        f"entries will be relinked."
+                        f"'{field['name']}' will point at '{target_name}' from now on. "
+                        "Entries already written keep the project they pointed at."
                         if target_name
-                        else f"'{field['name']}' will point at a different project "
-                        "and past entries will be relinked."
+                        else f"'{field['name']}' will point at a different project from "
+                        "now on. Entries already written keep the project they pointed at."
                     ),
                 )
             )
@@ -304,7 +318,7 @@ def describe_changes(
                     field_name=field["name"],
                     description=(
                         f"'{field['name']}' will no longer be asked for. What past "
-                        f"entries recorded under it is kept, but hidden."
+                        "entries recorded under it is kept and stays readable."
                     ),
                 )
             )
@@ -319,109 +333,64 @@ def _type_label(field_type: str | None) -> str:
         "number": "number",
         "date": "date",
         "dropdown": "a list of choices",
+        "tags": "tags",
+        "checklist": "a checklist",
+        "link": "a link to another entry",
         "project_reference": "a project link",
         "computed": "a calculation",
     }.get(field_type or "", field_type or "unknown")
 
 
-def migrate_entry_data(
-    data: dict[str, Any],
-    retired_data: dict[str, Any],
-    captured_at: datetime,
-    current_schema: list[dict[str, Any]],
-    proposed_schema: list[dict[str, Any]],
-    known_project_ids: dict[str, str] | set[str] | None = None,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Reshape one entry's values to fit a new schema.
+def entry_schema_for(entry: Any, project_schema: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The format one entry was written under.
 
-    Returns the new ``data`` and ``retired_data``. Neither argument is
-    modified: the caller decides whether to keep the result.
+    Entries captured before snapshots were stored have none; the project's
+    current format is the closest honest answer for those, and is what they
+    were already being read under before snapshots existed.
     """
-    proposed_by_id = {field["id"]: field for field in proposed_schema}
-    current_by_id = {field["id"]: field for field in current_schema}
-    new_data: dict[str, Any] = {}
-    new_retired = dict(retired_data)
-
-    for field in proposed_schema:
-        field_id = field["id"]
-
-        if field.get("type") == "computed":
-            # Retire whatever was typed in before, then let the expression
-            # fill the field once the rest of the entry is settled.
-            if field_id in data and data[field_id] is not None:
-                if current_by_id.get(field_id, {}).get("type") != "computed":
-                    new_retired[field_id] = data[field_id]
-            new_data[field_id] = None
-            continue
-
-        if field.get("type") == "project_reference" and field.get("linked_project_id"):
-            # A link names its target once, in the schema, so it is re-pointed
-            # here rather than coerced: whatever the entry held — a value
-            # chosen per entry, before links moved into the schema, or the
-            # previous target — the new target is what it will show.
-            new_data[field_id] = str(field["linked_project_id"])
-            new_retired.pop(field_id, None)
-            continue
-
-        # A field that was removed and then added back under the same id finds
-        # its value waiting in retired_data.
-        if field_id in data:
-            source = data[field_id]
-        else:
-            source = new_retired.get(field_id)
-
-        value, kept = _coerce(source, field, known_project_ids)
-
-        if kept:
-            new_data[field_id] = value
-            new_retired.pop(field_id, None)
-        else:
-            if source is not None:
-                new_retired[field_id] = source
-            new_data[field_id] = _default_value(field, captured_at)
-
-    for field_id, value in data.items():
-        if field_id not in proposed_by_id and value is not None:
-            new_retired[field_id] = value
-
-    return apply_computed_fields(new_data, proposed_schema), new_retired
+    snapshot = getattr(entry, "schema_snapshot", None)
+    return list(snapshot) if snapshot else list(project_schema or [])
 
 
 def _count_change(
     change: FieldChange,
-    before: dict[str, Any],
-    after: dict[str, Any],
-    after_retired: dict[str, Any],
-) -> None:
-    """Fold one entry's outcome into the tally shown in the review."""
+    entry_data: dict[str, Any],
+    proposed_by_id: dict[str, dict[str, Any]],
+) -> bool:
+    """Fold one entry's outcome into the tally shown in the review.
+
+    Returns whether this entry reads differently because of this change.
+    """
     field_id = change.field_id
 
     if change.kind == RENAMED:
         # A label change touches no data, and saying "200 entries affected"
         # about it would teach the user to ignore the warnings that matter.
-        return
-
-    if change.kind == REMOVED:
-        if field_id in before and before[field_id] is not None:
-            change.entries_affected += 1
-            change.values_retired += 1
-        return
+        return False
 
     if change.kind == ADDED:
+        # Every entry that predates the field will show it as unrecorded.
         change.entries_affected += 1
-        return
+        return True
 
-    was = before.get(field_id)
-    now = after.get(field_id)
+    recorded = entry_data.get(field_id)
+    if recorded is None or recorded == "":
+        return False
 
-    if was == now:
-        return
+    if change.kind == REMOVED:
+        change.entries_affected += 1
+        change.values_retired += 1
+        return True
+
+    # Retyped, options withdrawn, link retargeted, expression rewritten: the
+    # value stays exactly as recorded. It only counts as divergence when the
+    # new definition could not itself have produced it.
+    if reads_as(recorded, proposed_by_id.get(field_id, {})):
+        return False
 
     change.entries_affected += 1
-    if field_id in after_retired and after_retired.get(field_id) == was:
-        change.values_retired += 1
-    elif was is not None:
-        change.values_coerced += 1
+    change.values_retired += 1
+    return True
 
 
 def simulate(
@@ -434,27 +403,43 @@ def simulate(
 
     The preview endpoint returns this; the apply endpoint writes it. Running
     the same code for both is what makes the review honest.
+
+    ``known_project_ids`` maps project ids to names, so a retargeted link can
+    be described by the project it will point at. It used to decide which
+    references a migration was allowed to rewrite; nothing is rewritten now.
     """
     current_schema = project.entry_schema or []
     changes = describe_changes(
-        current_schema, proposed_schema, known_project_ids if isinstance(known_project_ids, dict) else None
+        current_schema,
+        proposed_schema,
+        known_project_ids if isinstance(known_project_ids, dict) else None,
     )
 
     result = Simulation(changes=changes)
+    proposed_by_id = {field["id"]: field for field in proposed_schema}
 
     for entry in entries:
-        data, retired = migrate_entry_data(
-            entry.data or {},
-            entry.retired_data or {},
-            entry.created_at,
-            current_schema,
-            proposed_schema,
-            known_project_ids,
-        )
-        result.entries.append(MigratedEntry(entry=entry, data=data, retired_data=retired))
-
+        data = entry.data or {}
+        diverges = False
         for change in changes:
-            _count_change(change, entry.data or {}, data, retired)
+            if _count_change(change, data, proposed_by_id):
+                diverges = True
+
+        stored = getattr(entry, "schema_snapshot", None)
+        result.entries.append(
+            PreservedEntry(
+                entry=entry,
+                # Taken from the schema about to be replaced, which is the last
+                # moment this entry's original format is knowable.
+                snapshot=(
+                    list(stored)
+                    if stored
+                    else [dict(field) for field in current_schema]
+                ),
+                needs_snapshot=not stored,
+                diverges=diverges,
+            )
+        )
 
     result.retired_schema = _merge_retired_schema(
         project.retired_schema or [],
@@ -470,7 +455,7 @@ def _merge_retired_schema(
     current_schema: list[dict[str, Any]],
     proposed_schema: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """The definitions needed to label whatever is now in retired_data.
+    """The definitions needed to label whatever past entries still hold.
 
     A field that has come back into the live schema is dropped from here, so
     the same id is never described twice.

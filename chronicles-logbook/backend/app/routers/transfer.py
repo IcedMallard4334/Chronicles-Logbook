@@ -14,6 +14,7 @@ Import therefore reconciles by id rather than assuming either case. See
 import csv
 import io
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -88,6 +89,33 @@ async def export_logbook(
     )
 
 
+def _cell(value: Any) -> str:
+    """One recorded value as a spreadsheet reads it.
+
+    A list of tags rendered by ``str`` becomes ``['a', 'b']``, and a checklist
+    becomes a row of ``[object Object]``-grade noise. Neither is what somebody
+    opening the file in Excel came for, so each rich type gets the rendering
+    its own screen uses.
+    """
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        if value and all(isinstance(item, dict) for item in value):
+            done = sum(1 for item in value if item.get("completed"))
+            items = "; ".join(
+                f"{'x' if item.get('completed') else ' '} {item.get('text', '')}".strip()
+                for item in value
+            )
+            return f"{done}/{len(value)} — {items}"
+        return ", ".join(str(item) for item in value)
+
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+
+    return str(value)
+
+
 @router.get("/projects/{project_id}/export.csv")
 async def export_project_csv(
     project_id: UUID,
@@ -96,10 +124,16 @@ async def export_project_csv(
 ):
     """A flat CSV of one project's entries, for spreadsheets.
 
+    Columns cover every field the project has ever had, not only the ones it
+    asks for today: past entries keep the format they were written under, so a
+    file limited to the current schema would silently drop whole columns of
+    real work. Fields no longer collected are marked in the header rather than
+    left to look like a gap in the record.
+
     Deliberately lossy and not re-importable: a CSV has no way to carry the
     project's schema, and each project defines its own fields, so there is no
-    single set of columns across a logbook. The JSON export is the format
-    that round-trips.
+    single set of columns across a logbook. The JSON export is the format that
+    round-trips.
     """
     project = await _get_user_project(project_id, user, db)
 
@@ -111,20 +145,49 @@ async def export_project_csv(
         )
     ).scalars().all()
 
-    fields = project.entry_schema or []
+    live = project.entry_schema or []
+    columns: list[tuple[str, str]] = [(field["id"], field["name"]) for field in live]
+    seen = {field["id"] for field in live}
+
+    # Anything an entry recorded under a field the project has since dropped
+    # or renamed away from. Labelled from the retired schema where possible,
+    # and from the entry's own snapshot otherwise.
+    labels: dict[str, str] = {
+        field["id"]: field["name"] for field in (project.retired_schema or [])
+    }
+    for entry in entries:
+        for field in entry.schema_snapshot or []:
+            labels.setdefault(field["id"], field.get("name", field["id"]))
+        for field_id in entry.data:
+            if field_id not in seen:
+                seen.add(field_id)
+                columns.append(
+                    (field_id, f"{labels.get(field_id, field_id)} (no longer collected)")
+                )
+
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
     writer.writerow(
-        ["Captured at", *[field["name"] for field in fields], "Time spent (minutes)"]
+        [
+            "Captured at",
+            "Logged by",
+            *[name for _, name in columns],
+            "Time spent (minutes)",
+            "Still to do",
+            "Due",
+        ]
     )
 
     for entry in entries:
         writer.writerow(
             [
                 entry.created_at.isoformat(),
-                *[entry.data.get(field["id"], "") for field in fields],
+                entry.created_by_name or "",
+                *[_cell(entry.data.get(field_id)) for field_id, _ in columns],
                 entry.time_spent if entry.time_spent is not None else "",
+                "yes" if entry.todo else "no",
+                entry.due_date.isoformat() if entry.due_date else "",
             ]
         )
 
@@ -223,8 +286,18 @@ async def import_logbook(
             summary.projects_reused += 1
 
         for exported_entry in exported.entries:
+            # Checked against the format the entry was written under, not the
+            # project's current one. A project's format moves on and its past
+            # entries keep theirs, so validating everything against today's
+            # schema would reject exactly the history this export exists to
+            # preserve. Entries from files written before snapshots were
+            # exported fall back to the project's schema, as they always did.
+            entry_schema = [
+                dict(field) for field in exported_entry.schema_snapshot
+            ] or project.entry_schema
+
             try:
-                await _validate_entry_data(exported_entry.data, project.entry_schema)
+                await _validate_entry_data(exported_entry.data, entry_schema)
             except HTTPException as error:
                 # The project was reused and its schema has moved on since the
                 # export. Record which entry and why rather than dropping it
@@ -255,8 +328,13 @@ async def import_logbook(
                     project_id=project.id,
                     data=exported_entry.data,
                     retired_data=exported_entry.retired_data,
+                    schema_version=exported_entry.schema_version,
+                    schema_snapshot=entry_schema,
+                    todo=exported_entry.todo,
+                    due_date=exported_entry.due_date,
                     time_spent=exported_entry.time_spent,
                     created_at=exported_entry.created_at,
+                    created_by=user.id,
                 )
             )
             summary.entries_created += 1

@@ -1,0 +1,330 @@
+/* --------------------------------------------------
+   ENTRY EDITOR — read, correct, remove
+   -------------------------------------------------- */
+
+.editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, #0a0d16 62%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: editor-fade 180ms ease both;
+}
+
+.editor-panel {
+  width: min(720px, 100%);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 80px rgba(8, 12, 26, 0.4);
+  animation: editor-rise 260ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  overflow: hidden;
+}
+
+.editor-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+
+.editor-head h2 {
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.editor-meta {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.editor-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-weight: 700;
+  font-size: 0.68rem;
+}
+
+.editor-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.editor-close:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.editor-format-note {
+  margin: 0;
+  padding: 10px 22px;
+  background: var(--blue-bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+.editor-readout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px 20px;
+  margin: 0;
+}
+
+.editor-readout dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.editor-readout dd {
+  margin: 0;
+  font-size: 0.92rem;
+  word-break: break-word;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.editor-extras {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+.editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.editor-field.is-readonly {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+/* Row layout and the non-stretching box come from `.checkbox-label`; this only
+   says it gets a row of its own. */
+.editor-check {
+  grid-column: 1 / -1;
+  padding-bottom: 0;
+}
+
+.editor-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.editor-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.editor-badge.is-blue { background: var(--blue-bg); color: var(--blue); }
+.editor-badge.is-mauve { background: var(--mauve-bg); color: var(--mauve); }
+
+.editor-field input[type="text"],
+.editor-field input[type="number"],
+.editor-field input[type="date"],
+.editor-field select {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.editor-tags,
+.editor-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.editor-checklist { flex-direction: column; flex-wrap: nowrap; }
+
+.editor-tags input,
+.editor-checklist input[type="text"],
+.editor-checklist > input {
+  flex: 1;
+  min-width: 120px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 4px 2px;
+  outline: none;
+}
+
+.editor-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px 3px 10px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.editor-tag button,
+.editor-checklist-item button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 3px;
+}
+
+.editor-tag button:hover,
+.editor-checklist-item button:hover { opacity: 1; }
+
+.editor-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.editor-checklist-item button { margin-left: auto; color: var(--muted); }
+.editor-checklist-item .is-done { text-decoration: line-through; color: var(--muted); }
+
+.editor-time {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.editor-time strong { color: var(--text); }
+
+.editor-empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.editor-error {
+  margin: 0;
+  padding: 10px 22px;
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  font-size: 0.82rem;
+}
+
+.editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.editor-foot .btn-secondary,
+.editor-foot .btn-primary,
+.editor-foot .btn-danger { margin-left: 0; }
+
+.editor-foot > :nth-last-child(2) { margin-left: auto; }
+
+.editor-confirm {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-right: auto;
+}
+
+.editor-delete {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--error);
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.editor-delete:hover {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
+@keyframes editor-fade { from { opacity: 0; } }
+@keyframes editor-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+}
+
+@media (max-width: 640px) {
+  .editor-backdrop { padding: 0; align-items: flex-end; }
+  .editor-panel {
+    max-height: 94vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+  .editor-readout,
+  .editor-grid { grid-template-columns: 1fr; }
+  .editor-foot { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-backdrop,
+  .editor-panel { animation: none; }
+}

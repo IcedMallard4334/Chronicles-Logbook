@@ -28,25 +28,116 @@
  * those callouts say — every view that renders one reads it from here, so
  * renaming a badge or adding a type is one edit rather than a hunt.
  */
+/**
+ * Alongside the label and one-line hint, each type carries the three things
+ * somebody choosing between nine of them actually needs:
+ *
+ *   `useWhen`  — the question this field answers, in the words of the person
+ *                keeping the logbook rather than the person who built it;
+ *   `example`  — a field somebody might really define, and what an entry then
+ *                holds for it. Abstract descriptions of "tags" and "choice"
+ *                sound identical; two examples never do;
+ *   `capture`  — what filling this field in is actually like, so nobody picks
+ *                Checklist expecting a text box.
+ *
+ * `icon` is a short glyph for the picker. The registry stays the single place
+ * a type is described: the builder, the type picker, the entry form and the
+ * entry list all read from here, so adding a type is one edit and renaming one
+ * cannot leave two screens disagreeing.
+ */
 export const FIELD_TYPE_META = {
-  text: { label: "Text", hint: "A line of writing.", badge: null },
-  number: { label: "Number", hint: "A figure you can add up.", badge: null },
-  date: { label: "Date", hint: "A calendar day.", badge: null },
-  dropdown: { label: "Choice", hint: "One option from a fixed list.", badge: null },
-  tags: { label: "Tags", hint: "Short labels you can filter the entry list by.", badge: null },
-  checklist: { label: "Checklist", hint: "Sub-tasks ticked off inside the entry.", badge: null },
-  link: { label: "Entry link", hint: "Points at another entry, so related work stays traceable.", badge: null },
+  text: {
+    label: "Text",
+    hint: "A line of writing.",
+    badge: null,
+    icon: "Aa",
+    useWhen: "For anything you want to say in your own words.",
+    example: { field: "What I did", value: "Reran the calibration with the new sensor" },
+    capture: "A text box.",
+  },
+  number: {
+    label: "Number",
+    hint: "A figure you can add up.",
+    badge: null,
+    icon: "12",
+    useWhen: "For anything you will want totalled, averaged or plotted.",
+    example: { field: "Pages read", value: "24" },
+    capture: "A number box. Statistics can total and average it.",
+  },
+  date: {
+    label: "Date",
+    hint: "A calendar day.",
+    badge: null,
+    icon: "31",
+    useWhen:
+      "For a day that is not the day you are writing — a deadline, or when something actually happened.",
+    example: { field: "Experiment run on", value: "14 Mar 2026" },
+    capture: "A date picker. Every entry already records when you wrote it.",
+  },
+  dropdown: {
+    label: "Choice",
+    hint: "One option from a fixed list you write.",
+    badge: null,
+    icon: "◉",
+    useWhen:
+      "When there is a short, settled set of answers and you want exactly one of them every time.",
+    example: { field: "Status", value: "In review — one of: Draft, In review, Done" },
+    capture: "A dropdown of the options you define below. One per entry.",
+  },
+  tags: {
+    label: "Tags",
+    hint: "Several short labels, made up as you go.",
+    badge: null,
+    icon: "#",
+    useWhen:
+      "When an entry can be several things at once, and you do not want to decide the list in advance.",
+    example: { field: "Topics", value: "reading, chapter-3, supervisor" },
+    capture: "Type a label and press Enter. As many as you like, per entry.",
+  },
+  checklist: {
+    label: "Checklist",
+    hint: "Sub-steps you tick off inside one entry.",
+    badge: null,
+    icon: "☑",
+    useWhen:
+      "When one piece of work breaks into steps you want to see the progress of. For work spanning entries, use the project's Tasks tab instead.",
+    example: { field: "Steps", value: "☑ Outline · ☐ Draft · ☐ Proofread" },
+    capture: "Add items and tick them off. The list shows how many are done.",
+  },
+  link: {
+    label: "Entry link",
+    hint: "Points at another entry in this project.",
+    badge: null,
+    icon: "↪",
+    useWhen:
+      "When an entry continues, corrects or answers an earlier one and you want to be able to get back to it.",
+    example: { field: "Follows on from", value: "↪ Reran the calibration" },
+    capture:
+      "Pick an entry from this project. Both entries then show the connection.",
+  },
   project_reference: {
     label: "Project link",
-    hint: "Points at another of your projects.",
+    hint: "Points at another of your projects. Chosen once, here.",
     badge: "Linked",
     color: "blue",
+    icon: "◇",
+    useWhen:
+      "When everything in this project is done for another one — a lab book that feeds a thesis.",
+    example: { field: "Done for", value: "◇ Thesis" },
+    capture:
+      "Nothing to fill in. You choose the project once, below, and every new entry carries it.",
   },
   computed: {
     label: "Calculation",
     hint: "Worked out from the number fields on the same entry.",
     badge: "Calculated",
     color: "mauve",
+    icon: "ƒ",
+    useWhen:
+      "When one figure always follows from the others and retyping it would only be a chance to get it wrong.",
+    example: { field: "Minutes", value: "{Hours} * 60" },
+    capture:
+      "Nothing to fill in. It settles as you type the numbers it reads.",
   },
 }
 

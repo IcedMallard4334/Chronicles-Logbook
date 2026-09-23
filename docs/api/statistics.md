@@ -82,12 +82,25 @@ GET /statistics/projects/{project_id}/fields
 ```
 
 Statistics for every field the project's owner has defined, without the API
-knowing the fields in advance (US-2.10). Number fields are totalled and
-averaged; every other field is grouped by its distinct values and counted.
+knowing the fields in advance (US-2.10). Number fields are totalled, averaged
+and bounded; every other field is grouped by its distinct values and counted.
 
 Field definitions are read from **each entry's own schema snapshot**, not the
-project's current schema, so entries written before a field changed type are
-still counted under the type they were written with.
+project's current schema. Since a format change leaves past entries exactly as
+they were written, this matters more than it used to:
+
+- **Values recorded under an earlier version of a field still count.** A figure
+  recorded back when the field was text is still a figure, and dropping it from
+  the total would report less work than was done. `from_earlier_formats` says
+  how many of the counted values came from a version whose type differs from
+  the field's current one, so a total that looks surprising is explained rather
+  than mysterious.
+- **Fields the project no longer asks for are still reported**, marked
+  `retired: true`. The work they recorded happened; a total that quietly
+  dropped it would be wrong about the project rather than merely incomplete.
+- **Tags and checklists are grouped one item at a time.** Grouping by the whole
+  list would produce one group per unique combination, which answers nothing;
+  "what have I been tagging?" is the question a tag exists to answer.
 
 **Response:** `200 OK`
 
@@ -103,7 +116,11 @@ still counted under the type they were written with.
       "count": 42,
       "total": 156.5,
       "average": 3.73,
-      "groups": []
+      "minimum": 0.5,
+      "maximum": 9,
+      "groups": [],
+      "from_earlier_formats": 5,
+      "retired": false
     },
     {
       "field_id": "status",
@@ -112,10 +129,14 @@ still counted under the type they were written with.
       "count": 42,
       "total": null,
       "average": null,
+      "minimum": null,
+      "maximum": null,
       "groups": [
         { "value": "Done", "count": 30 },
         { "value": "Blocked", "count": 12 }
-      ]
+      ],
+      "from_earlier_formats": 0,
+      "retired": false
     }
   ]
 }
@@ -124,8 +145,10 @@ still counted under the type they were written with.
 | Field | Type | Description |
 |---|---|---|
 | `count` | integer | Entries in which this field had a value |
-| `total`, `average` | number \| null | Present for `number` fields; `null` for every other type |
-| `groups` | list | For every non-number field: each distinct value with its count, **in the order first encountered** (not sorted). Empty for `number` fields |
+| `total`, `average`, `minimum`, `maximum` | number \| null | Present for `number` and `computed` fields; `null` for every other type |
+| `groups` | list | For every non-numeric field: each distinct value with its count, **in the order first encountered** (not sorted). Empty for numeric fields |
+| `from_earlier_formats` | integer | How many counted values were written under a version of this field whose type differs from its current one |
+| `retired` | boolean | `true` once the field has left the live schema. Its figures are still reported; it is simply no longer being collected |
 
 Every field in the current schema is reported, including one no entry has
 filled in yet (`count: 0`, empty `groups`). The response does not sort or
@@ -137,11 +160,11 @@ every field's figures immediately. The app sorts groups largest-first and
 draws bars only for `dropdown` and `tags` fields — a free-text field is
 reported as a count, since forty bars of one is not a breakdown.
 
-!!! note "Calculation fields are grouped, not totalled"
-    A `computed` field's value is derived from number fields, but the API
-    currently treats it as categorical: its distinct results are grouped and
-    counted rather than summed. Totalling calculations is a candidate for
-    Milestone 3; until then, total the number fields it is built from.
+!!! note "Calculations are totalled like numbers"
+    A `computed` field holds a figure, so it is summed, averaged and bounded
+    exactly as a `number` field is. It used to be grouped as though its results
+    were categories, which made "total this calculation" — the obvious question
+    to ask of one — unanswerable.
 
 **Errors:** `404 Not Found` — no such project, or not one the caller owns.
 
@@ -182,12 +205,87 @@ any version of its schema.
 
 ---
 
+## Entries over a week or a term
+
+```
+GET /statistics/activity?bucket=week&project_id=…&start=…&end=…
+```
+
+Entries and time logged per day, week or month. The brief asks for "entries
+written over a week or a term", which is a series rather than a total: a term's
+work is a shape, and one number cannot show whether it was steady or all in the
+last fortnight.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `bucket` | `week` | `day`, `week` or `month` |
+| `project_id` | — | Narrow to one project. Omit for the whole logbook |
+| `start`, `end` | the first and last entry | ISO dates bounding the series |
+
+**Response:** `200 OK`
+
+```json
+{
+  "bucket": "week",
+  "start": "2026-03-02",
+  "end": "2026-03-16",
+  "points": [
+    { "period": "2026-03-02", "entries": 2, "time_spent": 45 },
+    { "period": "2026-03-09", "entries": 0, "time_spent": 0 },
+    { "period": "2026-03-16", "entries": 1, "time_spent": 0 }
+  ]
+}
+```
+
+Weeks are ISO weeks labelled by the Monday that starts them, so a period reads
+as a date somebody can find in a calendar rather than as `2026-W10`.
+
+**Empty periods are included.** The series walks the calendar rather than the
+data, because a fortnight of silence that is simply absent from the response
+reads as no gap at all.
+
+`time_spent` is in minutes, matching every other duration in the API.
+
+**Errors:** `404 Not Found` — `project_id` names a project the caller does not
+own.
+
+---
+
+## Export statistics as CSV
+
+```
+GET /statistics/export.csv
+GET /statistics/projects/{project_id}/export.csv?bucket=week
+```
+
+The figures as a spreadsheet, because the record belongs to its owner and that
+includes what the record adds up to.
+
+The logbook-wide file holds two tables separated by a blank row: the totals,
+then a row per project. The per-project file holds the same three things the
+statistics page shows, in the order it shows them — the project's totals, every
+field (with its groups), and its activity series.
+
+Durations appear twice: once formatted as the app shows them (`3h 20m`) and
+once as raw minutes, so the file and the screen can be read against each other
+without arithmetic.
+
+**Response:** `200 OK`, `text/csv`, with a `Content-Disposition` filename.
+
+**Errors:** `404 Not Found` — no such project, or not one the caller owns.
+
+---
+
 ## Notes for integrators
 
 The totals endpoint is aggregated in SQL and issues three queries regardless
 of how large the logbook grows — per-project aggregates, the overall
 aggregate, and the distinct days for the streaks — so it is safe to poll for a
-dashboard. The field statistics and timeline endpoints read entries for one
-project and are proportional to that project's size.
+dashboard. The field statistics, timeline and activity endpoints read entries
+for one project (or, for activity with no `project_id`, the whole logbook) and
+are proportional to that size.
+
+Both CSV exports are built by calling the JSON endpoints above and formatting
+the result, so a figure can never differ between the file and the API.
 
 AI Declaration: The preceding document was reviewed and edited with: Claude Opus 5

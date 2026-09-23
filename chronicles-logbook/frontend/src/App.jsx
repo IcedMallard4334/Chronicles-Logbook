@@ -2,12 +2,31 @@ import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
+import TimelinePage, { projectHue } from "./TimelinePage"
+import AmbientBackground from "./AmbientBackground"
+import EntryEditor from "./EntryEditor"
+import Invitations from "./Invitations"
+import ViewTransition, { SkeletonRows, ViewLoader } from "./ViewTransition"
+import { PageHint, WelcomeTour } from "./GuidedTour"
+import { PAGE_TOURS, PROJECT_TOURS, WELCOME_TOUR, seenTours } from "./tourSteps"
+import {
+  NOT_RECORDED,
+  ValueView,
+  cellFor,
+  columnsFor,
+  entrySummary,
+  sameFormat,
+  schemaForEntry,
+} from "./entryValues"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import OutstandingPage from "./OutstandingPage"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
+import FieldTypePicker from "./FieldTypePicker"
+import QuickCapture, { OPEN_QUICK_CAPTURE } from "./QuickCapture"
+import { ChecklistInput, LinkInput, TagsInput } from "./EntryFields"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import DataTransfer from "./DataTransfer"
@@ -20,15 +39,16 @@ import {
   createProject,
   deleteAccount,
   deleteProject,
+  fetchActivity,
   fetchEntries,
-  fetchEntriesGlobal,
-  fetchEntryLinks,
   fetchFieldStatistics,
   fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
   fetchStatistics,
+  fetchStatisticsCsv,
   fetchTasks,
+  leaveProject,
   previewSchemaChange,
   shareProject,
   unarchiveProject,
@@ -37,6 +57,8 @@ import {
   updateSchema,
 } from "./api"
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -47,7 +69,6 @@ import {
 } from "recharts"
 import {
   FIELD_TYPE_META,
-  FIELD_TYPES,
   describeExpression,
   expressionCanonical,
   expressionError,
@@ -61,6 +82,8 @@ import {
 } from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
+import "./entryValues.css"
+import "./StatisticsPage.css"
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -599,7 +622,7 @@ function LinkChip({ targetId, projects, status, onOpen }) {
   )
 }
 
-function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
+function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, onShowStatistics }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
   const [pinnedIds, setPinnedIds] = useState(() => {
@@ -642,10 +665,15 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
         <button type="button" className={homeActive ? "is-active" : ""} onClick={onShowHome}>
           <span aria-hidden="true">⌂</span> Projects
         </button>
-        {/* Was "Activity". The PO named statistics as a must-demo feature and
-            a user looking for them would not think to click that word. */}
-        <button type="button" className={timelineActive ? "is-active" : ""} onClick={onShowTimeline}>
-          <span aria-hidden="true">◷</span> Statistics
+        {/* Two destinations, because they answer two questions. "What did I
+            do?" is the record and lives in Timeline; "what does it add up to?"
+            is the numbers and lives in Statistics. One tab called Activity was
+            doing both badly, which is why nobody could tell what it was for. */}
+        <button type="button" onClick={onShowTimeline}>
+          <span aria-hidden="true">◷</span> Timeline
+        </button>
+        <button type="button" onClick={onShowStatistics}>
+          <span aria-hidden="true">░</span> Statistics
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -905,34 +933,50 @@ function plural(count, one, many) {
   return count === 1 ? one : many
 }
 
-/** What one change costs, in entries, or an empty string when it costs nothing. */
+/**
+ * How many past entries a reader will see differently, or an empty string when
+ * a change costs nothing at all.
+ *
+ * Deliberately never says "rewritten" or "updated", because nothing is: the
+ * entries keep their values and keep the format they were written under. What
+ * changes is only how they line up against the new format.
+ */
 function impactSentence(change) {
-  const parts = []
-  if (change.values_coerced > 0) {
-    parts.push(
-      `${change.values_coerced} ${plural(change.values_coerced, "value", "values")} rewritten to fit`
-    )
+  if (change.kind === "added" && change.entries_affected > 0) {
+    return `${change.entries_affected} earlier ${plural(
+      change.entries_affected,
+      "entry has",
+      "entries have"
+    )} nothing to show here`
   }
   if (change.values_retired > 0) {
-    parts.push(
-      `${change.values_retired} ${plural(change.values_retired, "value", "values")} kept but hidden`
-    )
+    return `${change.values_retired} ${plural(
+      change.values_retired,
+      "entry keeps what it",
+      "entries keep what they"
+    )} recorded, under the old format`
   }
-  if (parts.length === 0 && change.entries_affected > 0) {
-    parts.push(
-      `${change.entries_affected} ${plural(change.entries_affected, "entry", "entries")} updated`
-    )
+  if (change.entries_affected > 0) {
+    return `${change.entries_affected} earlier ${plural(
+      change.entries_affected,
+      "entry is",
+      "entries are"
+    )} unaffected and stay as written`
   }
-  return parts.join(" · ")
+  return ""
 }
 
 /**
- * What an edit will do to entries already recorded, shown before it is saved.
+ * What an edit means for entries already recorded, shown before it is saved.
  *
- * Editing a schema is the only action in the logbook that can change data the
- * user did not just type, so it is the only one that asks twice. The report
- * comes from the server, which produces it by running the real migration — so
- * this is what will happen, not an estimate of it.
+ * Changing a schema used to be the one action in the logbook that could alter
+ * data the user did not type — backfilling new fields, coercing old values,
+ * replacing what it could not read with a default. It no longer does any of
+ * that, and this screen exists to say so plainly, because "are my old entries
+ * safe?" is the question anybody sensible asks before pressing the button.
+ *
+ * The report comes from the server, which produces it by examining the real
+ * entries — so this is what will happen, not an estimate of it.
  */
 function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
   const hasWarnings = preview.changes.some((change) => change.severity === "warning")
@@ -942,9 +986,16 @@ function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
       <div className="panel-head">
         <h4>Review these changes</h4>
         <p>
-          {preview.entries_affected} of {preview.entry_count}{" "}
-          {plural(preview.entry_count, "entry", "entries")} already recorded will be
-          updated.
+          Entries written from now on use the new format.{" "}
+          {preview.entry_count > 0 ? (
+            <>
+              The {preview.entry_count}{" "}
+              {plural(preview.entry_count, "entry", "entries")} already recorded stay
+              exactly as written.
+            </>
+          ) : (
+            <>There is nothing recorded yet, so nothing to carry over.</>
+          )}
         </p>
       </div>
       <ul className="change-list" role="list">
@@ -965,8 +1016,10 @@ function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
       </ul>
       {hasWarnings && (
         <p className="hint">
-          Nothing is deleted. A value that no longer fits stays with its entry under
-          <strong> No longer recorded</strong>, and comes back if you restore the field.
+          Nothing is deleted and nothing is rewritten. Values the new format would
+          not ask for stay on the entries that recorded them, shown as they were
+          written and marked <strong>earlier format</strong>. Restore the field and
+          they line up again.
         </p>
       )}
       <div className="actions">
@@ -1049,47 +1102,67 @@ function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChang
             placeholder="Field name"
           />
         </label>
-        <label className="field-label">
-          Type
-          <select
-            value={field.type}
-            onChange={(event) =>
-              onChange(index, {
-                type: event.target.value,
-                options: event.target.value === "dropdown" ? field.options || [""] : field.options,
-                expression:
-                  event.target.value === "computed" ? field.expression || "" : field.expression,
-              })
-            }
-          >
-            {FIELD_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* A grid of explained cards rather than a dropdown of nine words.
+            "Tags", "Choice" and "Checklist" all sound like "a list of things"
+            in a select, which is how people ended up picking one and
+            concluding the field types were broken. */}
+        <FieldTypePicker
+          value={field.type}
+          disabledTypes={{
+            // Offered but greyed with the reason, so "where is the calculation
+            // option?" has an answer on screen rather than nowhere.
+            computed:
+              sources.length === 0
+                ? "Needs a number field to read from — add one first."
+                : null,
+            project_reference:
+              linkable.length === 0
+                ? "Needs somewhere to point — create another project first."
+                : null,
+          }}
+          onChoose={(type) =>
+            onChange(index, {
+              type,
+              options: type === "dropdown" ? field.options || [""] : field.options,
+              expression: type === "computed" ? field.expression || "" : field.expression,
+            })
+          }
+        />
       </div>
-      <p className="field-type-hint">
-        {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
-      </p>
       {field.type === "dropdown" && (
-        <label className="field-label full">
-          Options (comma-separated)
-          <input
-            type="text"
-            value={(field.options || []).join(", ")}
-            onChange={(event) =>
-              onChange(index, {
-                options: event.target.value
-                  .split(",")
-                  .map((option) => option.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="Option 1, Option 2, Option 3"
-          />
-        </label>
+        <>
+          <label className="field-label full">
+            The options to choose from
+            <input
+              type="text"
+              value={(field.options || []).join(", ")}
+              onChange={(event) =>
+                onChange(index, {
+                  options: event.target.value
+                    .split(",")
+                    .map((option) => option.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="Draft, In review, Done"
+            />
+          </label>
+          <p className="field-type-hint">
+            Separate them with commas. Each entry picks exactly one. If you want
+            several at once, or you would rather make them up as you go, use{" "}
+            <strong>Tags</strong> instead.
+          </p>
+          {(field.options || []).length > 0 && (
+            <p className="field-option-preview">
+              An entry will choose from:{" "}
+              {(field.options || []).map((option) => (
+                <span key={option} className="value-tag">
+                  {option}
+                </span>
+              ))}
+            </p>
+          )}
+        </>
       )}
       {field.type === "computed" && (
         <>
@@ -1395,7 +1468,7 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
         <h3>Entry schema</h3>
         <p>
           {isEditing
-            ? "Existing entries are brought along with any change you make."
+            ? "Changes apply to entries you write from now on. Everything already recorded stays exactly as you wrote it."
             : "The fields this logbook asks for."}
         </p>
       </div>
@@ -1485,180 +1558,6 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
-function TagsInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addTag = () => {
-    const tag = input.trim()
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag])
-    }
-    setInput("")
-  }
-
-  const removeTag = (tag) => {
-    onChange(value.filter((t) => t !== tag))
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === "Backspace" && input === "" && value.length > 0) {
-      onChange(value.slice(0, -1))
-    }
-  }
-
-  return (
-    <div className="tags-input">
-      <div className="tags-list">
-        {value.map((tag) => (
-          <span key={tag} className="tag-chip">
-            {tag}
-            <button
-              type="button"
-              className="tag-remove"
-              onClick={() => removeTag(tag)}
-              aria-label={`Remove ${tag}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
-      />
-    </div>
-  )
-}
-
-function ChecklistInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addItem = () => {
-    const text = input.trim()
-    if (text) {
-      onChange([
-        ...value,
-        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
-      ])
-    }
-    setInput("")
-  }
-
-  const toggleItem = (id) => {
-    onChange(value.map((item) =>
-      item.id === id ? { ...item, completed: !item.completed } : item
-    ))
-  }
-
-  const removeItem = (id) => {
-    onChange(value.filter((item) => item.id !== id))
-  }
-
-  const moveItem = (index, direction) => {
-    const target = index + direction
-    if (target < 0 || target >= value.length) return
-    const next = [...value]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    onChange(next)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addItem()
-    }
-  }
-
-  return (
-    <div className="checklist-input">
-      {value.map((item, index) => (
-        <div key={item.id} className="checklist-item">
-          <input
-            type="checkbox"
-            checked={item.completed}
-            onChange={() => toggleItem(item.id)}
-          />
-          <span className={item.completed ? "checklist-done" : ""}>
-            {item.text}
-          </span>
-          <div className="checklist-actions">
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, -1)}
-              disabled={index === 0}
-              aria-label="Move up"
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, 1)}
-              disabled={index === value.length - 1}
-              aria-label="Move down"
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              className="btn-text-small btn-text-danger"
-              onClick={() => removeItem(item.id)}
-              aria-label="Remove item"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      ))}
-      <div className="checklist-add">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add item and press Enter…"
-        />
-      </div>
-      {value.length > 0 && (
-        <span className="checklist-count">
-          {value.filter((i) => i.completed).length}/{value.length} complete
-        </span>
-      )}
-    </div>
-  )
-}
-
-function LinkInput({ value, onChange, entries }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="link-select"
-    >
-      <option value="">No link</option>
-      {entries.map((entry) => {
-        // Build a preview from the first text field value
-        const preview = Object.values(entry.data || {})
-          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
-        return (
-          <option key={entry.id} value={entry.id}>
-            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
-          </option>
-        )
-      })}
-    </select>
-  )
-}
-
 /**
  * One field on the new-entry form.
  *
@@ -1717,6 +1616,10 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
   // Tags and checklists hold a list, not a string, and each renders several
   // controls — so they get a div rather than a label, which would bind every
   // click to whichever control happened to come first.
+  //
+  // Each also carries the registry's one-line "how you fill this in". Three of
+  // the richer types look like a text box until you try to use one, and the
+  // sentence costs a line.
   if (field.type === "tags") {
     return (
       <div className="field-label">
@@ -1725,6 +1628,7 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
         />
+        <span className="field-capture-hint">{FIELD_TYPE_META.tags.capture}</span>
       </div>
     )
   }
@@ -1737,6 +1641,7 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
         />
+        <span className="field-capture-hint">{FIELD_TYPE_META.checklist.capture}</span>
       </div>
     )
   }
@@ -1750,6 +1655,9 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
           onChange={(next) => onChange(field.id, next)}
           entries={entries}
         />
+        {entries.length > 0 && (
+          <span className="field-capture-hint">{FIELD_TYPE_META.link.capture}</span>
+        )}
       </label>
     )
   }
@@ -1790,17 +1698,13 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [projectEntries, setProjectEntries] = useState([])
 
-  // Load existing entries for the link field selector
-  useEffect(() => {
-    const hasLinkField = schema.some((f) => f.type === "link")
-    if (hasLinkField) {
-      fetchEntries(project.id)
-        .then(setProjectEntries)
-        .catch(() => setProjectEntries([]))
-    }
-  }, [project.id, schema])
+  // The entries a link field can point at. Read from the project rather than
+  // fetched separately: `App` already keeps this list current after every
+  // save, and the private copy this used to hold went stale the moment you
+  // wrote an entry — so the entry you had just written was the one thing the
+  // link picker could not offer you.
+  const projectEntries = useMemo(() => project.entries || [], [project.entries])
 
   // Recomputed as you type, so a calculation settles while the entry is being
   // filled in rather than only after it is saved.
@@ -1987,161 +1891,213 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
 }
 
 /**
- * A stored value as it should read on the page.
+ * Everything recorded in a project so far.
  *
- * A reference is held as a project id, which is the right thing to store and
- * the wrong thing to show, so it is resolved to the project's name here.
- */
-function formatEntryValue(field, value, projectNames) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (field?.type === "project_reference") {
-    return projectNames.get(value) || "A project you no longer have"
-  }
-  return String(value)
-}
-
-/**
- * What an entry recorded under fields the schema has since dropped (US-2.7).
+ * Two things make this harder than a table of rows.
  *
- * Removing a field stops it being asked for; it does not erase what was already
- * answered. That history is kept out of the way but never out of reach.
+ * The first is that the values are not strings. Tags are a list, a checklist
+ * is a list of objects, an entry link is an id. `entryValues` owns the
+ * rendering of each, so a tag looks like a tag here, in the timeline and in
+ * the export alike, instead of each view inventing its own `String(value)`.
+ *
+ * The second is that not every entry agrees about what the columns are. A
+ * format change no longer rewrites what was already written, so an entry from
+ * March holds March's fields. `columnsFor` works out the union — the project's
+ * current fields first, then anything older that still holds values — and each
+ * cell says for itself whether it was recorded under the current definition,
+ * under an earlier one, or not at all. "Not recorded" is its own state, and a
+ * visibly different one from an empty value: nobody answered, rather than
+ * somebody answered with nothing.
  */
-function RetiredValues({ retiredData, retiredSchema }) {
-  const fields = retiredSchema.filter(
-    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
-  )
-  if (fields.length === 0) return null
+function EntryList({
+  entries,
+  project,
+  projects = [],
+  onOpenProject,
+  onOpenEntry,
+  canEdit = true,
+}) {
+  const [expanded, setExpanded] = useState(null)
 
-  return (
-    <details className="retired-values">
-      <summary>No longer recorded ({fields.length})</summary>
-      <div className="log-fields">
-        {fields.map((field) => (
-          <div key={field.id} className="log-field">
-            <span className="log-label">{field.name}</span>
-            <span className="log-value">{String(retiredData[field.id])}</span>
-          </div>
-        ))}
-      </div>
-    </details>
-  )
-}
-
-function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenProject }) {
-  const projectNames = useMemo(
-    () => new Map(projects.map((project) => [project.id, project.name])),
-    [projects]
-  )
+  const columns = useMemo(() => columnsFor(project, entries), [project, entries])
 
   // The status of every project this schema links to, for the chips below.
   const linkedIds = useMemo(
     () => [
       ...new Set(
-        (schema || [])
+        columns
           .filter((field) => field.type === "project_reference")
           .map((field) => field.linked_project_id)
           .filter(Boolean)
       ),
     ],
-    [schema]
+    [columns]
   )
-  const statuses = useProjectStatuses(linkedIds)
+  useProjectStatuses(linkedIds)
 
   if (entries.length === 0) {
-    return <p className="hint">No entries yet.</p>
+    return (
+      <div className="entry-list-empty">
+        <p className="hint">Nothing recorded yet.</p>
+        <p className="hint-quiet">
+          Fill in the form above and save — it will appear here straight away.
+        </p>
+      </div>
+    )
   }
 
-  // A column header is asked to be short; the full name rides along as a
-  // tooltip so nothing is lost.
-  const shortLabel = (name) => (name.length > 20 ? `${name.slice(0, 19)}…` : name)
+  const retiredCount = columns.filter((column) => column.retired).length
 
   return (
     <div className="entry-list">
-      <h3>Recent entries</h3>
+      <div className="entry-list-head">
+        <h3>Recorded so far</h3>
+        <span className="entry-list-count">
+          {entries.length} {entries.length === 1 ? "entry" : "entries"}{" "}
+          {retiredCount > 0 && (
+            <span
+              className="entry-list-note"
+              title="Fields this project no longer asks for, kept because past entries recorded them"
+            >
+              · {retiredCount} no longer collected
+            </span>
+          )}
+        </span>
+      </div>
+
       <ul className="log-list" role="list">
         {entries.map((entry) => {
-          // Recomputed rather than read back: an entry captured offline holds
-          // no stored calculation until it syncs, and the current formula is
-          // the honest answer either way. What the server stored agrees with
-          // it, because every write and every schema change re-derives.
-          const data = withComputedValues(entry.data || {}, schema)
+          const open = expanded === entry.id
+          const written = schemaForEntry(entry, project)
+          const olderFormat =
+            written.length > 0 && !sameFormat(written, project.entry_schema || [])
+
           return (
             <li
               key={entry.id}
-              className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+              className={`log-row ${entry.pending ? "is-unsynced" : ""} ${open ? "is-open" : ""}`}
             >
-              <div className="log-fields">
-                {schema.map((field) => {
-                  const meta = FIELD_TYPE_META[field.type]
-                  return (
-                    <div
-                      key={field.id}
-                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
-                    >
-                      <span className="log-label" title={field.name}>
-                        {shortLabel(field.name)}
-                        {/* The two special columns carry a quiet dot in their
-                            header — the registry's colours at a size that does
-                            not compete with the values, the word on hover. */}
-                        {meta?.badge && (
-                          <span
-                            className={`log-type-dot is-${meta.color}`}
-                            title={meta.badge}
-                            aria-hidden="true"
-                          />
-                        )}
-                      </span>
-                      <span className="log-value">
-                        {field.type === "project_reference" && data[field.id] ? (
-                          <LinkChip
-                            targetId={data[field.id]}
+              <div className="log-row-main">
+                <div className="log-fields">
+                  {columns.map((column) => {
+                    const { value, state, field } = cellFor(entry, column, project)
+                    const meta = FIELD_TYPE_META[column.type]
+
+                    // A field the project has dropped is shown only on the
+                    // entries that actually recorded something under it.
+                    // Printing "not recorded" for it on every entry written
+                    // since would bury the live fields in history.
+                    if (column.retired && value === NOT_RECORDED) return null
+
+                    return (
+                      <div
+                        key={column.id}
+                        className={`log-field ${isNumericField(column) ? "is-numeric" : ""} ${
+                          column.retired ? "is-retired-column" : ""
+                        }`}
+                      >
+                        <span
+                          className="log-label"
+                          title={
+                            column.retired
+                              ? `${column.name} — this project no longer asks for this`
+                              : column.name
+                          }
+                        >
+                          {column.name.length > 20 ? `${column.name.slice(0, 19)}…` : column.name}
+                          {/* The registry's own colour, at a size that does not
+                              compete with the value, with the word on hover. */}
+                          {meta?.badge && (
+                            <span
+                              className={`log-type-dot is-${meta.color}`}
+                              title={meta.badge}
+                              aria-hidden="true"
+                            />
+                          )}
+                        </span>
+                        <span className="log-value">
+                          <ValueView
+                            value={value}
+                            field={field}
+                            state={state}
                             projects={projects}
-                            status={statuses[data[field.id]]}
-                            onOpen={onOpenProject}
+                            entries={entries}
+                            onOpenProject={onOpenProject}
+                            onOpenEntry={onOpenEntry}
                           />
-                        ) : (
-                          formatEntryValue(field, data[field.id], projectNames)
-                        )}
-                        {/* Marked so a derived figure is never mistaken for one
-                            that was typed in. */}
-                        {field.type === "computed" && (
-                          <span
-                            className="calculated-badge"
-                            title="Calculated from the other fields on this entry"
-                            aria-hidden="true"
-                          >
-                            ƒ
-                          </span>
-                        )}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="log-row-side">
+                  <span className="log-time">
+                    {/* Shown immediately, so that nobody re-types an entry
+                        believing it failed to save. */}
+                    {entry.pending && (
+                      <span className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}>
+                        {entry.rejected ? "Needs attention" : "Not yet synced"}
                       </span>
-                    </div>
-                  )
-                })}
-              </div>
-              <span className="log-time">
-                {/* Entries captured offline are shown immediately, so that
-                    nobody re-types one believing it failed to save. */}
-                {entry.pending && (
-                  <span
-                    className={`sync-badge ${entry.rejected ? "is-rejected" : ""}`}
-                  >
-                    {entry.rejected ? "Needs attention" : "Not yet synced"}
+                    )}
+                    <time dateTime={entry.created_at}>
+                      {new Date(entry.created_at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                    {/* Only named when known: entries written before a project
+                        could be shared have no author, and an empty "logged by"
+                        reads worse than none at all. */}
+                    {entry.created_by_name && (
+                      <span className="entry-author"> · {entry.created_by_name}</span>
+                    )}
+                    {olderFormat && (
+                      <button
+                        type="button"
+                        className="entry-format-pill"
+                        onClick={() => setExpanded(open ? null : entry.id)}
+                        aria-expanded={open}
+                        title="This entry was written under an earlier version of the project's format"
+                      >
+                        earlier format
+                      </button>
+                    )}
                   </span>
-                )}
-                {new Date(entry.created_at).toLocaleString()}
-                {/* Only named when known: entries written before a project
-                    could be shared have no author, and an empty "logged by"
-                    reads worse than none at all. */}
-                {entry.created_by_name && (
-                  <span className="entry-author"> · {entry.created_by_name}</span>
-                )}
-              </span>
-              {/* Last, and collapsed: history worth keeping is not history worth
-                  leading with. */}
-              <RetiredValues
-                retiredData={entry.retired_data || {}}
-                retiredSchema={retiredSchema}
-              />
+
+                  {/* The controls that were missing entirely: a record you
+                      cannot correct is one people stop trusting. Revealed on
+                      hover and focus so the list stays readable, but always
+                      reachable by keyboard. */}
+                  {!entry.pending && (
+                    <div className="log-row-actions">
+                      <button
+                        type="button"
+                        className="log-action"
+                        onClick={() => onOpenEntry(entry)}
+                        aria-label={`Open ${entrySummary(entry, written)}`}
+                        title={canEdit ? "Open, correct or remove" : "Open"}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {open && (
+                <div className="log-row-format">
+                  <p>
+                    Written when this project asked for:{" "}
+                    <strong>{written.map((field) => field.name).join(", ") || "nothing"}</strong>.
+                    Its values are shown exactly as recorded — changing the format
+                    never rewrote them.
+                  </p>
+                </div>
+              )}
             </li>
           )
         })}
@@ -2283,7 +2239,254 @@ function FieldStatisticsPanel({ projectId }) {
   )
 }
 
-function Timeline({ projects }) {
+/** Download text the browser has in hand, without a round trip for it. */
+function download(filename, text, type = "text/csv") {
+  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }))
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // Revoked on the next tick rather than immediately: Safari cancels an
+  // in-flight download if the object URL goes away too soon.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** A bucket label as something to put on an axis. */
+function periodLabel(period, bucket) {
+  if (bucket === "month") {
+    return new Date(`${period}-01T00:00:00`).toLocaleDateString(undefined, {
+      month: "short",
+      year: "2-digit",
+    })
+  }
+  return new Date(`${period}T00:00:00`).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  })
+}
+
+/**
+ * How much has been written, and when.
+ *
+ * The brief's basic tier asks for "entries written over a week or a term", and
+ * a term is a shape rather than a number — whether the work was steady or all
+ * in the last fortnight is the thing worth seeing, and no single total shows
+ * it. The server fills in empty periods, so a quiet fortnight draws as a
+ * trough instead of closing up and disappearing.
+ */
+function ActivityPanel({ projectId, projects }) {
+  const [bucket, setBucket] = useState("week")
+  const [activity, setActivity] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    fetchActivity({ projectId: projectId || undefined, bucket })
+      .then((data) => {
+        if (active) setActivity(data)
+      })
+      .catch(() => {
+        if (active) setActivity(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId, bucket])
+
+  const points = useMemo(
+    () =>
+      (activity?.points || []).map((point) => ({
+        ...point,
+        label: periodLabel(point.period, bucket),
+        hours: Math.round((point.time_spent / 60) * 100) / 100,
+      })),
+    [activity, bucket]
+  )
+
+  const busiest = points.reduce(
+    (best, point) => (point.entries > (best?.entries ?? -1) ? point : best),
+    null
+  )
+  const written = points.reduce((sum, point) => sum + point.entries, 0)
+  const scope = projectId
+    ? projects.find((project) => project.id === projectId)?.name
+    : "every project"
+
+  return (
+    <section className="stats-panel" aria-labelledby="activity-title">
+      <header className="stats-panel-head">
+        <div>
+          <h3 id="activity-title">Entries over time</h3>
+          <p>
+            {written} {written === 1 ? "entry" : "entries"} across {scope}
+            {busiest && busiest.entries > 0 && ` · busiest ${bucket}: ${busiest.label}`}
+          </p>
+        </div>
+        <div className="stats-bucket" role="group" aria-label="Group activity by">
+          {["day", "week", "month"].map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={bucket === option ? "is-active" : ""}
+              onClick={() => setBucket(option)}
+            >
+              {option === "day" ? "Daily" : option === "week" ? "Weekly" : "Monthly"}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {loading ? (
+        <SkeletonRows rows={1} height={240} label="Working out your activity" />
+      ) : points.length === 0 ? (
+        <p className="field-stats-status">
+          Nothing written yet. Once you start capturing, this shows the rhythm of it.
+        </p>
+      ) : (
+        <div className="stats-chart" aria-label="Entries over time">
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={points} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+              <defs>
+                {/* Stops are classed rather than coloured inline: a CSS
+                    custom property resolves in a CSS property and not in an
+                    SVG presentation attribute, so `stopColor="var(--blue)"`
+                    silently produced no fill at all. */}
+                <linearGradient id="activity-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop className="activity-fill-top" offset="0%" />
+                  <stop className="activity-fill-bottom" offset="100%" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" className="chart-grid" vertical={false} />
+              <XAxis
+                dataKey="label"
+                className="chart-axis"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={18}
+              />
+              <YAxis
+                className="chart-axis"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+                formatter={(value, name) =>
+                  name === "hours" ? [`${value}h`, "Time logged"] : [value, "Entries"]
+                }
+              />
+              <Area
+                type="monotone"
+                dataKey="entries"
+                className="chart-area"
+                strokeWidth={2}
+                fill="url(#activity-fill)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Time per project, which the brief names first among the statistics.
+ *
+ * A bar per project rather than a pie: comparing lengths is something people
+ * do accurately and comparing angles is not, and the question here is almost
+ * always "which of these is taking my time" rather than "what fraction".
+ */
+function ProjectTotalsPanel({ statistics, onOpenProject }) {
+  const rows = useMemo(
+    () =>
+      (statistics?.projects || [])
+        .map((project) => ({
+          ...project,
+          hours: Math.round((project.time_spent / 60) * 100) / 100,
+        }))
+        .sort((a, b) => b.time_spent - a.time_spent || b.entries - a.entries),
+    [statistics]
+  )
+
+  if (rows.length === 0) return null
+
+  const longest = rows[0]?.time_spent || 0
+
+  return (
+    <section className="stats-panel" aria-labelledby="totals-title">
+      <header className="stats-panel-head">
+        <div>
+          <h3 id="totals-title">Time per project</h3>
+          <p>Where the hours have actually gone, longest first.</p>
+        </div>
+      </header>
+
+      <ul className="stats-bars" role="list">
+        {rows.map((project) => (
+          <li key={project.project_id} className={project.archived ? "is-archived" : ""}>
+            <button
+              type="button"
+              className="stats-bar-label"
+              onClick={() => onOpenProject(project.project_id)}
+              title={`Open ${project.name}`}
+            >
+              {project.name}
+              {project.archived && <span className="stats-bar-tag">Archived</span>}
+            </button>
+            <span className="stats-bar-track" aria-hidden="true">
+              <span
+                className="stats-bar-fill"
+                style={{
+                  width: `${
+                    project.time_spent && longest
+                      ? Math.max((project.time_spent / longest) * 100, 1.5)
+                      : 0
+                  }%`,
+                  "--project-hue": projectHue(project.project_id),
+                }}
+              />
+            </span>
+            <span className="stats-bar-value">
+              {formatDuration(project.time_spent)}
+              <small>
+                {project.entries} {project.entries === 1 ? "entry" : "entries"}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * Statistics: the numbers, over fields the platform did not know about until
+ * their owner defined them.
+ *
+ * This was called "Activity" and then "Statistics" while actually being a form
+ * for plotting one field against a date range — which is why nobody could tell
+ * what the tab was for. Browsing the record now lives in Timeline, and this is
+ * only the numbers: the headline totals, time per project, the rhythm over
+ * time, every field totalled or grouped, and one field plotted when you ask
+ * for it. All of it exportable, because the brief says the record belongs to
+ * its owner.
+ */
+function StatisticsPage({ projects, statistics, onOpenProject }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
   const [start, setStart] = useState("")
@@ -2291,13 +2494,16 @@ function Timeline({ projects }) {
   const [timeline, setTimeline] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState("")
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === projectId) || null,
-    [projects, projectId],
+    [projects, projectId]
   )
 
   const fields = selectedProject?.entry_schema || []
+  const totals = statistics?.totals
 
   useEffect(() => {
     setFieldId("")
@@ -2332,166 +2538,257 @@ function Timeline({ projects }) {
     }
   }
 
+  const exportStatistics = async () => {
+    setExporting(true)
+    setExportError("")
+    try {
+      const csv = await fetchStatisticsCsv(projectId || undefined)
+      download(
+        projectId
+          ? `${selectedProject?.name || "project"} statistics.csv`
+          : "chronicles-statistics.csv",
+        csv
+      )
+    } catch (caught) {
+      setExportError(formatError(caught))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const selectedField = fields.find((field) => field.id === fieldId)
 
   return (
-    <section className="timeline" aria-label="Statistics">
-      <header className="timeline-header">
-        <h2>Statistics</h2>
-        <p>
-          Pick a project to total and group every field you have defined, then choose a
-          field and date range to plot it over time.
-        </p>
+    <section className="stats-page" aria-label="Statistics">
+      <header className="stats-header">
+        <div>
+          <span className="workspace-eyebrow">WHAT IT ADDS UP TO</span>
+          <h1>Statistics</h1>
+          <p>
+            Time per project, the rhythm of what you write, and any field you have
+            defined — totalled, grouped and plotted, without the logbook having known
+            about it in advance.
+          </p>
+        </div>
+        <div className="stats-header-actions">
+          <label className="stats-scope">
+            <span className="sr-only">Narrow statistics to a project</span>
+            <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+              <option value="">Whole logbook</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={exportStatistics}
+            disabled={exporting}
+            title="Download these figures as a spreadsheet"
+          >
+            {exporting ? "Preparing…" : "Export CSV"}
+          </button>
+        </div>
       </header>
 
-      <form className="timeline-filters" onSubmit={handleLoadTimeline}>
-        <label className="field-label">
-          Project
-          <select
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            aria-label="Select project"
-          >
-            <option value="">Select a project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field-label">
-          Field
-          <select
-            value={fieldId}
-            onChange={(event) => setFieldId(event.target.value)}
-            disabled={!projectId}
-            aria-label="Select field"
-          >
-            <option value="">Select a field</option>
-            {fields.map((field) => (
-              <option key={field.id} value={field.id}>
-                {field.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field-label">
-          Start date
-          <input
-            type="date"
-            value={start}
-            onChange={(event) => setStart(event.target.value)}
-            aria-label="Start date"
-          />
-        </label>
-
-        <label className="field-label">
-          End date
-          <input
-            type="date"
-            value={end}
-            onChange={(event) => setEnd(event.target.value)}
-            aria-label="End date"
-          />
-        </label>
-
-        <button
-          type="submit"
-          className="btn-primary timeline-submit"
-          disabled={loading || !projectId || !fieldId}
-        >
-          {loading ? "Loading…" : "Generate timeline"}
-        </button>
-      </form>
-
-      {/* Every field, totalled or grouped, as soon as a project is chosen —
-          before any field or date range is picked. That is US-2.10; the chart
-          below it is US-2.11. */}
-      <FieldStatisticsPanel projectId={projectId} />
-
-      {error && (
+      {exportError && (
         <p className="error" role="alert">
-          {error}
+          {exportError}
         </p>
       )}
 
-      {!loading && !error && !timeline && (
-        <p className="hint">
-          Select a project, field, and optional date range, then generate the timeline.
+      {/* The headline figures the brief asks for by name: time per project,
+          how much has been written, and the run of days kept up. */}
+      <div className="stats-tiles">
+        <article>
+          <span>Time logged</span>
+          <strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong>
+          <small>
+            {totals ? `${totals.entries} ${totals.entries === 1 ? "entry" : "entries"}` : " "}
+          </small>
+        </article>
+        <article>
+          <span>Active days</span>
+          <strong>{totals ? totals.active_days : "–"}</strong>
+          <small>days with something written</small>
+        </article>
+        <article className={totals?.current_streak > 0 ? "is-alive" : ""}>
+          <span>Current streak</span>
+          <strong>{totals ? totals.current_streak : "–"}</strong>
+          <small>
+            {totals ? `longest run: ${totals.longest_streak} days` : " "}
+          </small>
+        </article>
+        <article>
+          <span>Projects</span>
+          <strong>{totals ? totals.active_projects : "–"}</strong>
+          <small>{totals ? `${totals.archived_projects} archived` : " "}</small>
+        </article>
+      </div>
+
+      <ActivityPanel projectId={projectId} projects={projects} />
+
+      {!projectId && <ProjectTotalsPanel statistics={statistics} onOpenProject={onOpenProject} />}
+
+      {/* Every field, totalled or grouped, as soon as a project is chosen. */}
+      {projectId ? (
+        <FieldStatisticsPanel projectId={projectId} />
+      ) : (
+        <p className="field-stats-status">
+          Choose a project above to total and group every field you have defined in it.
         </p>
       )}
 
-      {timeline && (
-        <div className="timeline-results">
-          <div className="timeline-summary">
-            <h3>{timeline.field_name}</h3>
-            <p>
-              {timeline.points.length} data point
-              {timeline.points.length === 1 ? "" : "s"}
-              {selectedField?.type && (
-                <span className="timeline-field-type"> • {selectedField.type}</span>
-              )}
-            </p>
+      <section className="stats-panel" aria-labelledby="plot-title">
+        <header className="stats-panel-head">
+          <div>
+            <h3 id="plot-title">Plot one field over time</h3>
+            <p>Any field you have defined, against the dates you wrote it.</p>
           </div>
+        </header>
 
-          {timeline.points.length === 0 ? (
-            <p className="hint">No values found for this field in the selected range.</p>
-          ) : (
-            <>
-              <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart
-                    data={timeline.points.map((point) => ({
-                      ...point,
-                      date: new Date(point.created_at).toLocaleDateString(),
-                      displayValue: String(point.value),
-                      numericValue:
-                        timeline.field_type === "number" ? Number(point.value) : null,
-                    }))}
-                  margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
-                    name={timeline.field_name}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+        <form className="timeline-filters" onSubmit={handleLoadTimeline}>
+          <label className="field-label">
+            Field
+            <select
+              value={fieldId}
+              onChange={(event) => setFieldId(event.target.value)}
+              disabled={!projectId}
+              aria-label="Select field"
+            >
+              <option value="">{projectId ? "Select a field" : "Choose a project first"}</option>
+              {fields.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            <div className="timeline-table-wrapper">
-              <table className="timeline-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Date</th>
-                    <th scope="col">Value</th>
-                    <th scope="col">Schema version</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeline.points.map((point) => (
-                    <tr key={point.entry_id}>
-                      <td>{new Date(point.created_at).toLocaleString()}</td>
-                      <td>{String(point.value)}</td>
-                      <td>{point.schema_version}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <label className="field-label">
+            From
+            <input
+              type="date"
+              value={start}
+              onChange={(event) => setStart(event.target.value)}
+              aria-label="Start date"
+            />
+          </label>
+
+          <label className="field-label">
+            To
+            <input
+              type="date"
+              value={end}
+              onChange={(event) => setEnd(event.target.value)}
+              aria-label="End date"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="btn-primary timeline-submit"
+            disabled={loading || !projectId || !fieldId}
+          >
+            {loading ? "Loading…" : "Plot it"}
+          </button>
+        </form>
+
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
         )}
-        </div>
-      )}
+
+        {loading && <SkeletonRows rows={1} height={260} label="Plotting" />}
+
+        {timeline && !loading && (
+          <div className="timeline-results">
+            <div className="timeline-summary">
+              <h4>{timeline.field_name}</h4>
+              <p>
+                {timeline.points.length} data point
+                {timeline.points.length === 1 ? "" : "s"}
+                {selectedField?.type && (
+                  <span className="timeline-field-type">
+                    {" "}
+                    • {fieldTypeLabel(selectedField.type)}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {timeline.points.length === 0 ? (
+              <p className="hint">No values found for this field in the selected range.</p>
+            ) : (
+              <>
+                <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart
+                      data={timeline.points.map((point) => ({
+                        ...point,
+                        date: new Date(point.created_at).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                        }),
+                        displayValue: String(point.value),
+                        numericValue:
+                          timeline.field_type === "number" ? Number(point.value) : null,
+                      }))}
+                      margin={{ top: 10, right: 16, left: -14, bottom: 6 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="chart-grid" vertical={false} />
+                      <XAxis dataKey="date" className="chart-axis" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis className="chart-axis" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--line)",
+                          borderRadius: 12,
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
+                        name={timeline.field_name}
+                        className="chart-line"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="timeline-table-wrapper">
+                  <table className="timeline-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Value</th>
+                        <th scope="col">Format version</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {timeline.points.map((point) => (
+                        <tr key={point.entry_id}>
+                          <td>{new Date(point.created_at).toLocaleString()}</td>
+                          <td>{String(point.value)}</td>
+                          <td>{point.schema_version}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </section>
     </section>
   )
 }
@@ -2506,8 +2803,16 @@ function ProjectDetail({
   onToggleArchive,
   onDeleteProject,
   onOpenProject,
+  onOpenEntry,
+  onLeftProject,
 }) {
   const [tab, setTab] = useState("entries")
+  // First-visit guidance for each tab, shown once. Held here rather than in
+  // `App` because the tab is the thing being explained and only this component
+  // knows which one is open.
+  const [seen, setSeen] = useState(seenTours)
+  const hint = PROJECT_TOURS[tab]
+  const showHint = hint && !seen.includes(hint.id)
 
   useEffect(() => {
     setTab("entries")
@@ -2583,10 +2888,11 @@ function ProjectDetail({
             )}
             <EntryList
               entries={project.entries || []}
-              schema={project.entry_schema || []}
-              retiredSchema={project.retired_schema || []}
+              project={project}
               projects={projects}
               onOpenProject={onOpenProject}
+              onOpenEntry={onOpenEntry}
+              canEdit={!project.archived}
             />
           </>
         ) : tab === "schema" ? (
@@ -2604,10 +2910,7 @@ function ProjectDetail({
       </div>
       <footer className="detail-footer">
         {project.shared ? (
-          <p className="detail-shared-note">
-            Shared with you. You can add entries here; changing the project's
-            fields, archiving and exporting stay with its owner.
-          </p>
+          <LeaveProjectControl project={project} onLeft={onLeftProject} />
         ) : (
           <>
             <ShareProjectPanel projectId={project.id} />
@@ -2624,7 +2927,84 @@ function ProjectDetail({
           </>
         )}
       </footer>
+
+      {showHint && (
+        <PageHint
+          hint={hint}
+          onDismiss={() => setSeen((current) => [...current, hint.id])}
+        />
+      )}
     </section>
+  )
+}
+
+/**
+ * Stepping away from a project somebody shared with you.
+ *
+ * The other half of an invitation. Accepting used to be the only move
+ * available — there was no way to hand a project back, which made "share"
+ * closer to "assign". Confirmed rather than instant, because the entries you
+ * wrote stay behind and it is worth saying so before rather than after.
+ */
+function LeaveProjectControl({ project, onLeft }) {
+  const [confirming, setConfirming] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const leave = async () => {
+    setLeaving(true)
+    setError("")
+    try {
+      await leaveProject(project.id)
+      onLeft(project.id)
+    } catch (caught) {
+      setError(formatError(caught))
+      setLeaving(false)
+    }
+  }
+
+  return (
+    <div className="detail-shared">
+      <p className="detail-shared-note">
+        Shared with you. You can add entries here and correct your own; changing
+        the project&rsquo;s fields, archiving and exporting stay with its owner.
+      </p>
+
+      {confirming ? (
+        <div className="detail-leave-confirm">
+          <p>
+            Leave <strong>{project.name}</strong>? It disappears from your workspace.
+            The entries you wrote stay in the project — they are part of its record.
+            Its owner can invite you back.
+          </p>
+          <div className="detail-footer-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setConfirming(false)}
+              disabled={leaving}
+            >
+              Stay
+            </button>
+            <button type="button" className="btn-danger" onClick={leave} disabled={leaving}>
+              {leaving ? "Leaving…" : "Leave project"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="detail-footer-actions">
+          <button type="button" className="btn-secondary" onClick={() => setConfirming(true)}>
+            Leave project
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <p className="share-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -2742,15 +3122,20 @@ function ShareProjectPanel({ projectId }) {
     setNotice("")
     try {
       const member = await shareProject(projectId, address)
-      // Sharing is idempotent on the server, so re-inviting someone returns
-      // them rather than failing — don't list them twice.
+      // Inviting is idempotent on the server, so re-inviting someone returns
+      // their existing invitation rather than failing — replace their row
+      // rather than listing them twice.
       setMembers((current) =>
         current.some((person) => person.user_id === member.user_id)
-          ? current
+          ? current.map((person) => (person.user_id === member.user_id ? member : person))
           : [...current, member]
       )
       setEmail("")
-      setNotice(`${member.full_name} can now add entries to this project.`)
+      setNotice(
+        member.status === "accepted"
+          ? `${member.full_name} already has access to this project.`
+          : `Invitation sent to ${member.full_name}. Nothing is shared until they accept.`
+      )
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -2775,24 +3160,39 @@ function ShareProjectPanel({ projectId }) {
     <div className="share-panel">
       <h4 className="share-title">Shared with</h4>
       <p className="share-hint">
-        People you add can read this project and write entries in it. Only you can
-        change its fields, archive it or export it.
+        An invitation, not a hand-over: nothing reaches them until they accept.
+        Once they do they can read this project and write entries in it. Only you
+        can change its fields, archive it or export it.
       </p>
 
       {members.length === 0 ? (
-        <p className="share-empty">Not shared with anyone yet.</p>
+        <p className="share-empty">Nobody has been invited yet.</p>
       ) : (
         <ul className="share-members">
           {members.map((member) => (
-            <li key={member.user_id} className="share-member">
-              <span className="share-member-name">{member.full_name}</span>
+            <li key={member.user_id} className={`share-member is-${member.status}`}>
+              <span className="share-member-name">
+                {member.full_name}
+                {/* Without this an owner cannot tell an unanswered invitation
+                    from a silent failure, and sends it again. */}
+                {member.status === "pending" && (
+                  <span className="share-status is-pending" title="Waiting for them to accept">
+                    Invited
+                  </span>
+                )}
+                {member.status === "declined" && (
+                  <span className="share-status is-declined" title="They turned this invitation down">
+                    Declined
+                  </span>
+                )}
+              </span>
               <span className="share-member-email">{member.email}</span>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => revoke(member)}
               >
-                Remove
+                {member.status === "accepted" ? "Remove" : "Cancel"}
               </button>
             </li>
           ))}
@@ -2810,7 +3210,7 @@ function ShareProjectPanel({ projectId }) {
           />
         </label>
         <button type="submit" className="btn-primary" disabled={isSharing || !email.trim()}>
-          {isSharing ? "Sharing…" : "Share"}
+          {isSharing ? "Inviting…" : "Send invitation"}
         </button>
       </form>
 
@@ -2872,7 +3272,6 @@ function App() {
   const userId = useMemo(currentUserId, [])
   const pendingBefore = useRef(0)
   const [selectedId, setSelectedId] = useState(null)
-  const [view, setView] = useState("project")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -2885,9 +3284,16 @@ function App() {
   const [miraOpen, setMiraOpen] = useState(false)
   const miraSequence = useRef(0)
   const miraActionSavingRef = useRef(false)
+  // The entry currently open for reading, correcting or removing. Held here
+  // rather than in each list, because the same panel serves the project view,
+  // the timeline and the entries table.
+  const [openEntry, setOpenEntry] = useState(null)
+  // Which guided tours this person has already been shown. Read once and kept
+  // in state so dismissing one re-renders without a second storage read.
+  const [toursSeen, setToursSeen] = useState(seenTours)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
+    const validViews = ["home", "today", "timeline", "statistics", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -2970,7 +3376,6 @@ function App() {
   }, [miraPendingAction, projects])
 
   const openMiraProject = useCallback((projectId) => {
-    setView("project")
     setSelectedId(projectId)
     setCurrentView("home")
   }, [])
@@ -3082,8 +3487,7 @@ function App() {
     try {
       const project = await createProject({ name, description, entry_schema: [] })
       setProjects((prev) => [...prev, project])
-      setView("project")
-      setSelectedId(project.id)
+        setSelectedId(project.id)
       setIsModalOpen(false)
     } catch (err) {
       setError(formatError(err))
@@ -3091,15 +3495,13 @@ function App() {
   }
 
   const handleSelectProject = (id) => {
-    setView("project")
     setSelectedId(id)
     setCurrentView("home")
   }
 
-  const handleShowTimeline = () => {
-    setView("timeline")
+  const handleShowStatistics = () => {
     setSelectedId(null)
-    setCurrentView("home")
+    setCurrentView("statistics")
   }
 
   const handleSeedDemoData = async () => {
@@ -3108,8 +3510,7 @@ function App() {
       setProjects(data)
       if (data.length > 0) {
         setSelectedId(data[0].id)
-        setView("project")
-      }
+          }
     } catch (err) {
       setError(formatError(err))
     }
@@ -3147,11 +3548,68 @@ function App() {
 
   const handleDeleteProject = (deletedId) => {
     setProjects((prev) => prev.filter((project) => project.id !== deletedId))
-    // What was on screen no longer exists, so fall back to the timeline rather
+    // What was on screen no longer exists, so fall back to the workspace rather
     // than leaving the detail panel pointed at a project that is gone.
     setSelectedId(null)
-    setView("timeline")
   }
+
+  /** Leaving a shared project is the same outcome, by a different route. */
+  const handleLeftProject = handleDeleteProject
+
+  /**
+   * An entry opened for reading, correcting or removing.
+   *
+   * The timeline and the entries table return rows that carry `project_id` but
+   * not the project itself, so the project is resolved here — one place that
+   * knows how to pair an entry with the format it belongs to.
+   */
+  const entryContext = useMemo(() => {
+    if (!openEntry) return null
+    const project =
+      projects.find((candidate) => candidate.id === openEntry.project_id) || selectedProject
+    return project ? { entry: openEntry, project } : null
+  }, [openEntry, projects, selectedProject])
+
+  const handleEntrySaved = (saved) => {
+    setProjects((previous) =>
+      previous.map((project) =>
+        project.id === saved.project_id
+          ? {
+              ...project,
+              entries: (project.entries || []).map((entry) =>
+                entry.id === saved.id ? saved : entry
+              ),
+            }
+          : project
+      )
+    )
+    setOpenEntry(saved)
+  }
+
+  const handleEntryDeleted = (deletedId) => {
+    setProjects((previous) =>
+      previous.map((project) => ({
+        ...project,
+        entries: (project.entries || []).filter((entry) => entry.id !== deletedId),
+      }))
+    )
+    setOpenEntry(null)
+  }
+
+  const showWelcome = !toursSeen.includes(WELCOME_TOUR.id)
+
+  /**
+   * The one-card hint for the page currently open, if it has not been seen.
+   *
+   * Suppressed while a project is open, because `ProjectDetail` explains its
+   * own tabs and two cards at once would be an ambush rather than help.
+   */
+  const pageHint = useMemo(() => {
+    if (showWelcome) return null
+    if (currentView === "home" && selectedProject) return null
+    const hint = PAGE_TOURS[currentView]
+    return hint && !toursSeen.includes(hint.id) ? hint : null
+  }, [currentView, selectedProject, toursSeen, showWelcome])
 
   const handleEntryCreated = async (payload) => {
     if (!selectedProject) return
@@ -3291,55 +3749,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="app-bg-dynamic" aria-hidden="true">
-        <div className="app-bg-sky" />
-        <div className="app-bg-waves">
-          <svg className="wave wave-back" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <path d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
-          </svg>
-          <svg className="wave wave-mid" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <path d="M0,256L48,245.3C96,235,192,213,288,202.7C384,192,480,192,576,208C672,224,768,256,864,261.3C960,267,1056,245,1152,229.3C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
-          </svg>
-          <svg className="wave wave-silhouettes" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <g className="silhouette-scene">
-              <g transform="translate(208, 130)">
-                <circle cx="46" cy="32" r="14" />
-                <path d="M34 50c-10 20-12 48-4 69h36c8-21 5-49-5-69z" />
-                <path d="M40 119l-10 53h14l13-50 13 50h14l-12-53z" />
-                <rect x="77" y="89" width="72" height="7" rx="3" />
-                <rect x="91" y="95" width="7" height="78" rx="3" />
-                <path d="M60 68l28 20 7-9-27-27z" />
-                <rect x="85" y="57" width="37" height="26" rx="3" transform="rotate(10 103 70)" />
-              </g>
-              <g transform="translate(535, 130)">
-                <circle cx="45" cy="31" r="14" />
-                <path d="M34 50c-8 24-4 49 8 66h15c12-17 16-42 7-66z" />
-                <path d="M42 115l-13 57h16l12-49 12 49h16l-14-57z" />
-                <path className="silhouette-detail" d="M37 65L9 88m57-22l30 19" />
-                <circle cx="7" cy="89" r="5" />
-              </g>
-              <g transform="translate(825, 164)">
-                <circle cx="49" cy="29" r="13" />
-                <path d="M41 46l29 20-14 28-30-16z" />
-                <path className="silhouette-detail" d="M38 59L5 55m50 38L35 134m14-40l39 28" />
-                <circle cx="108" cy="136" r="26" className="silhouette-detail" />
-                <circle cx="108" cy="136" r="5" />
-              </g>
-              <g transform="translate(1125, 128)">
-                <circle cx="44" cy="31" r="14" />
-                <path d="M32 50c-7 23-3 50 8 67h16c10-17 14-44 7-67z" />
-                <path d="M40 116l-14 56h16l12-48 13 48h16l-15-56z" />
-                <path className="silhouette-detail" d="M36 64L11 32m53 32l27-33" />
-                <circle cx="8" cy="29" r="5" /><circle cx="94" cy="28" r="5" />
-              </g>
-            </g>
-          </svg>
-          <svg className="wave wave-front" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <path d="M0,288L48,282.7C96,277,192,267,288,245.3C384,224,480,192,576,197.3C672,203,768,245,864,261.3C960,277,1056,267,1152,250.7C1248,235,1344,213,1392,202.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
-          </svg>
-        </div>
-        <div className="app-bg-grid" />
-      </div>
+      <AmbientBackground />
       <header className="topbar">
         <nav className="nav-pill">
           <div className="nav-flow" aria-hidden="true"><svg viewBox="0 0 1400 70" preserveAspectRatio="none"><path d="M-100 55 C180 -20 330 100 600 35 S1000 0 1500 45" /><path d="M-100 15 C250 90 420 -25 740 40 S1100 80 1500 10" /><path d="M-100 60 C350 20 500 80 900 15 S1200 65 1500 35" /></svg></div>
@@ -3351,7 +3761,7 @@ function App() {
             <button
               type="button"
               className={`nav-item ${currentView === "home" ? "active" : ""}`}
-              onClick={() => { setCurrentView("home"); setSelectedId(null); setView("project") }}
+              onClick={() => { setCurrentView("home"); setSelectedId(null) }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -3366,6 +3776,35 @@ function App() {
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
               <span>Today</span>
+            </button>
+            {/* The record itself, which the brief puts above everything else.
+                It sits second because it is the thing people come back for. */}
+            <button
+              type="button"
+              className={`nav-item ${currentView === "timeline" ? "active" : ""}`}
+              onClick={() => setCurrentView("timeline")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <line x1="12" y1="3" x2="12" y2="21" />
+                <circle cx="12" cy="7" r="2" />
+                <circle cx="12" cy="17" r="2" />
+                <line x1="14" y1="7" x2="20" y2="7" />
+                <line x1="4" y1="17" x2="10" y2="17" />
+              </svg>
+              <span>Timeline</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "statistics" ? "active" : ""}`}
+              onClick={() => setCurrentView("statistics")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <line x1="4" y1="20" x2="4" y2="12" />
+                <line x1="10" y1="20" x2="10" y2="4" />
+                <line x1="16" y1="20" x2="16" y2="9" />
+                <line x1="22" y1="20" x2="22" y2="14" />
+              </svg>
+              <span>Statistics</span>
             </button>
             <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
@@ -3434,7 +3873,23 @@ function App() {
             </button>
           </div>
           <div className="nav-pill-right">
+            <button
+              type="button"
+              className="nav-capture"
+              onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_CAPTURE))}
+              title="Capture an entry (Ctrl + Enter)"
+              aria-label="Capture an entry"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Capture</span>
+            </button>
             <OfflineStatus userId={userId} projects={projects} />
+            {/* Renders nothing at all when there is nothing waiting — a
+                permanently empty bell teaches people to stop looking at it. */}
+            <Invitations onChanged={loadProjects} />
             <AuthActions />
           </div>
         </nav>
@@ -3463,49 +3918,71 @@ function App() {
             selectedId={selectedId}
             onSelect={handleSelectProject}
             onCreate={() => setIsModalOpen(true)}
-            onShowHome={() => { setSelectedId(null); setView("project") }}
-            homeActive={view !== "timeline" && !selectedProject}
-            onShowTimeline={handleShowTimeline}
-            timelineActive={view === "timeline"}
+            onShowHome={() => setSelectedId(null)}
+            homeActive={!selectedProject}
+            onShowTimeline={() => setCurrentView("timeline")}
+            onShowStatistics={handleShowStatistics}
           />
         </div>}
         <div className="content">
-          {loading ? (
-            <p className="hint">Loading…</p>
-          ) : currentView === "calendar" ? (
-            <CalendarView projects={projects} />
-          ) : currentView === "today" ? (
-            <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
-          ) : currentView === "assistant" ? (
-            <MiraAssistantPage conversation={miraConversation} />
-          ) : currentView === "tasks" ? (
-            <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "entries" ? (
-            <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "board" ? (
-            <BoardView projects={projects} />
-          ) : currentView === "outstanding" ? (
-            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
-          ) : view === "timeline" ? (
-            <Timeline projects={projects} onOpenProject={handleSelectProject} />
-          ) : selectedProject ? (
-            <ProjectDetail
-              key={selectedProject.id}
-              project={openProject}
-              projects={projects}
-              onSchemaPreview={handleSchemaPreview}
-              onSchemaSaved={handleSchemaSave}
-              onEntryCreated={handleEntryCreated}
-              onEditProject={() => setIsEditModalOpen(true)}
-              onToggleArchive={handleToggleArchive}
-              onDeleteProject={handleDeleteProject}
-              onOpenProject={handleSelectProject}
-            />
-          ) : projects.length > 0 ? (
-            <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
-          ) : (
-            <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
-          )}
+          {/* Keyed on the view *and* the open project, so switching tabs and
+              switching projects both animate, while a data refresh inside one
+              view does not. */}
+          <ViewTransition viewKey={`${currentView}:${selectedId || "none"}`}>
+            {loading ? (
+              <ViewLoader label="Opening your logbook…" delay={0} />
+            ) : currentView === "calendar" ? (
+              <CalendarView projects={projects} />
+            ) : currentView === "today" ? (
+              <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+            ) : currentView === "timeline" ? (
+              <TimelinePage
+                projects={projects}
+                onOpenEntry={setOpenEntry}
+                onOpenProject={handleSelectProject}
+                onCreateProject={() => setIsModalOpen(true)}
+              />
+            ) : currentView === "statistics" ? (
+              <StatisticsPage
+                projects={projects}
+                statistics={statistics}
+                onOpenProject={handleSelectProject}
+              />
+            ) : currentView === "assistant" ? (
+              <MiraAssistantPage conversation={miraConversation} />
+            ) : currentView === "tasks" ? (
+              <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+            ) : currentView === "entries" ? (
+              <EntriesPage
+                projects={projects}
+                onCreate={() => setIsModalOpen(true)}
+                onOpenEntry={setOpenEntry}
+              />
+            ) : currentView === "board" ? (
+              <BoardView projects={projects} />
+            ) : currentView === "outstanding" ? (
+              <OutstandingPage projects={projects} onNavigate={setCurrentView} />
+            ) : selectedProject ? (
+              <ProjectDetail
+                key={selectedProject.id}
+                project={openProject}
+                projects={projects}
+                onSchemaPreview={handleSchemaPreview}
+                onSchemaSaved={handleSchemaSave}
+                onEntryCreated={handleEntryCreated}
+                onEditProject={() => setIsEditModalOpen(true)}
+                onToggleArchive={handleToggleArchive}
+                onDeleteProject={handleDeleteProject}
+                onOpenProject={handleSelectProject}
+                onOpenEntry={setOpenEntry}
+                onLeftProject={handleLeftProject}
+              />
+            ) : projects.length > 0 ? (
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
+            ) : (
+              <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
+            )}
+          </ViewTransition>
         </div>
       </main>
       <CreateProjectModal
@@ -3519,8 +3996,53 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
-      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} onShowStatistics={handleShowTimeline} />
+      <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} onShowStatistics={handleShowStatistics} />
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
+
+      {/* Capture from anywhere, without navigating to a project first. The
+          brief is blunt about why: an entry that takes a minute to file will
+          not be filed. */}
+      <QuickCapture
+        projects={projects}
+        onCaptured={async () => { await loadProjects(); await loadEntries() }}
+        onOpenProject={handleSelectProject}
+      />
+
+      {/* Reading, correcting or removing one entry. One panel for every list
+          that can open one, so the three of them cannot drift apart. */}
+      {entryContext && (
+        <EntryEditor
+          entry={entryContext.entry}
+          project={entryContext.project}
+          projects={projects}
+          canEdit={!entryContext.project.archived}
+          onClose={() => setOpenEntry(null)}
+          onSaved={handleEntrySaved}
+          onDeleted={handleEntryDeleted}
+          onOpenProject={(id) => {
+            setOpenEntry(null)
+            handleSelectProject(id)
+          }}
+        />
+      )}
+
+      {/* Guidance. The welcome tour runs once and takes precedence; after that
+          each page explains itself the first time it is opened, which is the
+          only moment the explanation is worth reading. */}
+      {!loading && showWelcome ? (
+        <WelcomeTour
+          tour={WELCOME_TOUR}
+          onFinish={() => setToursSeen((current) => [...current, WELCOME_TOUR.id])}
+        />
+      ) : (
+        !loading &&
+        pageHint && (
+          <PageHint
+            hint={pageHint}
+            onDismiss={() => setToursSeen((current) => [...current, pageHint.id])}
+          />
+        )
+      )}
     </div>
   )
 }

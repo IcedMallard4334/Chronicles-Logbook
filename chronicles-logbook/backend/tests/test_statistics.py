@@ -702,3 +702,241 @@ async def test_a_project_with_no_entries_has_no_streak(authenticated_client, pro
     assert body["projects"][0]["current_streak"] == 0
     assert body["projects"][0]["longest_streak"] == 0
     assert body["totals"]["current_streak"] == 0
+
+# ── Activity over a week or a term ───────────────────────────────────────────
+
+
+async def test_activity_reports_entries_per_week(authenticated_client, project):
+    await _log(authenticated_client, project["id"], "a", when=at(2026, 3, 2), minutes=30)
+    await _log(authenticated_client, project["id"], "b", when=at(2026, 3, 4), minutes=15)
+    await _log(authenticated_client, project["id"], "c", when=at(2026, 3, 16))
+
+    response = await authenticated_client.get("/statistics/activity?bucket=week")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["bucket"] == "week"
+    # Weeks are labelled by the Monday that starts them, so a week reads as a
+    # date somebody can find in a calendar rather than as "2026-W10".
+    assert payload["points"][0] == {
+        "period": "2026-03-02",
+        "entries": 2,
+        "time_spent": 45,
+    }
+
+
+async def test_activity_shows_a_quiet_week_as_a_zero(authenticated_client, project):
+    """A gap that is simply absent from the data reads as no gap at all."""
+    await _log(authenticated_client, project["id"], "a", when=at(2026, 3, 2))
+    await _log(authenticated_client, project["id"], "b", when=at(2026, 3, 16))
+
+    payload = (await authenticated_client.get("/statistics/activity?bucket=week")).json()
+
+    assert [point["period"] for point in payload["points"]] == [
+        "2026-03-02",
+        "2026-03-09",
+        "2026-03-16",
+    ]
+    assert payload["points"][1]["entries"] == 0
+
+
+async def test_activity_can_be_narrowed_to_one_project(authenticated_client, project):
+    other = (
+        await authenticated_client.post(
+            "/projects", json={"name": "Other", "entry_schema": SCHEMA}
+        )
+    ).json()
+    await _log(authenticated_client, project["id"], "mine", when=at(2026, 3, 2))
+    await _log(authenticated_client, other["id"], "theirs", when=at(2026, 3, 2))
+
+    payload = (
+        await authenticated_client.get(
+            f"/statistics/activity?bucket=day&project_id={project['id']}"
+        )
+    ).json()
+
+    assert [point["entries"] for point in payload["points"]] == [1]
+
+
+async def test_activity_of_an_empty_logbook_is_empty(authenticated_client):
+    payload = (await authenticated_client.get("/statistics/activity")).json()
+    assert payload["points"] == []
+
+
+async def test_activity_needs_the_project_to_be_yours(
+    second_authenticated_client, project
+):
+    response = await second_authenticated_client.get(
+        f"/statistics/activity?project_id={project['id']}"
+    )
+    assert response.status_code == 404
+
+
+# ── Taking the numbers away with you ─────────────────────────────────────────
+
+
+async def test_statistics_export_lists_the_totals_and_every_project(
+    authenticated_client, project
+):
+    await _log(authenticated_client, project["id"], "a", minutes=90)
+
+    response = await authenticated_client.get("/statistics/export.csv")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    body = response.text
+    assert "Chronicles statistics" in body
+    # The same duration the app shows, with the raw minutes beside it so the
+    # file and the screen can be reconciled.
+    assert "Time logged,1h 30m" in body
+    assert "Field Notes" in body
+
+
+async def test_project_statistics_export_covers_fields_and_activity(
+    authenticated_client,
+):
+    project = (
+        await authenticated_client.post(
+            "/projects", json={"name": "Thesis", "entry_schema": STATS_SCHEMA}
+        )
+    ).json()
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"hours": 3, "category": "Study"}, "time_spent": 60},
+    )
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"hours": 5, "category": "Study"}},
+    )
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project['id']}/export.csv"
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "Statistics for Thesis" in body
+    assert "Hours,number,yes,2,0,8.0" in body
+    assert "Category,Study,2" in body
+    assert "Activity by week" in body
+
+
+async def test_project_statistics_export_needs_the_project_to_be_yours(
+    second_authenticated_client, project
+):
+    response = await second_authenticated_client.get(
+        f"/statistics/projects/{project['id']}/export.csv"
+    )
+    assert response.status_code == 404
+
+
+# ── Statistics after a format change ─────────────────────────────────────────
+
+
+async def test_a_field_still_totals_after_it_changes_type(authenticated_client):
+    """Past entries keep what they recorded, so the figures written while the
+    field was a number are still figures and still belong in the total."""
+    project = (
+        await authenticated_client.post(
+            "/projects", json={"name": "Hours", "entry_schema": STATS_SCHEMA}
+        )
+    ).json()
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"hours": 3, "category": "Work"}},
+    )
+
+    await authenticated_client.put(
+        f"/projects/{project['id']}/schema",
+        json={
+            "entry_schema": [
+                {"id": "hours", "name": "Hours", "type": FieldType.NUMBER.value},
+                {"id": "category", "name": "Category", "type": FieldType.TEXT.value},
+            ]
+        },
+    )
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"hours": 4, "category": "Work"}},
+    )
+
+    fields = (
+        await authenticated_client.get(f"/statistics/projects/{project['id']}/fields")
+    ).json()["fields"]
+
+    hours = next(field for field in fields if field["field_id"] == "hours")
+    assert hours["total"] == 7
+
+    # Two values recorded under two different types. Both are counted, with
+    # the difference reported rather than hidden.
+    category = next(field for field in fields if field["field_id"] == "category")
+    assert category["count"] == 2
+    assert category["from_earlier_formats"] == 1
+
+
+async def test_a_removed_field_still_reports_what_it_recorded(authenticated_client):
+    """The work it recorded happened. A total that quietly dropped it would be
+    wrong about the project rather than merely incomplete."""
+    project = (
+        await authenticated_client.post(
+            "/projects", json={"name": "Hours", "entry_schema": STATS_SCHEMA}
+        )
+    ).json()
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"hours": 6, "category": "Work"}},
+    )
+
+    await authenticated_client.put(
+        f"/projects/{project['id']}/schema",
+        json={
+            "entry_schema": [
+                {
+                    "id": "category",
+                    "name": "Category",
+                    "type": FieldType.DROPDOWN.value,
+                    "options": ["Work", "Study", "Personal"],
+                }
+            ]
+        },
+    )
+
+    fields = (
+        await authenticated_client.get(f"/statistics/projects/{project['id']}/fields")
+    ).json()["fields"]
+
+    hours = next(field for field in fields if field["field_id"] == "hours")
+    assert hours["total"] == 6
+    assert hours["retired"] is True
+
+
+async def test_tags_are_grouped_one_tag_at_a_time(authenticated_client):
+    """Grouping by the whole list gives one group per unique combination,
+    which answers nothing. What have I been tagging? is the question."""
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={
+                "name": "Tagged",
+                "entry_schema": [
+                    {"id": "labels", "name": "Labels", "type": FieldType.TAGS.value}
+                ],
+            },
+        )
+    ).json()
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"labels": ["reading", "draft"]}},
+    )
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={"data": {"labels": ["reading"]}},
+    )
+
+    fields = (
+        await authenticated_client.get(f"/statistics/projects/{project['id']}/fields")
+    ).json()["fields"]
+
+    labels = next(field for field in fields if field["field_id"] == "labels")
+    counts = {group["value"]: group["count"] for group in labels["groups"]}
+    assert counts == {"reading": 2, "draft": 1}

@@ -1,0 +1,280 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for DayActivityDialog.jsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="prettify.css" />
+    <link rel="stylesheet" href="base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="index.html">All files</a> DayActivityDialog.jsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/59</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/51</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/17</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/39</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useEffect, useRef, useState } from "react"
+import { createCalendarActivity, deleteCalendarActivity } from "./api"
+import { dateKey } from "./calendarDates"
+import "./DayActivityDialog.css"
+&nbsp;
+export default function <span class="fstat-no" title="function not covered" >DayActivityDialog({</span>date, events, entries, activities, loading, activityError, onClose, onSaved, onDeleted}) {
+  const dialog = <span class="cstat-no" title="statement not covered" >useRef(null)</span>
+  const [adding, setAdding] = <span class="cstat-no" title="statement not covered" >useState(false)</span>
+  const [saving, setSaving] = <span class="cstat-no" title="statement not covered" >useState(false)</span>
+  const [error, setError] = <span class="cstat-no" title="statement not covered" >useState("")</span>
+  const [allDay, setAllDay] = <span class="cstat-no" title="statement not covered" >useState(false)</span>
+  const [deleteId, setDeleteId] = <span class="cstat-no" title="statement not covered" >useState(null)</span>
+  const [deleting, setDeleting] = <span class="cstat-no" title="statement not covered" >useState(false)</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >  useEffect(() =&gt; {</span></span>
+    const element = <span class="cstat-no" title="statement not covered" >dialog.current</span>
+<span class="cstat-no" title="statement not covered" >    element.showModal()</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >    return () =&gt; {</span> <span class="cstat-no" title="statement not covered" >element.close() }</span></span>
+  }, [])
+  async function <span class="fstat-no" title="function not covered" >save(e</span>vent) {
+<span class="cstat-no" title="statement not covered" >    event.preventDefault(); <span class="cstat-no" title="statement not covered" >s</span>etError("")</span>
+    const form = <span class="cstat-no" title="statement not covered" >new FormData(event.currentTarget)</span>
+    const title = <span class="cstat-no" title="statement not covered" >String(form.get("title")).trim()</span>
+    const start = <span class="cstat-no" title="statement not covered" >form.get("start"), e</span>nd = <span class="cstat-no" title="statement not covered" >form.get("end")</span>
+<span class="cstat-no" title="statement not covered" >    if (!title) { <span class="cstat-no" title="statement not covered" >setError("Enter an activity title."); <span class="cstat-no" title="statement not covered" >r</span>eturn }</span></span>
+<span class="cstat-no" title="statement not covered" >    if (!allDay &amp;&amp; end &lt;= start) { <span class="cstat-no" title="statement not covered" >setError("End time must be after start time."); <span class="cstat-no" title="statement not covered" >r</span>eturn }</span></span>
+<span class="cstat-no" title="statement not covered" >    setSaving(true)</span>
+<span class="cstat-no" title="statement not covered" >    try {</span>
+      const activity = <span class="cstat-no" title="statement not covered" >await createCalendarActivity({title, description: form.get("description"), day: dateKey(date), all_day: allDay, start_time: allDay ? null : start, end_time: allDay ? null : end})</span>
+<span class="cstat-no" title="statement not covered" >      onSaved(activity); <span class="cstat-no" title="statement not covered" >s</span>etAdding(false); <span class="cstat-no" title="statement not covered" >s</span>etAllDay(false)</span>
+    } catch (caught) { <span class="cstat-no" title="statement not covered" >setError(caught.message) }</span>
+    finally { <span class="cstat-no" title="statement not covered" >setSaving(false) }</span>
+  }
+  async function <span class="fstat-no" title="function not covered" >remove() {</span>
+<span class="cstat-no" title="statement not covered" >    setDeleting(true); <span class="cstat-no" title="statement not covered" >s</span>etError("")</span>
+<span class="cstat-no" title="statement not covered" >    try { <span class="cstat-no" title="statement not covered" >await deleteCalendarActivity(deleteId); <span class="cstat-no" title="statement not covered" >o</span>nDeleted(deleteId); <span class="cstat-no" title="statement not covered" >s</span>etDeleteId(null) }</span></span>
+    catch (caught) { <span class="cstat-no" title="statement not covered" >setError(caught.message) }</span>
+    finally { <span class="cstat-no" title="statement not covered" >setDeleting(false) }</span>
+  }
+  const <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >clock = v</span>alue =&gt; <span class="cstat-no" title="statement not covered" >new Date(value).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})</span></span>
+  const agenda = <span class="cstat-no" title="statement not covered" >[</span>
+    ...events.<span class="fstat-no" title="function not covered" >map(i</span>tem =&gt; (<span class="cstat-no" title="statement not covered" >{key:`g-${item.id}`,kind:"google",title:item.summary,label:item.accountLabel,when:item.all_day?"All day":`${clock(item.start)} – ${clock(item.end)}`,sort:item.all_day?"":clock(item.start),link:item.html_link,description:item.location}))</span>,
+    ...entries.<span class="fstat-no" title="function not covered" >map(i</span>tem =&gt; (<span class="cstat-no" title="statement not covered" >{key:`e-${item.id}`,kind:"entry",title:item.project_name,label:"Logbook entry",when:clock(item.created_at),sort:clock(item.created_at)}))</span>,
+    ...activities.<span class="fstat-no" title="function not covered" >map(i</span>tem =&gt; (<span class="cstat-no" title="statement not covered" >{key:`a-${item.id}`,kind:"activity",id:item.id,title:item.title,label:"Chronicles activity",when:item.all_day?"All day":`${item.start_time} – ${item.end_time}`,sort:item.all_day?"":item.start_time,description:item.description}))</span>,
+  ].<span class="fstat-no" title="function not covered" >sort((a</span>,b)=&gt;<span class="cstat-no" title="statement not covered" >a.sort.localeCompare(b.sort))</span>
+<span class="cstat-no" title="statement not covered" >  return &lt;dialog ref={dialog} className="day-dialog" aria-labelledby="day-dialog-title" <span class="fstat-no" title="function not covered" >onCancel={e</span>vent =&gt; { <span class="cstat-no" title="statement not covered" >if (saving || deleting) <span class="cstat-no" title="statement not covered" >event.preventDefault(); else <span class="cstat-no" title="statement not covered" >o</span>nClose() }</span></span>}&gt;</span>
+    &lt;header className="day-dialog-header"&gt;&lt;div&gt;&lt;span className="day-dialog-kicker"&gt;YOUR DAY AT A GLANCE&lt;/span&gt;&lt;h2 id="day-dialog-title"&gt;{date.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}&lt;/h2&gt;&lt;/div&gt;&lt;button type="button" disabled={saving || deleting} aria-label="Close day" onClick={onClose}&gt;×&lt;/button&gt;&lt;/header&gt;
+    &lt;div className="day-dialog-body"&gt;
+      &lt;div className="day-dialog-tools"&gt;&lt;p&gt;{agenda.length} {agenda.length === 1 ? "item" : "items"} scheduled&lt;/p&gt;&lt;button type="button" className="btn-primary" disabled={adding} <span class="fstat-no" title="function not covered" >onClick={()=&gt;{<span class="cstat-no" title="statement not covered" ></span>setAdding(true);<span class="cstat-no" title="statement not covered" >s</span>etError("")}</span>}&gt;+ Add activity&lt;/button&gt;&lt;/div&gt;
+      {loading &amp;&amp; &lt;p role="status"&gt;Loading your day…&lt;/p&gt;}
+      {activityError &amp;&amp; &lt;p className="day-error" role="alert"&gt;{activityError}&lt;/p&gt;}
+      {error &amp;&amp; &lt;p className="day-error" role="alert"&gt;{error}&lt;/p&gt;}
+      {adding &amp;&amp; &lt;form className="day-activity-form" onSubmit={save}&gt;
+        &lt;h3&gt;New activity&lt;/h3&gt;&lt;p&gt;Saved in Chronicles for {date.toLocaleDateString()}. Google calendars are not changed.&lt;/p&gt;
+        &lt;label&gt;Activity title&lt;input name="title" maxLength={255} required autoFocus placeholder="e.g. Prepare project presentation" disabled={saving} /&gt;&lt;/label&gt;
+        &lt;label className="day-check"&gt;&lt;input type="checkbox" checked={allDay} <span class="fstat-no" title="function not covered" >onChange={e</span>=&gt;<span class="cstat-no" title="statement not covered" >setAllDay(e.target.checked)} d</span>isabled={saving} /&gt;All day&lt;/label&gt;
+        {!allDay &amp;&amp; &lt;div className="day-time-fields"&gt;&lt;label&gt;Start time&lt;input type="time" name="start" defaultValue="09:00" required disabled={saving} /&gt;&lt;/label&gt;&lt;label&gt;End time&lt;input type="time" name="end" defaultValue="10:00" required disabled={saving} /&gt;&lt;/label&gt;&lt;/div&gt;}
+        &lt;label&gt;Notes &lt;span&gt;(optional)&lt;/span&gt;&lt;textarea name="description" maxLength={4000} rows={2} disabled={saving} /&gt;&lt;/label&gt;
+        &lt;div className="day-form-actions"&gt;&lt;button type="button" className="btn-secondary" disabled={saving} <span class="fstat-no" title="function not covered" >onClick={()=&gt;{<span class="cstat-no" title="statement not covered" ></span>setAdding(false);<span class="cstat-no" title="statement not covered" >s</span>etError("")}</span>}&gt;Cancel&lt;/button&gt;&lt;button className="btn-primary" disabled={saving}&gt;{saving?"Saving…":"Save activity"}&lt;/button&gt;&lt;/div&gt;
+      &lt;/form&gt;}
+      {!loading &amp;&amp; !agenda.length &amp;&amp; &lt;div className="day-empty"&gt;&lt;h3&gt;A clear day.&lt;/h3&gt;&lt;p&gt;Add an activity, or connect another Google account to see more of your schedule.&lt;/p&gt;&lt;/div&gt;}
+      &lt;ol className="day-agenda"&gt;{agenda.<span class="fstat-no" title="function not covered" >map(i</span>tem=&gt;<span class="cstat-no" title="statement not covered" >&lt;li key={item.key} className={`day-agenda-item day-${item.kind}`}&gt;&lt;time&gt;{item.when}&lt;/time&gt;&lt;div&gt;&lt;span className="day-item-source"&gt;{item.label}&lt;/span&gt;{item.link?.startsWith("https://")?&lt;a href={item.link} target="_blank" rel="noopener noreferrer"&gt;{item.title} ↗&lt;/a&gt;:&lt;strong&gt;{item.title}&lt;/strong&gt;}{item.description&amp;&amp;&lt;p&gt;{item.description}&lt;/p&gt;}{item.id&amp;&amp;&lt;button type="button" className="day-delete" <span class="fstat-no" title="function not covered" >onClick={()=&gt;<span class="cstat-no" title="statement not covered" >s</span>etDeleteId(item.id)}&gt;D</span>elete activity&lt;/button&gt;}&lt;/div&gt;&lt;/li&gt;)</span>}&lt;/ol&gt;
+      {deleteId &amp;&amp; &lt;div className="day-delete-confirm" role="alert"&gt;&lt;p&gt;Delete this Chronicles activity?&lt;/p&gt;&lt;button type="button" disabled={deleting} <span class="fstat-no" title="function not covered" >onClick={()=&gt;<span class="cstat-no" title="statement not covered" >s</span>etDeleteId(null)}&gt;K</span>eep activity&lt;/button&gt;&lt;button type="button" disabled={deleting} onClick={remove}&gt;{deleting?"Deleting…":"Delete activity"}&lt;/button&gt;&lt;/div&gt;}
+    &lt;/div&gt;
+  &lt;/dialog&gt;
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-09-15T08:27:56.274Z
+            </div>
+        <script src="prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="sorter.js"></script>
+        <script src="block-navigation.js"></script>
+    </body>
+</html>
+    

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { OPEN_QUICK_CAPTURE } from "./QuickCapture"
 import "./CommandPalette.css"
 
 // The palette owns whether it is open, but the account menu needs to open it as
@@ -23,7 +24,14 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
     }
   }, [])
   const commands = useMemo(() => [
+    // First, because it is the thing people open this to do.
+    {
+      label: "Capture an entry",
+      hint: "Ctrl Enter",
+      action: () => window.dispatchEvent(new Event(OPEN_QUICK_CAPTURE)),
+    },
     { label: "Go to Today", hint: "Dashboard", action: () => onNavigate("today") },
+    { label: "Go to the timeline", hint: "Record", action: () => onNavigate("timeline") },
     { label: "Go to entries", hint: "Workspace", action: () => onNavigate("entries") },
     { label: "Go to tasks", hint: "Workspace", action: () => onNavigate("tasks") },
     { label: "Go to board", hint: "Workspace", action: () => onNavigate("board") },

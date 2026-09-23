@@ -136,10 +136,10 @@ async def test_preview_warns_when_a_type_change_would_lose_values(
     assert change["values_retired"] == 2
 
 
-async def test_preview_reports_a_type_change_that_only_reshapes_values(
+async def test_preview_reports_a_type_change_that_still_reads(
     authenticated_client, logged_project
 ):
-    """Numbers can always be written down, so becoming text costs nothing."""
+    """Numbers can always be written down, so becoming text reads the same."""
     response = await authenticated_client.post(
         f"/projects/{logged_project['id']}/schema/preview",
         json={
@@ -151,8 +151,10 @@ async def test_preview_reports_a_type_change_that_only_reshapes_values(
         },
     )
     change = _change(response.json(), "retyped")
+    assert change["severity"] == "info"
     assert change["values_retired"] == 0
-    assert change["values_coerced"] == 2
+    # Nothing is ever coerced now, so the count that reported it stays at zero.
+    assert change["values_coerced"] == 0
 
 
 async def test_preview_names_the_dropdown_choice_being_withdrawn(
@@ -199,12 +201,65 @@ async def test_preview_needs_the_project_to_be_yours(
     assert response.status_code == 404
 
 
+# ── The guarantee: a format change never rewrites the record ─────────────────
+
+
+async def test_a_schema_change_leaves_every_entry_exactly_as_written(
+    authenticated_client, logged_project
+):
+    """The whole point. Adding, removing, renaming and retyping all at once
+    still comes back with the same values in the same entries."""
+    project_id = logged_project["id"]
+    before = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
+
+    await authenticated_client.put(
+        f"/projects/{project_id}/schema",
+        json={
+            "entry_schema": [
+                {**HOURS, "type": FieldType.TEXT.value, "name": "Hours worked"},
+                {
+                    "id": "field-weather",
+                    "name": "Weather",
+                    "type": FieldType.DROPDOWN.value,
+                    "options": ["Fine", "Wet"],
+                },
+            ]
+        },
+    )
+
+    after = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
+    assert {entry["id"]: entry["data"] for entry in after} == {
+        entry["id"]: entry["data"] for entry in before
+    }
+    assert all(entry["retired_data"] == {} for entry in after)
+
+
+async def test_an_entry_keeps_the_format_it_was_written_under(
+    authenticated_client, logged_project
+):
+    """An earlier version has to stay readable, so the entry carries the
+    schema it was captured against rather than borrowing today's."""
+    project_id = logged_project["id"]
+    await authenticated_client.put(
+        f"/projects/{project_id}/schema", json={"entry_schema": [HOURS]}
+    )
+
+    entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
+    for entry in entries:
+        assert [field["id"] for field in entry["schema_snapshot"]] == [
+            "field-hours",
+            "field-notes",
+            "field-status",
+        ]
+
+
 # ── Adding a field to a live schema (US-2.7) ──────────────────────────────────
 
 
-async def test_a_new_text_field_is_backfilled_with_a_blank(
+async def test_a_new_field_is_not_written_onto_past_entries(
     authenticated_client, logged_project
 ):
+    """A blank the owner never typed is still a value they never wrote."""
     project_id = logged_project["id"]
     response = await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -221,12 +276,14 @@ async def test_a_new_text_field_is_backfilled_with_a_blank(
     assert response.json()["project"]["entry_schema"][-1]["name"] == "Weather"
 
     entries = await authenticated_client.get(f"/projects/{project_id}/entries")
-    assert all(entry["data"]["field-weather"] == "" for entry in entries.json())
+    assert all("field-weather" not in entry["data"] for entry in entries.json())
 
 
-async def test_a_new_number_field_is_backfilled_with_zero(
+async def test_a_new_number_field_does_not_invent_a_zero(
     authenticated_client, logged_project
 ):
+    """Zero is a figure, not an absence: backfilling it would report work that
+    was never costed as having cost nothing."""
     project_id = logged_project["id"]
     await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -241,10 +298,10 @@ async def test_a_new_number_field_is_backfilled_with_zero(
     )
 
     entries = await authenticated_client.get(f"/projects/{project_id}/entries")
-    assert all(entry["data"]["field-cost"] == 0 for entry in entries.json())
+    assert all("field-cost" not in entry["data"] for entry in entries.json())
 
 
-async def test_a_new_dropdown_field_is_backfilled_with_its_first_choice(
+async def test_a_new_choice_field_does_not_choose_for_past_entries(
     authenticated_client, logged_project
 ):
     project_id = logged_project["id"]
@@ -266,14 +323,14 @@ async def test_a_new_dropdown_field_is_backfilled_with_its_first_choice(
     )
 
     entries = await authenticated_client.get(f"/projects/{project_id}/entries")
-    assert all(entry["data"]["field-weather"] == "Unknown" for entry in entries.json())
+    assert all("field-weather" not in entry["data"] for entry in entries.json())
 
 
-async def test_a_new_date_field_is_backfilled_with_the_entrys_own_date(
+async def test_a_new_date_field_does_not_date_past_entries_for_them(
     authenticated_client, logged_project
 ):
-    """Today's date would be wrong on every historical entry; the day the
-    entry was captured is the only honest guess available."""
+    """The capture date was a reasonable guess, and a guess is still not what
+    the person recorded — the entry already carries its own timestamp."""
     project_id = logged_project["id"]
     captured = datetime(2026, 3, 4, 9, 30, tzinfo=timezone.utc)
     await _create_entry(
@@ -297,7 +354,7 @@ async def test_a_new_date_field_is_backfilled_with_the_entrys_own_date(
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
     old = next(entry for entry in entries if entry["data"]["field-notes"] == "Old")
-    assert old["data"]["field-when"] == "2026-03-04"
+    assert "field-when" not in old["data"]
 
 
 async def test_an_entry_can_be_written_immediately_after_a_field_is_added(
@@ -336,6 +393,8 @@ async def test_an_entry_can_be_written_immediately_after_a_field_is_added(
 async def test_a_removed_fields_values_are_kept_not_destroyed(
     authenticated_client, logged_project
 ):
+    """'Removed' means no longer asked for. What was already answered stays on
+    the entry that answered it, under the format it was answered in."""
     project_id = logged_project["id"]
     response = await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -344,11 +403,14 @@ async def test_a_removed_fields_values_are_kept_not_destroyed(
     assert response.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all("field-notes" not in entry["data"] for entry in entries)
-    assert {entry["retired_data"]["field-notes"] for entry in entries} == {
+    assert {entry["data"]["field-notes"] for entry in entries} == {
         "Site visit",
         "Write-up",
     }
+    assert all(
+        any(field["id"] == "field-notes" for field in entry["schema_snapshot"])
+        for entry in entries
+    )
 
 
 async def test_a_removed_field_keeps_its_label(authenticated_client, logged_project):
@@ -421,9 +483,11 @@ async def test_renaming_a_field_leaves_its_values_alone(
     }
 
 
-async def test_a_number_becoming_text_keeps_the_figure_as_written(
+async def test_a_number_becoming_text_leaves_the_recorded_figures_alone(
     authenticated_client, logged_project
 ):
+    """Becoming text is the one retype that could be done losslessly, and it
+    is still not done: 2 stays the number 2, not the string "2"."""
     project_id = logged_project["id"]
     await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -431,13 +495,25 @@ async def test_a_number_becoming_text_keeps_the_figure_as_written(
     )
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert {entry["data"]["field-hours"] for entry in entries} == {"2", "5"}
+    assert {entry["data"]["field-hours"] for entry in entries} == {2, 5}
 
 
-async def test_text_becoming_a_number_keeps_what_reads_as_one(authenticated_client):
+async def test_text_becoming_a_number_never_zeroes_what_it_cannot_read(
+    authenticated_client,
+):
+    """The old failure mode: 'twelve' cannot be read as a number, and used to
+    become 0 — a figure nobody wrote, in a record meant to be trustworthy."""
     project = await _create_project(authenticated_client, "Counts", [NOTES])
     await _create_entry(authenticated_client, project["id"], {"field-notes": "12"})
     await _create_entry(authenticated_client, project["id"], {"field-notes": "twelve"})
+
+    preview = await authenticated_client.post(
+        f"/projects/{project['id']}/schema/preview",
+        json={"entry_schema": [{**NOTES, "type": FieldType.NUMBER.value}]},
+    )
+    change = _change(preview.json(), "retyped")
+    assert change["severity"] == "warning"
+    assert change["values_retired"] == 1
 
     await authenticated_client.put(
         f"/projects/{project['id']}/schema",
@@ -445,14 +521,11 @@ async def test_text_becoming_a_number_keeps_what_reads_as_one(authenticated_clie
     )
 
     entries = (await authenticated_client.get(f"/projects/{project['id']}/entries")).json()
-    kept = next(entry for entry in entries if entry["data"]["field-notes"] == 12)
-    lost = next(entry for entry in entries if entry["retired_data"])
-    assert kept["retired_data"] == {}
-    assert lost["retired_data"]["field-notes"] == "twelve"
-    assert lost["data"]["field-notes"] == 0
+    assert {entry["data"]["field-notes"] for entry in entries} == {"12", "twelve"}
+    assert all(entry["retired_data"] == {} for entry in entries)
 
 
-async def test_withdrawing_a_dropdown_choice_retires_the_entries_using_it(
+async def test_withdrawing_a_dropdown_choice_leaves_the_entries_that_chose_it(
     authenticated_client, logged_project
 ):
     project_id = logged_project["id"]
@@ -462,14 +535,15 @@ async def test_withdrawing_a_dropdown_choice_retires_the_entries_using_it(
     )
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    affected = next(entry for entry in entries if entry["retired_data"])
-    assert affected["retired_data"]["field-status"] == "Closed"
-    assert affected["data"]["field-status"] == "Open"
+    assert {entry["data"]["field-status"] for entry in entries} == {"Open", "Closed"}
 
 
-async def test_a_field_becoming_computed_recalculates_past_entries(
+async def test_a_new_calculation_does_not_reach_backwards(
     authenticated_client, logged_project
 ):
+    """A calculation added today describes how entries are worked out from
+    today. Filling it in on past entries would put a figure in a record whose
+    author never saw the formula."""
     project_id = logged_project["id"]
     await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -489,10 +563,18 @@ async def test_a_field_becoming_computed_recalculates_past_entries(
     )
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert {entry["data"]["field-minutes"] for entry in entries} == {120, 300}
+    assert all("field-minutes" not in entry["data"] for entry in entries)
+
+    # Written after the change, so the calculation applies in full.
+    fresh = await _create_entry(
+        authenticated_client,
+        project_id,
+        {"field-hours": 4, "field-notes": "Later", "field-status": "Open"},
+    )
+    assert fresh["data"]["field-minutes"] == 240
 
 
-async def test_changing_an_expression_recalculates_past_entries(authenticated_client):
+async def test_changing_an_expression_leaves_past_figures_alone(authenticated_client):
     project = await _create_project(
         authenticated_client,
         "Rates",
@@ -523,18 +605,25 @@ async def test_changing_an_expression_recalculates_past_entries(authenticated_cl
             ]
         },
     )
-    assert _change(response.json(), "expression_changed")["entries_affected"] == 1
+    # Reported, because a reader comparing the figure against the new formula
+    # would find it does not follow from it — but reported as information, not
+    # as a warning, because nothing is at risk.
+    change = _change(response.json(), "expression_changed")
+    assert change["entries_affected"] == 1
+    assert change["severity"] == "info"
 
     entries = (await authenticated_client.get(f"/projects/{project['id']}/entries")).json()
-    assert entries[0]["data"]["field-total"] == 60
+    assert entries[0]["data"]["field-total"] == 30
+
+    later = await _create_entry(authenticated_client, project["id"], {"field-hours": 3})
+    assert later["data"]["field-total"] == 60
 
 
-async def test_a_link_added_to_a_live_schema_points_every_entry_at_it(
+async def test_a_link_added_to_a_live_schema_starts_from_the_next_entry(
     authenticated_client, logged_project
 ):
-    """A link names its target in the schema, so an added link reaches
-    backwards: the entries that predate it are pointed at the target rather
-    than left to say nothing."""
+    """A link names its target in the schema, so entries written from now on
+    carry it. The ones that predate it are left as they were written."""
     target = await _create_project(authenticated_client, "Dissertation", [])
     project_id = logged_project["id"]
     response = await authenticated_client.put(
@@ -556,14 +645,21 @@ async def test_a_link_added_to_a_live_schema_points_every_entry_at_it(
     assert response.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all(entry["data"]["field-for"] == target["id"] for entry in entries)
+    assert all("field-for" not in entry["data"] for entry in entries)
+
+    fresh = await _create_entry(
+        authenticated_client,
+        project_id,
+        {"field-hours": 1, "field-notes": "Later", "field-status": "Open"},
+    )
+    assert fresh["data"]["field-for"] == target["id"]
 
 
-async def test_retargeting_a_link_relinks_every_entry(
+async def test_retargeting_a_link_leaves_past_entries_pointing_where_they_did(
     authenticated_client, logged_project
 ):
-    """Editing a link in the schema is the one route by which a past entry's
-    link changes, and the review says so in the target's own words."""
+    """The review says which project the link moves to, and the entries that
+    already named the old one keep naming it."""
     first = await _create_project(authenticated_client, "Dissertation", [])
     second = await _create_project(authenticated_client, "Thesis", [])
     project_id = logged_project["id"]
@@ -577,6 +673,12 @@ async def test_retargeting_a_link_relinks_every_entry(
         f"/projects/{project_id}/schema",
         json={"entry_schema": [HOURS, NOTES, STATUS, link]},
     )
+    linked = await _create_entry(
+        authenticated_client,
+        project_id,
+        {"field-hours": 1, "field-notes": "Linked", "field-status": "Open"},
+    )
+    assert linked["data"]["field-for"] == first["id"]
 
     retargeted = {**link, "linked_project_id": second["id"]}
     preview = await authenticated_client.post(
@@ -585,9 +687,10 @@ async def test_retargeting_a_link_relinks_every_entry(
     )
     change = _change(preview.json(), "link_changed")
     assert change["description"] == (
-        "'Done for' will point at 'Thesis' and past entries will be relinked."
+        "'Done for' will point at 'Thesis' from now on. Entries already written "
+        "keep the project they pointed at."
     )
-    assert change["entries_affected"] == 2
+    assert change["entries_affected"] == 1
 
     applied = await authenticated_client.put(
         f"/projects/{project_id}/schema",
@@ -596,7 +699,8 @@ async def test_retargeting_a_link_relinks_every_entry(
     assert applied.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all(entry["data"]["field-for"] == second["id"] for entry in entries)
+    kept = next(entry for entry in entries if entry["id"] == linked["id"])
+    assert kept["data"]["field-for"] == first["id"]
 
 
 async def test_an_expression_written_by_name_is_stored_by_field_id(
@@ -695,12 +799,14 @@ async def test_an_archived_project_can_still_be_renamed(
     assert response.json()["name"] == "Fieldwork (2025)"
 
 
-async def test_the_ordinary_project_update_migrates_entries_too(
+async def test_the_ordinary_project_update_also_leaves_entries_alone(
     authenticated_client, logged_project
 ):
-    """There must be no route by which a schema changes and leaves its entries
-    in the old shape."""
+    """There must be no route by which a schema change reaches the record —
+    including the plain project form, which can replace a schema too."""
     project_id = logged_project["id"]
+    before = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
+
     response = await authenticated_client.put(
         f"/projects/{project_id}",
         json={
@@ -715,7 +821,9 @@ async def test_the_ordinary_project_update_migrates_entries_too(
     assert response.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all(entry["data"]["field-cost"] == 0 for entry in entries)
+    assert {entry["id"]: entry["data"] for entry in entries} == {
+        entry["id"]: entry["data"] for entry in before
+    }
 
 
 async def test_editing_a_schema_needs_the_project_to_be_yours(
@@ -736,15 +844,18 @@ async def test_removing_every_field_is_allowed(authenticated_client, logged_proj
     assert response.status_code == 200
 
     entries = (await authenticated_client.get(f"/projects/{project_id}/entries")).json()
-    assert all(entry["data"] == {} for entry in entries)
-    assert all(len(entry["retired_data"]) == 3 for entry in entries)
+    assert all(len(entry["data"]) == 3 for entry in entries)
+    assert all(len(entry["schema_snapshot"]) == 3 for entry in entries)
+
+    project = (await authenticated_client.get(f"/projects/{project_id}")).json()
+    assert len(project["retired_schema"]) == 3
 
 
-async def test_retired_values_survive_an_export_and_import(
+async def test_values_under_a_removed_field_survive_an_export_and_import(
     authenticated_client, second_authenticated_client, logged_project
 ):
-    """A round trip that dropped retired values would destroy the history that
-    removing a field was careful to keep."""
+    """A round trip that dropped what a removed field recorded would destroy
+    the history that keeping the values was careful to preserve."""
     project_id = logged_project["id"]
     await authenticated_client.put(
         f"/projects/{project_id}/schema", json={"entry_schema": [HOURS, STATUS]}
@@ -759,7 +870,7 @@ async def test_retired_values_survive_an_export_and_import(
     assert [field["name"] for field in copied["retired_schema"]] == ["Notes"]
 
     entries = (await second_authenticated_client.get(f"/projects/{copied['id']}/entries")).json()
-    assert {entry["retired_data"]["field-notes"] for entry in entries} == {
+    assert {entry["data"]["field-notes"] for entry in entries} == {
         "Site visit",
         "Write-up",
     }

@@ -159,15 +159,43 @@ async def test_repeat_import_into_another_account_creates_fresh_copies(
     assert len(after["projects"]) == 2
 
 
+async def test_an_entry_restores_under_the_format_it_was_written_in(
+    authenticated_client, second_authenticated_client, logbook
+):
+    """A project's format moves on and its past entries keep their own, so an
+    export carries each entry's format with it. Restoring into an account
+    that has never seen this project has to bring both back intact."""
+    exported = (await authenticated_client.get("/export")).json()
+    original = exported["projects"][0]["entries"][0]
+    assert original["schema_snapshot"], "the export must carry each entry's format"
+
+    await second_authenticated_client.post("/import", json=exported)
+
+    projects = (await second_authenticated_client.get("/projects")).json()
+    copied = next(project for project in projects if project["name"] == logbook["name"])
+    entries = (
+        await second_authenticated_client.get(f"/projects/{copied['id']}/entries")
+    ).json()
+
+    restored = next(entry for entry in entries if entry["data"] == original["data"])
+    assert restored["schema_snapshot"] == original["schema_snapshot"]
+
+
 async def test_import_reports_entries_that_no_longer_fit_the_schema(
     authenticated_client, logbook
 ):
-    """A reused project whose schema has moved on since the export.
+    """A file written before entries carried their own format, restored into a
+    project whose schema has moved on since.
 
-    The entries cannot be restored into it, and saying so is the point —
-    silently dropping them would lose work without telling anyone.
+    Those entries have nothing but the project's current schema to be read
+    against, they do not fit it, and saying so is the point — silently
+    dropping them would lose work without telling anyone.
     """
     exported = (await authenticated_client.get("/export")).json()
+    for project in exported["projects"]:
+        for entry in project["entries"]:
+            entry.pop("schema_snapshot", None)
+            entry["id"] = str(uuid4())
 
     await authenticated_client.put(
         f"/projects/{logbook['id']}",
@@ -267,10 +295,72 @@ async def test_csv_export_has_a_header_of_field_names(authenticated_client, logb
     assert "Field Notes.csv" in response.headers["content-disposition"]
 
     rows = list(csv.reader(io.StringIO(response.text)))
-    assert rows[0] == ["Captured at", "Topic", "Pages", "Time spent (minutes)"]
-    assert rows[1][1] == "Shading"
-    assert rows[1][2] == "12"
-    assert rows[1][3] == "45"
+    assert rows[0] == [
+        "Captured at",
+        "Logged by",
+        "Topic",
+        "Pages",
+        "Time spent (minutes)",
+        "Still to do",
+        "Due",
+    ]
+    assert rows[1][2] == "Shading"
+    assert rows[1][3] == "12"
+    assert rows[1][4] == "45"
+
+
+async def test_csv_export_keeps_a_column_for_a_field_no_longer_collected(
+    authenticated_client, logbook
+):
+    """Past entries keep the format they were written under, so a file built
+    only from today's schema would drop whole columns of real work."""
+    await authenticated_client.put(
+        f"/projects/{logbook['id']}/schema",
+        json={"entry_schema": [{"id": "topic", "name": "Topic", "type": "text"}]},
+    )
+
+    response = await authenticated_client.get(f"/projects/{logbook['id']}/export.csv")
+    rows = list(csv.reader(io.StringIO(response.text)))
+
+    assert "Pages (no longer collected)" in rows[0]
+    pages = rows[0].index("Pages (no longer collected)")
+    assert rows[1][pages] == "12"
+
+
+async def test_csv_export_renders_tags_and_checklists_readably(authenticated_client):
+    """``str`` on a list gives ``['a', 'b']`` and on a checklist gives noise.
+    Neither is what somebody opening this in a spreadsheet came for."""
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={
+                "name": "Rich",
+                "entry_schema": [
+                    {"id": "labels", "name": "Labels", "type": "tags"},
+                    {"id": "steps", "name": "Steps", "type": "checklist"},
+                ],
+            },
+        )
+    ).json()
+
+    await authenticated_client.post(
+        f"/projects/{project['id']}/entries",
+        json={
+            "data": {
+                "labels": ["reading", "draft"],
+                "steps": [
+                    {"id": "a", "text": "Outline", "completed": True},
+                    {"id": "b", "text": "Draft", "completed": False},
+                ],
+            }
+        },
+    )
+
+    response = await authenticated_client.get(f"/projects/{project['id']}/export.csv")
+    rows = list(csv.reader(io.StringIO(response.text)))
+
+    assert rows[1][rows[0].index("Labels")] == "reading, draft"
+    assert rows[1][rows[0].index("Steps")].startswith("1/2 — ")
 
 
 async def test_csv_export_is_scoped_to_the_owner(

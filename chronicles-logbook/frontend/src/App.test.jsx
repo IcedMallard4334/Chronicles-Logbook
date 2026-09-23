@@ -7,7 +7,10 @@ vi.mock("./api", () => ({
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchFieldStatistics: vi.fn(() => Promise.resolve({ project_id: "", schema_version: 1, fields: [] })),
+  fetchActivity: vi.fn(() => Promise.resolve({ bucket: "week", points: [] })),
+  fetchStatisticsCsv: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
+  leaveProject: vi.fn(),
 }))
 
 import App from "./App"
@@ -153,13 +156,17 @@ describe("App workspace", () => {
 
   it("opens the statistics view from the sidebar", async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
+    fireEvent.click(
+    within(
+      await screen.findByRole("navigation", { name: "Workspace views" })
+    ).getByRole("button", { name: /Statistics/ })
+  )
     expect(await screen.findByRole("heading", { name: "Statistics" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Select project")).toBeInTheDocument()
+    expect(screen.getByLabelText("Narrow statistics to a project")).toBeInTheDocument()
     expect(screen.getByLabelText("Select field")).toBeInTheDocument()
     expect(screen.getByLabelText("Start date")).toBeInTheDocument()
     expect(screen.getByLabelText("End date")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Plot it" })).toBeInTheDocument()
   })
 
   it("totals and groups every field as soon as a project is chosen", async () => {
@@ -186,8 +193,12 @@ describe("App workspace", () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
-    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    fireEvent.click(
+    within(
+      await screen.findByRole("navigation", { name: "Workspace views" })
+    ).getByRole("button", { name: /Statistics/ })
+  )
+    fireEvent.change(screen.getByLabelText("Narrow statistics to a project"), { target: { value: "proj-1" } })
 
     const panel = await screen.findByRole("region", { name: "Field statistics" })
     expect(fetchFieldStatistics).toHaveBeenCalledWith("proj-1")
@@ -215,8 +226,12 @@ describe("App workspace", () => {
     fetchFieldStatistics.mockResolvedValueOnce({ project_id: "proj-1", schema_version: 1, fields: [] })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
-    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    fireEvent.click(
+    within(
+      await screen.findByRole("navigation", { name: "Workspace views" })
+    ).getByRole("button", { name: /Statistics/ })
+  )
+    fireEvent.change(screen.getByLabelText("Narrow statistics to a project"), { target: { value: "proj-1" } })
 
     expect(await screen.findByText(/Nothing to total yet/)).toBeInTheDocument()
   })
@@ -247,9 +262,13 @@ describe("App workspace", () => {
 
   render(<App />)
 
-  fireEvent.click(await screen.findByRole("button", { name: /Statistics/ }))
+  fireEvent.click(
+    within(
+      await screen.findByRole("navigation", { name: "Workspace views" })
+    ).getByRole("button", { name: /Statistics/ })
+  )
 
-  fireEvent.change(screen.getByLabelText("Select project"), {
+  fireEvent.change(screen.getByLabelText("Narrow statistics to a project"), {
     target: { value: "proj-1" },
   })
 
@@ -277,7 +296,7 @@ describe("App workspace", () => {
   console.log("ABOUT TO SUBMIT")
 
   fireEvent.submit(
-    screen.getByRole("button", { name: "Generate timeline" }).closest("form"),
+    screen.getByRole("button", { name: "Plot it" }).closest("form"),
   )
 
   console.log("SUBMIT FINISHED")

@@ -9,14 +9,17 @@
 
 A customisable digital logbook that lets students track project work without the friction (or forgetfulness) of a physical notebook. Unlike a fixed-schema tracker, every project owner defines their own entry format — field names, types, and structure — and the entire system (capture, statistics, views, search) adapts to whatever shape they choose, rather than the other way around.
 
-Recent additions include time tracking per entry with accumulated totals per project, task checklists with progress bars, a dedicated profile page, and both password-based and Google authentication.
+Recent work has focused on making that promise hold in both directions: a
+project's format can change without the entries already written being touched,
+entries can be corrected and removed, sharing asks before it grants, and the
+statistics follow whatever fields their owner has defined.
 
 ## Links
 
 | | URL |
 |---|---|
-| **Documentation** | [chronicles-drivenbydesign-docs.azurewebsites.net](https://chronicles-drivenbydesign-docs.azurewebsites.net) |
 | **Live app** | [chronicles-drivenbydesign-app…azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
+| **Documentation** | [chronicles-drivenbydesign-docs.azurewebsites.net](https://chronicles-drivenbydesign-docs.azurewebsites.net) |
 | **API (Swagger)** | [chronicles-drivenbydesign-api…azurewebsites.net/docs](https://chronicles-drivenbydesign-api-gub5h0e8aee0gcb0.uaenorth-01.azurewebsites.net/docs) |
 | **Repository** | [sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles) |
 
@@ -268,12 +271,63 @@ npm run build
 
 ## Features
 
-- **User-defined entry schemas** — each project defines its own fields (`text`, `number`, `date`, `dropdown`), and the capture forms, project dashboard, and search adapt automatically.
-- **Time tracking** — log `time_spent` (in minutes) on each entry; projects expose a computed `total_time_spent` aggregate.
-- **Task management** — create, update, complete, and delete tasks per project, with optional due dates and a per-task checklist that shows a progress bar.
-- **Global entry search** — search across all entries and filter by project via `/entries`.
-- **Authentication** — sign up and sign in with email/password or Google OAuth; password resets via secure token email.
-- **Profile page** — view account details, switch theme (light/dark/system), sign out, and delete the account with `DELETE` confirmation.
+### The record
+
+- **User-defined entry formats** — each project decides what an entry holds:
+  text, numbers, dates, a choice, tags, a checklist, a link to another entry, a
+  link to another project, or a calculation over the other fields. Capture,
+  search, statistics and every view adapt to whatever is chosen. The builder
+  explains each type with the question it answers and a worked example, rather
+  than offering nine words in a dropdown.
+- **A format change never rewrites what is already recorded.** Add, remove,
+  rename or retype a field and every existing entry keeps its values exactly as
+  written, along with the format it was written under. Reading reconciles the
+  two: an entry shows under today's format where the fields line up, and under
+  its own where they do not. A field an entry predates reads as *not recorded*,
+  which is not the same as blank.
+- **Entries can be corrected and removed.** Editing asks for the fields the
+  entry actually has, so a correction can never become a migration.
+- **Timeline** — the whole record, grouped by day, searchable, narrowable to one
+  project.
+
+### Capturing
+
+- **Quick capture** — <kbd>Ctrl</kbd>+<kbd>Enter</kbd> from anywhere opens a
+  capture box on the project you wrote in last, with dates on today and the
+  choice and tags you used last time already filled in. It stays open for the
+  next entry.
+- **Offline capture** — entries written without a connection are queued on the
+  device and synced when it returns, without duplicating.
+- **Time tracking** — log time on each entry; projects accumulate a
+  `total_time_spent`.
+- **Tasks** — what is still to do, per project, with due dates and checklists.
+
+### Statistics
+
+- **Time per project, activity over a week or a term, and streaks**, with empty
+  periods shown as gaps rather than closed up.
+- **Any field you have defined** — totalled, averaged, grouped and plotted over
+  time, including values recorded under earlier versions of that field and
+  fields the project no longer collects.
+- **Exports** — the whole logbook or one project, as CSV, alongside a JSON
+  export that round-trips.
+
+### Working together
+
+- **Invitations, not grants** — sharing a project asks; nothing reaches the
+  invitee's workspace until they accept, and they can leave whenever they like.
+- **Attribution** — every entry and task records who wrote it and who ticked it
+  off.
+
+### The app
+
+- **A guided tour on first sign-in**, and a one-card explanation the first time
+  each page is opened. Replayable from the profile page.
+- **Four themes** — each with its own backdrop, dimmed in dark mode, and a light
+  / dark / system switch.
+- **Authentication** — email and password or Google, with password resets.
+- Responsive to phone width, keyboard-operable, and honours
+  `prefers-reduced-motion`.
 
 ## Contributing
 

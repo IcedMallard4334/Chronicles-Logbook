@@ -3248,3 +3248,58 @@ button.log-link-chip:hover {
     height: 44px;
   }
 }
+
+/* --------------------------------------------------
+   QUICK CAPTURE TRIGGER
+   The one action in the bar that writes something, so it is the one that
+   carries the accent. Everything else in the nav navigates.
+   -------------------------------------------------- */
+
+.nav-capture {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.79rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.nav-capture:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.nav-capture:active { transform: translateY(0); }
+.nav-capture svg { width: 15px; height: 15px; }
+
+/* Below the point where the nav wraps, the label goes and the icon stays: a
+   round + is unambiguous once it is the only coloured thing in the bar. */
+@media (max-width: 900px) {
+  .nav-capture span { display: none; }
+  .nav-capture { padding: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-capture:hover { transform: none; }
+}
+
+/* The one-line "how you fill this in" under the richer field types. Three of
+   them look like a text box until you try to use one. */
+.field-capture-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.field-inline-hint { font-size: 0.78rem; }
+
+.field-option-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}

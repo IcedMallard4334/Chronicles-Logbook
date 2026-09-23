@@ -146,6 +146,28 @@ export async function unshareProject(id, memberId) {
   return request(`/projects/${id}/members/${memberId}`, { method: "DELETE" })
 }
 
+/** Step away from a project somebody shared with you. */
+export async function leaveProject(id) {
+  return request(`/projects/${id}/membership`, { method: "DELETE" })
+}
+
+// ── Invitations ───────────────────────────────────────────────────────
+//
+// Sharing is an offer, not a grant: until one of these is accepted the
+// project stays out of the invitee's workspace entirely.
+
+export async function fetchInvitations() {
+  return request("/invitations")
+}
+
+export async function acceptInvitation(projectId) {
+  return request(`/invitations/${projectId}/accept`, { method: "POST" })
+}
+
+export async function declineInvitation(projectId) {
+  return request(`/invitations/${projectId}/decline`, { method: "POST" })
+}
+
 // ── Editing a live schema ─────────────────────────────────────────────
 
 /**
@@ -320,6 +342,52 @@ export async function fetchStatistics() {
 
 export async function fetchFieldStatistics(projectId) {
   return request(`/statistics/projects/${projectId}/fields`)
+}
+
+/**
+ * Entries and time logged per day, week or month (the brief's "entries
+ * written over a week or a term").
+ */
+export async function fetchActivity({ projectId, bucket = "week", start, end } = {}) {
+  const params = new URLSearchParams({ bucket })
+  if (projectId) params.set("project_id", projectId)
+  if (start) params.set("start", start)
+  if (end) params.set("end", end)
+  return request(`/statistics/activity?${params.toString()}`)
+}
+
+/**
+ * A statistics CSV as text.
+ *
+ * Not routed through `request`, which parses JSON, and cannot be a plain link
+ * either, because the endpoint needs the bearer token like any other. Omitting
+ * `projectId` gives the whole logbook.
+ */
+export async function fetchStatisticsCsv(projectId) {
+  const path = projectId
+    ? `/statistics/projects/${projectId}/export.csv`
+    : "/statistics/export.csv"
+  const token = window.localStorage.getItem("chronicles_token")
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+  } catch {
+    const error = new Error("Cannot reach the Chronicles API.")
+    error.offline = true
+    throw error
+  }
+
+  if (!response.ok) {
+    const error = new Error(`Could not export these statistics (${response.status}).`)
+    error.status = response.status
+    throw error
+  }
+
+  return response.text()
 }
 
 export async function fetchFieldTimeline(projectId, fieldId, start, end) {

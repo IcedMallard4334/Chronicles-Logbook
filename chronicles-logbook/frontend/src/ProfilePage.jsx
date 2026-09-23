@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences } from "./preferences"
+import { resetTours } from "./tourSteps"
 import "./App.css"
 import "./ProfilePage.css"
 
@@ -95,6 +96,10 @@ export default function ProfilePage() {
   const [theme, cycleTheme] = useTheme()
   const [density, setDensity] = useDensity()
   const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
+  // Guidance is shown once and then never again, which is right until somebody
+  // wants it back. Without this the only way to see the tour a second time is
+  // to clear site data.
+  const [tourReset, setTourReset] = useState(false)
   const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -297,8 +302,29 @@ export default function ProfilePage() {
                   <span className="profile-row-value">Choose where Chronicles opens after sign-in.</span>
                 </div>
                 <select className="profile-select" value={startView} onChange={(event) => updateStartView(event.target.value)} aria-label="Default opening page">
-                  <option value="home">Home workspace</option><option value="today">Today</option><option value="calendar">Calendar</option>
+                  <option value="home">Home workspace</option>
+                  <option value="today">Today</option>
+                  <option value="timeline">Timeline</option>
+                  <option value="calendar">Calendar</option>
                 </select>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Guided tour</span>
+                  <span className="profile-row-value">
+                    {tourReset
+                      ? "Cleared. The tour and the page hints will show again next time you open the workspace."
+                      : "Show the welcome tour and each page's first-visit hint again."}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => { resetTours(); setTourReset(true) }}
+                  disabled={tourReset}
+                >
+                  {tourReset ? "Cleared" : "Show it again"}
+                </button>
               </div>
             </section>
 

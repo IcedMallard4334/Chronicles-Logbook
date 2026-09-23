@@ -1,0 +1,367 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for MiraAssistant.jsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="prettify.css" />
+    <link rel="stylesheet" href="base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="index.html">All files</a> MiraAssistant.jsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">93.93% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>31/33</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">93.87% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>46/49</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">93.33% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>14/15</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">96.29% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>26/27</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">292x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">51x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">266x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useEffect, useRef, useState } from "react"
+import "./MiraAssistant.css"
+&nbsp;
+const PROMPTS = [
+  { title: "Write a clearer update", detail: "Turn rough notes into a useful log entry.", prompt: "Help me write a clear project update. Ask me what I worked on, what I learned, and what comes next." },
+  { title: "Plan a focused session", detail: "Give your next work session a direction.", prompt: "Help me plan a focused work session." },
+  { title: "Start a project", detail: "Shape an idea into a project proposal.", prompt: "Help me create a project. Ask me for its name and description before proposing it." },
+]
+&nbsp;
+function MiraMark() {
+  return &lt;span className="mira-mark" aria-hidden="true"&gt;&lt;svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"&gt;&lt;path d="M4 17V7l8 8 8-8v10" /&gt;&lt;path d="M12 3v3M10.5 4.5h3" /&gt;&lt;/svg&gt;&lt;/span&gt;
+}
+&nbsp;
+function ProjectProposal({ action, saving, onConfirm, onCancel }) {
+  if (!action || action.type !== "create_project") return null
+  const { name, description } = action.payload
+  return &lt;section className="mira-project-proposal" aria-label="Proposed project"&gt;
+    &lt;span className="mira-message-label"&gt;Project proposal&lt;/span&gt;
+    &lt;strong&gt;{name}&lt;/strong&gt;
+    {description &amp;&amp; &lt;p&gt;{description}&lt;/p&gt;}
+    &lt;p className="mira-proposal-note"&gt;Mira has not created anything yet. Review this project before confirming.&lt;/p&gt;
+    &lt;div className="mira-proposal-actions"&gt;
+      &lt;button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}&gt;Cancel&lt;/button&gt;
+      &lt;button type="button" className="btn-primary" onClick={onConfirm} disabled={saving}&gt;{saving ? "Creating…" : "Create project"}&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+}
+&nbsp;
+function Conversation({ messages, sending, error, onSend, onClear, pendingAction, actionSaving, onConfirmAction, onCancelAction, onOpenProject, compact = false }) {
+  const [draft, setDraft] = useState("")
+  const feedRef = useRef(null)
+&nbsp;
+  useEffect(() =&gt; {
+    <span class="missing-if-branch" title="else path not taken" >E</span>if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight
+  }, [messages, sending, error])
+&nbsp;
+  const send = async (value = draft) =&gt; {
+    const message = value.trim()
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (!message || sending) <span class="cstat-no" title="statement not covered" >return</span>
+    setDraft("")
+    await onSend(message)
+  }
+&nbsp;
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === "Enter" &amp;&amp; !event.shiftKey) {
+      event.preventDefault()
+      send()
+    }
+  }
+&nbsp;
+  return &lt;&gt;
+    &lt;div className="mira-feed" ref={feedRef} aria-live="polite" aria-label="Mira conversation"&gt;
+      {!messages.length &amp;&amp; !sending &amp;&amp; &lt;div className="mira-welcome"&gt;
+        &lt;div&gt;&lt;h2&gt;Make room for your next idea.&lt;/h2&gt;&lt;p&gt;Bring a rough idea, a work update, or a plan. Let’s give it a clear next step.&lt;/p&gt;&lt;/div&gt;
+        &lt;div className="mira-prompts" aria-label="Suggested prompts"&gt;
+          {PROMPTS.map(({ title, detail, prompt }, index) =&gt; &lt;button type="button" key={title} onClick={() =&gt; { setDraft(prompt); document.getElementById(compact ? <span class="branch-0 cbranch-no" title="branch not covered" >"mira-compact-input" : "</span>mira-full-input")?.focus() }}&gt;&lt;span className="mira-prompt-number" aria-hidden="true"&gt;0{index + 1}&lt;/span&gt;&lt;strong&gt;{title}&lt;/strong&gt;&lt;span&gt;{detail}&lt;/span&gt;&lt;span className="mira-prompt-arrow" aria-hidden="true"&gt;↗&lt;/span&gt;&lt;/button&gt;)}
+        &lt;/div&gt;
+      &lt;/div&gt;}
+      {messages.map(message =&gt; &lt;article className={`mira-message mira-message-${message.role}`} key={message.id}&gt;
+        &lt;span className="mira-message-label"&gt;{message.role === "user" ? "You" : "Mira"}&lt;/span&gt;
+        &lt;p&gt;{message.content}&lt;/p&gt;
+        {message.projectId &amp;&amp; &lt;button type="button" className="mira-open-project" <span class="fstat-no" title="function not covered" >onClick={() =&gt; <span class="cstat-no" title="statement not covered" >o</span>nOpenProject(message.projectId)}&gt;O</span>pen project →&lt;/button&gt;}
+      &lt;/article&gt;)}
+      &lt;ProjectProposal action={pendingAction} saving={actionSaving} onConfirm={onConfirmAction} onCancel={onCancelAction} /&gt;
+      {sending &amp;&amp; &lt;div className="mira-typing" role="status"&gt;&lt;MiraMark /&gt; &lt;span&gt;Mira is thinking&lt;span className="mira-dots"&gt;…&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;}
+      {error &amp;&amp; &lt;div className="mira-error" role="alert"&gt;&lt;span&gt;{error.message}&lt;/span&gt;{error.retryMessage &amp;&amp; &lt;button type="button" onClick={() =&gt; onSend(error.retryMessage)}&gt;Retry&lt;/button&gt;}&lt;/div&gt;}
+    &lt;/div&gt;
+    &lt;form className="mira-composer" onSubmit={(event) =&gt; { event.preventDefault(); send() }}&gt;
+      &lt;label className="sr-only" htmlFor={compact ? "mira-compact-input" : "mira-full-input"}&gt;Message Mira&lt;/label&gt;
+      &lt;textarea id={compact ? "mira-compact-input" : "mira-full-input"} value={draft} onChange={(event) =&gt; setDraft(event.target.value)} onKeyDown={handleKeyDown} maxLength={2000} rows={compact ? 2 : 3} placeholder="What are you working on?" /&gt;
+      &lt;div className="mira-composer-actions"&gt;&lt;span&gt;&lt;span className="mira-keyboard-hint"&gt;Enter to send · Shift + Enter for a new line&lt;/span&gt;&lt;span&gt;{draft.length}/2000&lt;/span&gt;&lt;/span&gt;&lt;button className="btn-primary" type="submit" disabled={!draft.trim() || sending}&gt;Send&lt;/button&gt;&lt;/div&gt;
+      &lt;p className="mira-footnote"&gt;Review Mira’s suggestions. Project creation always needs your confirmation. Chats clear when you refresh.&lt;/p&gt;
+    &lt;/form&gt;
+    {messages.length &gt; 0 &amp;&amp; &lt;button type="button" className="mira-clear" onClick={onClear}&gt;Clear conversation&lt;/button&gt;}
+  &lt;/&gt;
+}
+&nbsp;
+export function MiraAssistantPage({ conversation }) {
+  return &lt;section className="mira-page workspace-page" aria-labelledby="mira-title"&gt;
+    &lt;header className="mira-page-header"&gt;&lt;div className="mira-heading-identity"&gt;&lt;MiraMark /&gt;&lt;div&gt;&lt;h1 id="mira-title"&gt;Mira &lt;span&gt;by Chronicles&lt;/span&gt;&lt;/h1&gt;&lt;p&gt;A thinking partner for your project work.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;span className="mira-page-badge"&gt;Ideas → plans → progress&lt;/span&gt;&lt;/header&gt;
+    &lt;p className="mira-permissions-link"&gt;&lt;a href="/mira-permissions"&gt;Mira permissions · review or change access&lt;/a&gt;&lt;/p&gt;
+    &lt;Conversation {...conversation} /&gt;
+  &lt;/section&gt;
+}
+&nbsp;
+export function MiraLauncher({ conversation, open, onToggle, onOpenFull }) {
+  return &lt;div className="mira-launcher"&gt;
+    {open &amp;&amp; &lt;section className="mira-panel" aria-label="Mira assistant"&gt;
+      &lt;header&gt;&lt;div&gt;&lt;MiraMark /&gt;&lt;span&gt;&lt;strong&gt;Mira&lt;/strong&gt;&lt;small&gt;Chronicles assistant&lt;/small&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;button type="button" className="mira-panel-link" onClick={onOpenFull}&gt;Open full assistant&lt;/button&gt;&lt;button type="button" aria-label="Close Mira" className="mira-close" onClick={onToggle}&gt;×&lt;/button&gt;&lt;/div&gt;&lt;/header&gt;
+      &lt;Conversation {...conversation} compact /&gt;
+    &lt;/section&gt;}
+    &lt;button type="button" className="mira-launch-button" aria-label={open ? "Close Mira assistant" : "Open Mira assistant"} aria-expanded={open} onClick={onToggle}&gt;&lt;MiraMark /&gt;&lt;span&gt;Mira&lt;/span&gt;&lt;/button&gt;
+  &lt;/div&gt;
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-09-15T08:27:56.274Z
+            </div>
+        <script src="prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="sorter.js"></script>
+        <script src="block-navigation.js"></script>
+    </body>
+</html>
+    

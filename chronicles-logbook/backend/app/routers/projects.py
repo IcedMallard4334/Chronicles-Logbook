@@ -8,7 +8,16 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.computed import apply_computed_fields
 from app.database import get_db
-from app.models import Entry, Project, ProjectMember, Task, User
+from app.models import (
+    MEMBERSHIP_ACCEPTED,
+    MEMBERSHIP_DECLINED,
+    MEMBERSHIP_PENDING,
+    Entry,
+    Project,
+    ProjectMember,
+    Task,
+    User,
+)
 from app.routers.auth import get_current_user
 from app.schema_migration import Simulation, simulate
 from app.schemas import (
@@ -285,6 +294,10 @@ async def _get_user_project(
 # Reading a project and adding to it are shared; reshaping or removing it —
 # the schema, archiving, deletion, export, and who else may see it — stays with
 # the owner, so being invited to contribute cannot become control of the record.
+#
+# An invitation that has not been accepted grants nothing: the join requires
+# the accepted status, so a pending invitee cannot read the project they are
+# being asked about until they say yes.
 async def _get_readable_project(
     project_id: UUID,
     user: User,
@@ -292,7 +305,11 @@ async def _get_readable_project(
 ) -> Project:
     project = await db.scalar(
         select(Project)
-        .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+        .outerjoin(
+            ProjectMember,
+            (ProjectMember.project_id == Project.id)
+            & (ProjectMember.status == MEMBERSHIP_ACCEPTED),
+        )
         .where(
             Project.id == project_id,
             or_(Project.user_id == user.id, ProjectMember.user_id == user.id),
@@ -312,7 +329,12 @@ async def list_projects(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    shared_with_me = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
+    # Only projects whose invitation has been accepted. One that is merely
+    # offered belongs in the invitations list, not in somebody's sidebar.
+    shared_with_me = select(ProjectMember.project_id).where(
+        ProjectMember.user_id == user.id,
+        ProjectMember.status == MEMBERSHIP_ACCEPTED,
+    )
     result = await db.execute(
         select(Project, func.coalesce(func.sum(Entry.time_spent), 0).label("total_time"))
         .outerjoin(Entry, Project.id == Entry.project_id)
@@ -500,14 +522,21 @@ async def _replace_schema(
     user: User,
     db: AsyncSession,
 ) -> Simulation:
-    """Apply a new schema and bring every existing entry with it."""
+    """Give the project a new format, leaving every existing entry untouched.
+
+    The only thing written to an entry here is its ``schema_snapshot``, and
+    only for entries that have none — captured from the schema that is about
+    to be replaced, which is the last moment their original format is
+    knowable. Their values are never read, rewritten or defaulted: a logbook
+    whose past changes when you edit a form is not a record.
+    """
     _guard_archived_schema_change(project, proposed_schema)
 
     simulation, _ = await _plan_schema_change(project, proposed_schema, user, db)
 
-    for migrated in simulation.entries:
-        migrated.entry.data = migrated.data
-        migrated.entry.retired_data = migrated.retired_data
+    for preserved in simulation.entries:
+        if preserved.needs_snapshot:
+            preserved.entry.schema_snapshot = preserved.snapshot
 
     project.schema_version += 1
 
@@ -731,6 +760,30 @@ async def get_entry(
     return await _get_project_entry(entry_id, project_id, db)
 
 
+async def _get_writable_entry(
+    entry_id: UUID,
+    project: Project,
+    user: User,
+    db: AsyncSession,
+) -> Entry:
+    """An entry the caller may correct or remove.
+
+    The owner may edit anything in their own project. A collaborator may edit
+    what they themselves wrote — a contributor who cannot fix their own typo
+    has to ask the owner to do it, and a contributor who can rewrite everyone
+    else's entries is no longer a contributor to somebody's record.
+    """
+    entry = await _get_project_entry(entry_id, project.id, db)
+
+    if project.user_id != user.id and entry.created_by != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the person who wrote an entry, or the project's owner, can change it.",
+        )
+
+    return entry
+
+
 @router.put("/{project_id}/entries/{entry_id}", response_model=EntryResponse)
 async def update_entry(
     project_id: UUID,
@@ -742,10 +795,12 @@ async def update_entry(
     """Update an entry's values or the time spent on it.
 
     Entry data is validated against the schema snapshot captured when the
-    entry was created, preserving its historical format across schema changes.
+    entry was created, preserving its historical format across schema changes:
+    correcting a two-month-old entry asks for the fields it actually has, not
+    the ones the project has since grown.
     """
-    project = await _get_user_project(project_id, user, db)
-    entry = await _get_project_entry(entry_id, project_id, db)
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_writable_entry(entry_id, project, user, db)
 
     if project.archived:
         raise HTTPException(
@@ -820,8 +875,8 @@ async def delete_entry(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    project = await _get_user_project(project_id, user, db)
-    entry = await _get_project_entry(entry_id, project_id, db)
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_writable_entry(entry_id, project, user, db)
 
     if project.archived:
         raise HTTPException(
@@ -884,24 +939,31 @@ async def list_project_members(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Who this project is shared with. Readable by the owner and by members."""
+    """Who this project is shared with, and who has been asked.
+
+    Readable by the owner and by anyone who has accepted. Pending and declined
+    invitations are listed too: an owner who cannot see that an invitation is
+    unanswered will send it again.
+    """
     await _get_readable_project(project_id, user, db)
 
     result = await db.execute(
-        select(User)
-        .join(ProjectMember, ProjectMember.user_id == User.id)
+        select(ProjectMember)
+        .join(User, ProjectMember.user_id == User.id)
         .where(ProjectMember.project_id == project_id)
         .order_by(User.full_name)
     )
 
     return [
         ProjectMemberResponse(
-            user_id=member.id,
-            full_name=member.full_name,
-            email=member.email,
-            avatar_url=member.avatar_url,
+            user_id=membership.member.id,
+            full_name=membership.member.full_name,
+            email=membership.member.email,
+            avatar_url=membership.member.avatar_url,
+            status=membership.status,
+            invited_at=membership.created_at,
         )
-        for member in result.scalars().all()
+        for membership in result.scalars().all()
     ]
 
 
@@ -916,11 +978,17 @@ async def share_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Give another Chronicles account access to this project.
+    """Invite another Chronicles account to this project.
 
-    Sharing is idempotent: inviting someone who already has access returns them
-    rather than failing, so a double submit cannot produce an error the person
-    has no way to act on.
+    An invitation, not a grant: nothing appears in the invitee's workspace and
+    they can read nothing until they accept. Somebody else's project arriving
+    in your sidebar unasked is a notification at best and an imposition at
+    worst, and there was no way to give it back.
+
+    Inviting is idempotent: re-inviting someone returns their existing
+    invitation rather than failing, so a double submit cannot produce an error
+    the person has no way to act on. Re-inviting somebody who declined asks
+    again, which is the only reasonable reading of doing it deliberately.
     """
     project = await _get_user_project(project_id, user, db)
 
@@ -944,21 +1012,37 @@ async def share_project(
             detail="You already own this project",
         )
 
-    already_shared = await db.scalar(
+    membership = await db.scalar(
         select(ProjectMember).where(
             ProjectMember.project_id == project_id,
             ProjectMember.user_id == invitee.id,
         )
     )
-    if already_shared is None:
-        db.add(ProjectMember(project_id=project_id, user_id=invitee.id))
+
+    if membership is None:
+        membership = ProjectMember(
+            project_id=project_id,
+            user_id=invitee.id,
+            status=MEMBERSHIP_PENDING,
+            invited_by=user.id,
+        )
+        db.add(membership)
         await db.commit()
+        await db.refresh(membership)
+    elif membership.status == MEMBERSHIP_DECLINED:
+        membership.status = MEMBERSHIP_PENDING
+        membership.invited_by = user.id
+        membership.responded_at = None
+        await db.commit()
+        await db.refresh(membership)
 
     return ProjectMemberResponse(
         user_id=invitee.id,
         full_name=invitee.full_name,
         email=invitee.email,
         avatar_url=invitee.avatar_url,
+        status=membership.status,
+        invited_at=membership.created_at,
     )
 
 
@@ -972,7 +1056,8 @@ async def unshare_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Withdraw someone's access. Only the owner may do this."""
+    """Withdraw someone's access, or cancel an invitation they have not
+    answered. Only the owner may do this."""
     await _get_user_project(project_id, user, db)
 
     await db.execute(
@@ -981,6 +1066,36 @@ async def unshare_project(
             ProjectMember.user_id == member_id,
         )
     )
+    await db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{project_id}/membership", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_project(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Step away from a project somebody shared with you.
+
+    The entries you wrote stay where they are — they are part of that
+    project's record, not of your access to it. Leaving only ends the access.
+    """
+    membership = await db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You are not a member of this project",
+        )
+
+    await db.delete(membership)
     await db.commit()
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

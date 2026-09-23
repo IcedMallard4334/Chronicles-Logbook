@@ -133,25 +133,50 @@ restored, recovered.
 
 `schema_snapshot` is what lets an older entry stay readable after the project's
 format changes: the entry carries the shape it was written against, so it can
-be displayed as it was rather than reinterpreted through today's schema.
+be displayed as it was rather than reinterpreted through today's schema. It is
+also the **only** column a schema change writes to an entry, and only when the
+entry has none — values in `data` are never touched. See
+[Editing a live schema](../api/schema.md#editing-a-live-schema).
+
+`retired_data` is legacy. It held values moved out of `data` by an earlier
+design that reshaped every entry onto a new format; nothing writes to it now,
+and it stays so that logbooks and export files from that era still load.
 
 ### project_members
 
-Records who, besides the owner, may see and contribute to a project.
+Records who, besides the owner, has been **invited** to a project, and whether
+they took it up.
 
 | Column | Type | Description |
 |---|---|---|
 | `id` | UUID (PK) | Primary key |
-| `project_id` | UUID (FK → projects, cascade) | The shared project |
-| `user_id` | UUID (FK → users, cascade) | The person it is shared with |
-| `created_at` | TIMESTAMP (tz) | When access was granted |
+| `project_id` | UUID (FK → projects, cascade) | The project |
+| `user_id` | UUID (FK → users, cascade) | The person invited |
+| `status` | VARCHAR(20) | `pending`, `accepted` or `declined` |
+| `invited_by` | UUID (FK → users, set null) | Who sent the invitation |
+| `responded_at` | TIMESTAMP (tz) | When they answered, if they have |
+| `created_at` | TIMESTAMP (tz) | When the invitation was sent |
 
-`UNIQUE (project_id, user_id)` — someone is either a member or not, so sharing
-twice is idempotent rather than producing a second row.
+`UNIQUE (project_id, user_id)` — somebody is invited once, so inviting twice
+updates the row rather than producing a second one. A declined row is kept
+rather than deleted, so that "no" is an answer the owner can see rather than
+silence; re-inviting moves it back to `pending`.
 
-Membership grants reading the project and adding entries to it. Changing the
-schema, archiving, deleting, exporting and sharing onward remain with the owner
-in `projects.user_id`. See the [Sharing API](../api/sharing.md).
+Only `accepted` grants anything. `_get_readable_project` and the project list
+both filter on it, so a pending invitation is invisible to every read path.
+
+!!! warning "The default is `accepted`, deliberately"
+    `status` is declared with `server_default='accepted'` even though new rows
+    are created as `pending`. Every row that already existed was written under
+    the old grant-on-invite behaviour and already confers access; defaulting to
+    `pending` would silently revoke every shared project from the people
+    currently collaborating on one.
+
+Accepted membership grants reading the project, adding entries to it, and
+correcting the entries that person wrote themselves. Changing the schema,
+archiving, deleting, exporting, editing somebody else's entry and inviting
+onward remain with the owner in `projects.user_id`. See the
+[Sharing API](../api/sharing.md).
 
 ### tasks
 
@@ -238,15 +263,20 @@ re-run:
 | `002_calendar_token_timestamps.sql` | Calendar token timestamps |
 | `003_login_sessions.sql` | Login session tracking |
 | `004_retired_schema_fields.sql` | `projects.retired_schema`, `entries.retired_data` |
+| `005_schema_versioning.sql` | `projects.schema_version`, `entries.schema_version`, `entries.schema_snapshot` |
+| `006_project_members.sql` | The `project_members` table |
+| `007_authorship.sql` | `created_by` / `completed_by` on entries and tasks |
+| `008_project_invitations.sql` | `project_members.status`, `invited_by`, `responded_at` |
 
 !!! note
     Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent` or `entries.retired_data`, do require a migration or `ALTER TABLE` in production.
 
 !!! warning "Two senses of 'migration'"
     This page uses the word for *database* migrations — changes to the table
-    definitions above. Chronicles also migrates **entry data** when a user edits
-    a project's `entry_schema`, which touches no table definitions at all: it
-    rewrites JSONB values inside `entries.data`. That is described on
-    [Schema and field types](../api/schema.md#editing-a-live-schema).
+    definitions above. Editing a project's `entry_schema` used to be called a
+    migration too, because it rewrote JSONB values inside `entries.data`. It no
+    longer touches them: a format change writes the new schema to the project
+    and, at most, fills in a missing `entries.schema_snapshot`. See
+    [Editing a live schema](../api/schema.md#editing-a-live-schema).
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder

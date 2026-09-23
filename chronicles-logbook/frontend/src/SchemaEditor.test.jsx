@@ -80,8 +80,15 @@ async function openSchemaEditor() {
 /** The recorded-entries panel, so a project name in it is not confused with
  *  the same name in the sidebar. */
 async function entryList() {
-  const heading = await screen.findByRole("heading", { name: "Recent entries" })
+  const heading = await screen.findByRole("heading", { name: "Recorded so far" })
   return heading.closest(".entry-list")
+}
+
+/** Pick a field's type from the picker, which is a grid of explained cards
+ *  rather than a dropdown — nine type names in a select read as synonyms. */
+function chooseType(index, label) {
+  fireEvent.click(screen.getAllByLabelText("Type")[index])
+  fireEvent.click(screen.getByRole("radio", { name: label }))
 }
 
 // ── Reading a schema (US-2.6) ────────────────────────────────────────────────
@@ -176,12 +183,40 @@ describe("editing a schema", () => {
 
   it("offers every field type the builder knows about", async () => {
     await openSchemaEditor()
+    fireEvent.click(screen.getAllByLabelText("Type")[0])
 
-    const options = within(screen.getAllByLabelText("Type")[0]).getAllByRole("option")
-    expect(options.map((option) => option.textContent)).toEqual([
+    const cards = screen.getAllByRole("radio")
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
       "Text", "Number", "Date", "Choice", "Tags", "Checklist", "Entry link",
       "Project link", "Calculation",
     ])
+  })
+
+  it("explains what each type is for rather than only naming it", async () => {
+    // Nine type names in a dropdown read as synonyms: "Tags", "Choice" and
+    // "Checklist" all sound like "a list of things", which is how people
+    // picked one and then concluded the field types were broken.
+    await openSchemaEditor()
+    fireEvent.click(screen.getAllByLabelText("Type")[0])
+
+    const tags = screen.getByRole("radio", { name: "Tags" })
+    expect(tags).toHaveTextContent("an entry can be several things at once")
+    expect(tags).toHaveTextContent("Type a label and press Enter")
+
+    const choice = screen.getByRole("radio", { name: "Choice" })
+    expect(choice).toHaveTextContent("you want exactly one of them every time")
+  })
+
+  it("says why a type cannot be picked yet instead of hiding it", async () => {
+    // "Where is the calculation option?" needs an answer on screen, not the
+    // absence of one.
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }])
+    await openSchemaEditor()
+    fireEvent.click(screen.getAllByLabelText("Type")[0])
+
+    const calculation = screen.getByRole("radio", { name: "Calculation" })
+    expect(calculation).toBeDisabled()
+    expect(calculation).toHaveTextContent("Needs a number field to read from")
   })
 
   it("saves nothing until something has changed", async () => {
@@ -234,7 +269,7 @@ describe("editing a schema", () => {
 
   it("refuses a link that does not say which project it points at", async () => {
     await openSchemaEditor()
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+    chooseType(1, "Project link")
 
     fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
 
@@ -250,11 +285,11 @@ describe("editing a schema", () => {
     updateSchema.mockResolvedValue({ ...noChanges, project: fieldNotes })
     await openSchemaEditor()
     fireEvent.change(screen.getAllByLabelText("Name")[1], { target: { value: "Observations" } })
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "dropdown" } })
-    fireEvent.change(screen.getByLabelText("Options (comma-separated)"), {
+    chooseType(1, "Choice")
+    fireEvent.change(screen.getByLabelText("The options to choose from"), {
       target: { value: "Yes, No" },
     })
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "text" } })
+    chooseType(1, "Text")
 
     fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
 
@@ -268,8 +303,8 @@ describe("editing a schema", () => {
 
   it("cannot be saved when an edit cancels itself out", async () => {
     await openSchemaEditor()
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "dropdown" } })
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "text" } })
+    chooseType(1, "Choice")
+    chooseType(1, "Text")
 
     expect(screen.getByRole("button", { name: "Save schema" })).toBeDisabled()
   })
@@ -315,7 +350,11 @@ describe("reviewing an edit", () => {
 
     const review = await removeNotes()
 
-    expect(within(review).getByText(/3 of 4 entries already recorded will be updated/)).toBeInTheDocument()
+    // The reassurance is the point: a format change never rewrites the record,
+    // and "are my old entries safe?" is what anybody sensible asks first.
+    expect(
+      within(review).getByText(/The 4 entries already recorded stay exactly as written/)
+    ).toBeInTheDocument()
     expect(within(review).getByText("'Notes' is no longer asked for.")).toBeInTheDocument()
     expect(updateSchema).not.toHaveBeenCalled()
   })
@@ -325,8 +364,12 @@ describe("reviewing an edit", () => {
 
     const review = await removeNotes()
 
-    expect(within(review).getByText("3 values kept but hidden")).toBeInTheDocument()
-    expect(within(review).getByText(/Nothing is deleted/)).toBeInTheDocument()
+    expect(
+      within(review).getByText("3 entries keep what they recorded, under the old format")
+    ).toBeInTheDocument()
+    expect(
+      within(review).getByText(/Nothing is deleted and nothing is rewritten/)
+    ).toBeInTheDocument()
   })
 
   it("applies the change once it is approved", async () => {
@@ -380,7 +423,7 @@ describe("reviewing an edit", () => {
 describe("linking a project", () => {
   it("asks which project a link points at, and offers only the other projects", async () => {
     await openSchemaEditor()
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+    chooseType(1, "Project link")
 
     const select = screen.getByLabelText("Links to")
     expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual([
@@ -401,7 +444,7 @@ describe("linking a project", () => {
       },
     })
     await openSchemaEditor()
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "project_reference" } })
+    chooseType(1, "Project link")
     fireEvent.change(screen.getByLabelText("Links to"), { target: { value: "proj-2" } })
 
     fireEvent.click(screen.getByRole("button", { name: "Save schema" }))
@@ -454,7 +497,7 @@ describe("linking a project", () => {
 describe("building a calculation", () => {
   async function addCalculation() {
     await openSchemaEditor()
-    fireEvent.change(screen.getAllByLabelText("Type")[1], { target: { value: "computed" } })
+    chooseType(1, "Calculation")
     return screen.findByLabelText("Calculation")
   }
 
@@ -583,12 +626,17 @@ describe("building a calculation", () => {
   })
 
   it("says what to do first when there is nothing to calculate from", async () => {
+    // Now answered before the choice rather than after it: the type is offered
+    // greyed with the reason, instead of letting somebody pick a calculation
+    // and only then discover it has nothing to read.
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
     await openSchemaEditor()
 
-    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "computed" } })
+    fireEvent.click(screen.getAllByLabelText("Type")[0])
 
-    expect(await screen.findByText(/Add a number field first/)).toBeInTheDocument()
+    const calculation = screen.getByRole("radio", { name: "Calculation" })
+    expect(calculation).toBeDisabled()
+    expect(calculation).toHaveTextContent(/Needs a number field to read from/)
   })
 })
 
@@ -778,41 +826,64 @@ describe("reading entries back", () => {
     ).toBeInTheDocument()
   })
 
-  it("keeps what a removed field recorded, folded away", async () => {
-    // US-2.7: removing a field stops it being asked for; it does not erase
-    // what was already answered.
+  it("keeps showing what a removed field recorded, marked as no longer collected", async () => {
+    // US-2.7. Removing a field stops it being asked for; it does not erase
+    // what was already answered, and it no longer folds it out of sight
+    // either — the value stayed on the entry, so the column stays on the list.
     fetchProjects.mockResolvedValue([
       { ...fieldNotes, entry_schema: [HOURS], retired_schema: [NOTES] },
       otherProject,
     ])
     fetchEntries.mockResolvedValue([
       {
-        id: "e1", data: { "f-hours": 2 }, retired_data: { "f-notes": "Rained all day" },
+        id: "e1",
+        data: { "f-hours": 2, "f-notes": "Rained all day" },
+        schema_snapshot: [HOURS, NOTES],
         created_at: "2026-09-12T10:00:00Z",
       },
     ])
 
     await openProject()
 
-    const details = await screen.findByText("No longer recorded (1)")
-    fireEvent.click(details)
-    expect(screen.getByText("Rained all day")).toBeInTheDocument()
+    const list = await entryList()
+    expect(within(list).getByText("Rained all day")).toBeInTheDocument()
+    expect(within(list).getByText("Notes")).toBeInTheDocument()
+    expect(within(list).getByText(/1 no longer collected/)).toBeInTheDocument()
   })
 
-  it("shows nothing extra on an entry with no retired values", async () => {
+  it("shows nothing extra on an entry that only used live fields", async () => {
     fetchProjects.mockResolvedValue([
       { ...fieldNotes, entry_schema: [HOURS], retired_schema: [NOTES] },
       otherProject,
     ])
     fetchEntries.mockResolvedValue([
-      { id: "e1", data: { "f-hours": 2 }, retired_data: {}, created_at: "2026-09-12T10:00:00Z" },
+      {
+        id: "e1", data: { "f-hours": 2 }, schema_snapshot: [HOURS],
+        created_at: "2026-09-12T10:00:00Z",
+      },
     ])
 
     await openProject()
 
     const list = await entryList()
     expect(within(list).getByText("Hours")).toBeInTheDocument()
-    expect(within(list).queryByText(/No longer recorded/)).not.toBeInTheDocument()
+    expect(within(list).queryByText(/no longer collected/)).not.toBeInTheDocument()
+  })
+
+  it("says an entry predating a field has nothing recorded for it", async () => {
+    // Not a blank and not a zero. A format change leaves past entries alone,
+    // so the honest answer is that nobody ever answered this.
+    fetchEntries.mockResolvedValue([
+      {
+        id: "e1", data: { "f-hours": 2 }, schema_snapshot: [HOURS],
+        created_at: "2026-09-12T10:00:00Z",
+      },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    expect(within(list).getByText("not recorded")).toBeInTheDocument()
   })
 
   it("shortens a long column label but keeps the full name on hover", async () => {

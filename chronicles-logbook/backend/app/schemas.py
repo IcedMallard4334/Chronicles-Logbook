@@ -251,6 +251,25 @@ class ProjectMemberResponse(BaseModel):
     full_name: str
     email: str
     avatar_url: str | None = None
+    # "pending" until the person accepts, so the owner can see an invitation
+    # is out rather than assuming access they have not agreed to.
+    status: Literal["pending", "accepted", "declined"] = "accepted"
+    invited_at: datetime | None = None
+
+
+class ProjectInvitationResponse(BaseModel):
+    """An invitation as the person being invited sees it.
+
+    Carries the project and the inviter by name: "Thandi invited you to
+    Fieldwork" is something you can answer, and a pair of ids is not.
+    """
+
+    project_id: UUID
+    project_name: str
+    project_description: str | None = None
+    invited_by_name: str | None = None
+    entry_count: int = 0
+    invited_at: datetime
 
 
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
@@ -489,6 +508,14 @@ class ExportedEntry(BaseModel):
     # export a full record: a round trip that dropped them would destroy the
     # history that removing a field was careful to keep (US-2.7).
     retired_data: dict[str, Any] = Field(default_factory=dict)
+    # The format this entry was written under. A project's format changes over
+    # time and past entries keep their own, so an export that carried only the
+    # project's current one would restore a logbook whose older half no longer
+    # has labels for what it recorded.
+    schema_version: int = 1
+    schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    todo: bool = False
+    due_date: date | None = None
     time_spent: int | None = None
     created_at: datetime
 
@@ -577,13 +604,40 @@ class FieldStatistics(BaseModel):
     count: int
     total: float | None = None
     average: float | None = None
+    minimum: float | None = None
+    maximum: float | None = None
     groups: list[FieldStatisticsGroup] = Field(default_factory=list)
+    # How many of the counted values were written under an earlier version of
+    # this field. Shown so a total that looks low is explained rather than
+    # mysterious: past entries keep the format they were written in, and a
+    # figure recorded as text is still a figure.
+    from_earlier_formats: int = 0
+    # True once the field has left the live schema. Its statistics are still
+    # worth reporting — the work it recorded happened — but it is no longer
+    # being collected, and a reader should know that.
+    retired: bool = False
 
 
 class FieldStatisticsResponse(BaseModel):
     project_id: UUID
     schema_version: int
     fields: list[FieldStatistics]
+
+
+class ActivityPoint(BaseModel):
+    """Entries and time logged in one period, for the "over a week or a term"
+    view the brief asks for."""
+
+    period: str
+    entries: int
+    time_spent: int
+
+
+class ActivityResponse(BaseModel):
+    bucket: Literal["day", "week", "month"]
+    start: date | None = None
+    end: date | None = None
+    points: list[ActivityPoint] = Field(default_factory=list)
 class FieldTimelinePoint(BaseModel):
     entry_id: UUID
     created_at: datetime

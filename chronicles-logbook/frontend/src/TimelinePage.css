@@ -1,0 +1,455 @@
+/* --------------------------------------------------
+   TIMELINE — the record, end to end
+   -------------------------------------------------- */
+
+.tl-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-bottom: 60px;
+}
+
+.tl-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.tl-header-copy h1 {
+  font-size: clamp(1.7rem, 3.4vw, 2.3rem);
+  margin: 6px 0 8px;
+}
+
+.tl-header-copy p {
+  color: var(--muted);
+  max-width: 52ch;
+  font-size: 0.9rem;
+}
+
+.tl-header-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tl-header-stats span {
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tl-header-stats strong {
+  display: block;
+  font-size: 1.2rem;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+/* ── Filters ─────────────────────────────────────── */
+
+.tl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  position: sticky;
+  top: 84px;
+  z-index: 6;
+  padding: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.tl-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid transparent;
+  transition: border-color 160ms ease;
+}
+
+.tl-search:focus-within { border-color: var(--blue); }
+
+.tl-search svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.tl-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+}
+
+.tl-filter select {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text);
+  max-width: 220px;
+}
+
+.tl-clear {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tl-clear:hover { background: var(--surface-soft); color: var(--text); }
+
+/* ── The spine ───────────────────────────────────── */
+
+.tl-spine {
+  position: relative;
+  padding: 4px 0 30px;
+}
+
+/* The line itself, drawn once behind everything, fading out at both ends so
+   it reads as a continuing record rather than a bounded object. */
+.tl-spine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--line) 40px,
+    var(--line) calc(100% - 60px),
+    transparent
+  );
+}
+
+.tl-day { position: relative; }
+
+.tl-day-marker {
+  position: relative;
+  z-index: 2;
+  width: max-content;
+  max-width: 100%;
+  margin: 26px auto 16px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(12, 16, 32, 0.08);
+  text-align: center;
+  font-size: 0.86rem;
+}
+
+.tl-day-label {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tl-day-meta {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tl-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
+
+.tl-item.is-left { justify-content: flex-start; padding-right: calc(50% + 30px); }
+.tl-item.is-right { justify-content: flex-end; padding-left: calc(50% + 30px); }
+
+/* The dot on the spine. Coloured by the project, so a run of work on one
+   project reads as a run without needing to read the labels. */
+.tl-node {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: hsl(var(--project-hue) 62% 55%);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px hsl(var(--project-hue) 62% 55% / 0.5);
+  z-index: 2;
+}
+
+.tl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 10px rgba(12, 16, 32, 0.05);
+  transition: transform 220ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    box-shadow 220ms ease, border-color 220ms ease;
+  animation: tl-enter 420ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+/* A hairline of the project's colour down the leading edge. */
+.tl-card::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 999px;
+  background: hsl(var(--project-hue) 62% 55%);
+  opacity: 0.8;
+}
+
+.is-left .tl-card::before { right: 0; }
+.is-right .tl-card::before { left: 0; }
+
+.tl-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, hsl(var(--project-hue) 62% 55%) 45%, var(--line));
+  box-shadow: 0 10px 28px rgba(12, 16, 32, 0.12);
+}
+
+.tl-card.is-todo { border-style: dashed; }
+
+.tl-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tl-project {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--project-hue) 55% 44%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .tl-project { color: hsl(var(--project-hue) 70% 70%); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tl-project { color: hsl(var(--project-hue) 70% 70%); }
+}
+
+.tl-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.tl-summary {
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.tl-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.tl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.tl-field-name {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tl-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tl-card-foot:empty { display: none; }
+
+.tl-chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.tl-chip.is-time { background: var(--blue-bg); color: var(--blue); }
+.tl-chip.is-todo { background: var(--warning-bg); color: var(--warning); }
+.tl-chip.is-who { background: transparent; border: 1px solid var(--line); }
+
+/* ── Ends, empties and waiting ───────────────────── */
+
+.tl-sentinel { height: 1px; }
+
+.tl-more,
+.tl-end {
+  text-align: center;
+  padding: 22px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.tl-end span { color: var(--line); margin-right: 6px; }
+
+.tl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 70px 24px;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.tl-empty-mark {
+  font-size: 2rem;
+  color: var(--blue);
+  opacity: 0.6;
+}
+
+.tl-empty h2 { font-size: 1.15rem; }
+.tl-empty p { color: var(--muted); max-width: 44ch; font-size: 0.88rem; }
+
+/* Skeletons rather than a spinner: the shape of what is coming is itself
+   information, and it stops the page jumping when the data lands. */
+.tl-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 0;
+}
+
+.tl-skeleton-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  animation: tl-pulse 1.4s ease-in-out infinite;
+}
+
+.tl-skeleton-row:nth-child(even) { flex-direction: row-reverse; }
+
+.tl-skeleton-node {
+  width: 13px;
+  height: 13px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
+.tl-skeleton-card {
+  flex: 1;
+  height: 92px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    100deg,
+    var(--surface-soft) 30%,
+    color-mix(in srgb, var(--surface) 70%, var(--line)) 50%,
+    var(--surface-soft) 70%
+  );
+  background-size: 220% 100%;
+  animation: tl-sheen 1.5s linear infinite;
+}
+
+@keyframes tl-enter {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+@keyframes tl-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+@keyframes tl-sheen {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+
+/* ── Phone: one column, spine on the left ────────── */
+
+@media (max-width: 860px) {
+  .tl-spine::before { left: 7px; transform: none; }
+  .tl-item.is-left,
+  .tl-item.is-right {
+    padding-left: 30px;
+    padding-right: 0;
+    justify-content: flex-start;
+  }
+  .tl-node { left: 7px; }
+  .tl-day-marker { margin-left: 30px; margin-right: auto; text-align: left; }
+  .is-left .tl-card::before,
+  .is-right .tl-card::before { left: 0; right: auto; }
+  .tl-filters { top: 74px; border-radius: var(--radius-lg); }
+  .tl-header-stats { width: 100%; }
+  .tl-header-stats span { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-card,
+  .tl-skeleton-row,
+  .tl-skeleton-card { animation: none; }
+  .tl-card:hover { transform: none; }
+}

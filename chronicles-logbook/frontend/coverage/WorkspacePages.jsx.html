@@ -1,0 +1,181 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for WorkspacePages.jsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="prettify.css" />
+    <link rel="stylesheet" href="base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="index.html">All files</a> WorkspacePages.jsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">50% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>48/96</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">40.22% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>35/87</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">29.54% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>13/44</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">81.25% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>13/16</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line medium'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">30x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useEffect, useMemo, useState } from "react"
+import { fetchEntriesGlobal, fetchTasks } from "./api"
+import { SavedFilterBar } from "./SavedFilterBar"
+import { TaskPanel } from "./TaskPanel"
+import "./WorkspacePages.css"
+&nbsp;
+function PageHeader({ eyebrow, title, description, children }) { return &lt;header className="workspace-heading"&gt;&lt;div&gt;&lt;span className="workspace-eyebrow"&gt;{eyebrow}&lt;/span&gt;&lt;h1&gt;{title}&lt;/h1&gt;&lt;p&gt;{description}&lt;/p&gt;&lt;/div&gt;{children}&lt;/header&gt; }
+const <span class="fstat-no" title="function not covered" >displayValue = e</span>ntry =&gt; <span class="cstat-no" title="statement not covered" >Object.values(entry.data || {}).filter(Boolean).<span class="fstat-no" title="function not covered" >map(v</span>alue =&gt; <span class="cstat-no" title="statement not covered" >typeof value === "object" ? JSON.stringify(value) : String(value))</span>.join(" · ") || "No note content"</span>
+// "project" orders the current page in the browser; the rest are orderings the
+// search endpoint understands, so they hold across pages.
+const SERVER_SORTS = ["newest", "oldest", "due_date"]
+&nbsp;
+export function EntriesPage({ projects, onCreate }) {
+  const [query, setQuery] = useState(""); const [projectId, setProjectId] = useState(""); const [todo, setTodo] = useState(""); const [page, setPage] = useState(1); const [entries, setEntries] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [retry, setRetry] = useState(0); const [sort, setSort] = useState("newest"); const [selected, setSelected] = useState(new Set()); const [copied, setCopied] = useState(false)
+  const serverSort = SERVER_SORTS.includes(sort) ? sort : <span class="branch-1 cbranch-no" title="branch not covered" >"newest"</span>
+  useEffect(() =&gt; { let active = true; setLoading(true); setError(""); const timer = setTimeout(() =&gt; fetchEntriesGlobal({q:query,projectId:projectId || undefined,todo:todo === "" ? undefined : todo === "true",sort:serverSort,page,pageSize:30}).then(data =&gt; { <span class="missing-if-branch" title="else path not taken" >E</span>if(active) setEntries(data) }).<span class="fstat-no" title="function not covered" >catch(c</span>aught =&gt; { <span class="cstat-no" title="statement not covered" >if(active) <span class="cstat-no" title="statement not covered" >setError(caught.message) }</span></span>).finally(() =&gt; { <span class="missing-if-branch" title="else path not taken" >E</span>if(active) setLoading(false) }), 180); return () =&gt; {active=false;clearTimeout(timer)} }, [query,projectId,todo,serverSort,page,retry])
+  const ordered = useMemo(() =&gt; sort === "project" ? <span class="branch-0 cbranch-no" title="branch not covered" >[...entries].<span class="fstat-no" title="function not covered" >sort((a</span>,b) =&gt; <span class="cstat-no" title="statement not covered" >String(a.project_name).localeCompare(String(b.project_name)))</span> : e</span>ntries, [entries,sort])
+  // The shape the saved-filter endpoint stores, and the shape applying one
+  // hands back, so a re-applied filter restores every control below.
+  const criteria = useMemo(() =&gt; ({q:query.trim() || null,project_id:projectId || null,todo:todo === "" ? null : todo === "true",sort:serverSort}), [query,projectId,todo,serverSort])
+  const applySaved = saved =&gt; { setQuery(saved.q || <span class="branch-1 cbranch-no" title="branch not covered" >"")</span>; setProjectId(saved.project_id || <span class="branch-1 cbranch-no" title="branch not covered" >"")</span>; setTodo(saved.todo == null ? <span class="branch-0 cbranch-no" title="branch not covered" >"" : S</span>tring(saved.todo)); setSort(saved.sort || <span class="branch-1 cbranch-no" title="branch not covered" >"newest")</span>; setPage(1); setSelected(new Set()) }
+  const <span class="fstat-no" title="function not covered" >toggleAll = () =&gt; <span class="cstat-no" title="statement not covered" >s</span>etSelected(selected.size === ordered.length ? new Set() : new Set(ordered.<span class="fstat-no" title="function not covered" >map(e</span>ntry =&gt; <span class="cstat-no" title="statement not covered" >entry.id)</span>))</span>
+  const <span class="fstat-no" title="function not covered" >toggle = i</span>d =&gt; <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >setSelected(p</span>revious =&gt; { const next = <span class="cstat-no" title="statement not covered" >new Set(previous); <span class="cstat-no" title="statement not covered" >n</span>ext.has(id) ? next.delete(id) : next.add(id); <span class="cstat-no" title="statement not covered" >r</span>eturn next }</span>)</span>
+  const copySelected = <span class="fstat-no" title="function not covered" >async () =&gt; {</span> <span class="cstat-no" title="statement not covered" >await navigator.clipboard.writeText(ordered.<span class="fstat-no" title="function not covered" >filter(e</span>ntry =&gt; <span class="cstat-no" title="statement not covered" >selected.has(entry.id))</span>.<span class="fstat-no" title="function not covered" >map(e</span>ntry =&gt; <span class="cstat-no" title="statement not covered" >`${entry.project_name} · ${new Date(entry.created_at).toLocaleString()}\n${displayValue(entry)}`)</span>.join("\n\n")); <span class="cstat-no" title="statement not covered" >s</span>etCopied(true); <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >s</span>etTimeout(() =&gt; <span class="cstat-no" title="statement not covered" >s</span>etCopied(false), 1</span>800) }</span>
+  return &lt;section className="workspace-page" aria-label="Entries workspace"&gt;&lt;PageHeader eyebrow="YOUR WORK, RECORDED" title="Entries" description="A record of work you have already done. For something you still need to do, use Tasks."&gt;&lt;button type="button" className="btn-primary" onClick={onCreate}&gt;+ Create project&lt;/button&gt;&lt;/PageHeader&gt;&lt;div className="workspace-filters"&gt;&lt;label className="workspace-search"&gt;Search entries&lt;input type="search" placeholder="Search notes or project names…" value={query} <span class="fstat-no" title="function not covered" >onChange={e</span>=&gt;{<span class="cstat-no" title="statement not covered" >setQuery(e.target.value);<span class="cstat-no" title="statement not covered" >s</span>etPage(1)}</span>} /&gt;&lt;/label&gt;&lt;label&gt;Project&lt;select value={projectId} <span class="fstat-no" title="function not covered" >onChange={e</span>=&gt;{<span class="cstat-no" title="statement not covered" >setProjectId(e.target.value);<span class="cstat-no" title="statement not covered" >s</span>etPage(1)}</span>}&gt;&lt;option value=""&gt;All projects&lt;/option&gt;{projects.map(project=&gt;&lt;option key={project.id} value={project.id}&gt;{project.name}&lt;/option&gt;)}&lt;/select&gt;&lt;/label&gt;&lt;label&gt;Status&lt;select value={todo} onChange={e=&gt;{setTodo(e.target.value);setPage(1)}}&gt;&lt;option value=""&gt;Everything&lt;/option&gt;&lt;option value="true"&gt;Still to do&lt;/option&gt;&lt;option value="false"&gt;Already done&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;label&gt;Sort&lt;select value={sort} onChange={e=&gt;{setSort(e.target.value);setPage(1)}}&gt;&lt;option value="newest"&gt;Newest first&lt;/option&gt;&lt;option value="oldest"&gt;Oldest first&lt;/option&gt;&lt;option value="due_date"&gt;Due date&lt;/option&gt;&lt;option value="project"&gt;Project name&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;/div&gt;&lt;SavedFilterBar criteria={criteria} onApply={applySaved} /&gt;{selected.size &gt; 0 &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;div className="workspace-bulkbar"&gt;&lt;strong&gt;{selected.size} selected&lt;/strong&gt;&lt;span&gt;Selection is ready for review or export.&lt;/span&gt;&lt;button type="button" onClick={copySelected}&gt;{copied ? "Copied" : "Copy selected"}&lt;/button&gt;&lt;button type="button" <span class="fstat-no" title="function not covered" >onClick={() =&gt; <span class="cstat-no" title="statement not covered" >s</span>etSelected(new Set())}&gt;C</span>lear selection&lt;/button&gt;&lt;/div&gt;}&lt;</span>div className="workspace-body workspace-table-wrap" aria-busy={loading}&gt;{error ? <span class="branch-0 cbranch-no" title="branch not covered" >&lt;div className="workspace-error" role="alert"&gt;{error} &lt;button type="button" <span class="fstat-no" title="function not covered" >onClick={()=&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >s</span>etRetry(n</span>=&gt;<span class="cstat-no" title="statement not covered" >n+1)</span>}&gt;R</span>etry&lt;/button&gt;&lt;/div&gt; : loading ? &lt;</span>p className="workspace-empty" role="status"&gt;Loading entries…&lt;/p&gt; : !ordered.length ? &lt;div className="workspace-empty"&gt;&lt;span className="workspace-empty-icon"&gt;≡&lt;/span&gt;&lt;h2&gt;{query || projectId || todo ? "No matching entries" : "Your story starts here"}&lt;/h2&gt;&lt;p&gt;{query || projectId || todo ? "Try another search, project or status." : "Open a project on Home to write your first logbook entry."}&lt;/p&gt;&lt;/div&gt; : <span class="branch-1 cbranch-no" title="branch not covered" >&lt;table className="workspace-table"&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;&lt;input aria-label="Select all entries" type="checkbox" checked={selected.size === ordered.length} onChange={toggleAll} /&gt;&lt;/th&gt;&lt;th&gt;Entry&lt;/th&gt;&lt;th&gt;Project&lt;/th&gt;&lt;th&gt;Recorded&lt;/th&gt;&lt;th&gt;Due&lt;/th&gt;&lt;th&gt;Time&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;{ordered.<span class="fstat-no" title="function not covered" >map(e</span>ntry =&gt; <span class="cstat-no" title="statement not covered" >&lt;tr key={entry.id} className={selected.has(entry.id) ? "is-selected" : ""}&gt;&lt;td&gt;&lt;input aria-label={`Select entry from ${entry.project_name}`} type="checkbox" checked={selected.has(entry.id)} <span class="fstat-no" title="function not covered" >onChange={() =&gt; <span class="cstat-no" title="statement not covered" >t</span>oggle(entry.id)} /&gt;</span>&lt;/td&gt;&lt;td&gt;&lt;span className="workspace-entry-preview"&gt;{displayValue(entry)}&lt;/span&gt;{entry.todo &amp;&amp; &lt;span className="workspace-project-label"&gt;To do&lt;/span&gt;}&lt;/td&gt;&lt;td&gt;&lt;span className="workspace-project-label"&gt;{entry.project_name}&lt;/span&gt;&lt;/td&gt;&lt;td&gt;&lt;time dateTime={entry.created_at}&gt;{new Date(entry.created_at).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"})}&lt;/time&gt;&lt;/td&gt;&lt;td&gt;{entry.due_date ? &lt;time dateTime={entry.due_date}&gt;{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString(undefined,{day:"2-digit",month:"short"})}&lt;/time&gt; : "—"}&lt;/td&gt;&lt;td&gt;{entry.time_spent != null ? `${entry.time_spent} min` : "—"}&lt;/td&gt;&lt;/tr&gt;)</span>}&lt;/tbody&gt;&lt;/table&gt;}&lt;/div&gt;</span>&lt;footer className="workspace-pagination"&gt;&lt;span&gt;Page {page}&lt;/span&gt;&lt;button type="button" className="btn-secondary" disabled={page===1 || <span class="branch-1 cbranch-no" title="branch not covered" >loading} <span class="fstat-no" title="function not covered" >o</span>nClick={()=&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >s</span>etPage(n</span>=&gt;<span class="cstat-no" title="statement not covered" >n-1)</span>}&gt;P</span>revious&lt;/button&gt;&lt;button type="button" className="btn-secondary" disabled={entries.length&lt;30 || <span class="branch-1 cbranch-no" title="branch not covered" >loading || <span class="branch-2 cbranch-no" title="branch not covered" >!</span>!error} <span class="fstat-no" title="function not covered" >o</span>nClick={()=&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >s</span>etPage(n</span>=&gt;<span class="cstat-no" title="statement not covered" >n+1)</span>}&gt;N</span>ext&lt;/button&gt;&lt;/footer&gt;&lt;/section&gt;
+}
+&nbsp;
+export function <span class="fstat-no" title="function not covered" >TasksPage({</span> projects, onCreate }) {
+  const [chosen,setChosen] = <span class="cstat-no" title="statement not covered" >useState(""); c</span>onst project = <span class="cstat-no" title="statement not covered" >projects.<span class="fstat-no" title="function not covered" >find(i</span>tem =&gt; <span class="cstat-no" title="statement not covered" >item.id === chosen)</span> || projects[0]; c</span>onst [health,setHealth] = <span class="cstat-no" title="statement not covered" >useState(null)</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >  useEffect(() =&gt; {</span> let active=<span class="cstat-no" title="statement not covered" >true; <span class="cstat-no" title="statement not covered" >i</span>f(!project) <span class="cstat-no" title="statement not covered" >return; <span class="cstat-no" title="statement not covered" >f</span></span>etchTasks(project.id,false).<span class="fstat-no" title="function not covered" >then(t</span>asks =&gt; { <span class="cstat-no" title="statement not covered" >if(active) <span class="cstat-no" title="statement not covered" >setHealth(tasks) }</span></span>).<span class="fstat-no" title="function not covered" >catch(() =&gt; {</span> <span class="cstat-no" title="statement not covered" >if(active) <span class="cstat-no" title="statement not covered" >setHealth([]) }</span></span>); <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >r</span>eturn () =&gt; {<span class="cstat-no" title="statement not covered" ></span>active=false}</span> }</span>,[project?.id])</span>
+<span class="cstat-no" title="statement not covered" >  return &lt;section className="workspace-page" aria-label="Tasks workspace"&gt;&lt;PageHeader eyebrow="A LITTLE PROGRESS, EVERY DAY" title="Tasks" description="What still needs doing on a project. For recording work already finished, use Entries."&gt;&lt;button type="button" className="btn-primary" onClick={onCreate}&gt;+ Create project&lt;/button&gt;&lt;/PageHeader&gt;{projects.length ? &lt;&gt;&lt;div className="workspace-filters"&gt;&lt;label&gt;Working on&lt;select value={project.id} <span class="fstat-no" title="function not covered" >onChange={e</span>=&gt;<span class="cstat-no" title="statement not covered" >setChosen(e.target.value)}&gt;{p</span>rojects.<span class="fstat-no" title="function not covered" >map(i</span>tem=&gt;<span class="cstat-no" title="statement not covered" >&lt;option key={item.id} value={item.id}&gt;{item.name}&lt;/option&gt;)</span>}&lt;/select&gt;&lt;/label&gt;&lt;p className="workspace-muted"&gt;{health === null ? "Checking project health…" : health.length ? `${health.length} open task${health.length === 1 ? "" : "s"} in this project.` : "No open tasks — this project is clear."}&lt;/p&gt;&lt;/div&gt;&lt;div className="workspace-body workspace-task-body"&gt;&lt;TaskPanel key={project.id} projectId={project.id}/&gt;&lt;/div&gt;&lt;/&gt; : &lt;div className="workspace-empty"&gt;&lt;span className="workspace-empty-icon"&gt;✓&lt;/span&gt;&lt;h2&gt;Make room for your next idea&lt;/h2&gt;&lt;p&gt;Create a project, then add tasks and track your progress here.&lt;/p&gt;&lt;button type="button" className="btn-primary" onClick={onCreate}&gt;Create your first project&lt;/button&gt;&lt;/div&gt;}&lt;/section&gt;</span>
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-09-15T08:27:56.274Z
+            </div>
+        <script src="prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="sorter.js"></script>
+        <script src="block-navigation.js"></script>
+    </body>
+</html>
+    

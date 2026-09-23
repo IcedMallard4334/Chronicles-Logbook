@@ -1,0 +1,282 @@
+/* --------------------------------------------------
+   FIELD VALUES
+   One rendering per field type, shared by every view that shows one.
+   -------------------------------------------------- */
+
+/* Nobody answered, as against answered with nothing. Deliberately different
+   from an empty dash: after a format change, entries that predate a field
+   show this, and "not recorded" is the honest word for it. */
+.value-missing {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.value-empty { color: var(--muted); }
+
+/* A value written under an earlier version of its field — kept exactly as
+   recorded. Marked quietly, because it is ordinary rather than wrong. */
+.value-earlier {
+  border-bottom: 1px dashed color-mix(in srgb, var(--muted) 45%, transparent);
+  cursor: help;
+}
+
+.value-number,
+.value-computed { font-variant-numeric: tabular-nums; }
+
+.value-computed-mark {
+  margin-left: 4px;
+  font-size: 0.74em;
+  font-style: italic;
+  color: var(--mauve);
+}
+
+.value-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.value-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* A checklist is progress, so it reads as progress: a bar and a count, not a
+   run of comma-separated item names. The names are the tooltip. */
+.value-checklist {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: help;
+}
+
+.value-checklist-bar {
+  display: inline-block;
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.value-checklist-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success);
+  transition: width 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.value-checklist-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Links and project references: a thing you act on, not a string of text. */
+.value-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.value-chip:not(.is-static):hover {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.value-chip.is-static { cursor: default; opacity: 0.8; }
+
+/* --------------------------------------------------
+   ENTRY LIST — the additions
+   -------------------------------------------------- */
+
+.entry-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.entry-list-count {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.entry-list-note {
+  cursor: help;
+  border-bottom: 1px dotted var(--line);
+}
+
+.entry-list-empty {
+  padding: 26px 0;
+}
+
+.hint-quiet {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.log-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+}
+
+.log-row-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Columns for fields the project no longer asks for. Present because past
+   entries recorded them, dimmed because they are history. */
+.log-field.is-retired-column {
+  opacity: 0.68;
+}
+
+/* Marked by weight and a tooltip rather than by a symbol: a stray glyph after
+   the label reads as a typo, which is what the first attempt looked like. */
+.log-field.is-retired-column .log-label {
+  font-style: italic;
+  cursor: help;
+}
+
+.entry-format-pill {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.entry-format-pill:hover { background: var(--surface-soft); color: var(--text); }
+
+/* Revealed on hover, always reachable by keyboard. A row full of always-on
+   icon buttons is a row you cannot read. */
+.log-row-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.log-row:hover .log-row-actions,
+.log-row:focus-within .log-row-actions { opacity: 1; }
+
+@media (hover: none) {
+  .log-row-actions { opacity: 1; }
+}
+
+.log-action {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.log-action:hover {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--blue);
+}
+
+.log-action svg { width: 15px; height: 15px; }
+
+.log-row-format {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  border-left: 3px solid var(--blue);
+  font-size: 0.79rem;
+  color: var(--muted);
+  animation: log-format-open 220ms ease both;
+}
+
+.log-row-format strong { color: var(--text); }
+
+@keyframes log-format-open {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+/* --------------------------------------------------
+   SHARING — invitation status and leaving
+   -------------------------------------------------- */
+
+.share-status {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.share-status.is-pending { background: var(--warning-bg); color: var(--warning); }
+.share-status.is-declined { background: var(--surface-soft); color: var(--muted); }
+
+.share-member.is-pending,
+.share-member.is-declined { opacity: 0.86; }
+
+.detail-shared {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.detail-leave-confirm {
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warning-soft);
+  background: var(--warning-bg);
+}
+
+.detail-leave-confirm p {
+  font-size: 0.83rem;
+  color: var(--text);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-row-format,
+  .value-checklist-bar span { animation: none; transition: none; }
+}

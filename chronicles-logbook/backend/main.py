@@ -14,6 +14,7 @@ from app.routers import (
     auth,
     calendar,
     entries,
+    invitations,
     projects,
     saved_filters,
     statistics,
@@ -47,6 +48,12 @@ _ADDED_COLUMNS = (
     ("tasks", "checklist", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
     ("google_calendar_tokens", "created_at", "TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
     ("google_calendar_tokens", "updated_at", "TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
+    # Rows written before invitations existed already granted access, so the
+    # default has to be 'accepted' — defaulting to 'pending' would take every
+    # shared project away from the people already collaborating on it.
+    ("project_members", "status", "VARCHAR(20) NOT NULL DEFAULT 'accepted'"),
+    ("project_members", "invited_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
+    ("project_members", "responded_at", "TIMESTAMPTZ"),
 )
 
 
@@ -92,6 +99,7 @@ app.add_middleware(
 )
 
 app.include_router(projects.router)
+app.include_router(invitations.router)
 app.include_router(entries.router)
 app.include_router(saved_filters.router)
 app.include_router(statistics.router)
