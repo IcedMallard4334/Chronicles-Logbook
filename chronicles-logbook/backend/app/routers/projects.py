@@ -12,6 +12,10 @@ from app.models import Entry, Project, ProjectMember, Task, User
 from app.routers.auth import get_current_user
 from app.schema_migration import Simulation, simulate
 from app.schemas import (
+    MAX_CHECKLIST_ITEM_LENGTH,
+    MAX_CHECKLIST_ITEMS,
+    MAX_TAG_LENGTH,
+    MAX_TAGS,
     EntryCreate,
     EntryResponse,
     EntryUpdate,
@@ -33,12 +37,15 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 # that adding one to a live schema does not invalidate every existing entry.
 _OPTIONAL_TYPES = frozenset({"computed", "project_reference"})
 
+
 async def _validate_entry_data(
     data: dict[str, Any],
     entry_schema: list[dict[str, Any]],
     known_project_ids: dict[str, str] | set[str] | None = None,
     db: AsyncSession | None = None,
     user: User | None = None,
+    project_id: UUID | None = None,
+    self_id: UUID | None = None,
 ) -> None:
     """Validate entry field values against the project's entry_schema.
 
@@ -48,8 +55,12 @@ async def _validate_entry_data(
     references are checked once the ids are known.
 
     ``db`` and ``user`` enable checks that need the database — a link field
-    (US-2.3) must name an entry that actually exists — and are omitted on
-    paths that validate before a session is available.
+    (US-2.3) must name an entry that actually exists, in the same project as
+    the entry carrying it, and never the entry itself — and are omitted on
+    paths that validate before a session is available. ``project_id`` says
+    which project the entry belongs to (a link may not cross projects), and
+    ``self_id`` identifies the entry being written so a self-link can be
+    refused even when the entry is not in the database yet.
     """
     schema_by_id = {field["id"]: field for field in entry_schema}
 
@@ -128,12 +139,50 @@ async def _validate_entry_data(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be a list of strings",
                 )
+            # At least one tag: the field exists so entries can be
+            # categorised and filtered, and an empty list does neither.
+            if len(value) < 1:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' needs at least one tag",
+                )
+            if len(value) > MAX_TAGS:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Field '{field_name}' cannot have more than "
+                        f"{MAX_TAGS} tags"
+                    ),
+                )
+            for tag in value:
+                if not tag.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' cannot contain an empty tag",
+                    )
+                if len(tag.strip()) > MAX_TAG_LENGTH:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            f"Field '{field_name}': each tag must be "
+                            f"{MAX_TAG_LENGTH} characters or fewer"
+                        ),
+                    )
         elif field_type == "checklist":
             if not isinstance(value, list):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be a list of checklist items",
                 )
+            if len(value) > MAX_CHECKLIST_ITEMS:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Field '{field_name}' cannot have more than "
+                        f"{MAX_CHECKLIST_ITEMS} items"
+                    ),
+                )
+            seen_texts: set[str] = set()
             for item in value:
                 if not isinstance(item, dict):
                     raise HTTPException(
@@ -150,6 +199,39 @@ async def _validate_entry_data(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=f"Field '{field_name}': checklist item text must be a string",
                     )
+                if "completed" in item and not isinstance(item["completed"], bool):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            f"Field '{field_name}': checklist item 'completed' "
+                            "must be true or false"
+                        ),
+                    )
+                text = item["text"].strip()
+                if not text:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' cannot contain an empty item",
+                    )
+                if len(text) > MAX_CHECKLIST_ITEM_LENGTH:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            f"Field '{field_name}': each item must be "
+                            f"{MAX_CHECKLIST_ITEM_LENGTH} characters or fewer"
+                        ),
+                    )
+                # Two identically-named steps are one step written twice;
+                # refusing the duplicate is clearer than silently keeping both.
+                if text.lower() in seen_texts:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            f"Field '{field_name}': checklist items must be "
+                            "unique"
+                        ),
+                    )
+                seen_texts.add(text.lower())
         elif field_type == "link":
             if value is not None and value != "":
                 if not isinstance(value, str):
@@ -157,22 +239,39 @@ async def _validate_entry_data(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=f"Field '{field_name}' must be an entry id string",
                     )
-                # Validate that the linked entry exists (if db and user provided)
-                if db is not None and user is not None:
-                    try:
-                        target_id = UUID(value)
-                    except ValueError:
-                        # `from None` because the ValueError only says the string
-                        # is not a UUID, which the detail already states.
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Field '{field_name}': invalid entry id",
-                        ) from None
+                try:
+                    target_id = UUID(value)
+                except ValueError:
+                    # `from None` because the ValueError only says the string
+                    # is not a UUID, which the detail already states.
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}': invalid entry id",
+                    ) from None
+                # An entry that links to itself is a cross-reference to
+                # nowhere: it can never be followed and never cleaned up.
+                if self_id is not None and target_id == self_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' cannot link an entry to itself",
+                    )
+                # A link is a reference into the same project's logbook — the
+                # picker only offers that project's entries, and a reference
+                # that leaves it would be invisible from both sides.
+                if project_id is not None and db is not None and user is not None:
                     target = await db.get(Entry, target_id)
                     if target is None:
                         raise HTTPException(
                             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Field '{field_name}': linked entry does not exist",
+                        )
+                    if target.project_id != project_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=(
+                                f"Field '{field_name}': linked entry belongs to a "
+                                "different project"
+                            ),
                         )
 
 
@@ -657,6 +756,10 @@ async def create_entry(
         await _reference_scope(project.entry_schema, user, db),
         db=db,
         user=user,
+        project_id=project_id,
+        # The caller may have chosen the id already (offline sync, import),
+        # which is the only way a brand-new entry could link to itself.
+        self_id=data.id,
     )
 
     entry = Entry(
@@ -762,6 +865,8 @@ async def update_entry(
             await _reference_scope(entry_schema, user, db),
             db=db,
             user=user,
+            project_id=project_id,
+            self_id=entry_id,
         )
         entry.data = apply_computed_fields(payload_data, entry_schema)
 
@@ -784,6 +889,21 @@ async def update_entry(
     return entry
 
 
+def _is_link_to(value: Any, target: UUID) -> bool:
+    """Whether a stored link value points at *target*.
+
+    Compared as parsed UUIDs rather than raw strings: an id can be written
+    with different spellings (upper case, without dashes), and a link that was
+    accepted by validation must clean up and resolve by exactly the same rule.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        return UUID(value) == target
+    except ValueError:
+        return False
+
+
 async def _clear_broken_links(
     deleted_entry_id: UUID,
     user: User,
@@ -801,7 +921,7 @@ async def _clear_broken_links(
     for candidate in result.scalars().all():
         changed = False
         for field_id, value in list(candidate.data.items()):
-            if isinstance(value, str) and value == str(deleted_entry_id):
+            if _is_link_to(value, deleted_entry_id):
                 candidate.data[field_id] = None
                 changed = True
         if changed:
@@ -858,8 +978,6 @@ async def get_entry_links(
     await _get_readable_project(project_id, user, db)
     await _get_project_entry(entry_id, project_id, db)
 
-    target_str = str(entry_id)
-
     result = await db.execute(
         select(Entry)
         .join(Project, Entry.project_id == Project.id)
@@ -871,7 +989,7 @@ async def get_entry_links(
         if candidate.id == entry_id:
             continue
         for value in candidate.data.values():
-            if isinstance(value, str) and value == target_str:
+            if _is_link_to(value, entry_id):
                 backlinks.append(candidate)
                 break
 

@@ -160,6 +160,9 @@ Returns entries across all projects owned by the authenticated user, ordered new
 |---|---|---|---|
 | `q` | string | — | Keyword matched against project name and entry field values |
 | `project_id` | UUID | — | Filter to a single project |
+| `tag` | string | — | Only entries whose tag-type fields contain this tag (case-insensitive) |
+| `todo` | boolean | — | `true` for outstanding work, `false` for work already done |
+| `sort` | string | `newest` | `newest`, `oldest` or `due_date` |
 | `page` | integer | 1 | Page number |
 | `page_size` | integer | 20 | Items per page (max 100) |
 
@@ -172,11 +175,18 @@ Returns entries across all projects owned by the authenticated user, ordered new
     "project_id": "...",
     "project_name": "My Project",
     "data": { "field-id-1": 3, "field-id-2": "Finished login page" },
+    "schema_snapshot": [
+      { "id": "field-id-1", "name": "Hours", "type": "number" },
+      { "id": "field-id-2", "name": "Summary", "type": "text" }
+    ],
     "time_spent": 90,
     "created_at": "...",
     "updated_at": "..."
   }
 ]
 ```
+
+`schema_snapshot` is the schema as it stood when the entry was written, so a client can
+render a `link` value as a link rather than showing the target's bare id.
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5

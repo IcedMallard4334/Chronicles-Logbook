@@ -68,6 +68,45 @@ async def test_saved_filter_can_be_re_applied_to_the_search(authenticated_client
     assert data[0]["todo"] is True
 
 
+async def test_a_saved_tag_filter_restores_the_tagged_entries(authenticated_client):
+    """US-2.1: a tag filter is saved and re-applied like any other criterion."""
+    project = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Tagged Project",
+            "entry_schema": [
+                {"id": "f-note", "name": "Note", "type": "text"},
+                {"id": "f-tags", "name": "Tags", "type": "tags"},
+            ],
+        },
+    )
+    project_id = project.json()["id"]
+
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"f-note": "Tagged", "f-tags": ["urgent"]}},
+    )
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {"f-note": "Untagged", "f-tags": ["later"]}},
+    )
+
+    saved = await authenticated_client.post(
+        "/saved-filters",
+        json={"name": "Urgent work", "criteria": {"tag": "urgent"}},
+    )
+    assert saved.status_code == 201
+    criteria = saved.json()["criteria"]
+    assert criteria["tag"] == "urgent"
+
+    response = await authenticated_client.get("/entries", params={"tag": criteria["tag"]})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["data"]["f-note"] == "Tagged"
+
+
 async def test_saving_over_an_existing_name_updates_it(authenticated_client):
     first = await authenticated_client.post(
         "/saved-filters",

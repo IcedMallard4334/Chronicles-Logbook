@@ -89,6 +89,7 @@ async def search_entries(
                 "project_id": entry.project_id,
                 "project_name": project_name,
                 "data": entry.data,
+                "schema_snapshot": entry.schema_snapshot or [],
                 "time_spent": entry.time_spent,
                 "todo": entry.todo,
                 "due_date": entry.due_date,

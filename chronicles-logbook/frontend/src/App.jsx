@@ -13,7 +13,7 @@ import OfflineStatus from "./OfflineStatus"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   archiveProject,
   createEntry,
@@ -21,8 +21,6 @@ import {
   deleteAccount,
   deleteProject,
   fetchEntries,
-  fetchEntriesGlobal,
-  fetchEntryLinks,
   fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
@@ -45,13 +43,16 @@ import {
   YAxis,
 } from "recharts"
 import {
+  CHECKLIST_LIMIT,
   FIELD_TYPE_META,
   FIELD_TYPES,
+  TAGS_LIMIT,
   describeExpression,
   expressionCanonical,
   expressionError,
   expressionToDisplay,
   fieldTypeLabel,
+  humaniseValue,
   isNumericField,
   previewExpressionValue,
   referencedFieldIds,
@@ -1482,18 +1483,38 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
-function TagsInput({ value, onChange }) {
+function TagsInput({ value, onChange, suggestions = [] }) {
   const [input, setInput] = useState("")
+  const [notice, setNotice] = useState(null)
+  const suggestionId = useId()
+
+  // The tags already used elsewhere in this project, minus the ones on this
+  // entry: a filter only works when the same label is written the same way
+  // twice, so the second time is offered rather than remembered.
+  const offered = suggestions.filter((tag) => !value.includes(tag))
 
   const addTag = () => {
     const tag = input.trim()
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag])
+    if (!tag) return
+    if (tag.length > TAGS_LIMIT.length) {
+      setNotice(`A tag can be at most ${TAGS_LIMIT.length} characters.`)
+      return
     }
+    if (value.includes(tag)) {
+      setNotice(`"${tag}" is already on this entry.`)
+      return
+    }
+    if (value.length >= TAGS_LIMIT.count) {
+      setNotice(`An entry can carry up to ${TAGS_LIMIT.count} tags.`)
+      return
+    }
+    setNotice(null)
+    onChange([...value, tag])
     setInput("")
   }
 
   const removeTag = (tag) => {
+    setNotice(null)
     onChange(value.filter((t) => t !== tag))
   }
 
@@ -1527,25 +1548,58 @@ function TagsInput({ value, onChange }) {
       <input
         type="text"
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        maxLength={TAGS_LIMIT.length}
+        list={offered.length > 0 ? suggestionId : undefined}
+        onChange={(e) => {
+          setInput(e.target.value)
+          setNotice(null)
+        }}
         onKeyDown={handleKeyDown}
         placeholder={value.length === 0 ? "Type and press Enter…" : ""}
       />
+      {offered.length > 0 && (
+        <datalist id={suggestionId}>
+          {offered.map((tag) => (
+            <option key={tag} value={tag} />
+          ))}
+        </datalist>
+      )}
+      <span className="tags-count">
+        {value.length}/{TAGS_LIMIT.count} tags
+      </span>
+      {notice && (
+        <p className="field-notice" role="alert">
+          {notice}
+        </p>
+      )}
     </div>
   )
 }
 
 function ChecklistInput({ value, onChange }) {
   const [input, setInput] = useState("")
+  const [notice, setNotice] = useState(null)
 
   const addItem = () => {
     const text = input.trim()
-    if (text) {
-      onChange([
-        ...value,
-        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
-      ])
+    if (!text) return
+    if (text.length > CHECKLIST_LIMIT.length) {
+      setNotice(`An item can be at most ${CHECKLIST_LIMIT.length} characters.`)
+      return
     }
+    if (value.some((item) => item.text.trim().toLowerCase() === text.toLowerCase())) {
+      setNotice(`"${text}" is already on this checklist.`)
+      return
+    }
+    if (value.length >= CHECKLIST_LIMIT.count) {
+      setNotice(`A checklist can hold up to ${CHECKLIST_LIMIT.count} items.`)
+      return
+    }
+    setNotice(null)
+    onChange([
+      ...value,
+      { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
+    ])
     setInput("")
   }
 
@@ -1556,6 +1610,7 @@ function ChecklistInput({ value, onChange }) {
   }
 
   const removeItem = (id) => {
+    setNotice(null)
     onChange(value.filter((item) => item.id !== id))
   }
 
@@ -1582,6 +1637,7 @@ function ChecklistInput({ value, onChange }) {
             type="checkbox"
             checked={item.completed}
             onChange={() => toggleItem(item.id)}
+            aria-label={item.completed ? `Untick ${item.text}` : `Tick ${item.text}`}
           />
           <span className={item.completed ? "checklist-done" : ""}>
             {item.text}
@@ -1620,7 +1676,11 @@ function ChecklistInput({ value, onChange }) {
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          maxLength={CHECKLIST_LIMIT.length}
+          onChange={(e) => {
+            setInput(e.target.value)
+            setNotice(null)
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Add item and press Enter…"
         />
@@ -1630,8 +1690,30 @@ function ChecklistInput({ value, onChange }) {
           {value.filter((i) => i.completed).length}/{value.length} complete
         </span>
       )}
+      {notice && (
+        <p className="field-notice" role="alert">
+          {notice}
+        </p>
+      )}
     </div>
   )
+}
+
+/**
+ * An entry named in one line.
+ *
+ * The first text a schema asked for is the closest thing an entry has to a
+ * title; when there is none, the day it was written stands in. Used wherever
+ * an entry has to be named in a single string — the link dropdown and the
+ * backlinks line under a row — so the same entry reads the same way in both.
+ */
+function entryPreview(entry) {
+  if (!entry) return "An entry that is no longer there"
+  const firstText = Object.values(entry.data || {}).find(
+    (value) => typeof value === "string" && value.trim()
+  )
+  const text = firstText || `Entry of ${new Date(entry.created_at).toLocaleDateString()}`
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text
 }
 
 function LinkInput({ value, onChange, entries }) {
@@ -1642,16 +1724,11 @@ function LinkInput({ value, onChange, entries }) {
       className="link-select"
     >
       <option value="">No link</option>
-      {entries.map((entry) => {
-        // Build a preview from the first text field value
-        const preview = Object.values(entry.data || {})
-          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
-        return (
-          <option key={entry.id} value={entry.id}>
-            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
-          </option>
-        )
-      })}
+      {entries.map((entry) => (
+        <option key={entry.id} value={entry.id}>
+          {entryPreview(entry)} — {new Date(entry.created_at).toLocaleDateString()}
+        </option>
+      ))}
     </select>
   )
 }
@@ -1663,7 +1740,7 @@ function LinkInput({ value, onChange, entries }) {
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
+function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange }) {
   if (field.type === "computed") {
     // The badge's word and colour come from the field-type registry, so the
     // form, the table and the schema view can never disagree about what a
@@ -1721,6 +1798,7 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
         <TagsInput
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
+          suggestions={suggestions}
         />
       </div>
     )
@@ -1778,7 +1856,42 @@ function EntryFieldInput({ field, value, computed, projects, status, entries = [
   )
 }
 
-function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
+/**
+ * Why the rich fields cannot be saved yet, or `null` if they can.
+ *
+ * The server applies the same rules and its word is final (US-2.1–US-2.3).
+ * Checking here means the problem is explained beside the form it was made
+ * in, rather than as a rejection after the entry has been sent. Only what
+ * the payload holds is judged: a link left empty is no link, and a checklist
+ * nobody touched is an empty list the server accepts.
+ */
+function richFieldProblem(schema, payload) {
+  for (const field of schema) {
+    const value = payload[field.id]
+    if (field.type === "tags" && Array.isArray(value)) {
+      if (value.length === 0) return `"${field.name}" needs at least one tag.`
+      if (value.length > TAGS_LIMIT.count)
+        return `"${field.name}" can hold up to ${TAGS_LIMIT.count} tags.`
+      if (value.some((tag) => String(tag).trim().length > TAGS_LIMIT.length))
+        return `Each tag in "${field.name}" can be at most ${TAGS_LIMIT.length} characters.`
+    }
+    if (field.type === "checklist" && Array.isArray(value)) {
+      if (value.length > CHECKLIST_LIMIT.count)
+        return `"${field.name}" can hold up to ${CHECKLIST_LIMIT.count} items.`
+      const texts = value.map((item) => String(item?.text || "").trim())
+      if (texts.some((text) => !text))
+        return `Every item in "${field.name}" needs some text.`
+      if (texts.some((text) => text.length > CHECKLIST_LIMIT.length))
+        return `Each item in "${field.name}" can be at most ${CHECKLIST_LIMIT.length} characters.`
+      const folded = texts.map((text) => text.toLowerCase())
+      if (new Set(folded).size !== folded.length)
+        return `Every item in "${field.name}" must be different.`
+    }
+  }
+  return null
+}
+
+function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProject }) {
   const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
@@ -1787,21 +1900,28 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [projectEntries, setProjectEntries] = useState([])
-
-  // Load existing entries for the link field selector
-  useEffect(() => {
-    const hasLinkField = schema.some((f) => f.type === "link")
-    if (hasLinkField) {
-      fetchEntries(project.id)
-        .then(setProjectEntries)
-        .catch(() => setProjectEntries([]))
-    }
-  }, [project.id, schema])
 
   // Recomputed as you type, so a calculation settles while the entry is being
   // filled in rather than only after it is saved.
   const computed = useMemo(() => withComputedValues(data, schema), [data, schema])
+
+  // Every tag this project's entries already carry, offered as you type: a
+  // filter only works when the same label is written the same way twice, and
+  // the entries come from the parent's up-to-date list rather than a copy
+  // taken when this form first mounted.
+  const tagSuggestions = useMemo(() => {
+    const tagFields = schema.filter((field) => field.type === "tags")
+    if (tagFields.length === 0) return []
+    const seen = new Set()
+    for (const entry of entries) {
+      for (const field of tagFields) {
+        for (const tag of entry.data?.[field.id] || []) {
+          if (typeof tag === "string" && tag.trim()) seen.add(tag)
+        }
+      }
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b))
+  }, [entries, schema])
 
   // A link to the project you are already in carries no information, so it is
   // not offered.
@@ -1872,6 +1992,11 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
           payload[field.id] = ""
         }
       }
+      const problem = richFieldProblem(schema, payload)
+      if (problem) {
+        setError(problem)
+        return
+      }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
@@ -1920,7 +2045,8 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
             computed={computed[field.id]}
             projects={linkable}
             status={statuses[field.linked_project_id]}
-            entries={projectEntries}
+            entries={entries}
+            suggestions={tagSuggestions}
             onOpenProject={onOpenProject}
             onChange={handleChange}
           />
@@ -1994,7 +2120,7 @@ function formatEntryValue(field, value, projectNames) {
   if (field?.type === "project_reference") {
     return projectNames.get(value) || "A project you no longer have"
   }
-  return String(value)
+  return humaniseValue(value)
 }
 
 /**
@@ -2016,11 +2142,66 @@ function RetiredValues({ retiredData, retiredSchema }) {
         {fields.map((field) => (
           <div key={field.id} className="log-field">
             <span className="log-label">{field.name}</span>
-            <span className="log-value">{String(retiredData[field.id])}</span>
+            <span className="log-value">{humaniseValue(retiredData[field.id])}</span>
           </div>
         ))}
       </div>
     </details>
+  )
+}
+
+/** The tags an entry carries, as the chips they were written as. */
+function TagsValue({ value }) {
+  const tags = Array.isArray(value) ? value : []
+  if (tags.length === 0) return "—"
+  return (
+    <span className="tag-list">
+      {tags.map((tag) => (
+        <span key={tag} className="tag-chip-small">
+          {tag}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * How far along a checklist is: the count, with the items themselves on
+ * hover — the number is what the row has room for, the list is what someone
+ * checking progress actually wants (US-2.2).
+ */
+function ChecklistValue({ value }) {
+  const items = Array.isArray(value) ? value : []
+  if (items.length === 0) return "—"
+  const done = items.filter((item) => item && item.completed).length
+  return (
+    <span
+      className="checklist-preview"
+      title={items
+        .map((item) => `${item.completed ? "✓" : "○"} ${item.text}`)
+        .join("\n")}
+    >
+      {done} of {items.length} done
+    </span>
+  )
+}
+
+/**
+ * An entry link's target, named rather than shown as the id it is stored as.
+ *
+ * The target is looked up in the rows already on the page; a link whose
+ * target cannot be found says so plainly instead of showing a bare UUID.
+ */
+function LinkValue({ value, entryById }) {
+  if (!value) return "—"
+  const target = entryById.get(value)
+  return (
+    <span
+      className="link-badge"
+      title={target ? "This entry links to that one" : "The entry it linked to is gone"}
+    >
+      ↳ {entryPreview(target)}
+    </span>
   )
 }
 
@@ -2029,6 +2210,30 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
   )
+
+  // A link stores its target's id — right to store, unreadable to show — so
+  // the rows index themselves by id and the cell resolves the name. The same
+  // index answers the other direction: which entries point at this one
+  // (US-2.3), worked out from the rows already on the page rather than by
+  // asking the server once per row.
+  const entryById = useMemo(
+    () => new Map(entries.map((entry) => [entry.id, entry])),
+    [entries]
+  )
+  const backlinksById = useMemo(() => {
+    const linkFields = (schema || []).filter((field) => field.type === "link")
+    const map = new Map()
+    if (linkFields.length === 0) return map
+    for (const entry of entries) {
+      for (const field of linkFields) {
+        const targetId = entry.data?.[field.id]
+        if (!targetId) continue
+        if (!map.has(targetId)) map.set(targetId, [])
+        map.get(targetId).push(entry)
+      }
+    }
+    return map
+  }, [entries, schema])
 
   // The status of every project this schema links to, for the chips below.
   const linkedIds = useMemo(
@@ -2062,6 +2267,7 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
           // the honest answer either way. What the server stored agrees with
           // it, because every write and every schema change re-derives.
           const data = withComputedValues(entry.data || {}, schema)
+          const backlinks = backlinksById.get(entry.id) || []
           return (
             <li
               key={entry.id}
@@ -2070,6 +2276,7 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
               <div className="log-fields">
                 {schema.map((field) => {
                   const meta = FIELD_TYPE_META[field.type]
+                  const value = data[field.id]
                   return (
                     <div
                       key={field.id}
@@ -2089,15 +2296,21 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                         )}
                       </span>
                       <span className="log-value">
-                        {field.type === "project_reference" && data[field.id] ? (
+                        {field.type === "project_reference" && value ? (
                           <LinkChip
-                            targetId={data[field.id]}
+                            targetId={value}
                             projects={projects}
-                            status={statuses[data[field.id]]}
+                            status={statuses[value]}
                             onOpen={onOpenProject}
                           />
+                        ) : field.type === "tags" ? (
+                          <TagsValue value={value} />
+                        ) : field.type === "checklist" ? (
+                          <ChecklistValue value={value} />
+                        ) : field.type === "link" ? (
+                          <LinkValue value={value} entryById={entryById} />
                         ) : (
-                          formatEntryValue(field, data[field.id], projectNames)
+                          formatEntryValue(field, value, projectNames)
                         )}
                         {/* Marked so a derived figure is never mistaken for one
                             that was typed in. */}
@@ -2133,6 +2346,18 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                   <span className="entry-author"> · {entry.created_by_name}</span>
                 )}
               </span>
+              {/* Which entries point at this one (US-2.3), worked out from
+                  the rows already on the page: one pass, no extra requests. */}
+              {backlinks.length > 0 && (
+                <p className="entry-backlinks">
+                  <span className="entry-backlinks-label">Linked from</span>
+                  {backlinks.map((source) => (
+                    <span key={source.id} className="entry-backlink">
+                      {entryPreview(source)}
+                    </span>
+                  ))}
+                </p>
+              )}
               {/* Last, and collapsed: history worth keeping is not history worth
                   leading with. */}
               <RetiredValues
@@ -2435,7 +2660,7 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
+              <EntryForm project={project} projects={projects} entries={project.entries || []} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
             )}
             <EntryList
               entries={project.entries || []}
