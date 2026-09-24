@@ -31,6 +31,15 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
+class DevLoginRequest(BaseModel):
+    """Body for POST /auth/dev-login — local development only, see config.ENABLE_DEV_LOGIN."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str | None = None
+    full_name: str | None = None
+
+
 class FieldType(str, Enum):
     TEXT = "text"
     NUMBER = "number"

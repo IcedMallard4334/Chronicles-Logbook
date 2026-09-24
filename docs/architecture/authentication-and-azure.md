@@ -28,6 +28,13 @@ http://localhost:8000/auth/google/callback
 
 Keep `DATABASE_SSL=false` and `COOKIE_SECURE=false` for local HTTP development.
 
+If the shared OAuth client isn't registered for your machine, set
+`ENABLE_DEV_LOGIN=true` instead of chasing Google Cloud Console access —
+see [Running the Project](../getting-started/running.md#signing-in-locally-without-google-oauth)
+for the local sign-in bypass this opens (`POST /auth/dev-login`, gated
+behind that one setting, 404s when it's unset). Never set it in Azure App
+Service Application Settings.
+
 ## Azure App Service environment
 
 Configure these values in Azure App Service Application Settings. Never commit their real values:
@@ -56,4 +63,5 @@ Google OpenID Connect satisfies authentication through an established provider a
 should not be treated as the project's required relevant external API feature. The GitHub commit
 integration or Google Calendar task integration must still be implemented separately.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The `ENABLE_DEV_LOGIN` note above was added with Claude Code (Sonnet 5).

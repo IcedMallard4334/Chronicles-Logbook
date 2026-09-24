@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
     COOKIE_SECURE,
+    ENABLE_DEV_LOGIN,
     FRONTEND_URL,
     GOOGLE_CALENDAR_REDIRECT_URI,
     GOOGLE_CLIENT_ID,
@@ -23,7 +24,7 @@ from app.config import (
 from app.database import get_db
 from app.email import send_account_deleted_email
 from app.models import GoogleCalendarAccount, LoginSession, User
-from app.schemas import AuthResponse, UserResponse
+from app.schemas import AuthResponse, DevLoginRequest, UserResponse
 from app.security import create_access_token, decode_access_token, decode_calendar_state
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -224,6 +225,44 @@ async def _create_login_session(user, db, response):
     response.set_cookie(_SESSION_COOKIE, token, max_age=_SESSION_DAYS * 86400,
                         httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/auth")
     response.headers["Cache-Control"] = "no-store"
+
+
+@router.post("/dev-login", response_model=AuthResponse)
+async def dev_login(
+    payload: DevLoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Sign in without Google — local development only.
+
+    Answers 404 (not 503, unlike the Google routes above) unless the
+    backend's own .env has ENABLE_DEV_LOGIN=true, so its existence isn't
+    even revealed anywhere that setting is unset — which is everywhere
+    except a developer's own machine, since it's never set in Azure
+    Application Settings. Finds-or-creates a user by email, the same as a
+    real Google sign-in would, so local data (projects, entries) carries
+    over between runs instead of a fresh throwaway account every time.
+    """
+    if not ENABLE_DEV_LOGIN:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found.")
+
+    email = (payload.email or "dev@chronicles.local").strip().lower()
+    full_name = (payload.full_name or "").strip() or email.split("@")[0]
+
+    user = await db.scalar(select(User).where(User.email == email))
+    if user is None:
+        user = User(
+            google_sub=f"dev-login-{uuid.uuid4()}",
+            full_name=full_name,
+            email=email,
+            avatar_url=None,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    await _create_login_session(user, db, response)
+    return _auth_response(user)
 
 
 def _check_session_origin(request):

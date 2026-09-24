@@ -25,6 +25,31 @@ npm run dev
 
 The frontend will be available at [http://localhost:5173](http://localhost:5173).
 
+## Signing in locally without Google OAuth
+
+The shared Google Cloud OAuth client only has `http://localhost:8000/auth/google/callback`
+registered for whoever administers it, so "Continue with Google" may not work
+on your machine even with the backend running correctly. To sign in anyway:
+
+1. Add `ENABLE_DEV_LOGIN=true` to `chronicles-logbook/backend/.env`.
+2. Restart the backend.
+3. Open the sign-in page while the frontend is running via `npm run dev` — a
+   "Local development" section appears below the Google button with a
+   **Continue without Google** option.
+
+Leave the email field blank to get a single shared dev account, or type an
+email to sign in as someone specific — the same email always returns to the
+same account, so your projects and entries persist between runs. This is
+also how to test a shared project locally: mint a session for the owner in
+one browser profile and for the invitee in another (or a private window),
+using a different email each time.
+
+This only ever works locally. The panel itself is built out of a production
+bundle (`npm run build`) entirely — it doesn't render, disabled or
+otherwise — and the backend refuses the request with a 404 unless
+`ENABLE_DEV_LOGIN=true` is set, which must never be added to Azure
+Application Settings.
+
 ## Running tests
 
 === "Backend"
@@ -72,6 +97,7 @@ The frontend will be available at [http://localhost:5173](http://localhost:5173)
 | `SQL_DEBUG` | No | Log SQL statements (default: `false`) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
+| `ENABLE_DEV_LOGIN` | No | Local sign-in without Google (default: `false`) — see above. Never set on Azure. |
 
 ### Frontend (`chronicles-logbook/frontend/.env`)
 
@@ -117,4 +143,7 @@ curl -i http://localhost:8000/health
 If that returns anything other than the API's own `{"status": "ok"}`, the
 problem is not CORS.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The "Signing in locally without Google OAuth" section and its `ENABLE_DEV_LOGIN`
+row were added with Claude Code (Sonnet 5), documenting the `POST /auth/dev-login`
+endpoint built in the same pass.

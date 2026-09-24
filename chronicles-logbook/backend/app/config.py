@@ -53,6 +53,15 @@ OAUTH_REDIRECT_URI = os.environ.get(
 )
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", JWT_SECRET_KEY)
+
+# Off by default, everywhere. The team's shared Google OAuth client only has
+# http://localhost:8000/auth/google/callback registered for whoever
+# administers it, so a real Google sign-in doesn't work on every teammate's
+# machine. Setting this to true in a *local* .env file (never in Azure
+# Application Settings) opens POST /auth/dev-login, which mints a real
+# session for any email without going through Google at all — so it must
+# never be reachable anywhere but a developer's own machine.
+ENABLE_DEV_LOGIN = os.environ.get("ENABLE_DEV_LOGIN", "false").lower() == "true"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"
 
