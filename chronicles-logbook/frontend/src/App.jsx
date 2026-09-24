@@ -13,6 +13,8 @@ import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import ViewTransition, { ViewLoader } from "./ViewTransition"
 import { useDialogFocus } from "./useDialogFocus"
+import { PageHint, WelcomeTour } from "./GuidedTour"
+import { PAGE_TOURS, PROJECT_TOURS, WELCOME_TOUR, seenTours } from "./tourSteps"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
@@ -2368,13 +2370,27 @@ function ProjectDetail({
   onDeleteProject,
   onOpenProject,
   onLeaveProject,
+  hintsSuppressed = false,
 }) {
   const [tab, setTab] = useState("entries")
   const [leaving, setLeaving] = useState(false)
+  const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
     setTab("entries")
   }, [project.id])
+
+  // US-3.23: the same "first time you open this" coach mark as the page
+  // tours, scoped to a project's own tabs instead of the app's top-level
+  // views — schema, entries and tasks each get explained once, the moment
+  // somebody actually looks at that tab. Suppressed while the welcome tour
+  // or the current page's own hint is still on screen — PageHint has no
+  // scrim by design (it shouldn't block whatever you were doing), which
+  // means opening a project before dismissing the page-level hint is a
+  // perfectly normal thing to do, and would otherwise stack a second
+  // unrelated hint on top of it.
+  const projectTour = hintsSuppressed ? null : PROJECT_TOURS[tab]
+  const showProjectHint = projectTour && !seenTours().includes(projectTour.id)
 
   const handleLeave = async () => {
     if (!window.confirm(`Leave "${project.name}"? Entries you wrote stay in it.`)) return
@@ -2507,6 +2523,12 @@ function ProjectDetail({
           </>
         )}
       </footer>
+      {showProjectHint && (
+        <PageHint
+          hint={projectTour}
+          onDismiss={() => setProjectHintTick((tick) => tick + 1)}
+        />
+      )}
     </section>
   )
 }
@@ -2793,6 +2815,19 @@ function App() {
     params.set("view", currentView)
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
+
+  // US-3.23: a one-time welcome tour, then a single coach mark the first
+  // time each page is opened. Both read seenTours() fresh on every render
+  // rather than caching "have I shown this" in state — the tick counters
+  // below exist only to force that re-read once a tour marks itself seen,
+  // since the dismissal itself lives in localStorage, not component state.
+  const [, setWelcomeTick] = useState(0)
+  const [, setHintTick] = useState(0)
+  const showWelcome = !loading && !seenTours().includes(WELCOME_TOUR.id)
+  const pageKey = view === "timeline" ? "timeline" : currentView
+  const pageTour = PAGE_TOURS[pageKey]
+  const showPageHint =
+    !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
 
   const sendMiraMessage = useCallback(async (message) => {
     const trimmed = message.trim()
@@ -3409,6 +3444,7 @@ function App() {
                 onDeleteProject={handleDeleteProject}
                 onOpenProject={handleSelectProject}
                 onLeaveProject={handleLeaveProject}
+                hintsSuppressed={showWelcome || showPageHint}
               />
             ) : projects.length > 0 ? (
               <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
@@ -3430,6 +3466,12 @@ function App() {
         onSave={handleProjectUpdate}
       />
       <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
+      {showWelcome && (
+        <WelcomeTour tour={WELCOME_TOUR} onFinish={() => setWelcomeTick((tick) => tick + 1)} />
+      )}
+      {showPageHint && (
+        <PageHint hint={pageTour} onDismiss={() => setHintTick((tick) => tick + 1)} />
+      )}
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )

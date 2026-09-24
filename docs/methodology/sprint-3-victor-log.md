@@ -585,4 +585,93 @@ call-site mismatches above, recommended excluding `DayActivityDialog.jsx`,
 and caught the missing `aria-describedby` — all fixed before or during
 implementation, not discovered after.
 
+## 7. US-3.23 — First-time login onboarding
+
+**Source:** ported essentially unchanged from the recovered draft covered
+in this log's opening section (`GuidedTour.jsx`, `GuidedTour.css`,
+`tourSteps.js`, and a 13-test `GuidedTour.test.jsx` that already existed) —
+reviewed the component before trusting it, same as every other piece of
+that draft: it already does its own focus management (moves focus onto
+the tour card, Escape/Arrow-key navigation, `role="dialog"
+aria-modal="false"` since a coach mark deliberately doesn't block the page
+it's explaining), so it needed nothing from Story 6's `useDialogFocus` —
+different UX pattern, correctly self-contained. Confirmed the tour's four
+CSS anchor selectors (`.workspace-sidebar-nav`, `.sidebar-head`,
+`.nav-pill-center`, `.nav-pill-right`) still exist on this branch before
+trusting the port, since a lot has changed since that draft was written.
+
+**Wiring (the actual work in this story, since the tour components
+themselves were already done):**
+
+- `App.jsx`: a one-time `WelcomeTour` shown once loading finishes and
+  `"welcome"` isn't in `seenTours()`; a `PageHint` for the current
+  top-level view (`currentView`, or `"timeline"` when the timeline toggle
+  is active — this branch keeps that as a separate `view` state rather
+  than folding it into `currentView`, unlike the recovered draft, so the
+  wiring maps both into one lookup key rather than assuming one variable).
+  Page hints are suppressed while the welcome tour is still showing, so
+  they never overlap.
+- `ProjectDetail` (also in `App.jsx`): the same pattern scoped to a
+  project's own tabs (`PROJECT_TOURS`, keyed by `tab`) — schema, entries
+  and tasks each get a one-time coach mark the first time that tab is
+  opened, satisfying "contextual guidance the first time a user visits
+  each major page/section" for sections *within* a project, not just the
+  app's top-level views.
+  `seenTours()` reads `localStorage` fresh on every call (cheap, and the
+  source of truth already lives there since `PageHint`/`WelcomeTour` call
+  `markTourSeen` themselves on dismiss) — so showing/hiding a hint after
+  it's dismissed just needs *something* to trigger a re-render; three
+  small "tick" counters (`welcomeTick`, `hintTick`, `projectHintTick`) do
+  that without duplicating the seen-state into component state, which
+  could drift from what's actually persisted.
+- `ProfilePage.jsx`: a "Replay tour" row in Workspace settings — the
+  "reopened from a help menu" requirement — calls `resetTours()` then
+  navigates to `/app`, where the same `seenTours()` check picks the reset
+  straight back up.
+
+**A real bug caught by independent testing:** `showProjectHint` (inside
+`ProjectDetail`) wasn't gated on the top-level `showWelcome`/`showPageHint`
+at all. Reachable sequence, confirmed by the tester tracing the actual
+code rather than reasoning abstractly: welcome tour already seen → the
+Home page's own hint is showing, not yet dismissed → user opens a project
+anyway (`PageHint` deliberately has no scrim — "this arrives while
+somebody is already doing something", so nothing blocks that click) →
+`ProjectDetail` mounts with its own `project-entries` hint, which had no
+way to know the page-level hint was still on screen. Two `tour-layer`
+overlays end up rendered at once, each grabbing focus on mount. Fixed by
+passing a `hintsSuppressed={showWelcome || showPageHint}` prop down into
+`ProjectDetail`, which now treats its own tour lookup as `null` while
+either is true — closing the gap without needing the project-level hint
+to know anything about the app-level state beyond that one boolean.
+
+**Tests:** the 13 ported tests cover the tour mechanics directly
+(remembering/forgetting what's been seen, per-account scoping, storage
+failures, anchor-skipping, Escape, dismiss-and-remember) but — as the
+tester correctly pointed out — none of them exercised the actual
+`App.jsx`/`ProjectDetail` wiring, which is exactly where the bug above
+was. Added two tests to `App.test.jsx`: the welcome tour genuinely doesn't
+re-render once `seenTours()` says it's been seen, and (the regression test
+for the bug itself) opening a project while the Home page hint is still
+showing leaves exactly one `.tour-layer` on screen, not two.
+
+**Known limitation, documented rather than fixed:** the tour's own
+Escape/Arrow-key handling (a `window`-level listener, independent of Story
+6's `useDialogFocus`) and a real modal's Escape handling (a
+`document`-level listener via the hook) can both be listening at once —
+if a `PageHint` is showing and something opens `CreateProjectModal` or
+`CommandPalette` on top of it (both reachable, since the hint has no
+scrim), a single Escape keypress dismisses both and permanently marks the
+hint as seen as a side effect. Not a crash, and narrow (needs two specific
+things open at once before Escape is pressed), so left as a documented
+edge case rather than building cross-cutting "is any modal currently open"
+tracking to close it — the cost didn't seem proportionate to how often
+it's actually reachable.
+
+AI-assisted: porting, the App.jsx/ProjectDetail/ProfilePage wiring, the
+bug fix and its regression tests, and verification all done with Claude
+Code (Sonnet 5). The implementation was reviewed independently after
+being built (also Sonnet 5, fresh context), which is what found the
+double-overlay bug, confirmed the test gap around it, and surfaced the
+Escape-coupling edge case above.
+
 <!-- Per-story sections appended below as each story completes. -->

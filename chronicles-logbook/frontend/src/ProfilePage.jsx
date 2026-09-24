@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences } from "./preferences"
+import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
 import "./ProfilePage.css"
@@ -140,6 +141,14 @@ export default function ProfilePage() {
 
   const handleSignOut = () => {
     clearSession()
+  }
+
+  // The tour marks itself seen in localStorage as it's dismissed; forgetting
+  // that here and returning to the workspace is what makes it "replayable"
+  // rather than a one-time-only offer (US-3.23).
+  const replayTour = () => {
+    resetTours()
+    navigate("/app")
   }
 
   const openDeleteModal = () => {
@@ -301,6 +310,15 @@ export default function ProfilePage() {
                 <select className="profile-select" value={startView} onChange={(event) => updateStartView(event.target.value)} aria-label="Default opening page">
                   <option value="home">Home workspace</option><option value="today">Today</option><option value="calendar">Calendar</option>
                 </select>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Guided tour</span>
+                  <span className="profile-row-value">See the welcome tour and every page's first-visit tip again.</span>
+                </div>
+                <button type="button" className="btn-secondary" onClick={replayTour}>
+                  Replay tour
+                </button>
               </div>
             </section>
 

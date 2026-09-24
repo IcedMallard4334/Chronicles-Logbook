@@ -1,0 +1,204 @@
+/* --------------------------------------------------
+   GUIDED TOUR
+   -------------------------------------------------- */
+
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  /* The layer passes clicks through; only the card and scrim take them, so a
+     coach mark never blocks the page it is describing. */
+  pointer-events: none;
+}
+
+.tour-scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, #0b0d14 58%, transparent);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  pointer-events: auto;
+  animation: tour-fade 260ms ease both;
+}
+
+/* The spotlight is a ring plus an enormous outward shadow, which lifts the
+   anchor out of the scrim without needing an SVG mask or a second element
+   cloned on top of it. */
+.tour-spotlight {
+  position: absolute;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--blue) 70%, transparent),
+    0 0 0 9999px color-mix(in srgb, #0b0d14 58%, transparent);
+  animation: tour-spot 320ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  transition: top 220ms ease, left 220ms ease, width 220ms ease, height 220ms ease;
+  pointer-events: none;
+}
+
+.tour-layer.is-hint .tour-spotlight {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 55%, transparent);
+}
+
+.tour-card {
+  position: absolute;
+  width: 340px;
+  max-width: calc(100vw - 28px);
+  padding: 18px 18px 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(10, 14, 28, 0.32);
+  pointer-events: auto;
+  animation: tour-rise 300ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+.tour-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* The pointer: a rotated square tucked under the card's edge, on whichever
+   side the card ended up relative to its anchor. */
+.tour-card::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border: 1px solid var(--line);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.tour-card.is-below::before {
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.tour-card.is-above::before {
+  bottom: -7px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.tour-card.is-center::before { display: none; }
+
+.tour-card h3 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  letter-spacing: -0.015em;
+}
+
+.tour-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tour-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tour-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.tour-progress {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.tour-progress span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background-color 200ms ease, width 200ms ease;
+}
+
+.tour-progress span.is-current {
+  width: 18px;
+  background: var(--blue);
+}
+
+.tour-card button {
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.tour-skip,
+.tour-back {
+  background: transparent;
+  color: var(--muted);
+}
+
+.tour-skip:hover,
+.tour-back:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.tour-next {
+  background: var(--blue);
+  color: #fff;
+}
+
+.tour-next:hover {
+  filter: brightness(1.08);
+}
+
+@keyframes tour-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tour-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+}
+
+/* An "above" card is already translated -100%, so it needs its own entrance
+   or the animation would drop it back onto its anchor. */
+.tour-card.is-above { animation-name: tour-rise-above; }
+.tour-card.is-center { animation-name: tour-rise-center; }
+
+@keyframes tour-rise-above {
+  from { opacity: 0; transform: translateY(calc(-100% + 8px)) scale(0.985); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+
+@keyframes tour-rise-center {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.98); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes tour-spot {
+  from { opacity: 0; }
+}
+
+@media (max-width: 640px) {
+  .tour-card { width: calc(100vw - 28px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-card,
+  .tour-scrim,
+  .tour-spotlight {
+    animation: none;
+    transition: none;
+  }
+}

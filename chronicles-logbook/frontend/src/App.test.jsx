@@ -214,6 +214,43 @@ describe("App workspace", () => {
   })
 })
 
+describe("guided tour (US-3.23)", () => {
+  it("does not show the welcome tour once it has already been seen", async () => {
+    window.localStorage.setItem(
+      "chronicles-tours-seen",
+      JSON.stringify({ "anon:1": ["welcome"] })
+    )
+
+    render(<App />)
+
+    await screen.findByRole("listbox", { name: "Projects" })
+    expect(
+      screen.queryByRole("heading", { name: "This is your logbook" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("does not stack a project's own hint on top of the page hint that's still showing", async () => {
+    // Reachable sequence: welcome already seen, the Home page's own hint has
+    // not been dismissed yet, and a project is opened anyway — PageHint has
+    // no scrim by design, so nothing stops that click from going through.
+    window.localStorage.setItem(
+      "chronicles-tours-seen",
+      JSON.stringify({ "anon:1": ["welcome"] })
+    )
+
+    render(<App />)
+    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    expect(await screen.findByRole("heading", { name: "Your workspace" })).toBeInTheDocument()
+
+    fireEvent.click(within(projects).getByText("Field Notes"))
+
+    await screen.findByRole("heading", { name: "Field Notes" })
+    // The Home page hint ("Your workspace") is still allowed to be showing —
+    // only a second, project-scoped hint stacked on top of it would be wrong.
+    expect(document.querySelectorAll(".tour-layer")).toHaveLength(1)
+  })
+})
+
 describe("Mira project proposals", () => {
   const proposal = { type: "create_project", payload: { name: "Research notes", description: "Weekly findings" }, requires_confirmation: true }
 
