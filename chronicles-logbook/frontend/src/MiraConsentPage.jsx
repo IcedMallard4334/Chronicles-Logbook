@@ -18,7 +18,10 @@ export function MiraConsentGate({ children }) {
     return () => { active = false }
   }, [navigate])
   if (state === 'ready') return children
-  return <OnboardingLayout><section className="setup-card"><p role="status">{state === 'error' ? 'Could not load your Mira permissions.' : 'Checking your Mira preferences…'}</p>{state === 'error' && <button onClick={() => window.location.reload()}>Try again</button>}</section></OnboardingLayout>
+  return <OnboardingLayout><section className="setup-card"><div className="mira-gate-status" role="status">
+    {state !== 'error' && <span className="mira-gate-spinner" aria-hidden="true" />}
+    <p>{state === 'error' ? 'Could not load your Mira permissions.' : 'Checking your Mira preferences…'}</p>
+  </div>{state === 'error' && <button className="btn-secondary" onClick={() => window.location.reload()}>Try again</button>}</section></OnboardingLayout>
 }
 
 export default function MiraConsentPage() {

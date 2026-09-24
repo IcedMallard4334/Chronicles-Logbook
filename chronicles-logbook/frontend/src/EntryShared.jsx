@@ -742,15 +742,24 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
             <div className="form-grid entry-outstanding">
               <div className="checkbox-with-tip">
                 <label className="field-label checkbox-label">
-                  <input type="checkbox" checked={todo} onChange={(event) => setTodo(event.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={todo}
+                    onChange={(event) => {
+                      setTodo(event.target.checked)
+                      if (!event.target.checked) setDueDate("")
+                    }}
+                  />
                   This is still to do
                 </label>
                 <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
               </div>
-              <label className="field-label">
-                Due date
-                <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-              </label>
+              {todo && (
+                <label className="field-label due-date-field">
+                  Due date
+                  <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                </label>
+              )}
             </div>
             <div className="actions">
               <button type="button" className="btn-text" onClick={cancelEdit} disabled={isSaving}>

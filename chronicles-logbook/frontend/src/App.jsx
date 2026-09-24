@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom"
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
@@ -111,6 +112,7 @@ function formatDuration(minutes) {
 function UserMenu({ userName, avatarUrl, initials }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -170,7 +172,7 @@ function UserMenu({ userName, avatarUrl, initials }) {
             type="button"
             className="user-dropdown-item user-dropdown-profile"
             role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
+            onClick={() => { navigate("/profile"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -182,7 +184,7 @@ function UserMenu({ userName, avatarUrl, initials }) {
             type="button"
             className="user-dropdown-item"
             role="menuitem"
-            onClick={() => { window.location.assign("/help"); setOpen(false) }}
+            onClick={() => { navigate("/help"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
@@ -1625,20 +1627,25 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
             <input
               type="checkbox"
               checked={todo}
-              onChange={(e) => setTodo(e.target.checked)}
+              onChange={(e) => {
+                setTodo(e.target.checked)
+                if (!e.target.checked) setDueDate("")
+              }}
             />
             This is still to do
           </label>
           <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
         </div>
-        <label className="field-label">
-          Due date
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-        </label>
+        {todo && (
+          <label className="field-label due-date-field">
+            Due date
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </label>
+        )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
