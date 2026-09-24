@@ -89,7 +89,7 @@ export function SkeletonRows({ rows = 3, height = 74, label = "Loading" }) {
         <span
           key={index}
           className="skeleton-row"
-          style={{ height: `${height}px`, animationDelay: `${index * 90}ms` }}
+          style={{ height: `${height}px`, "--skeleton-delay": `${index * 90}ms` }}
         />
       ))}
     </div>
