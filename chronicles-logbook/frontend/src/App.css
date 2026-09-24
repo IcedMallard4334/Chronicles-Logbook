@@ -1560,6 +1560,86 @@
   accent-color: var(--blue);
 }
 
+.checkbox-with-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: end;
+  padding-bottom: 11px;
+}
+
+.checkbox-with-tip .checkbox-label {
+  padding-bottom: 0;
+  align-self: auto;
+}
+
+/* A small "what does this mean" hint beside a control. The bubble is
+   positioned rather than a native `title`, so it can be styled to match the
+   app and — via :focus-within, not just :hover — reached with a keyboard. */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: help;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.info-tip-trigger svg {
+  width: 15px;
+  height: 15px;
+}
+
+.info-tip-trigger:hover,
+.info-tip-trigger:focus-visible {
+  color: var(--blue);
+  background: var(--blue-bg);
+  outline: none;
+}
+
+.info-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms;
+}
+
+.info-tip-trigger:hover + .info-tip-bubble,
+.info-tip-trigger:focus-visible + .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
 .field-label input,
 .field-label select,
 .field-label textarea {
@@ -2844,36 +2924,90 @@ button.log-link-chip:hover {
   text-align: center;
 }
 
+.timeline-results {
+  margin-top: 8px;
+}
+
+.timeline-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.timeline-summary h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.timeline-summary p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.timeline-field-type {
+  text-transform: capitalize;
+}
+
+.timeline-not-chartable {
+  margin: 1.5rem 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
 .timeline-chart {
   width: 100%;
   height: 320px;
   margin: 1.5rem 0;
   padding: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--surface-color);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   box-sizing: border-box;
 }
 
 .timeline-table-wrapper {
   width: 100%;
   overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 .timeline-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.85rem;
 }
 
 .timeline-table th,
 .timeline-table td {
-  padding: 0.75rem;
+  padding: 10px 14px;
   text-align: left;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+
+.timeline-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.timeline-table tbody tr:hover {
+  background: var(--surface-soft);
 }
 
 .timeline-table th {
-  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--surface-soft);
 }
 /* ── Tags field ─────────────────────────────────────────────────── */
 

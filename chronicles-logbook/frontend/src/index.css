@@ -185,11 +185,33 @@ textarea {
 
 button {
   cursor: pointer;
+  /* Every button gets a baseline so hover/active/focus states ease instead
+     of snapping, even the ones with no component-specific transition of
+     their own. A rule with its own `transition` simply overrides this. */
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  transition: color 150ms ease, opacity 150ms ease;
 }
 
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 h1,

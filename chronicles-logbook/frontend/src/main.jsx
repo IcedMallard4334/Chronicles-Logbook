@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import './index.css'
 import AuthPage from './AuthPage.jsx'
+import ChroniclesLogo from './ChroniclesLogo.jsx'
 import { ViewLoader } from './ViewTransition.jsx'
 import { applyPreferences, readPreference } from './preferences'
 import './ProfessionalDensity.css'
@@ -57,8 +58,34 @@ function SessionGate({ children }) {
     restore()
     return () => { active = false; window.removeEventListener('chronicles-session-ended', ended) }
   }, [])
-  if (state === 'loading') return <main className="auth-callback-shell"><p role="status">Restoring your session…</p></main>
-  if (state === 'error') return <main className="auth-callback-shell"><div><p>Cannot reach the server to restore your session.</p><button onClick={() => window.location.reload()}>Try again</button></div></main>
+  if (state === 'loading') {
+    return (
+      <main className="auth-callback-shell">
+        <section className="auth-callback-card" aria-live="polite">
+          <ChroniclesLogo size={64} />
+          <h1>Restoring your session…</h1>
+          <p className="auth-callback-hint">Just a moment.</p>
+          <div className="auth-callback-spinner" aria-hidden="true" />
+        </section>
+      </main>
+    )
+  }
+  if (state === 'error') {
+    return (
+      <main className="auth-callback-shell">
+        <section className="auth-callback-card" aria-live="polite">
+          <ChroniclesLogo size={64} />
+          <h1>Sign-in unsuccessful</h1>
+          <p className="auth-message auth-error" role="alert">
+            Cannot reach the server to restore your session.
+          </p>
+          <button type="button" className="auth-submit" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        </section>
+      </main>
+    )
+  }
   return children || <Outlet />
 }
 

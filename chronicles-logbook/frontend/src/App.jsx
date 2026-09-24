@@ -3,6 +3,7 @@ import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
   EntryDetailModal,
   EntryFieldInput,
+  InfoTip,
   LinkChip,
   RetiredValues,
   deriveProjectStatus,
@@ -1619,14 +1620,17 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       {/* Logging something that has not happened yet: it is planned work, so it
           belongs in the outstanding view rather than the record of what was done. */}
       <div className="form-grid entry-outstanding">
-        <label className="field-label checkbox-label">
-          <input
-            type="checkbox"
-            checked={todo}
-            onChange={(e) => setTodo(e.target.checked)}
-          />
-          This is still to do
-        </label>
+        <div className="checkbox-with-tip">
+          <label className="field-label checkbox-label">
+            <input
+              type="checkbox"
+              checked={todo}
+              onChange={(e) => setTodo(e.target.checked)}
+            />
+            This is still to do
+          </label>
+          <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
+        </div>
         <label className="field-label">
           Due date
           <input
@@ -1985,32 +1989,58 @@ function Timeline({ projects }) {
             <p className="hint">No values found for this field in the selected range.</p>
           ) : (
             <>
-              <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart
-                    data={timeline.points.map((point) => ({
-                      ...point,
-                      date: new Date(point.created_at).toLocaleDateString(),
-                      displayValue: String(point.value),
-                      numericValue:
-                        timeline.field_type === "number" ? Number(point.value) : null,
-                    }))}
-                  margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
-                    name={timeline.field_name}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+              {isNumericField({ type: timeline.field_type }) ? (
+                <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart
+                      data={timeline.points.map((point) => ({
+                        ...point,
+                        date: new Date(point.created_at).toLocaleDateString(),
+                        numericValue: Number(point.value),
+                      }))}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                  >
+                    {/* Recharts' own defaults are hardcoded greys/blues that
+                        don't follow the app's theme or chosen accent — every
+                        colour here is read from the same custom properties
+                        the rest of the page uses, so the chart matches
+                        whichever theme and accent are active, light or dark. */}
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                    <XAxis dataKey="date" stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <YAxis stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--radius-sm)",
+                        color: "var(--text)",
+                      }}
+                      labelStyle={{ color: "var(--muted)" }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="numericValue"
+                      name={timeline.field_name}
+                      stroke="var(--blue)"
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: "var(--blue)" }}
+                      activeDot={{ r: 6, fill: "var(--blue)" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              ) : (
+                // A line chart needs a number to plot on its Y-axis — a
+                // text/date/choice/etc. value has nowhere honest to go on
+                // one, which is what used to render as an empty, confusing
+                // box. The table below already shows every value in order,
+                // so that's the real answer for a field like this.
+                <p className="hint timeline-not-chartable">
+                  {fieldTypeLabel(timeline.field_type)} fields aren&rsquo;t shown as a
+                  line chart — there&rsquo;s no number to plot. Every value is listed
+                  in order below instead.
+                </p>
+              )}
 
             <div className="timeline-table-wrapper">
               <table className="timeline-table">

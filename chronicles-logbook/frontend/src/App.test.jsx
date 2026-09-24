@@ -203,6 +203,35 @@ describe("App workspace", () => {
   expect(screen.getByText("8")).toBeInTheDocument()
 })
 
+  it("shows a plain explanation instead of an empty chart for a non-numeric field", async () => {
+    // A line chart has nowhere honest to put a text value on its Y-axis —
+    // this used to render as a blank, confusing box. It should say so in
+    // words instead, and still list every value in the table below.
+    fetchFieldTimeline.mockResolvedValueOnce({
+      project_id: "proj-1",
+      field_id: "hours",
+      field_name: "Hours",
+      field_type: "text",
+      start: null,
+      end: null,
+      points: [
+        { entry_id: "entry-1", created_at: "2026-05-05T09:00:00+00:00", value: "Few more tasks to do", schema_version: 1 },
+      ],
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    await waitFor(() => expect(screen.getByLabelText("Select field")).toBeEnabled())
+    fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
+    fireEvent.submit(screen.getByRole("button", { name: "Generate timeline" }).closest("form"))
+
+    expect(await screen.findByText(/aren.t shown as a\s*line chart/)).toBeInTheDocument()
+    expect(screen.queryByLabelText("Hours over time")).not.toBeInTheDocument()
+    expect(screen.getByText("Few more tasks to do")).toBeInTheDocument()
+  })
+
   it("keeps standard project creation available", async () => {
     fetchProjects.mockResolvedValue([])
     createProject.mockResolvedValue(fieldNotes)

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { EntryDetailModal } from "./EntryShared"
+import { EntryDetailModal, InfoTip } from "./EntryShared"
 import { deleteEntry, fetchEntryMigrationPreview, updateEntry } from "./api"
 
 vi.mock("./api", () => ({
@@ -211,5 +211,24 @@ describe("EntryDetailModal", () => {
     fireEvent.keyDown(document, { key: "Escape" })
 
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe("InfoTip", () => {
+  it("links the trigger to its text for a screen reader, not just a hover tooltip", () => {
+    render(<InfoTip text="Explains the control next to it." />)
+
+    const trigger = screen.getByRole("button", { name: "More info" })
+    const bubble = screen.getByRole("tooltip", { hidden: true })
+    expect(bubble).toHaveTextContent("Explains the control next to it.")
+    expect(trigger).toHaveAttribute("aria-describedby", bubble.id)
+  })
+
+  it("is reachable by keyboard, not only by mouse hover", () => {
+    render(<InfoTip text="Keyboard-reachable hint." />)
+
+    const trigger = screen.getByRole("button", { name: "More info" })
+    expect(trigger.tagName).toBe("BUTTON")
+    expect(trigger).not.toHaveAttribute("tabindex", "-1")
   })
 })

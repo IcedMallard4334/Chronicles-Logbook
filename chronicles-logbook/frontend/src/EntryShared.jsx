@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
@@ -12,6 +12,29 @@ import { useDialogFocus } from "./useDialogFocus"
 // the circular import that sharing it would otherwise cost.
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
+}
+
+/**
+ * A small "what does this mean" hint beside a control — keyboard-operable
+ * (the bubble shows on focus, not just hover) and announced to a screen
+ * reader via aria-describedby, rather than a plain `title` attribute, which
+ * many screen readers don't reliably read.
+ */
+export function InfoTip({ text }) {
+  const id = useId()
+  return (
+    <span className="info-tip">
+      <button type="button" className="info-tip-trigger" aria-describedby={id}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <span className="sr-only">More info</span>
+      </button>
+      <span role="tooltip" id={id} className="info-tip-bubble">{text}</span>
+    </span>
+  )
 }
 
 /** The sidebar's status language for a project, read from its open tasks. */
@@ -717,10 +740,13 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
               </label>
             </div>
             <div className="form-grid entry-outstanding">
-              <label className="field-label checkbox-label">
-                <input type="checkbox" checked={todo} onChange={(event) => setTodo(event.target.checked)} />
-                This is still to do
-              </label>
+              <div className="checkbox-with-tip">
+                <label className="field-label checkbox-label">
+                  <input type="checkbox" checked={todo} onChange={(event) => setTodo(event.target.checked)} />
+                  This is still to do
+                </label>
+                <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
+              </div>
               <label className="field-label">
                 Due date
                 <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
