@@ -69,6 +69,31 @@ describe("EntryDetailModal", () => {
     expect(screen.getByText("Site visit")).toBeInTheDocument()
   })
 
+  it("renders as a direct child of <body>, not nested in the caller's tree", () => {
+    // Regression guard: this modal opens from inside ViewTransition's
+    // animated wrapper, which leaves a resolved (if visually identity)
+    // `transform` on itself even after its entrance animation finishes —
+    // any transform other than the literal `none` makes an ancestor a
+    // containing block for a `position: fixed` descendant, so without a
+    // portal this modal centers itself inside that wrapper's full
+    // scrollable height instead of the real viewport, and can render
+    // partly off whatever's currently on screen. Confirmed against the
+    // real app (not just this unit test) via a scripted Chrome session:
+    // before the portal, the modal's top could compute to a negative
+    // number (above the visible viewport); after it, top/left matched the
+    // exact centered values for the window size.
+    const { container } = render(
+      <div id="caller-wrapper">
+        <EntryDetailModal project={project} entry={upToDateEntry()} onClose={vi.fn()} />
+      </div>
+    )
+
+    const backdrop = document.querySelector(".modal-backdrop")
+    expect(backdrop).toBeInTheDocument()
+    expect(backdrop.parentElement).toBe(document.body)
+    expect(container.querySelector(".modal-backdrop")).not.toBeInTheDocument()
+  })
+
   it("shows a stale entry's own field set, not the project's current one", () => {
     render(<EntryDetailModal project={project} entry={staleEntry()} onClose={vi.fn()} />)
 

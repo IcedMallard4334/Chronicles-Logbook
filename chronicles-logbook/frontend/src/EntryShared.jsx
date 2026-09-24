@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
 import { FIELD_TYPE_META, withComputedValues } from "./fieldTypes"
@@ -556,7 +557,16 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
     setError(null)
   }
 
-  return (
+  // Rendered through a portal, straight onto <body>: EntryDetailModal opens
+  // from inside ViewTransition's animated wrapper, whose entrance animation
+  // leaves a resolved (if visually identity) `transform` behind even after
+  // it finishes — any *other* transform value than the literal keyword
+  // `none` makes that wrapper a containing block for a `position: fixed`
+  // descendant, so without the portal this modal centers itself inside the
+  // wrapper's full scrollable height instead of the actual viewport, and
+  // can render partly above or below what's currently on screen. A portal
+  // sidesteps the whole class of ancestor-CSS problem, not just this one.
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <div
         ref={dialogRef}
@@ -731,6 +741,7 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
           ×
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1028,3 +1028,52 @@ AI-assisted: the architecture discussion, backend and frontend
 implementation, the two real bugs found through actual use (the `required`
 hang, the missing-fields dict), the tests, the docs, and this log entry were
 all done with Claude Code (Sonnet 5).
+
+## 13. Follow-up: the entry detail modal was opening off-screen
+
+**The report:** the edit-entry window, and the one opened by clicking an
+entry in All Entries, weren't appearing centered on screen.
+
+**Root cause, found by actually driving a real browser, not by reading CSS
+alone:** static analysis of every ancestor's CSS turned up nothing — no
+persistent `transform`/`filter` anywhere in the chain. What confirmed it was
+scripting a real Chrome session (Chrome DevTools Protocol, driven from a
+small Node script, since this needed real clicks and real computed styles —
+a single screenshot can't show *why* something's mispositioned) against a
+project seeded with 40 entries, to get a genuinely tall, scrollable page:
+`getComputedStyle` on every ancestor from `.modal-backdrop` up to `<html>`
+showed `.view-transition` — the wrapper Story 4 added for animated view
+switches — holding `transform: matrix(1, 0, 0, 1, 0, 0)` (the identity
+matrix) *after* its 300ms entrance animation had long finished. Its
+`@keyframes view-in` only defines a `from` step; with
+`animation-fill-mode: both`, the browser holds the animated property at its
+resolved end-of-animation value indefinitely rather than truly releasing it
+back to the cascade — and that resolved value is a matrix, not the literal
+keyword `none`. Per the CSS Transforms spec, *any* transform value other
+than `none` — including a visually-inert identity matrix — makes that
+element a containing block for `position: fixed` descendants. `.view-
+transition` wraps every view in the app, so `EntryDetailModal` — opened
+from inside it — was being centered within that wrapper's full scrollable
+height instead of the actual viewport, and could render partly above or
+below whatever was currently on screen depending on scroll position.
+Measured directly: at one scroll position the modal's `top` computed to
+`-66px` (above the visible viewport); after the fix, at a different scroll
+position, `top`/`left` matched the exact centered values for the window
+size, to the pixel.
+
+**Fix:** `EntryDetailModal` now renders through `createPortal(..., document.body)`
+instead of inline in the component tree — the standard way to make a
+dialog immune to whatever an ancestor's CSS happens to do, now or in the
+future, rather than trying to keep every ancestor "clean" forever. No other
+modal in the app needed this: `CreateProjectModal`/`EditProjectModal`/etc.
+are siblings of the view-transitioned content, not descendants of it, so
+they were never affected.
+
+**Tests:** a new regression test in `EntryShared.test.jsx` asserts
+`.modal-backdrop`'s parent is literally `document.body`, not the render
+tree it was opened from — mutation-tested (reverted to a plain, non-portal
+return, confirmed the test fails, restored).
+
+AI-assisted: the whole investigation — the CDP-driven script that found and
+measured the actual bug, the fix, the test, and this log entry — was done
+with Claude Code (Sonnet 5).
