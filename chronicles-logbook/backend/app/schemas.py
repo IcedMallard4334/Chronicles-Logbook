@@ -428,6 +428,29 @@ class TaskResponse(BaseModel):
 # ── Saved filters ────────────────────────────────────────────────
 
 
+class FieldCondition(BaseModel):
+    """One condition in a structured search over custom fields (US-3.11).
+
+    ``operator`` is one of the type-appropriate operators app.search defines
+    for the target field's type (e.g. ``contains``/``equals`` for text,
+    ``gt``/``gte``/``lt``/``lte``/``between``/``equals`` for number and
+    computed fields) — validated there, against the project's schema, rather
+    than as a fixed enum here, since which operators are legal depends on
+    the field being queried. ``value2`` is only read by ``between``.
+
+    Extra keys are forbidden for the same reason as on FilterCriteria: this
+    travels inside a saved filter's criteria, and should never grow a field
+    the search endpoint does not also expect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    field_id: str = Field(..., min_length=1, max_length=100)
+    operator: str = Field(..., min_length=1, max_length=20)
+    value: Any = None
+    value2: Any = None
+
+
 class FilterCriteria(BaseModel):
     """The parts of the entries view a saved filter can restore.
 
@@ -440,7 +463,12 @@ class FilterCriteria(BaseModel):
     q: str | None = Field(default=None, max_length=255)
     project_id: UUID | None = None
     todo: bool | None = None
-    sort: Literal["newest", "oldest", "due_date"] = "newest"
+    sort: Literal["newest", "oldest", "due_date", "relevance"] = "newest"
+    # US-3.11: structured conditions over custom fields, combined with either
+    # AND (every condition must hold) or OR (any one is enough). Capped so a
+    # saved filter cannot be used to build an arbitrarily expensive query.
+    conditions: list[FieldCondition] = Field(default_factory=list, max_length=10)
+    match: Literal["all", "any"] = "all"
 
     @model_validator(mode="after")
     def clean_keyword(self):

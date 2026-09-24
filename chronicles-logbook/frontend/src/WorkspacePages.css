@@ -45,3 +45,19 @@
 .saved-filter-remove:hover { color:var(--error); }
 .saved-filters .workspace-error { flex:1 1 100%; margin:0; font-size:.75rem; }
 @media(max-width:650px) { .saved-filters { padding:14px 20px; } .saved-filters-save,.saved-filters-save label { flex:1 1 100%; } .saved-filters-save input { min-width:0; width:100%; } }
+
+/* Structured search (US-3.11) */
+.structured-search { display:flex; flex-direction:column; gap:10px; margin:0; padding:14px 32px; border:0; border-bottom:1px solid var(--line); background:var(--surface-soft); }
+.structured-search-hint { margin:0; padding:14px 32px; border-bottom:1px solid var(--line); background:var(--surface-soft); color:var(--muted); font-size:.78rem; }
+.structured-search legend { padding:0; font-size:.7rem; font-weight:600; color:var(--muted); letter-spacing:.04em; text-transform:uppercase; }
+.structured-search-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.structured-search-row select,.structured-search-row input { font:inherit; font-size:.8rem; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+.structured-search-between { display:flex; align-items:center; gap:8px; font-size:.75rem; color:var(--muted); }
+.structured-search-between input { width:110px; }
+.structured-search-list-input input { min-width:200px; }
+.structured-search-remove { border:0; background:transparent; color:var(--muted); font-size:1rem; line-height:1; padding:4px 6px; cursor:pointer; }
+.structured-search-remove:hover { color:var(--error); }
+.structured-search-actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.structured-search-match { display:flex; align-items:center; gap:8px; font-size:.75rem; font-weight:600; color:var(--muted); }
+.structured-search-match select { font:inherit; font-weight:400; font-size:.78rem; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:7px 9px; }
+@media(max-width:650px) { .structured-search,.structured-search-hint { padding:14px 20px; } .structured-search-row { flex-direction:column; align-items:stretch; } .structured-search-between input,.structured-search-list-input input { width:100%; } }

@@ -152,14 +152,19 @@ Deletion is permanent; there is no soft delete or restore.
 GET /entries
 ```
 
-Returns entries across all projects owned by the authenticated user, ordered newest first.
+Returns entries across all projects owned by the authenticated user, ordered newest first by default.
 
 **Query parameters:**
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `q` | string | — | Keyword matched against project name and entry field values |
-| `project_id` | UUID | — | Filter to a single project |
+| `project_id` | UUID | — | Filter to a single project. Required when `conditions` is used |
+| `tag` | string | — | Only entries whose tag-type fields contain this tag |
+| `todo` | boolean | — | Narrow to outstanding (`true`) or completed (`false`) work |
+| `conditions` | string (JSON) | — | Structured filters over the project's own custom fields — see below |
+| `match` | `all` \| `any` | `all` | How `conditions` combine: AND or OR |
+| `sort` | `newest` \| `oldest` \| `due_date` \| `relevance` | `newest` | Ordering. `relevance` only means something when `q` and/or `conditions` narrow the results |
 | `page` | integer | 1 | Page number |
 | `page_size` | integer | 20 | Items per page (max 100) |
 
@@ -179,4 +184,57 @@ Returns entries across all projects owned by the authenticated user, ordered new
 ]
 ```
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5
+### Structured search over custom fields (US-3.11)
+
+`conditions` is a JSON-encoded array of `{ "field_id", "operator", "value", "value2" }`
+objects, sent as a query parameter because a `GET` request has no body:
+
+```
+GET /entries?project_id=...&match=any&conditions=%5B%7B%22field_id%22%3A%22f-status%22%2C%22operator%22%3A%22equals%22%2C%22value%22%3A%22Open%22%7D%5D
+```
+
+which decodes to:
+
+```json
+[{ "field_id": "f-status", "operator": "equals", "value": "Open" }]
+```
+
+Which operators apply depends on the field's type. `value2` is only read by
+`between`.
+
+| Field type | Operators | Notes |
+|---|---|---|
+| `text` | `contains`, `equals` | Case-insensitive |
+| `number`, `computed` | `equals`, `gt`, `gte`, `lt`, `lte`, `between` | |
+| `date` | `on`, `before`, `after`, `between` | |
+| `dropdown` | `equals`, `in` | `in` takes a list of option strings as `value` |
+| `tags` | `has`, `has_any`, `has_all` | `has` takes one tag; the others take a list |
+| `checklist` | `contains`, `complete` | `contains` searches item text; `complete: true` asks "is everything on this checklist ticked off" (an empty checklist has nothing to be complete, so it never matches), `complete: false` asks "is something still outstanding" |
+| `link`, `project_reference` | `is_set`, `is_empty`, `equals` | `equals` compares against another entry's/project's id |
+
+Because a field id only means something within the schema that defines it,
+`conditions` requires `project_id` — a `422` explains this if it's missing.
+Requesting a `field_id` the project's *current* schema doesn't have, or an
+operator that field's type doesn't support, is also a `422` with a plain
+description of what was wrong, not a generic validation error.
+
+**Which entries can answer a condition.** Each entry is evaluated against its
+*own* `schema_snapshot` — the schema its project had when the entry was
+written, the same source [statistics](statistics.md) reads historical values
+from — not against the project's current schema. An entry from before a
+field existed, or that never got the value backfilled onto its own snapshot,
+simply cannot answer a condition on that field: it is excluded, never an
+error and never a guess.
+
+### Relevance ranking
+
+`sort=relevance` orders results by, in order: how many of the (OR'd)
+`conditions` an entry satisfies, then how many times `q` occurs across its
+field values and project name, then most recent first as a final tiebreak.
+It's a deliberately simple, explainable heuristic — not a machine-learned
+ranking — chosen so "why did this result come first" always has a plain
+answer. `match=all` conditions don't affect the first term (everything that
+survives already satisfied all of them), so ranking among an AND'd result set
+falls straight through to the keyword and recency terms.
+
+AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5; this section (Structured search over custom fields / Relevance ranking) was added with Claude Code, Claude Sonnet 5, for code + docs.

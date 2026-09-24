@@ -179,6 +179,8 @@ export async function fetchEntriesGlobal({
   tag,
   todo,
   sort,
+  conditions,
+  match,
   page = 1,
   pageSize = 20,
 } = {}) {
@@ -190,6 +192,13 @@ export async function fetchEntriesGlobal({
   // completed work rather than being dropped as falsy.
   if (todo !== undefined) params.append("todo", todo)
   if (sort) params.append("sort", sort)
+  // US-3.11: structured filters over a project's custom fields. Sent as
+  // JSON, same as the server expects — a GET request has no body to carry a
+  // list of small objects in.
+  if (conditions && conditions.length > 0) {
+    params.append("conditions", JSON.stringify(conditions))
+    if (match) params.append("match", match)
+  }
   params.append("page", page)
   params.append("page_size", pageSize)
   return request(`/entries?${params.toString()}`)

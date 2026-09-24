@@ -64,4 +64,81 @@ above were done with Claude Code (Sonnet 5) at the project owner's
 direction, after presenting the findings and getting an explicit decision
 on how to handle the recovered work.
 
+## 1. US-3.11 — Structured search over custom fields
+
+**Before:** `GET /entries` did one flat case-insensitive substring match
+across every field value concatenated together, with no way to target a
+specific custom field, no AND/OR combination, and no relevance ordering
+(only date-based sorts).
+
+**Changed:**
+
+- `backend/app/schemas.py` — new `FieldCondition` model; `FilterCriteria`
+  (shared with saved filters, US-2.12) gains `conditions`/`match`, and its
+  `sort` literal gains `"relevance"`.
+- `backend/app/search.py` (new) — the type-aware operator table, per-type
+  matchers, JSON parsing/validation for the `conditions` query param with
+  plain-English error messages, and the relevance scoring/ranking.
+- `backend/app/routers/entries.py` — wires `conditions`/`match` into
+  `search_entries`; extended its own `sort` pattern validator too (it's
+  separate from `FilterCriteria`'s).
+- `docs/api/entries.md` — documents the new params, the operator table per
+  field type, and the relevance heuristic.
+- `frontend/src/fieldTypes.js` — `SEARCH_OPERATORS_BY_TYPE`, the single
+  source of truth the condition-builder UI reads so it can't drift from
+  what the backend actually validates.
+- `frontend/src/StructuredSearch.jsx` (new) — the condition-builder UI,
+  scoped to whichever project is selected (a field id only means something
+  within its own project's schema).
+- `frontend/src/WorkspacePages.jsx` (`EntriesPage`) — wires the builder in;
+  adds a "Best match" sort option that activates automatically once a
+  query/condition is active, unless the person has explicitly chosen a
+  different sort themselves.
+- `frontend/src/api.js` — `fetchEntriesGlobal` sends `conditions`/`match`.
+- Tests: `backend/tests/test_structured_search.py` (24 tests: one/two per
+  operator, AND/OR combination, the `any(())` empty-list edge case,
+  malformed/invalid input, schema-versioning interaction, relevance
+  ordering), `frontend/src/StructuredSearch.test.jsx` (8 tests), and two
+  existing exact-match assertions in `SavedFilterBar.test.jsx` updated for
+  the criteria shape's new fields.
+
+**Design decisions worth recording:**
+
+- A condition is evaluated against the *entry's own* `schema_snapshot`, not
+  the project's current schema — matching how `statistics.py` already reads
+  historical field values, so an entry that predates a field (or never had
+  it backfilled onto its snapshot) is excluded rather than misread. Covered
+  by `test_conditions_do_not_match_a_field_older_than_the_entry`.
+- Relevance ranks lexicographically (matched-condition count, then keyword
+  occurrence count, then recency) rather than as a blended score, so an
+  entry that satisfies more OR'd conditions always outranks one that merely
+  repeats a keyword often.
+- `conditions` requires `project_id`, since a field id is only meaningful
+  within the schema that defines it; the UI enforces the same thing by
+  hiding the condition builder until a project is chosen, and clears any
+  existing conditions if the project selection changes.
+
+**Caught by independent verification, fixed before commit:** a tester pass
+(fresh context, also Sonnet 5) ran the implementation, then mutation-tested
+the new test suite itself — deliberately breaking specific behaviors in
+`app/search.py` and checking whether the corresponding test actually failed,
+before reverting. Two real gaps surfaced: `test_conditions_combine_and`'s
+fixture had every entry satisfying either both OR'd conditions or neither,
+so flipping AND to OR left it passing; and both relevance-ordering tests
+either didn't assert order at all or had their expected order confounded
+with the recency tiebreak, so zeroing out the relevance score entirely
+still passed them. All three were rewritten with fixtures/assertions that
+specifically defeat the recency tiebreak and distinguish AND from OR, then
+re-verified with the same mutate-and-confirm-failure method before being
+reverted clean.
+
+AI-assisted: implementation, tests and docs written with Claude Code
+(Sonnet 5). The plan was checked by an independent reviewer pass (also
+Sonnet 5, fresh context) before implementation started, which caught a
+real correctness bug (`any(())` on an empty condition list silently
+excluding everything), the schema_snapshot-vs-current-schema design
+question above, a relevance-scoring quality issue, and two places the
+`sort` validator needed extending in lockstep. All four were fixed before
+any code was written against the original plan.
+
 <!-- Per-story sections appended below as each story completes. -->

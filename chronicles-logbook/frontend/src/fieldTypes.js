@@ -70,6 +70,69 @@ export function isNumericField(field) {
   return NUMERIC_FIELD_TYPES.includes(field?.type)
 }
 
+// ── Structured search operators (US-3.11) ───────────────────────────────────
+
+/**
+ * Which operators the search backend accepts for each field type, and the
+ * plain-language question each one asks. Kept in one place so the condition
+ * builder's dropdowns can never drift from what app/search.py on the backend
+ * actually validates and evaluates.
+ */
+export const SEARCH_OPERATORS_BY_TYPE = {
+  text: [
+    { value: "contains", label: "contains" },
+    { value: "equals", label: "is exactly" },
+  ],
+  number: [
+    { value: "equals", label: "equals" },
+    { value: "gt", label: "is more than" },
+    { value: "gte", label: "is at least" },
+    { value: "lt", label: "is less than" },
+    { value: "lte", label: "is at most" },
+    { value: "between", label: "is between" },
+  ],
+  computed: [
+    { value: "equals", label: "equals" },
+    { value: "gt", label: "is more than" },
+    { value: "gte", label: "is at least" },
+    { value: "lt", label: "is less than" },
+    { value: "lte", label: "is at most" },
+    { value: "between", label: "is between" },
+  ],
+  date: [
+    { value: "on", label: "is on" },
+    { value: "before", label: "is before" },
+    { value: "after", label: "is after" },
+    { value: "between", label: "is between" },
+  ],
+  dropdown: [
+    { value: "equals", label: "is" },
+    { value: "in", label: "is one of" },
+  ],
+  tags: [
+    { value: "has", label: "includes the tag" },
+    { value: "has_any", label: "includes any of" },
+    { value: "has_all", label: "includes all of" },
+  ],
+  checklist: [
+    { value: "contains", label: "has an item mentioning" },
+    { value: "complete", label: "is fully checked off" },
+  ],
+  link: [
+    { value: "is_set", label: "is set" },
+    { value: "is_empty", label: "is empty" },
+  ],
+  project_reference: [
+    { value: "is_set", label: "is set" },
+    { value: "is_empty", label: "is empty" },
+  ],
+}
+
+/** The operators offered for a field, or an empty list for an unknown type. */
+export function searchOperatorsFor(fieldType) {
+  return SEARCH_OPERATORS_BY_TYPE[fieldType] || []
+}
+
 // ── Expressions ──────────────────────────────────────────────────────────────
 
 const PLACEHOLDER = /\{\s*([^{}]+?)\s*\}/g
