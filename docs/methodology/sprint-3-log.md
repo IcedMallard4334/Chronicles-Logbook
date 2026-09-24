@@ -1,11 +1,11 @@
-# Sprint 3 — Victor's Work Log & AI Declaration
+# Sprint 3 — Person 4's Work Log & AI Declaration
 
-Person 4 (Victor)'s running log for Sprint 3: what changed, why, and which
-parts were AI-assisted. Kept incrementally, one section per story, as the
-work happens — this is the paper trail for the course's AI Declaration
-requirement (tool, model, purpose) for everything in this workstream.
+Person 4's running log for Sprint 3: what changed, why, and which parts were
+AI-assisted. Kept incrementally, one section per story, as the work happens
+— this is the paper trail for the course's AI Declaration requirement (tool,
+model, purpose) for everything in this workstream.
 
-**Tool:** Claude Code · **Model:** Claude Sonnet 5 · **Branch:** `feat/victor-sprint3`
+**Tool:** Claude Code · **Model:** Claude Sonnet 5 · **Branch:** `feat/person4-sprint3`
 
 ## Assigned stories
 
@@ -51,9 +51,9 @@ Actions taken (confirmed with the project owner before proceeding):
 - Updated local `main` to the last-known `origin/main` (fast-forwarded;
   this sandbox has no network access to the team's Gitea instance, so
   this is as fresh as the most recent local fetch, not a live pull).
-- Branched `feat/victor-sprint3` off that updated `main` — **not** off
-  the recovery snapshot — so this branch's history stays scoped to
-  Victor's own stories rather than inheriting six other people's
+- Branched `feat/person4-sprint3` off that updated `main` — **not** off
+  the recovery snapshot — so this branch's history stays scoped to this
+  workstream's own stories rather than inheriting six other people's
   in-progress Sprint 2 carryover work wholesale.
 - Where a story below already had a draft in that recovery snapshot, the
   draft was pulled in *per file*, reviewed, fixed and tested like any
