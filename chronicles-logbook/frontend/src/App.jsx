@@ -611,6 +611,14 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
         <span><strong>{totals ? totals.entries : "–"}</strong> entries</span>
         <span><strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong> logged</span>
         <span><strong>{totals ? totals.active_days : "–"}</strong> active days</span>
+        {/* The run being kept up, with the best run alongside so a broken streak
+            still shows what was achieved rather than just a zero. */}
+        <span
+          className={totals && totals.current_streak > 0 ? "is-streak-alive" : ""}
+          title={totals ? `Longest run: ${totals.longest_streak} day${totals.longest_streak === 1 ? "" : "s"}` : undefined}
+        >
+          <strong>{totals ? totals.current_streak : "–"}</strong> day streak
+        </span>
       </div>
       <div className="sidebar-head">
         <h2>Projects</h2>

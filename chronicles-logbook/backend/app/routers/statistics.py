@@ -1,6 +1,7 @@
 """Aggregate statistics over a user's projects and entries."""
 
-from datetime import datetime
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +24,43 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
+
+
+def _as_date(value: Any) -> date:
+    """``func.date()`` comes back as a ``date`` on PostgreSQL and as an
+    ISO string on SQLite; the streak arithmetic needs a real date either way."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def _streaks(days: set[date], today: date) -> tuple[int, int]:
+    """(current, longest) runs of consecutive days in *days*.
+
+    The current run is the one that reaches *today* or *yesterday*: a person
+    who wrote yesterday and has not yet written today has not broken their
+    streak. A run whose last day is earlier than that has ended and counts 0.
+
+    Linear in the number of distinct days, which is bounded by the calendar
+    rather than by how much was written, so this stays cheap however large
+    the logbook grows.
+    """
+    if not days:
+        return 0, 0
+
+    longest = 0
+    run = 0
+    previous: date | None = None
+    for day in sorted(days):
+        run = run + 1 if previous is not None and day - previous == timedelta(days=1) else 1
+        longest = max(longest, run)
+        previous = day
+
+    # ``run`` now holds the length of the final (most recent) run.
+    alive = previous is not None and (today - previous) <= timedelta(days=1)
+    return (run if alive else 0), longest
 
 
 @router.get("", response_model=StatisticsResponse)
@@ -61,19 +99,42 @@ async def read_statistics(
         .order_by(Project.created_at.desc())
     )
 
-    projects = [
-        ProjectStatistics(
-            project_id=row.id,
-            name=row.name,
-            archived=row.archived,
-            entries=row.entries,
-            time_spent=int(row.time_spent or 0),
-            active_days=row.active_days,
-            first_entry_at=row.first_entry_at,
-            last_entry_at=row.last_entry_at,
+    # One more query for the streaks: the distinct (project, day) pairs. The
+    # per-project aggregate above already collapses days, so the run lengths
+    # cannot be recovered from it — a count of days says nothing about whether
+    # they were consecutive.
+    day_rows = await db.execute(
+        select(Entry.project_id, func.date(Entry.created_at).label("day"))
+        .join(Project, Entry.project_id == Project.id)
+        .where(Project.user_id == user.id)
+        .distinct()
+    )
+    days_by_project: dict[UUID, set[date]] = defaultdict(set)
+    all_days: set[date] = set()
+    for row in day_rows.all():
+        day = _as_date(row.day)
+        days_by_project[row.project_id].add(day)
+        all_days.add(day)
+
+    today = datetime.now(timezone.utc).date()
+
+    projects = []
+    for row in per_project.all():
+        current, longest = _streaks(days_by_project.get(row.id, set()), today)
+        projects.append(
+            ProjectStatistics(
+                project_id=row.id,
+                name=row.name,
+                archived=row.archived,
+                entries=row.entries,
+                time_spent=int(row.time_spent or 0),
+                active_days=row.active_days,
+                current_streak=current,
+                longest_streak=longest,
+                first_entry_at=row.first_entry_at,
+                last_entry_at=row.last_entry_at,
+            )
         )
-        for row in per_project.all()
-    ]
 
     overall = (
         await db.execute(
@@ -90,6 +151,8 @@ async def read_statistics(
         )
     ).one()
 
+    overall_current, overall_longest = _streaks(all_days, today)
+
     return StatisticsResponse(
         totals=StatisticsTotals(
             projects=len(projects),
@@ -98,6 +161,8 @@ async def read_statistics(
             entries=overall.entries,
             time_spent=int(overall.time_spent or 0),
             active_days=overall.active_days,
+            current_streak=overall_current,
+            longest_streak=overall_longest,
             first_entry_at=overall.first_entry_at,
             last_entry_at=overall.last_entry_at,
         ),

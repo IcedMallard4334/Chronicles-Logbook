@@ -219,11 +219,16 @@ export default function ProfilePage() {
           <div className="nav-pill-left">
             <button
               type="button"
-              className="nav-item"
+              className="nav-item profile-back"
               onClick={() => navigate("/app")}
               aria-label="Back to workspace"
             >
-              <span aria-hidden="true">←</span>
+              {/* An SVG rather than a text arrow: below 520px the nav hides
+                  every span inside a nav-item, which used to hide the arrow
+                  too and leave this button blank on a phone. */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
               <span>Back</span>
             </button>
             <button type="button" className="nav-item" onClick={() => navigate("/app")}>

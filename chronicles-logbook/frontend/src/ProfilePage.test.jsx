@@ -19,6 +19,7 @@ function renderPage() {
     <MemoryRouter initialEntries={["/profile"]}>
       <Routes>
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/app" element={<p>Workspace</p>} />
         <Route path="/" element={<p>Landing page</p>} />
       </Routes>
     </MemoryRouter>
@@ -51,6 +52,20 @@ describe("ProfilePage", () => {
     })
     expect(screen.getByText("ethan@example.com")).toBeInTheDocument()
     expect(fetchCurrentUser).toHaveBeenCalled()
+  })
+
+  it("has a way back to the workspace that keeps its icon on a phone", async () => {
+    renderPage()
+    await screen.findByRole("heading", { name: "Ethan Student" })
+
+    const back = screen.getByRole("button", { name: "Back to workspace" })
+    // The nav hides every <span> inside a nav-item below 520px. The icon is
+    // therefore an SVG, so the control cannot be emptied by that rule.
+    expect(back.querySelector("svg")).not.toBeNull()
+
+    fireEvent.click(back)
+
+    expect(await screen.findByText("Workspace")).toBeInTheDocument()
   })
 
   it("cycles through light, dark, and system themes", async () => {

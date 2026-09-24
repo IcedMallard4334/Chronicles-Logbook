@@ -1213,6 +1213,56 @@
   font-weight: 600;
 }
 
+/* The profile page's way back. The icon is what survives on a phone, where
+   the nav hides its text labels, so it has to be big enough to be the whole
+   control on its own. */
+.profile-back svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+@media (max-width: 520px) {
+  .profile-back {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .profile-back svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* The streak is the fifth of the sidebar's stats, so in the two-column grid it
+   takes the whole last row rather than sitting orphaned in one cell. Alive is
+   painted in the accent: a run being kept up is the one number here meant to
+   feel like something. */
+.workspace-sidebar-stats > span:nth-child(5) {
+  grid-column: 1 / -1;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-sidebar-stats .is-streak-alive strong {
+  color: var(--blue);
+}
+
+/* The same dot the sidebar uses for a project's status, so "alive" is said in
+   a colour language the person has already learned. */
+.workspace-sidebar-stats .is-streak-alive::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: middle;
+}
+
 .task-attribution {
   display: block;
   margin-top: 4px;
