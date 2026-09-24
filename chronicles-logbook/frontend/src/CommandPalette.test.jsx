@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import CommandPalette from "./CommandPalette"
 
@@ -63,5 +63,20 @@ describe("CommandPalette", () => {
 
     expect(screen.getByRole("button", { name: /Field Notes/ })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Go to Today/ })).not.toBeInTheDocument()
+  })
+
+  it("offers Help & documentation and navigates there", () => {
+    const assign = vi.fn()
+    vi.stubGlobal("location", { ...window.location, assign })
+    render(<CommandPalette projects={projects} onNavigate={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Open command menu" }))
+
+    fireEvent.click(screen.getByRole("button", { name: /Help & documentation/ }))
+
+    expect(assign).toHaveBeenCalledWith("/help")
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 })

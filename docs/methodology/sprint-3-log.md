@@ -732,4 +732,139 @@ One pre-existing, out-of-scope observation surfaced along the way:
 inline instead of calling it, rather than a bug — noted rather than
 touched, since consolidating it isn't what this story asked for.
 
-<!-- All 8 stories in this workstream are now complete. -->
+All 8 stories above are complete. The sections below are follow-up work
+requested afterwards, outside the numbered story list but logged the same
+way.
+
+## 9. Follow-up: a local sign-in that doesn't depend on Google OAuth working
+
+**The problem, as reported:** running the app locally kept blocking sign-in.
+**Root cause:** the team's shared Google Cloud OAuth client only has
+`http://localhost:8000/auth/google/callback` registered for whoever
+administers it — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` being unset or
+pointed at a client without a developer's own redirect registered makes
+"Continue with Google" a dead end for anyone else on the team, by design of
+how OAuth clients work, not a bug in `auth.py`.
+
+**Fix:** a backend-gated bypass, off everywhere except a developer's own
+machine.
+
+- `backend/app/config.py` — `ENABLE_DEV_LOGIN`, read from the environment,
+  defaulting to `false`.
+- `backend/app/routers/auth.py` — `POST /auth/dev-login`: answers 404 (not
+  503, so its existence isn't even revealed) unless `ENABLE_DEV_LOGIN` is
+  true; otherwise finds-or-creates a `User` by email and returns a real
+  session through the same `_create_login_session`/`_auth_response` path
+  `google_callback` uses, so a dev-login session is indistinguishable from a
+  real one anywhere else in the app.
+- `backend/app/schemas.py` — `DevLoginRequest` (`email`, `full_name`, both
+  optional; `extra="forbid"`).
+- `backend/.env.example`, `docs/getting-started/running.md`,
+  `docs/architecture/authentication-and-azure.md` — documented, with an
+  explicit warning never to set `ENABLE_DEV_LOGIN` in Azure Application
+  Settings.
+- `frontend/src/AuthPage.jsx` (+ `.css`) — a "Local development" panel below
+  the Google button, gated on `import.meta.env.DEV` so Vite dead-code-
+  eliminates it out of a production build entirely (verified: the string
+  "Continue without Google" is absent from every file in a `npm run build`
+  output). Submits to the new endpoint via `api.js`'s `devLogin`, then routes
+  to `/setup` or `/app` the same way `AuthCallback` does for a real sign-in.
+
+**Verified for real, not just by unit test:** built the frontend and grepped
+the output for the panel's own text (absent, confirming the dead-code
+elimination claim); started a real local backend against the real local
+Postgres database with `ENABLE_DEV_LOGIN=true` and drove it end-to-end with
+headless Chrome (`chrome.exe --headless --screenshot`) — minted a session,
+landed on the real first-time setup wizard, and confirmed the panel renders
+correctly in both light and dark mode.
+
+**Caught by that manual pass, not by any test:** the backend-vs-frontend
+troubleshooting needed to even get a working local screenshot surfaced a
+real, pre-existing footgun worth recording — `CORS_ORIGINS` and
+`VITE_API_URL`/backend port must agree, and a mismatch fails as "Cannot
+reach the server to restore your session" in the UI, which reads like a
+dead backend rather than a CORS rejection. Not fixed (it's how CORS
+inherently works, already documented in `running.md`'s "CORS errors that are
+not CORS errors" section), but worth knowing if this bypass ever seems not
+to work: check the frontend's origin is in the backend's `CORS_ORIGINS`
+before assuming `ENABLE_DEV_LOGIN` itself is broken.
+
+**Tests:** `backend/tests/test_dev_login.py` (6 tests: 404 by default,
+create/reuse/normalise-email, token actually authenticates against
+`/auth/me`), `frontend/src/AuthPage.test.jsx` (6 new tests: panel presence,
+its absence with `import.meta.env.DEV` stubbed false — the executable form
+of the dead-code-elimination guarantee above — success/redirect routing for
+both a returning and a brand-new account, the typed email/name are what get
+sent, and the plain-language message shown when the backend hasn't enabled
+it). Both the backend gate and the frontend gate were mutation-tested
+(commented out/stubbed true, confirmed the relevant test fails, restored).
+
+AI-assisted: investigation, implementation, tests, the manual Chrome-driven
+verification, and docs were done with Claude Code (Sonnet 5).
+
+## 10. Follow-up: a searchable in-app Help manual
+
+**Ask:** a Help manual covering how to use the app, every feature, and what
+each schema field type means with an example of when to use it — searchable,
+matching the app's existing look in both light and dark mode.
+
+**Content — researched, not invented:** a fresh-context research pass (also
+Sonnet 5) read the actual frontend/backend source for every feature (routing,
+`fieldTypes.js`, `search.py`, the sharing permission model, offline sync,
+Mira's consent gate, calendar integration, etc.) and cross-checked it
+against `docs/api/*.md`, producing `frontend/src/helpContent.js`: 18
+sections, 26 articles. Spot-checked afterwards against the live source
+rather than trusted outright — every quoted button/label string
+("Filter by custom field", "Save these filters as", "Mira permissions",
+"Invite by email", etc.) was grepped against the actual JSX and found
+verbatim. The research pass also flagged, honestly, two things it described
+conservatively because the UI doesn't back them up: there is no delete/edit
+button for an already-saved entry anywhere in the interface, and the
+backend's CSV export (`fetchProjectCsv`) has no UI caller at all — confirmed
+independently (`grep` across every `.jsx` file) before rewriting the CSV
+article to say so plainly rather than implying a button that doesn't exist.
+No dedicated "Statistics" page exists either, despite one being referenced
+in `tourSteps.js`'s dead `PAGE_TOURS.statistics` key — the manual describes
+only what's actually reachable (Home's workspace totals and the
+Home→Activity field-timeline chart).
+
+**Page:** `frontend/src/HelpPage.jsx` (+ `.css`), routed at `/help`
+(protected, lazy-loaded like every other route since Story 5). A four-block
+content schema (`p`/`ul`/`ol`/`dl`) keeps every article's shape uniform; a
+single search box filters the topic list by title and a generous keyword
+list per article (so "formula" finds the Calculation field even though the
+word "formula" never appears in that article's title). Deep-linkable via
+`?topic=<id>` so other entry points can jump straight to a topic.
+
+**Wired in three places:** the account-menu dropdown gained a "Help" item
+next to Profile (`App.jsx`), the command palette gained a "Help &
+documentation" entry (`CommandPalette.jsx`), and Profile's Workspace
+settings gained an "Open help" row next to Replay tour (`ProfilePage.jsx`).
+
+**A real bug, caught only by actually loading the page in a browser:**
+`HelpPage.jsx` initially imported only its own `HelpPage.css`, not the
+shared `App.css` that defines `.app-shell`/`.topbar`/`.app-bg-dynamic` (every
+other full-page route, e.g. `ProfilePage.jsx`, imports both). Nothing in the
+automated test suite catches a missing stylesheet import — jsdom doesn't
+lay anything out — so this shipped invisibly until a real headless-Chrome
+screenshot of the page showed the topbar and content pushed hundreds of
+pixels down the page, sitting below the decorative background instead of
+above it. Fixed by adding the missing `import "./App.css"`. Also caught in
+the same pass: the topic-nav `<ul>` was showing default browser bullets
+(`list-style` was never reset) — fixed alongside it. Both re-verified
+visually afterwards, in both light and dark mode.
+
+**Tests:** `frontend/src/helpContent.test.js` (6 tests validating the data
+itself — every id unique, every block a supported type, every list
+non-empty, the field-types glossary specifically covers all 9 real field
+types with an example on every one), `frontend/src/HelpPage.test.jsx` (10
+tests against a fixed fixture independent of the real content's wording —
+default article, topic switching, active-state marking, glossary rendering,
+keyword search including a "matches on keywords the title doesn't contain"
+case, empty-search messaging, `?topic=` deep-linking, Back navigation). The
+search filter was mutation-tested (`matchesQuery` stubbed to always return
+`true`, confirmed three tests fail, reverted).
+
+AI-assisted: the content research pass, `HelpPage.jsx`/`.css`, the wiring,
+the tests, the bug found and fixed via manual browser verification, and this
+log entry were all done with Claude Code (Sonnet 5).

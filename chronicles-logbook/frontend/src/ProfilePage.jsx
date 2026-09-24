@@ -320,6 +320,15 @@ export default function ProfilePage() {
                   Replay tour
                 </button>
               </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Help manual</span>
+                  <span className="profile-row-value">Search how-to guides for every feature and field type.</span>
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => navigate("/help")}>
+                  Open help
+                </button>
+              </div>
             </section>
 
             <section className="profile-section">

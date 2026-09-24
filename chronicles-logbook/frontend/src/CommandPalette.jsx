@@ -38,6 +38,7 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
     { label: "Go to outstanding work", hint: "Workspace", action: () => onNavigate("outstanding") },
     { label: "Go to calendar", hint: "Schedule", action: () => onNavigate("calendar") },
     { label: "Create a project", hint: "New", action: onCreateProject },
+    { label: "Help & documentation", hint: "Help", action: () => window.location.assign("/help") },
     // Picking a project by name opens that project. It used to land on Home
     // and leave the person to find it again, which made searching for one
     // pointless.
