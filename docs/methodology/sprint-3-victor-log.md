@@ -231,4 +231,79 @@ running the suite rather than reasoning about it abstractly. That's the
 finding that was escalated to the project owner before the statistics test
 file was touched.
 
+## 3. Shared projects: invite, accept/decline, and leave
+
+**Permission model confirmed with the project owner before implementing:**
+owner controls the project itself (schema, archive, delete, rename,
+membership); any accepted member can read the project and create entries;
+a member may edit/delete an entry only if they wrote it themselves —
+editing someone else's entry, even as an accepted member, needs to be the
+owner. This is *more* restrictive than a recovered draft from an earlier,
+abandoned session (which allowed any accepted member to edit/delete any
+entry) — the owner explicitly chose the stricter model when asked.
+
+**Source:** mostly ported and adapted from that recovered draft (never
+merged, sitting only in another branch's history — see the Sprint 3 log's
+opening section) after reviewing it file-by-file, rather than
+reimplemented from scratch: the invite/accept/decline/leave mechanics, the
+migration, and — during planning, corrected by an independent review of my
+own plan — the per-entry authorship check (`_get_writable_entry`) were
+already there and already matched what the owner asked for. My own
+contribution was porting it correctly onto this branch (which already had
+the US-3.11 and schema-snapshot fixes from stories 1–2), two security
+fixes the port needed that the reference draft already had but my initial
+plan omitted (`_get_readable_project` and `list_projects` both needed a
+`status == accepted` filter added to their membership joins — without it,
+a pending or declined invitee keeps full read access, silently defeating
+"nothing reaches the invitee's workspace until they accept"), updating the
+existing 18 grant-based `test_sharing.py` tests to the new invite/accept
+two-client pattern rather than just appending new ones, a new test for
+idempotent re-invite of an already-pending member, and a new test for the
+delete-entry 403 case the reference tests didn't cover.
+
+**Changed:**
+
+- `backend/app/models.py` — `ProjectMember` gains `status`
+  (pending/accepted/declined, defaulting to *accepted* for the migration
+  so already-shared projects don't lose access), `invited_by`,
+  `responded_at`.
+- `backend/migrations/008_project_invitations.sql`, and the matching
+  fallback columns in `main.py`'s startup schema patch (the project's
+  existing "add missing columns on boot" mechanism, since there's no
+  migration runner yet — kept in step the same way every other column
+  added since Sprint 1 has been).
+- `backend/app/routers/invitations.py` (new) — list/accept/decline.
+- `backend/app/routers/projects.py` — `share_project` now creates a
+  pending invitation (idempotent: re-inviting a pending member is a
+  no-op, re-inviting a declined one resets to pending); new
+  `leave_project`; `list_project_members` reports status; `_get_writable_entry`
+  gates `update_entry`/`delete_entry` (now reachable by accepted members,
+  previously owner-only) to the owner or the entry's own author.
+- `backend/app/schemas.py` — `ProjectMemberResponse` gains
+  `status`/`invited_at`; new `ProjectInvitationResponse`.
+- `backend/tests/test_sharing.py` — 33 tests (30 ported/adapted + 3 new).
+- `frontend/src/Invitations.jsx` (+ .css, .test.jsx) — the notification
+  bell; ported essentially as-is.
+- `frontend/src/App.jsx` — wired `<Invitations>` into the top bar;
+  `ShareProjectPanel` now shows each member's status and its copy no
+  longer implies immediate access; added a "Leave project" action (with a
+  confirm prompt) to a member's view of a shared project, which didn't
+  exist in the reference draft's App.jsx and had to be built fresh against
+  this branch's actual `ProjectDetail` component.
+- `frontend/src/api.js` — `leaveProject`, `fetchInvitations`,
+  `acceptInvitation`, `declineInvitation`.
+
+**Not changed:** `tasks.py` needed nothing — it already used the same
+`_get_readable_project`/owner-only split this story relies on (members can
+see/add/toggle tasks; only the owner can rename or delete one), confirmed
+by running the ported task-sharing tests rather than assumed.
+
+AI-assisted: porting, the two security-join fixes, the authorization
+model change, the "Leave project" UI, and all test work done with Claude
+Code (Sonnet 5). The plan was reviewed independently before implementation
+(also Sonnet 5, fresh context) — it corrected a factual error in my own
+plan (I believed the authorship check needed to be written from scratch;
+it was already in the reference draft and just needed porting) and caught
+both missing status-filter fixes before any code was written.
+
 <!-- Per-story sections appended below as each story completes. -->

@@ -251,6 +251,25 @@ class ProjectMemberResponse(BaseModel):
     full_name: str
     email: str
     avatar_url: str | None = None
+    # "pending" until the person accepts, so the owner can see an invitation
+    # is out rather than assuming access they have not agreed to.
+    status: Literal["pending", "accepted", "declined"] = "accepted"
+    invited_at: datetime | None = None
+
+
+class ProjectInvitationResponse(BaseModel):
+    """An invitation as the person being invited sees it.
+
+    Carries the project and the inviter by name: "Thandi invited you to
+    Fieldwork" is something you can answer, and a pair of ids is not.
+    """
+
+    project_id: UUID
+    project_name: str
+    project_description: str | None = None
+    invited_by_name: str | None = None
+    entry_count: int = 0
+    invited_at: datetime
 
 
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────

@@ -10,6 +10,7 @@ import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
+import Invitations from "./Invitations"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
@@ -28,6 +29,7 @@ import {
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  leaveProject,
   previewSchemaChange,
   shareProject,
   unarchiveProject,
@@ -2354,12 +2356,24 @@ function ProjectDetail({
   onToggleArchive,
   onDeleteProject,
   onOpenProject,
+  onLeaveProject,
 }) {
   const [tab, setTab] = useState("entries")
+  const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
     setTab("entries")
   }, [project.id])
+
+  const handleLeave = async () => {
+    if (!window.confirm(`Leave "${project.name}"? Entries you wrote stay in it.`)) return
+    setLeaving(true)
+    try {
+      await onLeaveProject?.()
+    } finally {
+      setLeaving(false)
+    }
+  }
 
   return (
     <section className="project-detail">
@@ -2452,10 +2466,20 @@ function ProjectDetail({
       </div>
       <footer className="detail-footer">
         {project.shared ? (
-          <p className="detail-shared-note">
-            Shared with you. You can add entries here; changing the project's
-            fields, archiving and exporting stay with its owner.
-          </p>
+          <div className="detail-shared-note">
+            <p>
+              Shared with you. You can add entries and correct your own; changing
+              the project's fields, archiving and exporting stay with its owner.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary detail-leave-btn"
+              onClick={handleLeave}
+              disabled={leaving}
+            >
+              {leaving ? "Leaving…" : "Leave project"}
+            </button>
+          </div>
         ) : (
           <>
             <ShareProjectPanel projectId={project.id} />
@@ -2591,14 +2615,14 @@ function ShareProjectPanel({ projectId }) {
     try {
       const member = await shareProject(projectId, address)
       // Sharing is idempotent on the server, so re-inviting someone returns
-      // them rather than failing — don't list them twice.
+      // their existing invitation rather than failing — don't list them twice.
       setMembers((current) =>
         current.some((person) => person.user_id === member.user_id)
-          ? current
+          ? current.map((person) => (person.user_id === member.user_id ? member : person))
           : [...current, member]
       )
       setEmail("")
-      setNotice(`${member.full_name} can now add entries to this project.`)
+      setNotice(`${member.full_name} has been invited. Nothing changes until they accept.`)
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -2623,7 +2647,8 @@ function ShareProjectPanel({ projectId }) {
     <div className="share-panel">
       <h4 className="share-title">Shared with</h4>
       <p className="share-hint">
-        People you add can read this project and write entries in it. Only you can
+        People you invite can read this project and write entries in it once
+        they accept — nothing changes for them until they do. Only you can
         change its fields, archive it or export it.
       </p>
 
@@ -2635,12 +2660,17 @@ function ShareProjectPanel({ projectId }) {
             <li key={member.user_id} className="share-member">
               <span className="share-member-name">{member.full_name}</span>
               <span className="share-member-email">{member.email}</span>
+              {member.status !== "accepted" && (
+                <span className={`status-badge share-status-${member.status}`}>
+                  {member.status === "pending" ? "Invited" : "Declined"}
+                </span>
+              )}
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => revoke(member)}
               >
-                Remove
+                {member.status === "pending" ? "Cancel invite" : "Remove"}
               </button>
             </li>
           ))}
@@ -3001,6 +3031,20 @@ function App() {
     setView("timeline")
   }
 
+  const handleLeaveProject = async () => {
+    if (!selectedProject) return
+    try {
+      await leaveProject(selectedProject.id)
+      // The entries you wrote stay in the project's record; leaving only ends
+      // your access, so this only has to drop it from your own workspace.
+      setProjects((prev) => prev.filter((project) => project.id !== selectedProject.id))
+      setSelectedId(null)
+      setView("timeline")
+    } catch (err) {
+      setError(formatError(err))
+    }
+  }
+
   const handleEntryCreated = async (payload) => {
     if (!selectedProject) return
 
@@ -3283,6 +3327,7 @@ function App() {
           </div>
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
+            <Invitations onChanged={loadProjects} />
             <AuthActions />
           </div>
         </nav>
@@ -3348,6 +3393,7 @@ function App() {
               onToggleArchive={handleToggleArchive}
               onDeleteProject={handleDeleteProject}
               onOpenProject={handleSelectProject}
+              onLeaveProject={handleLeaveProject}
             />
           ) : projects.length > 0 ? (
             <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />

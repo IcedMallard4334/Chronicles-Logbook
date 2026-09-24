@@ -1128,6 +1128,18 @@
   border: 1px solid var(--line);
 }
 
+.status-badge.share-status-pending {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-soft);
+}
+
+.status-badge.share-status-declined {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+}
+
 .detail-description {
   color: var(--muted);
   font-size: 0.9rem;
@@ -1289,9 +1301,21 @@
    -------------------------------------------------- */
 
 .detail-shared-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.detail-shared-note p {
   margin: 0;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.detail-leave-btn {
+  flex-shrink: 0;
 }
 
 .share-panel {
@@ -2923,7 +2947,7 @@ button.log-link-chip:hover {
 .share-member-name,
 .profile-email,
 .workspace-entry-preview,
-.detail-shared-note {
+.detail-shared-note p {
   overflow-wrap: anywhere;
 }
 

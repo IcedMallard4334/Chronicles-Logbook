@@ -146,6 +146,24 @@ export async function unshareProject(id, memberId) {
   return request(`/projects/${id}/members/${memberId}`, { method: "DELETE" })
 }
 
+export async function leaveProject(id) {
+  return request(`/projects/${id}/membership`, { method: "DELETE" })
+}
+
+// ── Being invited to a project ────────────────────────────────────────
+
+export async function fetchInvitations() {
+  return request("/invitations")
+}
+
+export async function acceptInvitation(projectId) {
+  return request(`/invitations/${projectId}/accept`, { method: "POST" })
+}
+
+export async function declineInvitation(projectId) {
+  return request(`/invitations/${projectId}/decline`, { method: "POST" })
+}
+
 // ── Editing a live schema ─────────────────────────────────────────────
 
 /**
