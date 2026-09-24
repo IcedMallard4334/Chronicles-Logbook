@@ -96,6 +96,22 @@ describe("import", () => {
     expect(screen.getByText("47")).toBeInTheDocument()
   })
 
+  it("closes on Escape, clearing the summary the same way the Close button does", async () => {
+    importLogbook.mockResolvedValue(summary)
+
+    render(<DataTransfer />)
+    chooseFile(JSON.stringify(exportDocument))
+    expect(await screen.findByText("Import complete")).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(screen.queryByText("Import complete")).not.toBeInTheDocument()
+    // If Escape only closed the parent dropdown without clearing summary/
+    // error the way the Close button does, a later re-render would still
+    // find "Import complete" in the DOM — it must actually be gone, not
+    // just visually covered by something else.
+  })
+
   it("announces the import so the workspace can reload", async () => {
     importLogbook.mockResolvedValue(summary)
     const listener = vi.fn()

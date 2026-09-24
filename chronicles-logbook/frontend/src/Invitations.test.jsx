@@ -94,6 +94,18 @@ describe("answering an invitation", () => {
     expect(acceptInvitation).not.toHaveBeenCalled()
   })
 
+  it("closes on Escape without answering the invitation", async () => {
+    render(<Invitations />)
+    fireEvent.click(await screen.findByRole("button", { name: /invitation/ }))
+    expect(screen.getByText("Reading Group")).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(screen.queryByText("Reading Group")).not.toBeInTheDocument()
+    expect(acceptInvitation).not.toHaveBeenCalled()
+    expect(declineInvitation).not.toHaveBeenCalled()
+  })
+
   it("reports a refusal rather than quietly dropping the invitation", async () => {
     acceptInvitation.mockRejectedValue(
       new Error("This invitation is no longer waiting for an answer.")

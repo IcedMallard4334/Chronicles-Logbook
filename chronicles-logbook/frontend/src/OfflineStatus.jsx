@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { offlineQueue as defaultQueue } from "./offlineQueue"
 import { syncEngine as defaultEngine } from "./offlineSync"
+import { useDialogFocus } from "./useDialogFocus"
 import "./offlineStatus.css"
 
 /**
@@ -22,6 +23,7 @@ export default function OfflineStatus({
   )
   const [counts, setCounts] = useState({ pending: 0, rejected: 0, isSyncing: false })
   const [isOpen, setIsOpen] = useState(false)
+  const dialogRef = useDialogFocus(isOpen, () => setIsOpen(false))
   const [rejected, setRejected] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [draft, setDraft] = useState({})
@@ -129,11 +131,13 @@ export default function OfflineStatus({
           role="presentation"
         >
           <div
+            ref={dialogRef}
             className="modal-card offline-card"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="offline-title"
+            tabIndex={-1}
           >
             <h2 id="offline-title">Sync status</h2>
 

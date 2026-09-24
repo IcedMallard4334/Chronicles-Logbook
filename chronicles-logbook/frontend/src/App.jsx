@@ -12,6 +12,7 @@ import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import ViewTransition, { ViewLoader } from "./ViewTransition"
+import { useDialogFocus } from "./useDialogFocus"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
@@ -185,6 +186,7 @@ function AuthActions() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  const deleteDialogRef = useDialogFocus(showDeleteModal, () => closeDeleteModal())
 
   const clearSession = () => { signOut().catch(() => {}) }
 
@@ -250,11 +252,14 @@ function AuthActions() {
           role="presentation"
         >
           <div
+            ref={deleteDialogRef}
             className="modal-card delete-account-modal"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-account-title"
+            aria-describedby="delete-account-description delete-account-warning"
+            tabIndex={-1}
           >
             <LogoIcon className="modal-character" size={90} />
 
@@ -262,12 +267,12 @@ function AuthActions() {
               Delete your account?
             </h2>
 
-            <p>
+            <p id="delete-account-description">
               This will permanently delete your Chronicles account
               and all of its projects, entries, and tasks.
             </p>
 
-            <p className="delete-warning">
+            <p id="delete-account-warning" className="delete-warning">
               This action cannot be undone.
             </p>
 
@@ -278,7 +283,6 @@ function AuthActions() {
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 placeholder="DELETE"
-                autoFocus
                 disabled={isDeleting}
               />
             </label>
@@ -371,6 +375,14 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
 
+  const handleCancel = () => {
+    setName("")
+    setDescription("")
+    onClose()
+  }
+
+  const dialogRef = useDialogFocus(isOpen, handleCancel)
+
   if (!isOpen) return null
 
   const handleSubmit = (event) => {
@@ -382,20 +394,16 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
     setDescription("")
   }
 
-  const handleCancel = () => {
-    setName("")
-    setDescription("")
-    onClose()
-  }
-
   return (
     <div className="modal-backdrop" onClick={handleCancel} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-project-title"
+        tabIndex={-1}
       >
         <LogoIcon className="modal-character" size={90} />
         <h2 id="create-project-title">Start a new project</h2>
@@ -408,7 +416,6 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Field Notes"
-              autoFocus
             />
           </label>
           <label className="field-label full">
@@ -448,12 +455,14 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     }
   }, [isOpen, project])
 
-  if (!isOpen) return null
-
   const handleCancel = () => {
     setError(null)
     onClose()
   }
+
+  const dialogRef = useDialogFocus(isOpen, handleCancel)
+
+  if (!isOpen) return null
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -477,11 +486,13 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   return (
     <div className="modal-backdrop" onClick={handleCancel} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-project-title"
+        tabIndex={-1}
       >
         <LogoIcon className="modal-character" size={90} />
         <h2 id="edit-project-title">Edit project</h2>
@@ -494,7 +505,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Field Notes"
-              autoFocus
             />
           </label>
           <label className="field-label full">

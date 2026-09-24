@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { acceptInvitation, declineInvitation, fetchInvitations } from "./api"
+import { useDialogFocus } from "./useDialogFocus"
 import "./Invitations.css"
 
 const POLL_MS = 60_000
@@ -24,7 +25,15 @@ export default function Invitations({ onChanged }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState("")
+  // The whole widget (bell + panel), for click-outside detection — has to
+  // include the bell itself, or clicking it to close would also count as
+  // "outside" and immediately reopen it.
   const panel = useRef(null)
+  // Just the panel's contents, for initial focus and Escape: scoping it to
+  // `panel` instead would find the bell button first, not the panel's own
+  // items. Not a blocking modal — no backdrop, no aria-modal — so no Tab
+  // trap: the rest of the page should stay reachable while this is open.
+  const dialogRef = useDialogFocus(open, () => setOpen(false), { trap: false })
 
   const refresh = useCallback(async () => {
     try {
@@ -47,19 +56,16 @@ export default function Invitations({ onChanged }) {
     }
   }, [refresh])
 
+  // Escape-to-close and initial focus live in useDialogFocus above; this
+  // effect only owns click-outside-to-close.
   useEffect(() => {
     if (!open) return undefined
     const onClickOutside = (event) => {
       if (panel.current && !panel.current.contains(event.target)) setOpen(false)
     }
-    const onKey = (event) => {
-      if (event.key === "Escape") setOpen(false)
-    }
     document.addEventListener("mousedown", onClickOutside)
-    document.addEventListener("keydown", onKey)
     return () => {
       document.removeEventListener("mousedown", onClickOutside)
-      document.removeEventListener("keydown", onKey)
     }
   }, [open])
 
@@ -107,7 +113,7 @@ export default function Invitations({ onChanged }) {
       </button>
 
       {open && (
-        <div className="invites-panel" role="dialog" aria-label="Project invitations">
+        <div ref={dialogRef} className="invites-panel" role="dialog" aria-label="Project invitations" tabIndex={-1}>
           <header className="invites-head">
             <h3>Invitations</h3>
             <p>Nothing is added to your workspace until you accept.</p>

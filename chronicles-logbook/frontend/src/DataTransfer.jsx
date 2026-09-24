@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
 import { fetchExportDocument, importLogbook } from "./api"
+import { useDialogFocus } from "./useDialogFocus"
 import "./dataTransfer.css"
 
 /**
@@ -33,6 +34,17 @@ export default function DataTransfer({ onImported, onClose }) {
   const [busy, setBusy] = useState(null)
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState(null)
+
+  // The backdrop click and the Close button only clear the local
+  // summary/error state (onClose closes the *parent* account dropdown, a
+  // separate concern) — Escape needs to do the same thing the Close button
+  // does, not skip past the state clear straight to closing the dropdown.
+  const closeDialog = () => {
+    setSummary(null)
+    setError(null)
+    onClose?.()
+  }
+  const dialogRef = useDialogFocus(Boolean(summary || error), closeDialog)
 
   const handleExport = async () => {
     setBusy("export")
@@ -132,11 +144,13 @@ export default function DataTransfer({ onImported, onClose }) {
           }}
         >
           <div
+            ref={dialogRef}
             className="modal-card transfer-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby="transfer-title"
             onClick={(event) => event.stopPropagation()}
+            tabIndex={-1}
           >
             <h2 id="transfer-title">{error ? "Import failed" : "Import complete"}</h2>
 
@@ -180,15 +194,7 @@ export default function DataTransfer({ onImported, onClose }) {
             )}
 
             <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  setSummary(null)
-                  setError(null)
-                  onClose?.()
-                }}
-              >
+              <button type="button" className="btn-primary" onClick={closeDialog}>
                 Close
               </button>
             </div>

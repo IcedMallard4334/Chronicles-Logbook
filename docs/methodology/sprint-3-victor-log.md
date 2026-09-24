@@ -458,4 +458,131 @@ AI-assisted: the Lighthouse investigation (tooling setup, trace analysis,
 root-cause tracing), the code-splitting fix, and the before/after
 measurement were done with Claude Code (Sonnet 5).
 
+## 6. US-3.19 — Accessibility
+
+**Investigation, broader than a source-code skim:** set up the full local
+stack (backend on SQLite, frontend dev server) specifically to get real
+automated coverage of the *authenticated* app, not just the public landing
+page — `dev_login.py` mints a valid session against a local database, and a
+throwaway seed script populated two projects with a rich schema (text,
+number, dropdown, tags, checklist, date fields), several entries and tasks,
+so the pages being audited had real content rather than empty states. Ran
+Google Lighthouse's accessibility category (axe-core based) against the
+live landing page and, via a local scratch harness page injecting the
+minted token into `localStorage` before navigating (the same pattern as the
+`__flow.html`/`__probe.html` files already in this repo's history, deleted
+again immediately after use — never committed):
+
+| Page | Accessibility score |
+|---|---|
+| Landing (`/`, live site) | 100 |
+| `/app?view=entries` | 100 |
+| `/app?view=board` | 100 |
+| `/app?view=calendar` | 100 |
+| `/app?view=today` | 100 |
+| `/app?view=outstanding` | 100 |
+
+Zero failing audits anywhere. Manually verified past what automated tools
+catch:
+
+- **Alt text (AC1):** every `<img>` has an `alt` attribute; the ones using
+  `alt=""` (the logo mark, user avatars) are deliberately decorative or
+  redundant, each confirmed to have adjacent identifying text (`aria-label`,
+  `title`, or a visible name right next to it) by reading the surrounding
+  JSX — not assumed.
+- **Colour-only status (AC2):** hunted specifically for this since it's the
+  AC's explicit callout. Found small coloured indicators (`.is-overdue`,
+  status badges) but every one is paired with an adjacent text label
+  ("Overdue", "Invited", "Declined") — none are colour-only.
+- **Screen reader flows (AC3) — the real gap found:** every `role="dialog"`
+  in the codebase (9 instances) has correct ARIA structure
+  (`aria-modal`/`aria-labelledby`), but most had *no keyboard focus
+  management* at all: no initial focus into the dialog, inconsistent
+  Escape-to-close, no Tab trap (so Tab could reach elements behind a
+  backdrop `aria-modal="true"` claims are hidden from assistive tech — a
+  real contradiction between the ARIA promise and actual behaviour), and no
+  focus returned to the trigger on close. This is the category of bug
+  automated tooling structurally can't catch (it only sees static markup,
+  not dynamic focus behaviour), which is why the Lighthouse 100s didn't
+  flag it.
+
+**Fix:** a single shared hook, `frontend/src/useDialogFocus.js`, wired into
+8 of the 9 dialogs (`DayActivityDialog.jsx` excluded — it already uses a
+native `<dialog>` + `showModal()`, which gives it trapping/Escape/restore
+for free; bolting the hook on would have been redundant and risked
+double-handling). Plan reviewed independently before implementation, which
+caught real per-call-site mismatches the generic plan didn't originally
+account for:
+
+- `ProfilePage.jsx`'s `DeleteAccountModal` has no `isOpen` prop (only
+  mounted while open) — needed `useDialogFocus(true, onClose)`.
+- `DataTransfer.jsx`'s modal visibility is `Boolean(summary || error)`, and
+  its `onClose` prop means "close the parent dropdown", not "close this
+  dialog" — Escape needed a local wrapper that also clears `summary`/`error`
+  the same way the Close button already does, or it would skip the state
+  clear.
+- `CommandPalette.jsx` renders *either* its trigger *or* its dialog, never
+  both — the trigger button unmounts in the same commit that opens the
+  dialog, so by the time the hook's effect runs to capture
+  `document.activeElement`, that button is already gone and the capture
+  falls back to `document.body`. On close, focus isn't programmatically
+  returned to the (newly remounted) trigger — a real, independently
+  confirmed (tester ran the code, not just reasoning about it) but minor
+  gap: nothing traps focus and Tab still works, so a keyboard/screen-reader
+  user isn't stranded, but their tab position resets rather than resuming
+  at the trigger. A precise fix exists (capture the trigger in the click
+  handler itself, before it unmounts, rather than relying on the generic
+  hook's after-the-fact `document.activeElement` read) but wasn't done in
+  this pass — logged as a known follow-up rather than silently left
+  looking like an oversight, in the interest of finishing all 8 stories in
+  this sprint rather than gold-plating one call site.
+- **Corrected after independent testing:** I originally believed
+  `Invitations.jsx` had the same trigger-unmount issue as CommandPalette.
+  It doesn't — the bell button is always mounted (a sibling of the
+  conditionally-rendered panel, not replaced by it), so
+  `document.activeElement` is captured correctly and focus returns to the
+  real trigger on close. Verified by the tester actually reading the JSX,
+  not by re-asserting my own earlier claim.
+- `Invitations.jsx`'s panel has no backdrop and no `aria-modal` — a
+  non-modal popover, not a blocking dialog — so it gets initial focus and
+  Escape but *not* a Tab trap (`{ trap: false }`), so the rest of the page
+  stays reachable while it's open.
+- Added `aria-describedby` linking the two delete-account dialogs
+  (`App.jsx`'s and `ProfilePage.jsx`'s) to their warning text — `autoFocus`
+  was sending a screen reader straight to the "type DELETE" input, past the
+  "this cannot be undone" warning, which a dialog announcement alone
+  doesn't reliably surface.
+
+**A bug I caught myself before it shipped:** every real call site passes a
+fresh inline `onClose` function on every render (none memoise with
+`useCallback`). My first draft of the hook had `onClose`/`trap` in the
+effect's dependency array — which meant the "move focus to the first
+field" effect would re-run on *every keystroke* inside a dialog with a
+form (typing in `CreateProjectModal`'s name field would have yanked focus
+back to itself after each character, making it unusable). Fixed with the
+standard "latest ref" pattern — the effect now depends only on `isOpen`,
+reading the current `onClose`/`trap` from a ref updated every render.
+Added a regression test for this specifically (`useDialogFocus.test.jsx`),
+then verified the test actually catches it: reverted to the buggy
+dependency array, confirmed the test failed with focus landing on the
+wrong field, restored the fix, confirmed green again.
+
+**Tests:** `useDialogFocus.test.jsx` (8 tests: initial focus, Escape,
+focus-return, Tab trap both directions, `trap:false`, no-focusable-children
+safety, the re-render regression above) plus targeted integration tests
+added to the existing suites that most needed them —
+`DataTransfer.test.jsx` (Escape actually clears the summary, not just
+visually), `Invitations.test.jsx` (Escape closes without answering) — and
+a new `CommandPalette.test.jsx` (5 tests), since that component had *zero*
+prior test coverage despite being touched directly by this change.
+
+AI-assisted: the local authenticated-audit setup, Lighthouse investigation,
+manual accessibility review, the shared hook, all 8 call-site integrations,
+and the tests were done with Claude Code (Sonnet 5). The plan was reviewed
+independently before implementation (also Sonnet 5, fresh context), which
+found the `ProfilePage`/`DataTransfer`/`CommandPalette`/`Invitations`
+call-site mismatches above, recommended excluding `DayActivityDialog.jsx`,
+and caught the missing `aria-describedby` — all fixed before or during
+implementation, not discovered after.
+
 <!-- Per-story sections appended below as each story completes. -->

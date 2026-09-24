@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences } from "./preferences"
+import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
 import "./ProfilePage.css"
 
@@ -47,19 +48,26 @@ function useDensity() {
 }
 
 function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmation, setConfirmation }) {
+  // Always mounted only while it should be shown (the parent renders it
+  // conditionally), so isOpen is just "true, for as long as this exists".
+  const dialogRef = useDialogFocus(true, onClose)
+
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card delete-account-modal"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-account-title"
+        aria-describedby="profile-delete-account-description profile-delete-account-warning"
+        tabIndex={-1}
       >
         <LogoIcon size={90} />
         <h2 id="delete-account-title">Delete your account?</h2>
-        <p>This will permanently delete your Chronicles account and all of its projects, entries, and tasks.</p>
-        <p className="delete-warning">This action cannot be undone.</p>
+        <p id="profile-delete-account-description">This will permanently delete your Chronicles account and all of its projects, entries, and tasks.</p>
+        <p id="profile-delete-account-warning" className="delete-warning">This action cannot be undone.</p>
         <label className="field-label full">
           Type <strong>DELETE</strong> to confirm
           <input
@@ -67,7 +75,6 @@ function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmatio
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
             placeholder="DELETE"
-            autoFocus
             disabled={isDeleting}
           />
         </label>
