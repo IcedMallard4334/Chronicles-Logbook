@@ -368,7 +368,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <h4>Custom schemas</h4>
+            <h3>Custom schemas</h3>
             <span>Define your own fields per project</span>
           </div>
           <div className="empty-feature">
@@ -378,7 +378,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
                 <path d="M12 6v6l4 2" />
               </svg>
             </div>
-            <h4>Quick capture</h4>
+            <h3>Quick capture</h3>
             <span>Log entries in seconds</span>
           </div>
           <div className="empty-feature">
@@ -388,7 +388,7 @@ function EmptyState({ onCreate, onSeedDemoData }) {
                 <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
               </svg>
             </div>
-            <h4>Tasks & deadlines</h4>
+            <h3>Tasks & deadlines</h3>
             <span>Stay on top of what's due</span>
           </div>
         </div>
@@ -1787,12 +1787,14 @@ function EntryList({
                           formatEntryValue(field, data[field.id], projectNames)
                         )}
                         {/* Marked so a derived figure is never mistaken for one
-                            that was typed in. */}
+                            that was typed in — for sighted and screen reader
+                            users alike, not just visually. */}
                         {field.type === "computed" && (
                           <span
                             className="calculated-badge"
+                            role="img"
+                            aria-label="Calculated from the other fields on this entry"
                             title="Calculated from the other fields on this entry"
-                            aria-hidden="true"
                           >
                             ƒ
                           </span>
@@ -2412,7 +2414,7 @@ function ShareProjectPanel({ projectId }) {
 
   return (
     <div className="share-panel">
-      <h4 className="share-title">Shared with</h4>
+      <h3 className="share-title">Shared with</h3>
       <p className="share-hint">
         People you invite can read this project and write entries in it once
         they accept — nothing changes for them until they do. Only you can

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useDialogFocus } from "./useDialogFocus"
 import "./CommandPalette.css"
@@ -27,11 +27,19 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
       window.removeEventListener(OPEN_COMMAND_PALETTE, handleOpenRequest)
     }
   }, [])
-  // The trigger button and the dialog are mutually exclusive renders (see
-  // the early return below), so the trigger is already gone by the time
-  // this effect runs — return-focus degrades to a no-op here, the same
-  // accepted trade-off documented in useDialogFocus itself.
   const dialogRef = useDialogFocus(open, () => setOpen(false))
+  // The trigger button and the dialog are mutually exclusive renders (see
+  // the early return below), so it's already gone by the time useDialogFocus
+  // tries to capture document.activeElement — its built-in return-focus
+  // degrades to a no-op. Once the trigger remounts after closing, this
+  // refocuses it directly instead, so keyboard/screen-reader users land back
+  // where they were rather than at the top of the document.
+  const triggerRef = useRef(null)
+  const hasOpened = useRef(false)
+  useEffect(() => {
+    if (open) { hasOpened.current = true; return }
+    if (hasOpened.current) triggerRef.current?.focus()
+  }, [open])
   const commands = useMemo(() => [
     { label: "Go to Today", hint: "Dashboard", action: () => onNavigate("today") },
     { label: "Go to entries", hint: "Workspace", action: () => onNavigate("entries") },
@@ -50,6 +58,10 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
       action: () => (onOpenProject ? onOpenProject(project.id) : onNavigate("home")),
     })),
   ].filter(command => command.label.toLowerCase().includes(query.toLowerCase())), [projects, query, onNavigate, onOpenProject, onCreateProject, navigate])
-  if (!open) return <button className="command-trigger" type="button" onClick={() => setOpen(true)} aria-label="Open command menu">⌘<span>Search</span><kbd>Ctrl K</kbd></button>
-  return <div className="command-backdrop" role="presentation" onMouseDown={() => setOpen(false)}><section ref={dialogRef} className="command-palette" role="dialog" aria-modal="true" aria-label="Command menu" tabIndex={-1} onMouseDown={event => event.stopPropagation()}><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search commands, pages and projects…" /><div className="command-results">{commands.length ? commands.map(command => <button key={`${command.hint}-${command.label}`} type="button" onClick={() => { command.action(); setOpen(false) }}><span>{command.label}</span><small>{command.hint}</small></button>) : <p>No matching commands.</p>}</div><p className="command-help"><kbd>Esc</kbd> close · <kbd>Ctrl K</kbd> toggle</p></section></div>
+  if (!open) return <button ref={triggerRef} className="command-trigger" type="button" onClick={() => setOpen(true)} aria-label="Open command menu">⌘<span>Search</span><kbd>Ctrl K</kbd></button>
+  return <div className="command-backdrop" role="presentation" onMouseDown={() => setOpen(false)}><section ref={dialogRef} className="command-palette" role="dialog" aria-modal="true" aria-label="Command menu" tabIndex={-1} onMouseDown={event => event.stopPropagation()}><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search commands, pages and projects…" /><p className="sr-only" role="status">{commands.length ? `${commands.length} matching ${plural(commands.length)}` : "No matching commands."}</p><div className="command-results">{commands.length ? commands.map(command => <button key={`${command.hint}-${command.label}`} type="button" onClick={() => { command.action(); setOpen(false) }}><span>{command.label}</span><small>{command.hint}</small></button>) : <p>No matching commands.</p>}</div><p className="command-help"><kbd>Esc</kbd> close · <kbd>Ctrl K</kbd> toggle</p></section></div>
+}
+
+function plural(count) {
+  return count === 1 ? "command" : "commands"
 }

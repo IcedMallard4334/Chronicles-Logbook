@@ -75,9 +75,13 @@
   }
 }
 
-/* Subtle floating animation after draw */
+/* Subtle floating animation after draw. Settles after a few cycles rather
+   than looping forever: an animation that never stops keeps every frame of
+   a Lighthouse trace different from the last, which inflates Speed Index
+   even though FCP/LCP are unaffected — a real visitor isn't watching the
+   background long enough to notice it settle. */
 .auth-lines {
-  animation: float-lines 8s ease-in-out infinite alternate;
+  animation: float-lines 8s ease-in-out 4 alternate both;
 }
 
 @keyframes float-lines {
@@ -99,7 +103,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, rgba(107, 91, 255, 0.2) 0%, transparent 70%);
   content: "";
-  animation: pulse-glow 6s ease-in-out infinite alternate;
+  animation: pulse-glow 6s ease-in-out 4 alternate both;
 }
 
 .auth-intro::after {
@@ -111,7 +115,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 107, 157, 0.15) 0%, transparent 70%);
   content: "";
-  animation: pulse-glow 8s ease-in-out infinite alternate-reverse;
+  animation: pulse-glow 8s ease-in-out 3 alternate-reverse both;
 }
 
 @keyframes pulse-glow {
@@ -148,11 +152,22 @@
 .auth-eyebrow,
 .auth-kicker {
   margin-bottom: 14px;
-  color: #a89cff;
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+/* Sits on the dark hero (.auth-intro, #0f0e1a): a light lavender reads well there. */
+.auth-eyebrow {
+  color: #a89cff;
+}
+
+/* Sits on the light form panel (.auth-panel, var(--surface)): the hero's
+   lavender is nearly invisible there, so it uses the same accent color the
+   equivalent onboarding label (.setup-eyebrow) already relies on. */
+.auth-kicker {
+  color: var(--blue);
 }
 
 .auth-copy h1 {
@@ -449,5 +464,14 @@
 
   .auth-panel {
     padding-block: 48px 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-line,
+  .auth-lines,
+  .auth-intro::before,
+  .auth-intro::after {
+    animation: none;
   }
 }

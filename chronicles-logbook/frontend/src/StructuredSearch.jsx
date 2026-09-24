@@ -185,26 +185,36 @@ function ConditionValue({ field, condition, onChange, inputId }) {
 
   if (operator === "complete") {
     return (
-      <select
-        id={inputId}
-        value={condition.value ? "true" : "false"}
-        onChange={(event) => onChange({ value: event.target.value === "true" })}
-      >
-        <option value="true">yes</option>
-        <option value="false">no</option>
-      </select>
+      <>
+        <label className="sr-only" htmlFor={inputId}>
+          {field.name}
+        </label>
+        <select
+          id={inputId}
+          value={condition.value ? "true" : "false"}
+          onChange={(event) => onChange({ value: event.target.value === "true" })}
+        >
+          <option value="true">yes</option>
+          <option value="false">no</option>
+        </select>
+      </>
     )
   }
 
   if (field.type === "dropdown" && operator === "equals") {
     return (
-      <select id={inputId} value={condition.value ?? ""} onChange={(event) => onChange({ value: event.target.value })}>
-        {(field.options || []).map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+      <>
+        <label className="sr-only" htmlFor={inputId}>
+          {field.name}
+        </label>
+        <select id={inputId} value={condition.value ?? ""} onChange={(event) => onChange({ value: event.target.value })}>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </>
     )
   }
 

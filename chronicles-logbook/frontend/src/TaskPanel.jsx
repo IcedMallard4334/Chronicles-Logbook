@@ -157,6 +157,8 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
                 <li key={item.id} className="task-checklist-item">
                   <button
                     type="button"
+                    role="checkbox"
+                    aria-checked={item.completed}
                     className={`task-checkbox ${item.completed ? "checked" : ""}`}
                     onClick={() => handleToggleChecklistItem(item.id)}
                     aria-label={item.completed ? "Mark incomplete" : "Mark complete"}
@@ -303,6 +305,8 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
     <li className={`task-item ${task.completed ? "completed" : ""} ${overdue ? "overdue" : ""}`}>
       <button
         type="button"
+        role="checkbox"
+        aria-checked={task.completed}
         className={`task-checkbox ${task.completed ? "checked" : ""}`}
         onClick={handleToggle}
         aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
@@ -324,6 +328,8 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
               <li key={item.id} className="task-checklist-row">
                 <button
                   type="button"
+                  role="checkbox"
+                  aria-checked={item.completed}
                   className={`task-checkbox small ${item.completed ? "checked" : ""}`}
                   onClick={() => handleToggleChecklistItem(item.id)}
                   disabled={isUpdatingChecklist}
