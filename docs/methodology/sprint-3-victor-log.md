@@ -674,4 +674,62 @@ being built (also Sonnet 5, fresh context), which is what found the
 double-overlay bug, confirmed the test gap around it, and surfaced the
 Escape-coupling edge case above.
 
-<!-- Per-story sections appended below as each story completes. -->
+## 8. US-3.24 — Theme-aware background
+
+**Investigation first:** before writing anything, checked whether the
+"applies immediately and persists across sessions" half of this story was
+already solved — it was. `preferences.js`'s `applyPreferences()` (called
+by every theme/accent control in `ProfilePage.jsx`) sets
+`document.documentElement.dataset.theme`/`.dataset.accent` immediately,
+and `savePreferences()`/`updateAccent()` write the same values to
+`localStorage` first. That infrastructure already existed and needed no
+changes — this story was specifically "the *background* doesn't follow
+that yet", not "theme switching doesn't persist".
+
+**Source:** `AmbientBackground.jsx`/`.css` ported unchanged from the
+recovered draft — four hand-drawn scenes (one per accent: Chronicles'
+folded violet planes, Ocean's swelling water, Forest's canopy and light
+shafts, Rose's generated-but-stable falling petals), watching
+`documentElement.dataset.accent`/`.dataset.theme` via a `MutationObserver`
+rather than needing any prop threaded down to it — confirmed the accent
+ids in `SCENES` (`chronicles`/`ocean`/`forest`/`rose`) exactly match
+`ACCENTS` in `preferences.js` before trusting the mapping. Drawn with CSS
+gradients/SVG rather than photographs (instant, no second asset per accent
+to keep in sync, scales to any viewport), `aria-hidden="true"` and
+`pointer-events: none` throughout (purely decorative — never intercepts a
+click, never read out — consistent with the accessibility pass in Story
+6), and already handles `prefers-reduced-motion` and dark-mode dimming via
+both a `prefers-color-scheme` media query and an explicit
+`[data-theme="dark"]` override, matching how the rest of this app's
+theming already works in both directions.
+
+**Wiring:** one line — `<AmbientBackground />` mounted once, as the first
+child of `App()`'s `app-shell`, sitting behind the existing
+home-view-specific wave decoration (`app-bg-dynamic`) rather than
+replacing it — that decoration is scoped to the Home workspace only and
+unrelated to theming, so it was left untouched and simply now has this as
+its backdrop instead of the shell's plain background colour on every
+other view too.
+
+**Tests:** no reference test existed for this component, so wrote one —
+7 tests: defaults to the Chronicles scene, renders the scene matching
+whatever accent is already on the page, switches scene live when the
+`data-accent` attribute changes (the exact mechanism `ProfilePage`'s
+accent selector uses — not simulated some other way), doesn't break when
+`data-theme` changes instead, falls back gracefully for an unrecognised
+accent value, is confirmed decorative (`aria-hidden`), and checks the Rose
+scene's generated petal layout isn't accidentally collapsed to one
+repeated position.
+
+AI-assisted: porting, wiring, and the test file all done with Claude Code
+(Sonnet 5). Verified independently (also Sonnet 5, fresh context), which
+confirmed the persistence chain end-to-end — including `main.jsx` seeding
+the accent/theme attributes before React ever mounts, so first paint is
+already correct rather than flashing the default scene — and mutation-
+tested the "switches scene live" test to confirm it isn't a tautology.
+One pre-existing, out-of-scope observation surfaced along the way:
+`ProfilePage.jsx`'s `cycleTheme` duplicates `applyPreferences`'s logic
+inline instead of calling it, rather than a bug — noted rather than
+touched, since consolidating it isn't what this story asked for.
+
+<!-- All 8 stories in this workstream are now complete. -->

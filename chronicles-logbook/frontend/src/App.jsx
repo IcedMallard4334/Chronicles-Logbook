@@ -11,6 +11,7 @@ import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
+import AmbientBackground from "./AmbientBackground"
 import ViewTransition, { ViewLoader } from "./ViewTransition"
 import { useDialogFocus } from "./useDialogFocus"
 import { PageHint, WelcomeTour } from "./GuidedTour"
@@ -3229,6 +3230,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <AmbientBackground />
       <div className="app-bg-dynamic" aria-hidden="true">
         <div className="app-bg-sky" />
         <div className="app-bg-waves">

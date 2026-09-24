@@ -1,0 +1,246 @@
+/* --------------------------------------------------
+   AMBIENT BACKDROP
+   One scene per accent, drawn rather than photographed.
+   See AmbientBackground.jsx for why.
+   -------------------------------------------------- */
+
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Never intercepts a click, and never gets read out: it is decoration. */
+  contain: strict;
+}
+
+.ambient > * {
+  position: absolute;
+  inset: 0;
+}
+
+/* The veil is what makes every scene safe to put text on. It is a wash of the
+   page background, heavier in dark mode, sitting above the scene rather than
+   below it — dimming only the parts that would otherwise fight the text. */
+.ambient-veil {
+  background:
+    radial-gradient(
+      ellipse 120% 90% at 50% 0%,
+      color-mix(in srgb, var(--bg) 40%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 72%, transparent) 52%,
+      color-mix(in srgb, var(--bg) 92%, transparent) 100%
+    );
+}
+
+/* A little tooth over the gradients. Without it large soft gradients band
+   visibly on 8-bit displays, which reads as a rendering fault. */
+.ambient-grain {
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ambient-veil {
+    background:
+      radial-gradient(
+        ellipse 120% 90% at 50% 0%,
+        color-mix(in srgb, var(--bg) 58%, transparent) 0%,
+        color-mix(in srgb, var(--bg) 82%, transparent) 52%,
+        color-mix(in srgb, var(--bg) 95%, transparent) 100%
+      );
+  }
+  :root:not([data-theme="light"]) .ambient-grain { opacity: 0.05; }
+}
+
+:root[data-theme="dark"] .ambient-veil {
+  background:
+    radial-gradient(
+      ellipse 120% 90% at 50% 0%,
+      color-mix(in srgb, var(--bg) 58%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 82%, transparent) 52%,
+      color-mix(in srgb, var(--bg) 95%, transparent) 100%
+    );
+}
+
+:root[data-theme="dark"] .ambient-grain { opacity: 0.05; }
+
+/* --------------------------------------------------
+   FOREST — light through a canopy
+   -------------------------------------------------- */
+
+.ambient-canopy {
+  background:
+    radial-gradient(circle 38vw at 22% 8%, #8fd14f 0%, transparent 62%),
+    radial-gradient(circle 30vw at 62% -4%, #d9f99d 0%, transparent 58%),
+    radial-gradient(circle 46vw at 88% 22%, #15803d 0%, transparent 66%),
+    radial-gradient(circle 52vw at 40% 96%, #14532d 0%, transparent 70%),
+    linear-gradient(170deg, #22c55e 0%, #166534 58%, #052e16 100%);
+  filter: blur(38px) saturate(1.2);
+  transform: scale(1.14);
+  animation: ambient-drift 44s ease-in-out infinite alternate;
+}
+
+/* Uneven verticals are what make this read as woodland rather than as a green
+   gradient. Evenly spaced ones read as a barcode. */
+.ambient-trunks {
+  background-image:
+    linear-gradient(90deg, transparent 0 6%, rgba(6, 46, 22, 0.55) 6% 8.4%, transparent 8.4% 21%),
+    linear-gradient(90deg, transparent 0 33%, rgba(6, 46, 22, 0.42) 33% 34.6%, transparent 34.6% 47%),
+    linear-gradient(90deg, transparent 0 58%, rgba(6, 46, 22, 0.6) 58% 61%, transparent 61% 72%),
+    linear-gradient(90deg, transparent 0 81%, rgba(6, 46, 22, 0.38) 81% 82.8%, transparent 82.8% 95%);
+  filter: blur(9px);
+  opacity: 0.8;
+}
+
+.ambient-shafts {
+  background: linear-gradient(
+    104deg,
+    transparent 12%,
+    rgba(250, 255, 235, 0.3) 20%,
+    transparent 27%,
+    transparent 52%,
+    rgba(250, 255, 235, 0.22) 60%,
+    transparent 67%
+  );
+  filter: blur(26px);
+  animation: ambient-shift 30s ease-in-out infinite alternate;
+}
+
+/* --------------------------------------------------
+   OCEAN — deep water, paler as it rises
+   -------------------------------------------------- */
+
+.ambient-depth {
+  background:
+    radial-gradient(circle 44vw at 78% 6%, #a5f3fc 0%, transparent 60%),
+    radial-gradient(circle 60vw at 18% 88%, #082f49 0%, transparent 72%),
+    linear-gradient(168deg, #7dd3fc 0%, #0e7490 42%, #082f49 100%);
+  filter: blur(34px) saturate(1.15);
+  transform: scale(1.12);
+  animation: ambient-drift 50s ease-in-out infinite alternate;
+}
+
+.ambient-swell {
+  width: 100%;
+  height: 100%;
+  filter: blur(18px);
+}
+
+.ambient-swell path {
+  fill: rgba(8, 47, 73, 0.45);
+  animation: ambient-swell 22s ease-in-out infinite alternate;
+}
+
+.ambient-swell path.is-mid {
+  fill: rgba(14, 116, 144, 0.42);
+  animation-duration: 17s;
+  animation-direction: alternate-reverse;
+}
+
+.ambient-swell path.is-near {
+  fill: rgba(2, 27, 45, 0.5);
+  animation-duration: 13s;
+}
+
+.ambient-foam {
+  background: linear-gradient(
+    12deg,
+    transparent 40%,
+    rgba(224, 252, 255, 0.16) 58%,
+    transparent 74%
+  );
+  filter: blur(30px);
+  animation: ambient-shift 26s ease-in-out infinite alternate-reverse;
+}
+
+/* --------------------------------------------------
+   ROSE — petals mid-fall
+   -------------------------------------------------- */
+
+.ambient-bloom {
+  background:
+    radial-gradient(circle 40vw at 28% 14%, #fda4af 0%, transparent 60%),
+    radial-gradient(circle 34vw at 76% 8%, #fecdd3 0%, transparent 56%),
+    radial-gradient(circle 56vw at 58% 96%, #881337 0%, transparent 70%),
+    linear-gradient(172deg, #fb7185 0%, #be123c 50%, #4c0519 100%);
+  filter: blur(36px) saturate(1.16);
+  transform: scale(1.14);
+  animation: ambient-drift 46s ease-in-out infinite alternate;
+}
+
+.ambient-petals { overflow: hidden; }
+
+.ambient-petal {
+  position: absolute;
+  border-radius: 62% 38% 55% 45% / 58% 62% 38% 42%;
+  background: linear-gradient(140deg, rgba(255, 241, 244, 0.95), rgba(244, 114, 145, 0.7));
+  animation: ambient-fall 26s linear infinite;
+  will-change: transform;
+}
+
+/* Three depths, so the near petals read as near: bigger blur and more
+   transparency the further back they sit. */
+.ambient-petal.is-depth-0 { filter: blur(1.5px); opacity: 0.9; }
+.ambient-petal.is-depth-1 { filter: blur(5px); opacity: 0.62; animation-duration: 34s; }
+.ambient-petal.is-depth-2 { filter: blur(11px); opacity: 0.42; animation-duration: 44s; }
+
+/* --------------------------------------------------
+   CHRONICLES — folded violet planes
+   -------------------------------------------------- */
+
+.ambient-aurora {
+  background:
+    radial-gradient(circle 42vw at 68% 4%, #c084fc 0%, transparent 58%),
+    radial-gradient(circle 34vw at 14% 18%, #818cf8 0%, transparent 56%),
+    radial-gradient(circle 58vw at 50% 100%, #1e1b4b 0%, transparent 72%),
+    linear-gradient(166deg, #7c3aed 0%, #4c1d95 46%, #14082e 100%);
+  filter: blur(36px) saturate(1.15);
+  transform: scale(1.12);
+  animation: ambient-drift 48s ease-in-out infinite alternate;
+}
+
+.ambient-folds {
+  width: 100%;
+  height: 100%;
+  filter: blur(22px);
+  opacity: 0.8;
+}
+
+.ambient-folds polygon { fill: rgba(30, 12, 64, 0.5); }
+.ambient-folds polygon.is-light { fill: rgba(192, 132, 252, 0.28); }
+.ambient-folds polygon.is-deep { fill: rgba(17, 6, 40, 0.6); }
+.ambient-folds polygon.is-edge { fill: rgba(129, 140, 248, 0.2); }
+
+/* --------------------------------------------------
+   MOTION
+   Slow, large and low-contrast: the scene should never be the thing that
+   catches your eye while you are reading an entry.
+   -------------------------------------------------- */
+
+@keyframes ambient-drift {
+  0%   { transform: scale(1.12) translate3d(0, 0, 0); }
+  100% { transform: scale(1.2) translate3d(-2.5%, -2%, 0); }
+}
+
+@keyframes ambient-shift {
+  0%   { transform: translate3d(-4%, 0, 0); opacity: 0.75; }
+  100% { transform: translate3d(4%, 2%, 0); opacity: 1; }
+}
+
+@keyframes ambient-swell {
+  0%   { transform: translate3d(0, 0, 0) scaleY(1); }
+  100% { transform: translate3d(-3%, -2.5%, 0) scaleY(1.07); }
+}
+
+@keyframes ambient-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); }
+  100% { transform: translate3d(6vw, 112vh, 0) rotate(260deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient *,
+  .ambient {
+    animation: none !important;
+  }
+}
