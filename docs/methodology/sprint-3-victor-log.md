@@ -306,4 +306,48 @@ plan (I believed the authorship check needed to be written from scratch;
 it was already in the reference draft and just needed porting) and caught
 both missing status-filter fixes before any code was written.
 
+## 4. Page transition animations (polish item)
+
+**Before:** switching tabs or projects replaced the main content in one
+frame — no transition, and the only loading state anywhere in the app shell
+was a plain "Loading…" paragraph.
+
+**Source:** `ViewTransition.jsx`/`.css` ported essentially unchanged from
+the recovered draft (reviewed earlier in this log's opening section) —
+already matches the landing page's flowing-line motif (confirmed by
+grepping `AuthPage.css` for the same `stroke-dasharray` technique before
+trusting the component's own claim to that effect), already handles
+`prefers-reduced-motion`, already uses the app's existing theme tokens
+(`--blue`, `--mauve`, `--surface-soft`) so it follows accent/dark-mode
+changes for free.
+
+**Changed:**
+
+- `frontend/src/ViewTransition.jsx` (+ .css) — three exports: `ViewTransition`
+  (a keyed wrapper that remounts on `viewKey` change, restarting a ~300ms
+  entrance animation — `key` is the whole mechanism, no state or timers),
+  `ViewLoader` (the flowing-line loading state, delayed by default so a
+  fast response never flashes it), `SkeletonRows` (placeholder rows,
+  unused until Story 5 wires it into actual data-fetching views).
+- `frontend/src/App.jsx` — the main content switch is now wrapped in
+  `<ViewTransition viewKey={`${currentView}:${view}:${selectedId || "none"}`}>`,
+  so switching tabs, toggling the timeline, or opening a different project
+  all animate; the plain-text initial loading state became
+  `<ViewLoader label="Opening your logbook…" delay={0} />` (`delay={0}`
+  since there's nothing to show yet — no reason to wait before showing it).
+- `frontend/src/ViewTransition.test.jsx` (new, no reference test existed) —
+  7 tests: children render, remount-on-key-change vs. no-remount-on-same-key
+  (proven via a mount-count probe, not just visual inspection), the loader's
+  delay behavior, its `aria-live="polite"` status role, and SkeletonRows'
+  row count.
+
+**Scope note:** `SkeletonRows`/`ViewLoader` are shipped in this commit but
+only wired into the app's initial-load state so far — wiring them into
+individual views' own data fetches (the actual "skeleton loading
+placeholder... during data fetches" requirement) belongs to Story 5
+(US-3.17), which is next.
+
+AI-assisted: porting, wiring, and the test file written with Claude Code
+(Sonnet 5).
+
 <!-- Per-story sections appended below as each story completes. -->

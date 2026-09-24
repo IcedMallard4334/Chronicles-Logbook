@@ -11,6 +11,7 @@ import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
+import ViewTransition, { ViewLoader } from "./ViewTransition"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
@@ -3363,43 +3364,48 @@ function App() {
           />
         </div>}
         <div className="content">
-          {loading ? (
-            <p className="hint">Loading…</p>
-          ) : currentView === "calendar" ? (
-            <CalendarView projects={projects} />
-          ) : currentView === "today" ? (
-            <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
-          ) : currentView === "assistant" ? (
-            <MiraAssistantPage conversation={miraConversation} />
-          ) : currentView === "tasks" ? (
-            <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "entries" ? (
-            <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "board" ? (
-            <BoardView projects={projects} />
-          ) : currentView === "outstanding" ? (
-            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
-          ) : view === "timeline" ? (
-            <Timeline projects={projects} onOpenProject={handleSelectProject} />
-          ) : selectedProject ? (
-            <ProjectDetail
-              key={selectedProject.id}
-              project={openProject}
-              projects={projects}
-              onSchemaPreview={handleSchemaPreview}
-              onSchemaSaved={handleSchemaSave}
-              onEntryCreated={handleEntryCreated}
-              onEditProject={() => setIsEditModalOpen(true)}
-              onToggleArchive={handleToggleArchive}
-              onDeleteProject={handleDeleteProject}
-              onOpenProject={handleSelectProject}
-              onLeaveProject={handleLeaveProject}
-            />
-          ) : projects.length > 0 ? (
-            <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
-          ) : (
-            <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
-          )}
+          {/* Keyed on the tab, the timeline toggle and the open project, so
+              switching any of those animates, while a data refresh inside
+              one view (the same key) does not. */}
+          <ViewTransition viewKey={`${currentView}:${view}:${selectedId || "none"}`}>
+            {loading ? (
+              <ViewLoader label="Opening your logbook…" delay={0} />
+            ) : currentView === "calendar" ? (
+              <CalendarView projects={projects} />
+            ) : currentView === "today" ? (
+              <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+            ) : currentView === "assistant" ? (
+              <MiraAssistantPage conversation={miraConversation} />
+            ) : currentView === "tasks" ? (
+              <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+            ) : currentView === "entries" ? (
+              <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+            ) : currentView === "board" ? (
+              <BoardView projects={projects} />
+            ) : currentView === "outstanding" ? (
+              <OutstandingPage projects={projects} onNavigate={setCurrentView} />
+            ) : view === "timeline" ? (
+              <Timeline projects={projects} onOpenProject={handleSelectProject} />
+            ) : selectedProject ? (
+              <ProjectDetail
+                key={selectedProject.id}
+                project={openProject}
+                projects={projects}
+                onSchemaPreview={handleSchemaPreview}
+                onSchemaSaved={handleSchemaSave}
+                onEntryCreated={handleEntryCreated}
+                onEditProject={() => setIsEditModalOpen(true)}
+                onToggleArchive={handleToggleArchive}
+                onDeleteProject={handleDeleteProject}
+                onOpenProject={handleSelectProject}
+                onLeaveProject={handleLeaveProject}
+              />
+            ) : projects.length > 0 ? (
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
+            ) : (
+              <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
+            )}
+          </ViewTransition>
         </div>
       </main>
       <CreateProjectModal
