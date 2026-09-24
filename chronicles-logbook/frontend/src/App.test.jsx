@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./api", () => ({
@@ -7,6 +8,18 @@ vi.mock("./api", () => ({
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
+}))
+
+// The real engine opens IndexedDB, which this jsdom environment doesn't
+// have. Only the signed-in account-menu test below exercises this path at
+// all — everything else has no `chronicles_user`, so AuthActions never
+// mounts the code that starts it.
+vi.mock("./offlineSync", () => ({
+  syncEngine: {
+    start: () => () => {},
+    subscribe: () => () => {},
+    snapshot: vi.fn().mockResolvedValue({ pending: 0, rejected: 0, isSyncing: false }),
+  },
 }))
 
 import App from "./App"
@@ -62,7 +75,7 @@ describe("workspace summary", () => {
     // kept to a tooltip so a broken streak still shows what was achieved.
     fetchStatistics.mockResolvedValue(statistics)
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
 
     const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("6")).toBeInTheDocument())
@@ -78,7 +91,7 @@ describe("workspace summary", () => {
       totals: { ...statistics.totals, current_streak: 0, longest_streak: 1 },
     })
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
 
     const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
@@ -93,7 +106,7 @@ describe("workspace summary", () => {
     fetchStatistics.mockResolvedValue(statistics)
     fetchEntries.mockResolvedValue([{ id: "e1", data: {}, created_at: "2026-09-10T17:40:00Z" }])
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
 
     const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
@@ -103,7 +116,7 @@ describe("workspace summary", () => {
   it("renders time logged as hours and minutes", async () => {
     fetchStatistics.mockResolvedValue(statistics)
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
 
     const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("3h 20m")).toBeInTheDocument())
@@ -113,7 +126,7 @@ describe("workspace summary", () => {
     // The summary is supplementary — a failure must not take the sidebar down.
     fetchStatistics.mockRejectedValue(new Error("offline"))
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
 
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
@@ -124,7 +137,7 @@ describe("workspace summary", () => {
   it("refetches totals when the project list changes", async () => {
     fetchStatistics.mockResolvedValue(statistics)
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     await screen.findByLabelText("Workspace summary")
 
     const callsBefore = fetchStatistics.mock.calls.length
@@ -136,21 +149,21 @@ describe("workspace summary", () => {
 
 describe("App workspace", () => {
   it("shows the current workspace project navigator", async () => {
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mira" })).toBeInTheDocument()
   })
 
   it("opens a project from the workspace navigator", async () => {
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     fireEvent.click(within(projects).getByText("Field Notes"))
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
 
   it("opens the field timeline view from the sidebar", async () => {
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
     expect(await screen.findByRole("heading", { name: "Field Timeline" })).toBeInTheDocument()
     expect(screen.getByLabelText("Select project")).toBeInTheDocument()
@@ -184,7 +197,7 @@ describe("App workspace", () => {
     ],
   })
 
-  render(<App />)
+  render(<MemoryRouter><App /></MemoryRouter>)
 
   fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
 
@@ -235,10 +248,39 @@ describe("App workspace", () => {
   expect(screen.getByText("8")).toBeInTheDocument()
 })
 
+  it("shows a plain explanation instead of an empty chart for a non-numeric field", async () => {
+    // A line chart has nowhere honest to put a text value on its Y-axis —
+    // this used to render as a blank, confusing box. It should say so in
+    // words instead, and still list every value in the table below.
+    fetchFieldTimeline.mockResolvedValueOnce({
+      project_id: "proj-1",
+      field_id: "hours",
+      field_name: "Hours",
+      field_type: "text",
+      start: null,
+      end: null,
+      points: [
+        { entry_id: "entry-1", created_at: "2026-05-05T09:00:00+00:00", value: "Few more tasks to do", schema_version: 1 },
+      ],
+    })
+
+    render(<MemoryRouter><App /></MemoryRouter>)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    await waitFor(() => expect(screen.getByLabelText("Select field")).toBeEnabled())
+    fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
+    fireEvent.submit(screen.getByRole("button", { name: "Generate timeline" }).closest("form"))
+
+    expect(await screen.findByText(/aren.t shown as a\s*line chart/)).toBeInTheDocument()
+    expect(screen.queryByLabelText("Hours over time")).not.toBeInTheDocument()
+    expect(screen.getByText("Few more tasks to do")).toBeInTheDocument()
+  })
+
   it("keeps standard project creation available", async () => {
     fetchProjects.mockResolvedValue([])
     createProject.mockResolvedValue(fieldNotes)
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: "Create project" }))
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Field Notes" } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
@@ -246,11 +288,48 @@ describe("App workspace", () => {
   })
 })
 
+describe("guided tour (US-3.23)", () => {
+  it("does not show the welcome tour once it has already been seen", async () => {
+    window.localStorage.setItem(
+      "chronicles-tours-seen",
+      JSON.stringify({ "anon:1": ["welcome"] })
+    )
+
+    render(<MemoryRouter><App /></MemoryRouter>)
+
+    await screen.findByRole("listbox", { name: "Projects" })
+    expect(
+      screen.queryByRole("heading", { name: "This is your logbook" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("does not stack a project's own hint on top of the page hint that's still showing", async () => {
+    // Reachable sequence: welcome already seen, the Home page's own hint has
+    // not been dismissed yet, and a project is opened anyway — PageHint has
+    // no scrim by design, so nothing stops that click from going through.
+    window.localStorage.setItem(
+      "chronicles-tours-seen",
+      JSON.stringify({ "anon:1": ["welcome"] })
+    )
+
+    render(<MemoryRouter><App /></MemoryRouter>)
+    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    expect(await screen.findByRole("heading", { name: "Your workspace" })).toBeInTheDocument()
+
+    fireEvent.click(within(projects).getByText("Field Notes"))
+
+    await screen.findByRole("heading", { name: "Field Notes" })
+    // The Home page hint ("Your workspace") is still allowed to be showing —
+    // only a second, project-scoped hint stacked on top of it would be wrong.
+    expect(document.querySelectorAll(".tour-layer")).toHaveLength(1)
+  })
+})
+
 describe("Mira project proposals", () => {
   const proposal = { type: "create_project", payload: { name: "Research notes", description: "Weekly findings" }, requires_confirmation: true }
 
   async function proposeProject() {
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
     fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Create research notes" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
@@ -291,5 +370,35 @@ describe("Mira project proposals", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create project" }))
     expect(createProject).not.toHaveBeenCalled()
     expect(await screen.findByRole("alert")).toHaveTextContent("already exists")
+  })
+})
+
+describe("account menu navigation", () => {
+  // The bug this replaces: Profile and Help used window.location.assign, a
+  // full page reload that re-ran session restoration and every top-level
+  // loading state from scratch on every visit. A client-side route change
+  // shouldn't touch any of that — the destination route's content should
+  // simply appear in place.
+  it("opens Profile as a client-side route change, not a full page reload", async () => {
+    window.localStorage.setItem("chronicles_user", JSON.stringify({ id: "u1", full_name: "Dev User", avatar_url: null }))
+    const assign = vi.fn()
+    vi.stubGlobal("location", { ...window.location, assign })
+
+    render(
+      <MemoryRouter initialEntries={["/app"]}>
+        <Routes>
+          <Route path="/app" element={<App />} />
+          <Route path="/profile" element={<p>Profile route reached</p>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Dev User — account menu" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }))
+
+    expect(await screen.findByText("Profile route reached")).toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+
+    vi.unstubAllGlobals()
   })
 })

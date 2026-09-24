@@ -1,0 +1,117 @@
+/* --------------------------------------------------
+   VIEW TRANSITIONS AND WAITING STATES
+   -------------------------------------------------- */
+
+.view-transition {
+  animation: view-in 300ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+}
+
+/* ── The flowing-lines loader ────────────────────── */
+
+.view-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 220px;
+  padding: 50px 20px;
+}
+
+.view-loader-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.view-loader-logo {
+  animation: view-loader-pulse 1.9s ease-in-out infinite;
+}
+
+@keyframes view-loader-pulse {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+.view-loader-flow {
+  width: min(400px, 76%);
+  height: 108px;
+  overflow: visible;
+}
+
+.view-loader-flow path {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.55;
+  /* Long enough to cover any of these paths; the dash pattern is animated
+     from fully-hidden to fully-drawn and round again. */
+  stroke-dasharray: 620;
+  stroke-dashoffset: 620;
+  animation: view-draw 1.9s cubic-bezier(0.55, 0, 0.45, 1) infinite;
+}
+
+.view-loader-flow path:nth-child(2) {
+  stroke: var(--mauve);
+  animation-delay: 0.22s;
+  opacity: 0.42;
+}
+
+.view-loader-flow path:nth-child(3) {
+  animation-delay: 0.44s;
+  opacity: 0.3;
+}
+
+.view-loader-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+@keyframes view-draw {
+  0%   { stroke-dashoffset: 620; }
+  45%  { stroke-dashoffset: 0; }
+  55%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -620; }
+}
+
+/* ── Skeleton rows ───────────────────────────────── */
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.skeleton-row {
+  display: block;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    100deg,
+    var(--surface-soft) 30%,
+    color-mix(in srgb, var(--surface) 70%, var(--line)) 50%,
+    var(--surface-soft) 70%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-sheen 1.5s linear infinite;
+}
+
+@keyframes skeleton-sheen {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-transition { animation: none; }
+  .view-loader-flow path { animation: none; stroke-dashoffset: 0; }
+  .view-loader-logo { animation: none; }
+  .skeleton-row { animation: none; }
+}

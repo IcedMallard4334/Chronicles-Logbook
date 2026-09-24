@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./api", () => ({
@@ -65,7 +66,7 @@ beforeEach(() => {
 
 /** Open Field Notes and land on the given tab. */
 async function openProject(tab) {
-  render(<App />)
+  render(<MemoryRouter><App /></MemoryRouter>)
   const projects = await screen.findByRole("listbox", { name: "Projects" })
   fireEvent.click(within(projects).getByText("Field Notes"))
   await screen.findByRole("heading", { name: "Field Notes" })
@@ -154,7 +155,7 @@ describe("reading a schema", () => {
   it("cannot be edited while the project is archived", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, archived: true }, otherProject])
 
-    render(<App />)
+    render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Show archived/ }))
     const archived = await screen.findByRole("listbox", { name: "Archived projects" })
     fireEvent.click(within(archived).getByText("Field Notes"))

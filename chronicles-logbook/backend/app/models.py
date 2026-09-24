@@ -122,14 +122,28 @@ class Project(Base):
     )
 
 
-class ProjectMember(Base):
-    """Someone other than the owner who has been given access to a project.
+# A membership row exists from the moment someone is invited, and ``status``
+# says whether they have taken the invitation up. Sharing used to grant access
+# the instant an owner typed an email, which put a stranger's project in your
+# sidebar without asking — so an invitation is offered, and only an acceptance
+# grants anything.
+MEMBERSHIP_PENDING = "pending"
+MEMBERSHIP_ACCEPTED = "accepted"
+MEMBERSHIP_DECLINED = "declined"
 
-    Membership grants reading the project and adding entries to it. Everything
-    that reshapes or removes the project — editing the schema, archiving,
-    deleting, exporting, and changing who else has access — stays with the
-    owner, so a project cannot be restructured out from under the person whose
-    record it is.
+
+class ProjectMember(Base):
+    """Someone other than the owner who has been invited to a project.
+
+    Accepted membership grants reading the project and adding entries to it.
+    Everything that reshapes or removes the project — editing the schema,
+    archiving, deleting, exporting, and changing who else has access — stays
+    with the owner, so a project cannot be restructured out from under the
+    person whose record it is.
+
+    A declined row is kept rather than deleted so that declining is not the
+    same as never having been asked: the owner can see the answer, and a
+    re-invitation moves the same row back to pending instead of stacking up.
     """
 
     __tablename__ = "project_members"
@@ -151,6 +165,35 @@ class ProjectMember(Base):
         index=True,
     )
 
+    # Defaults to accepted, not pending: rows written before invitations
+    # existed already granted access, and a migration that turned every one of
+    # them into an unanswered invitation would take collaborators' projects
+    # away from them overnight.
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=MEMBERSHIP_PENDING,
+        server_default=MEMBERSHIP_ACCEPTED,
+    )
+
+    # Who sent the invitation, so it can be shown with a name on it. Cleared
+    # rather than cascaded: the membership outlives the inviter's account.
+    invited_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    responded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Both sides of an invitation need a name to show: the project's members
+    # list wants the invitee, and the invitee's notifications want the owner.
+    member = relationship("User", lazy="selectin", foreign_keys=[user_id])
+    inviter = relationship("User", lazy="selectin", foreign_keys=[invited_by])
+    project = relationship("Project", lazy="selectin")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -167,6 +210,11 @@ class Entry(Base):
         nullable=False,
         index=True,
     )
+
+    # An optional free-text identifier, independent of the project's schema —
+    # so an entry can be named and recognised (in a list, in a link picker)
+    # without depending on whichever field happens to be first.
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Stores the field-id -> value mapping for this entry.
     data: Mapped[dict[str, Any]] = mapped_column(

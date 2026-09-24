@@ -8,11 +8,21 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.computed import apply_computed_fields
 from app.database import get_db
-from app.models import Entry, Project, ProjectMember, Task, User
+from app.models import (
+    MEMBERSHIP_ACCEPTED,
+    MEMBERSHIP_DECLINED,
+    MEMBERSHIP_PENDING,
+    Entry,
+    Project,
+    ProjectMember,
+    Task,
+    User,
+)
 from app.routers.auth import get_current_user
-from app.schema_migration import Simulation, simulate
+from app.schema_migration import Simulation, migrate_entry_data, simulate, simulate_entry_migration
 from app.schemas import (
     EntryCreate,
+    EntryMigrationPreview,
     EntryResponse,
     EntryUpdate,
     ProjectCreate,
@@ -292,7 +302,11 @@ async def _get_readable_project(
 ) -> Project:
     project = await db.scalar(
         select(Project)
-        .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
+        .outerjoin(
+            ProjectMember,
+            (ProjectMember.project_id == Project.id)
+            & (ProjectMember.status == MEMBERSHIP_ACCEPTED),
+        )
         .where(
             Project.id == project_id,
             or_(Project.user_id == user.id, ProjectMember.user_id == user.id),
@@ -312,7 +326,12 @@ async def list_projects(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    shared_with_me = select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
+    # Only projects whose invitation has been accepted. One that is merely
+    # offered belongs in the invitations list, not in somebody's sidebar.
+    shared_with_me = select(ProjectMember.project_id).where(
+        ProjectMember.user_id == user.id,
+        ProjectMember.status == MEMBERSHIP_ACCEPTED,
+    )
     result = await db.execute(
         select(Project, func.coalesce(func.sum(Entry.time_spent), 0).label("total_time"))
         .outerjoin(Entry, Project.id == Entry.project_id)
@@ -412,10 +431,10 @@ async def update_project(
 ):
     """Rename a project, change its description, or replace its schema.
 
-    A schema replacement goes through the same migration as the dedicated
-    schema endpoint, so there is no route by which a schema can change and
-    leave the entries behind it in the old shape. What this endpoint cannot do
-    is report what the migration did — for that, use ``PUT /schema``.
+    A schema replacement goes through the same path as the dedicated schema
+    endpoint, so the two can never disagree about what a save does — which is
+    nothing to any existing entry (see schema_migration.py). What this
+    endpoint cannot do is report the diff — for that, use ``PUT /schema``.
     """
     project = await _get_user_project(project_id, user, db)
 
@@ -426,12 +445,7 @@ async def update_project(
     if data.entry_schema is not None:
         proposed = [field.model_dump(mode="json") for field in data.entry_schema]
         await _validate_reference_targets(proposed, user, db, self_id=project.id)
-        await _replace_schema(
-            project,
-            proposed,
-            user,
-            db,
-        )
+        await _replace_schema(project, proposed, user, db)
 
     await db.commit()
     await db.refresh(project)
@@ -441,23 +455,24 @@ async def update_project(
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
 
 
-async def _project_entries(project_id: UUID, db: AsyncSession) -> list[Entry]:
-    result = await db.execute(
-        select(Entry).where(Entry.project_id == project_id).order_by(Entry.created_at.asc())
-    )
-    return list(result.scalars().all())
-
-
 async def _plan_schema_change(
     project: Project,
     proposed_schema: list[dict[str, Any]],
     user: User,
     db: AsyncSession,
-) -> tuple[Simulation, list[Entry]]:
-    """Work out what replacing a project's schema would do to its entries."""
-    entries = await _project_entries(project.id, db)
+) -> tuple[Simulation, int]:
+    """Describe what saving this schema would change, and how many entries exist.
+
+    Passes no entries into ``simulate`` — a schema save doesn't touch any of
+    them (see schema_migration.py) — so this only diffs the schema itself.
+    ``entry_count`` is returned separately, purely so the review screen can
+    say "none of your N entries are affected" rather than nothing at all.
+    """
     known_project_ids = await _reference_scope(proposed_schema, user, db)
-    return simulate(project, entries, proposed_schema, known_project_ids), entries
+    entry_count = await db.scalar(
+        select(func.count()).select_from(Entry).where(Entry.project_id == project.id)
+    )
+    return simulate(project, [], proposed_schema, known_project_ids), int(entry_count or 0)
 
 
 def _as_preview(simulation: Simulation, entry_count: int) -> dict[str, Any]:
@@ -499,22 +514,21 @@ async def _replace_schema(
     proposed_schema: list[dict[str, Any]],
     user: User,
     db: AsyncSession,
-) -> Simulation:
-    """Apply a new schema and bring every existing entry with it."""
+) -> tuple[Simulation, int]:
+    """Apply a new schema to the project. Existing entries are untouched.
+
+    See schema_migration.py: an entry keeps the exact shape it was recorded
+    in until someone individually chooses to migrate it during an edit.
+    """
     _guard_archived_schema_change(project, proposed_schema)
 
-    simulation, _ = await _plan_schema_change(project, proposed_schema, user, db)
-
-    for migrated in simulation.entries:
-        migrated.entry.data = migrated.data
-        migrated.entry.retired_data = migrated.retired_data
+    simulation, entry_count = await _plan_schema_change(project, proposed_schema, user, db)
 
     project.schema_version += 1
-
     project.entry_schema = proposed_schema
     project.retired_schema = simulation.retired_schema
 
-    return simulation
+    return simulation, entry_count
 
 
 @router.post("/{project_id}/schema/preview", response_model=SchemaChangePreview)
@@ -526,18 +540,18 @@ async def preview_schema_change(
 ):
     """Report what changing a project's schema would do, changing nothing.
 
-    Editing a schema that already has entries is the one action in the logbook
-    that can alter data the user did not just type, so it is worth showing them
-    first. The report is produced by running the real migration and discarding
-    the result, which is why it cannot drift from what saving actually does.
+    A schema save never touches an existing entry (see schema_migration.py),
+    so this describes what changes for *new* entries only. The report is
+    produced by running the real diff and discarding the result, which is
+    why it cannot drift from what saving actually does.
     """
     project = await _get_user_project(project_id, user, db)
 
     proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
     await _validate_reference_targets(proposed_schema, user, db, self_id=project.id)
-    simulation, entries = await _plan_schema_change(project, proposed_schema, user, db)
+    simulation, entry_count = await _plan_schema_change(project, proposed_schema, user, db)
 
-    return _as_preview(simulation, len(entries))
+    return _as_preview(simulation, entry_count)
 
 
 @router.put("/{project_id}/schema", response_model=SchemaChangeResult)
@@ -547,7 +561,7 @@ async def update_schema(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Replace a project's schema and migrate its entries onto it.
+    """Replace a project's schema. Existing entries keep their own shape.
 
     Returns the same report as the preview, so the caller can tell the user
     what happened rather than only that something did.
@@ -556,8 +570,7 @@ async def update_schema(
 
     proposed_schema = [field.model_dump(mode="json") for field in payload.entry_schema]
     await _validate_reference_targets(proposed_schema, user, db, self_id=project.id)
-    simulation = await _replace_schema(project, proposed_schema, user, db)
-    entry_count = len(simulation.entries)
+    simulation, entry_count = await _replace_schema(project, proposed_schema, user, db)
 
     await db.commit()
     await db.refresh(project)
@@ -661,6 +674,7 @@ async def create_entry(
 
     entry = Entry(
         project_id=project_id,
+        title=(data.title or "").strip() or None,
         data=apply_computed_fields(payload_data, project.entry_schema),
         schema_version=project.schema_version,
         schema_snapshot=[dict(field) for field in project.entry_schema],
@@ -731,6 +745,75 @@ async def get_entry(
     return await _get_project_entry(entry_id, project_id, db)
 
 
+@router.get(
+    "/{project_id}/entries/{entry_id}/migration-preview",
+    response_model=EntryMigrationPreview,
+)
+async def preview_entry_migration(
+    project_id: UUID,
+    entry_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Show what bringing this one entry up to the current schema would do.
+
+    Read-only, the entry-level equivalent of POST /schema/preview — runs the
+    real migration and discards the result, so what an edit that sets
+    migrate_to_current_schema=true actually saves cannot disagree with what
+    this showed first. Readable by anyone who can read the entry itself;
+    looking at a preview isn't changing anything, so it isn't gated by
+    _get_writable_entry.
+    """
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_project_entry(entry_id, project_id, db)
+
+    known_project_ids = await _reference_scope(project.entry_schema, user, db)
+    simulation = simulate_entry_migration(entry, project.entry_schema, known_project_ids)
+    migrated = simulation.entries[0]
+
+    return {
+        "data": migrated.data,
+        "retired_data": migrated.retired_data,
+        "changes": [
+            SchemaChange(
+                kind=change.kind,
+                field_id=change.field_id,
+                field_name=change.field_name,
+                description=change.description,
+                severity=change.severity,
+                entries_affected=change.entries_affected,
+                values_coerced=change.values_coerced,
+                values_retired=change.values_retired,
+            )
+            for change in simulation.changes
+        ],
+    }
+
+
+async def _get_writable_entry(
+    entry_id: UUID,
+    project: Project,
+    user: User,
+    db: AsyncSession,
+) -> Entry:
+    """An entry the caller may correct or remove.
+
+    The owner may edit anything in their own project. A collaborator may edit
+    what they themselves wrote — a contributor who cannot fix their own typo
+    has to ask the owner to do it, and a contributor who can rewrite everyone
+    else's entries is no longer a contributor to somebody's record.
+    """
+    entry = await _get_project_entry(entry_id, project.id, db)
+
+    if project.user_id != user.id and entry.created_by != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the person who wrote an entry, or the project's owner, can change it.",
+        )
+
+    return entry
+
+
 @router.put("/{project_id}/entries/{entry_id}", response_model=EntryResponse)
 async def update_entry(
     project_id: UUID,
@@ -739,13 +822,24 @@ async def update_entry(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Update an entry's values or the time spent on it.
+    """Update an entry's title, values, or the time spent on it.
 
-    Entry data is validated against the schema snapshot captured when the
-    entry was created, preserving its historical format across schema changes.
+    By default, ``data`` is validated against the shape this entry actually
+    recorded (``entry.schema_snapshot``) — an entry keeps its own shape
+    forever, until someone explicitly brings it up to date. Set
+    ``migrate_to_current_schema: true`` to do that as part of this same
+    save: the entry's existing values are migrated onto the project's
+    *current* schema first (see GET .../migration-preview for what that
+    will produce before committing to it), then whatever ``data`` sends here
+    is layered on top, so filling in a field that's new to this entry and
+    migrating it happen in one request. See "Editing an entry after the
+    schema has changed" in the API docs.
+
+    Readable by the owner and by an accepted member, but only the owner or
+    the entry's own author may actually change it — see _get_writable_entry.
     """
-    project = await _get_user_project(project_id, user, db)
-    entry = await _get_project_entry(entry_id, project_id, db)
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_writable_entry(entry_id, project, user, db)
 
     if project.archived:
         raise HTTPException(
@@ -753,8 +847,29 @@ async def update_entry(
             detail="Cannot edit entries in an archived project.",
         )
 
-    if payload.data is not None:
-        entry_schema = entry.schema_snapshot or project.entry_schema
+    if "title" in payload.model_fields_set:
+        entry.title = (payload.title or "").strip() or None
+
+    if payload.migrate_to_current_schema:
+        target_schema = project.entry_schema
+        known_project_ids = await _reference_scope(target_schema, user, db)
+        baseline_data, baseline_retired = migrate_entry_data(
+            entry.data or {},
+            entry.retired_data or {},
+            entry.created_at,
+            entry.schema_snapshot or [],
+            target_schema,
+            known_project_ids,
+        )
+        merged_data = {**baseline_data, **(payload.data or {})}
+        payload_data = _apply_project_references(merged_data, target_schema)
+        await _validate_entry_data(payload_data, target_schema, known_project_ids, db=db, user=user)
+        entry.data = apply_computed_fields(payload_data, target_schema)
+        entry.retired_data = baseline_retired
+        entry.schema_version = project.schema_version
+        entry.schema_snapshot = target_schema
+    elif payload.data is not None:
+        entry_schema = entry.schema_snapshot or []
         payload_data = _apply_project_references(payload.data, entry_schema)
         await _validate_entry_data(
             payload_data,
@@ -820,8 +935,9 @@ async def delete_entry(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    project = await _get_user_project(project_id, user, db)
-    entry = await _get_project_entry(entry_id, project_id, db)
+    """Delete an entry. Only the owner or the entry's own author may."""
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_writable_entry(entry_id, project, user, db)
 
     if project.archived:
         raise HTTPException(
@@ -884,24 +1000,31 @@ async def list_project_members(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Who this project is shared with. Readable by the owner and by members."""
+    """Who this project is shared with, and who has been asked.
+
+    Readable by the owner and by anyone who has accepted. Pending and declined
+    invitations are listed too: an owner who cannot see that an invitation is
+    unanswered will send it again.
+    """
     await _get_readable_project(project_id, user, db)
 
     result = await db.execute(
-        select(User)
-        .join(ProjectMember, ProjectMember.user_id == User.id)
+        select(ProjectMember)
+        .join(User, ProjectMember.user_id == User.id)
         .where(ProjectMember.project_id == project_id)
         .order_by(User.full_name)
     )
 
     return [
         ProjectMemberResponse(
-            user_id=member.id,
-            full_name=member.full_name,
-            email=member.email,
-            avatar_url=member.avatar_url,
+            user_id=membership.member.id,
+            full_name=membership.member.full_name,
+            email=membership.member.email,
+            avatar_url=membership.member.avatar_url,
+            status=membership.status,
+            invited_at=membership.created_at,
         )
-        for member in result.scalars().all()
+        for membership in result.scalars().all()
     ]
 
 
@@ -916,11 +1039,17 @@ async def share_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Give another Chronicles account access to this project.
+    """Invite another Chronicles account to this project.
 
-    Sharing is idempotent: inviting someone who already has access returns them
-    rather than failing, so a double submit cannot produce an error the person
-    has no way to act on.
+    An invitation, not a grant: nothing appears in the invitee's workspace and
+    they can read nothing until they accept. Somebody else's project arriving
+    in your sidebar unasked is a notification at best and an imposition at
+    worst, and there was no way to give it back.
+
+    Inviting is idempotent: re-inviting someone returns their existing
+    invitation rather than failing, so a double submit cannot produce an error
+    the person has no way to act on. Re-inviting somebody who declined asks
+    again, which is the only reasonable reading of doing it deliberately.
     """
     project = await _get_user_project(project_id, user, db)
 
@@ -944,21 +1073,37 @@ async def share_project(
             detail="You already own this project",
         )
 
-    already_shared = await db.scalar(
+    membership = await db.scalar(
         select(ProjectMember).where(
             ProjectMember.project_id == project_id,
             ProjectMember.user_id == invitee.id,
         )
     )
-    if already_shared is None:
-        db.add(ProjectMember(project_id=project_id, user_id=invitee.id))
+
+    if membership is None:
+        membership = ProjectMember(
+            project_id=project_id,
+            user_id=invitee.id,
+            status=MEMBERSHIP_PENDING,
+            invited_by=user.id,
+        )
+        db.add(membership)
         await db.commit()
+        await db.refresh(membership)
+    elif membership.status == MEMBERSHIP_DECLINED:
+        membership.status = MEMBERSHIP_PENDING
+        membership.invited_by = user.id
+        membership.responded_at = None
+        await db.commit()
+        await db.refresh(membership)
 
     return ProjectMemberResponse(
         user_id=invitee.id,
         full_name=invitee.full_name,
         email=invitee.email,
         avatar_url=invitee.avatar_url,
+        status=membership.status,
+        invited_at=membership.created_at,
     )
 
 
@@ -972,7 +1117,8 @@ async def unshare_project(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Withdraw someone's access. Only the owner may do this."""
+    """Withdraw someone's access, or cancel an invitation they have not
+    answered. Only the owner may do this."""
     await _get_user_project(project_id, user, db)
 
     await db.execute(
@@ -981,6 +1127,36 @@ async def unshare_project(
             ProjectMember.user_id == member_id,
         )
     )
+    await db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{project_id}/membership", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_project(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Step away from a project somebody shared with you.
+
+    The entries you wrote stay where they are — they are part of that
+    project's record, not of your access to it. Leaving only ends the access.
+    """
+    membership = await db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You are not a member of this project",
+        )
+
+    await db.delete(membership)
     await db.commit()
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

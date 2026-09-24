@@ -29,6 +29,10 @@
 .ic-google-dot,.ic-entry-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #1967d2; }
 .ic-entry-dot { background: #9570e5; }
 .ic-connection button { border: 0; background: transparent; color: var(--text); padding: 6px; font-size: .72rem; text-decoration: underline; text-underline-offset: 3px; }
+.ic-loading { display: inline-flex; align-items: center; gap: 6px; }
+.ic-loading-spinner { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: ic-spin .8s linear infinite; }
+@keyframes ic-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ic-loading-spinner { animation: none; } }
 .ic-connection .ic-connect { background: var(--blue-bg); color: var(--text); border-radius: 6px; text-decoration: none; padding: 8px 12px; }
 .integrated-calendar button:disabled { opacity: .5; cursor: wait; }
 .ic-detail { border-top: 1px solid var(--line); padding: 20px 24px; }

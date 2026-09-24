@@ -1,7 +1,9 @@
 import ChroniclesLogo from "./ChroniclesLogo"
-import { Link } from "react-router-dom"
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 
-import { getGoogleLoginUrl } from "./api"
+import { devLogin, getGoogleLoginUrl } from "./api"
+import { hasCompletedSetup } from "./preferences"
 import "./AuthPage.css"
 
 function GoogleIcon() {
@@ -68,6 +70,78 @@ export function AuthIntro() {
   )
 }
 
+// Local development only. `import.meta.env.DEV` is true while the frontend
+// runs via `npm run dev` and statically false in a production build, so
+// Vite dead-code-eliminates this whole panel out of anything actually
+// shipped — it cannot appear on the live site by accident. The backend has
+// its own independent gate (ENABLE_DEV_LOGIN); if that's off, submitting
+// this form just shows the plain "not found" error below rather than
+// silently doing nothing.
+function DevLoginPanel() {
+  const navigate = useNavigate()
+  const [email, setEmail] = useState("")
+  const [fullName, setFullName] = useState("")
+  const [status, setStatus] = useState("idle")
+  const [error, setError] = useState("")
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setStatus("loading")
+    setError("")
+    try {
+      const session = await devLogin(email.trim(), fullName.trim())
+      navigate(hasCompletedSetup(session.user.id) ? "/app" : "/setup", { replace: true })
+    } catch (caught) {
+      setStatus("idle")
+      setError(
+        caught?.status === 404
+          ? "Dev login isn't enabled on this backend. Set ENABLE_DEV_LOGIN=true in its .env file."
+          : caught instanceof Error
+            ? caught.message
+            : "Could not sign in."
+      )
+    }
+  }
+
+  return (
+    <div className="auth-dev-login">
+      <p className="auth-divider">Local development</p>
+      <p className="auth-dev-login-hint">
+        Skips Google sign-in for a local run. Leave both fields blank for a
+        shared dev account, or enter an email to test as someone specific —
+        for example, a second browser profile signed in as a different email
+        to try out sharing a project.
+      </p>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label>
+          Email (optional)
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="dev@chronicles.local"
+            autoComplete="off"
+          />
+        </label>
+        <label>
+          Name (optional)
+          <input
+            type="text"
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder="Dev User"
+            autoComplete="off"
+          />
+        </label>
+        {error && <p className="auth-message auth-error" role="alert">{error}</p>}
+        <button type="submit" className="auth-submit auth-dev-submit" disabled={status === "loading"}>
+          {status === "loading" ? "Signing in…" : "Continue without Google"}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 function AuthPage() {
   return (
     <main className="auth-shell">
@@ -96,6 +170,8 @@ function AuthPage() {
           <p className="auth-provider-note">
             Google will ask you to choose an account each time.
           </p>
+
+          {import.meta.env.DEV && <DevLoginPanel />}
         </div>
       </section>
     </main>

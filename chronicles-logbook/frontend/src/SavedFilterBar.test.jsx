@@ -134,6 +134,8 @@ describe("EntriesPage saved filters", () => {
         projectId: "p2",
         todo: true,
         sort: "due_date",
+        conditions: [],
+        match: "all",
         page: 1,
         pageSize: 30,
       }),
@@ -161,6 +163,8 @@ describe("EntriesPage saved filters", () => {
         project_id: null,
         todo: true,
         sort: "due_date",
+        conditions: [],
+        match: "all",
       }),
     )
   })

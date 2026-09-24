@@ -1,5 +1,16 @@
+import { useNavigate } from "react-router-dom"
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
+import {
+  EntryDetailModal,
+  EntryFieldInput,
+  InfoTip,
+  LinkChip,
+  RetiredValues,
+  deriveProjectStatus,
+  formatEntryValue,
+  useProjectStatuses,
+} from "./EntryShared"
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
@@ -10,6 +21,12 @@ import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
+import Invitations from "./Invitations"
+import AmbientBackground from "./AmbientBackground"
+import ViewTransition, { ViewLoader } from "./ViewTransition"
+import { useDialogFocus } from "./useDialogFocus"
+import { PageHint, WelcomeTour } from "./GuidedTour"
+import { PAGE_TOURS, PROJECT_TOURS, WELCOME_TOUR, seenTours } from "./tourSteps"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
@@ -28,6 +45,7 @@ import {
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  leaveProject,
   previewSchemaChange,
   shareProject,
   unarchiveProject,
@@ -94,6 +112,7 @@ function formatDuration(minutes) {
 function UserMenu({ userName, avatarUrl, initials }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -153,13 +172,26 @@ function UserMenu({ userName, avatarUrl, initials }) {
             type="button"
             className="user-dropdown-item user-dropdown-profile"
             role="menuitem"
-            onClick={() => { window.location.assign("/profile"); setOpen(false) }}
+            onClick={() => { navigate("/profile"); setOpen(false) }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>Profile</span>
+          </button>
+          <button
+            type="button"
+            className="user-dropdown-item"
+            role="menuitem"
+            onClick={() => { navigate("/help"); setOpen(false) }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>Help</span>
           </button>
         </div>
       )}
@@ -182,6 +214,7 @@ function AuthActions() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  const deleteDialogRef = useDialogFocus(showDeleteModal, () => closeDeleteModal())
 
   const clearSession = () => { signOut().catch(() => {}) }
 
@@ -247,11 +280,14 @@ function AuthActions() {
           role="presentation"
         >
           <div
+            ref={deleteDialogRef}
             className="modal-card delete-account-modal"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-account-title"
+            aria-describedby="delete-account-description delete-account-warning"
+            tabIndex={-1}
           >
             <LogoIcon className="modal-character" size={90} />
 
@@ -259,12 +295,12 @@ function AuthActions() {
               Delete your account?
             </h2>
 
-            <p>
+            <p id="delete-account-description">
               This will permanently delete your Chronicles account
               and all of its projects, entries, and tasks.
             </p>
 
-            <p className="delete-warning">
+            <p id="delete-account-warning" className="delete-warning">
               This action cannot be undone.
             </p>
 
@@ -275,7 +311,6 @@ function AuthActions() {
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 placeholder="DELETE"
-                autoFocus
                 disabled={isDeleting}
               />
             </label>
@@ -368,6 +403,14 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
 
+  const handleCancel = () => {
+    setName("")
+    setDescription("")
+    onClose()
+  }
+
+  const dialogRef = useDialogFocus(isOpen, handleCancel)
+
   if (!isOpen) return null
 
   const handleSubmit = (event) => {
@@ -379,20 +422,16 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
     setDescription("")
   }
 
-  const handleCancel = () => {
-    setName("")
-    setDescription("")
-    onClose()
-  }
-
   return (
     <div className="modal-backdrop" onClick={handleCancel} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-project-title"
+        tabIndex={-1}
       >
         <LogoIcon className="modal-character" size={90} />
         <h2 id="create-project-title">Start a new project</h2>
@@ -405,7 +444,6 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Field Notes"
-              autoFocus
             />
           </label>
           <label className="field-label full">
@@ -445,12 +483,14 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     }
   }, [isOpen, project])
 
-  if (!isOpen) return null
-
   const handleCancel = () => {
     setError(null)
     onClose()
   }
+
+  const dialogRef = useDialogFocus(isOpen, handleCancel)
+
+  if (!isOpen) return null
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -474,11 +514,13 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   return (
     <div className="modal-backdrop" onClick={handleCancel} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-project-title"
+        tabIndex={-1}
       >
         <LogoIcon className="modal-character" size={90} />
         <h2 id="edit-project-title">Edit project</h2>
@@ -491,7 +533,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Field Notes"
-              autoFocus
             />
           </label>
           <label className="field-label full">
@@ -515,86 +556,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
         </form>
       </div>
     </div>
-  )
-}
-
-/** The sidebar's status language for a project, read from its open tasks. */
-function deriveProjectStatus(tasks, today) {
-  const late = tasks.some((task) => task.due_date && task.due_date < today)
-  return late ? "Needs attention" : tasks.length ? "In progress" : "On track"
-}
-
-/**
- * The status of each of a set of projects, as the sidebar shows it.
- *
- * A link to another project carries the same dot the sidebar does, so the
- * status has to be derived the same way — one rule, learned once, read
- * anywhere. Only the projects asked for are fetched, which for a link chip
- * means the one or two a schema points at.
- */
-function useProjectStatuses(projectIds) {
-  const [statuses, setStatuses] = useState({})
-  const key = projectIds.join("\n")
-  const ids = useMemo(() => (key ? key.split("\n") : []), [key])
-
-  useEffect(() => {
-    if (ids.length === 0) return undefined
-
-    let active = true
-    const today = new Date().toLocaleDateString("en-CA")
-    Promise.allSettled(ids.map((id) => fetchTasks(id, false))).then((results) => {
-      if (!active) return
-      setStatuses(
-        Object.fromEntries(
-          results.map((result, index) => [
-            ids[index],
-            deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
-          ])
-        )
-      )
-    })
-    return () => {
-      active = false
-    }
-  }, [ids])
-
-  return statuses
-}
-
-/**
- * A project link as it reads among values: the target's name on the
- * sidebar's status dot, and — wherever a click can be acted on — the target
- * itself.
- *
- * The dot is what makes it read as a connection rather than as text: the
- * same green unless the project needs attention, exactly as the sidebar
- * shows it.
- */
-function LinkChip({ targetId, projects, status, onOpen }) {
-  const target = projects.find((project) => project.id === targetId)
-  const content = (
-    <>
-      <span
-        className={`log-link-dot ${status === "Needs attention" ? "is-attention" : ""}`}
-        aria-hidden="true"
-      />
-      {target ? target.name : "A project you no longer have"}
-    </>
-  )
-
-  if (!target || !onOpen) {
-    return <span className="log-link-chip is-static">{content}</span>
-  }
-
-  return (
-    <button
-      type="button"
-      className="log-link-chip"
-      onClick={() => onOpen(targetId)}
-      title={`Open ${target.name}`}
-    >
-      {content}
-    </button>
   )
 }
 
@@ -1482,304 +1443,9 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
-function TagsInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addTag = () => {
-    const tag = input.trim()
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag])
-    }
-    setInput("")
-  }
-
-  const removeTag = (tag) => {
-    onChange(value.filter((t) => t !== tag))
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === "Backspace" && input === "" && value.length > 0) {
-      onChange(value.slice(0, -1))
-    }
-  }
-
-  return (
-    <div className="tags-input">
-      <div className="tags-list">
-        {value.map((tag) => (
-          <span key={tag} className="tag-chip">
-            {tag}
-            <button
-              type="button"
-              className="tag-remove"
-              onClick={() => removeTag(tag)}
-              aria-label={`Remove ${tag}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
-      />
-    </div>
-  )
-}
-
-function ChecklistInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addItem = () => {
-    const text = input.trim()
-    if (text) {
-      onChange([
-        ...value,
-        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
-      ])
-    }
-    setInput("")
-  }
-
-  const toggleItem = (id) => {
-    onChange(value.map((item) =>
-      item.id === id ? { ...item, completed: !item.completed } : item
-    ))
-  }
-
-  const removeItem = (id) => {
-    onChange(value.filter((item) => item.id !== id))
-  }
-
-  const moveItem = (index, direction) => {
-    const target = index + direction
-    if (target < 0 || target >= value.length) return
-    const next = [...value]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    onChange(next)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addItem()
-    }
-  }
-
-  return (
-    <div className="checklist-input">
-      {value.map((item, index) => (
-        <div key={item.id} className="checklist-item">
-          <input
-            type="checkbox"
-            checked={item.completed}
-            onChange={() => toggleItem(item.id)}
-          />
-          <span className={item.completed ? "checklist-done" : ""}>
-            {item.text}
-          </span>
-          <div className="checklist-actions">
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, -1)}
-              disabled={index === 0}
-              aria-label="Move up"
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, 1)}
-              disabled={index === value.length - 1}
-              aria-label="Move down"
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              className="btn-text-small btn-text-danger"
-              onClick={() => removeItem(item.id)}
-              aria-label="Remove item"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      ))}
-      <div className="checklist-add">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add item and press Enter…"
-        />
-      </div>
-      {value.length > 0 && (
-        <span className="checklist-count">
-          {value.filter((i) => i.completed).length}/{value.length} complete
-        </span>
-      )}
-    </div>
-  )
-}
-
-function LinkInput({ value, onChange, entries }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="link-select"
-    >
-      <option value="">No link</option>
-      {entries.map((entry) => {
-        // Build a preview from the first text field value
-        const preview = Object.values(entry.data || {})
-          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
-        return (
-          <option key={entry.id} value={entry.id}>
-            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
-          </option>
-        )
-      })}
-    </select>
-  )
-}
-
-/**
- * One field on the new-entry form.
- *
- * A calculation is shown rather than asked for (US-2.5): it is worked out from
- * the figures beside it, so an input would invite someone to type a value the
- * server would immediately overwrite.
- */
-function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
-  if (field.type === "computed") {
-    // The badge's word and colour come from the field-type registry, so the
-    // form, the table and the schema view can never disagree about what a
-    // type is called or how it is marked.
-    const meta = FIELD_TYPE_META[field.type]
-    return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
-        <output className="computed-value">
-          {computed === null || computed === undefined ? "—" : computed}
-        </output>
-      </div>
-    )
-  }
-
-  // A link is decided once, in the schema (US-2.4), rather than answered
-  // on every entry — so it is shown rather than asked for. The value is the
-  // same chip the entry list shows: the target's name on its status dot,
-  // clickable through to the project. A boxed read-out would read as a text
-  // box awaiting input; a chip reads as a thing you act on.
-  if (field.type === "project_reference") {
-    const meta = FIELD_TYPE_META[field.type]
-    return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
-        {field.linked_project_id ? (
-          <LinkChip
-            targetId={field.linked_project_id}
-            projects={projects}
-            status={status}
-            onOpen={onOpenProject}
-          />
-        ) : (
-          <output className="computed-value is-link is-unset">
-            Not pointed at a project yet
-          </output>
-        )}
-      </div>
-    )
-  }
-
-  // Tags and checklists hold a list, not a string, and each renders several
-  // controls — so they get a div rather than a label, which would bind every
-  // click to whichever control happened to come first.
-  if (field.type === "tags") {
-    return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
-        <TagsInput
-          value={Array.isArray(value) ? value : []}
-          onChange={(next) => onChange(field.id, next)}
-        />
-      </div>
-    )
-  }
-
-  if (field.type === "checklist") {
-    return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
-        <ChecklistInput
-          value={Array.isArray(value) ? value : []}
-          onChange={(next) => onChange(field.id, next)}
-        />
-      </div>
-    )
-  }
-
-  if (field.type === "link") {
-    return (
-      <label className="field-label">
-        {field.name}
-        <LinkInput
-          value={value || ""}
-          onChange={(next) => onChange(field.id, next)}
-          entries={entries}
-        />
-      </label>
-    )
-  }
-
-  return (
-    <label className="field-label">
-      {field.name}
-      {field.type === "dropdown" ? (
-        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
-          <option value="" disabled>
-            Select…
-          </option>
-          {(field.options || []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          type={field.type}
-          value={value || ""}
-          onChange={(e) => onChange(field.id, e.target.value)}
-          placeholder={field.name}
-          required
-        />
-      )}
-    </label>
-  )
-}
-
 function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
+  const [title, setTitle] = useState("")
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
@@ -1825,6 +1491,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const statuses = useProjectStatuses(linkedIds)
 
   useEffect(() => {
+    setTitle("")
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
@@ -1876,6 +1543,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
       await onCreated({
+        title: title.trim() || undefined,
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
@@ -1883,6 +1551,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
         // instead of rejecting an empty date.
         due_date: dueDate || null,
       })
+      setTitle("")
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
@@ -1911,6 +1580,15 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       <div className="panel-head">
         <h3>New entry</h3>
       </div>
+      <label className="field-label">
+        Title (optional)
+        <input
+          type="text"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Give this entry a name so it's easy to find later"
+        />
+      </label>
       <div className="form-grid">
         {schema.map((field) => (
           <EntryFieldInput
@@ -1952,22 +1630,30 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       {/* Logging something that has not happened yet: it is planned work, so it
           belongs in the outstanding view rather than the record of what was done. */}
       <div className="form-grid entry-outstanding">
-        <label className="field-label checkbox-label">
-          <input
-            type="checkbox"
-            checked={todo}
-            onChange={(e) => setTodo(e.target.checked)}
-          />
-          This is still to do
-        </label>
-        <label className="field-label">
-          Due date
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-        </label>
+        <div className="checkbox-with-tip">
+          <label className="field-label checkbox-label">
+            <input
+              type="checkbox"
+              checked={todo}
+              onChange={(e) => {
+                setTodo(e.target.checked)
+                if (!e.target.checked) setDueDate("")
+              }}
+            />
+            This is still to do
+          </label>
+          <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
+        </div>
+        {todo && (
+          <label className="field-label due-date-field">
+            Due date
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </label>
+        )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
@@ -1983,48 +1669,19 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   )
 }
 
-/**
- * A stored value as it should read on the page.
- *
- * A reference is held as a project id, which is the right thing to store and
- * the wrong thing to show, so it is resolved to the project's name here.
- */
-function formatEntryValue(field, value, projectNames) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (field?.type === "project_reference") {
-    return projectNames.get(value) || "A project you no longer have"
-  }
-  return String(value)
-}
-
-/**
- * What an entry recorded under fields the schema has since dropped (US-2.7).
- *
- * Removing a field stops it being asked for; it does not erase what was already
- * answered. That history is kept out of the way but never out of reach.
- */
-function RetiredValues({ retiredData, retiredSchema }) {
-  const fields = retiredSchema.filter(
-    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
-  )
-  if (fields.length === 0) return null
-
-  return (
-    <details className="retired-values">
-      <summary>No longer recorded ({fields.length})</summary>
-      <div className="log-fields">
-        {fields.map((field) => (
-          <div key={field.id} className="log-field">
-            <span className="log-label">{field.name}</span>
-            <span className="log-value">{String(retiredData[field.id])}</span>
-          </div>
-        ))}
-      </div>
-    </details>
-  )
-}
-
-function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenProject }) {
+function EntryList({
+  entries,
+  schema,
+  schemaVersion,
+  retiredSchema = [],
+  projects = [],
+  project,
+  userId,
+  onOpenProject,
+  onEntryUpdated,
+  onEntryDeleted,
+}) {
+  const [selectedEntryId, setSelectedEntryId] = useState(null)
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
@@ -2043,6 +1700,7 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
     [schema]
   )
   const statuses = useProjectStatuses(linkedIds)
+  const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || null
 
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
@@ -2057,18 +1715,42 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
         {entries.map((entry) => {
+          // An entry keeps the exact shape it was recorded in until someone
+          // individually migrates it — the *project's* current schema is
+          // the wrong thing to render an old entry against, since it can
+          // ask for a field this entry never had. Each row reads its own
+          // schema_snapshot instead, falling back to the passed-down schema
+          // only for a legacy entry written before snapshots existed.
+          const rowSchema = entry.schema_snapshot?.length ? entry.schema_snapshot : schema
           // Recomputed rather than read back: an entry captured offline holds
           // no stored calculation until it syncs, and the current formula is
           // the honest answer either way. What the server stored agrees with
-          // it, because every write and every schema change re-derives.
-          const data = withComputedValues(entry.data || {}, schema)
+          // it, because every write re-derives against the entry's own shape.
+          const data = withComputedValues(entry.data || {}, rowSchema)
+          const isStale = entry.schema_version != null && schemaVersion != null && entry.schema_version < schemaVersion
           return (
             <li
               key={entry.id}
               className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-label="Open entry detail"
+              onClick={() => setSelectedEntryId(entry.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  setSelectedEntryId(entry.id)
+                }
+              }}
             >
+              {entry.title && <p className="log-title">{entry.title}</p>}
+              {isStale && (
+                <p className="log-stale-note">
+                  Recorded under an earlier version of this project&rsquo;s schema.
+                </p>
+              )}
               <div className="log-fields">
-                {schema.map((field) => {
+                {rowSchema.map((field) => {
                   const meta = FIELD_TYPE_META[field.type]
                   return (
                     <div
@@ -2090,12 +1772,17 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                       </span>
                       <span className="log-value">
                         {field.type === "project_reference" && data[field.id] ? (
-                          <LinkChip
-                            targetId={data[field.id]}
-                            projects={projects}
-                            status={statuses[data[field.id]]}
-                            onOpen={onOpenProject}
-                          />
+                          // The chip opens a different project; the row it
+                          // sits in opens this entry's detail. Without this,
+                          // clicking the chip would fire both.
+                          <span onClick={(event) => event.stopPropagation()}>
+                            <LinkChip
+                              targetId={data[field.id]}
+                              projects={projects}
+                              status={statuses[data[field.id]]}
+                              onOpen={onOpenProject}
+                            />
+                          </span>
                         ) : (
                           formatEntryValue(field, data[field.id], projectNames)
                         )}
@@ -2134,15 +1821,35 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                 )}
               </span>
               {/* Last, and collapsed: history worth keeping is not history worth
-                  leading with. */}
-              <RetiredValues
-                retiredData={entry.retired_data || {}}
-                retiredSchema={retiredSchema}
-              />
+                  leading with. Stops the click so expanding it doesn't also
+                  open the row's own detail view. */}
+              <span onClick={(event) => event.stopPropagation()}>
+                <RetiredValues
+                  retiredData={entry.retired_data || {}}
+                  retiredSchema={retiredSchema}
+                />
+              </span>
             </li>
           )
         })}
       </ul>
+      {selectedEntry && project && (
+        <EntryDetailModal
+          project={project}
+          entry={selectedEntry}
+          projects={projects}
+          canManage={!project.shared || (Boolean(userId) && selectedEntry.created_by === userId)}
+          onClose={() => setSelectedEntryId(null)}
+          onSaved={(saved) => {
+            onEntryUpdated?.(saved)
+            setSelectedEntryId(null)
+          }}
+          onDeleted={(id) => {
+            onEntryDeleted?.(id)
+            setSelectedEntryId(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -2297,32 +2004,58 @@ function Timeline({ projects }) {
             <p className="hint">No values found for this field in the selected range.</p>
           ) : (
             <>
-              <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart
-                    data={timeline.points.map((point) => ({
-                      ...point,
-                      date: new Date(point.created_at).toLocaleDateString(),
-                      displayValue: String(point.value),
-                      numericValue:
-                        timeline.field_type === "number" ? Number(point.value) : null,
-                    }))}
-                  margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey={timeline.field_type === "number" ? "numericValue" : "displayValue"}
-                    name={timeline.field_name}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+              {isNumericField({ type: timeline.field_type }) ? (
+                <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart
+                      data={timeline.points.map((point) => ({
+                        ...point,
+                        date: new Date(point.created_at).toLocaleDateString(),
+                        numericValue: Number(point.value),
+                      }))}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                  >
+                    {/* Recharts' own defaults are hardcoded greys/blues that
+                        don't follow the app's theme or chosen accent — every
+                        colour here is read from the same custom properties
+                        the rest of the page uses, so the chart matches
+                        whichever theme and accent are active, light or dark. */}
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                    <XAxis dataKey="date" stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <YAxis stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--radius-sm)",
+                        color: "var(--text)",
+                      }}
+                      labelStyle={{ color: "var(--muted)" }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="numericValue"
+                      name={timeline.field_name}
+                      stroke="var(--blue)"
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: "var(--blue)" }}
+                      activeDot={{ r: 6, fill: "var(--blue)" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              ) : (
+                // A line chart needs a number to plot on its Y-axis — a
+                // text/date/choice/etc. value has nowhere honest to go on
+                // one, which is what used to render as an empty, confusing
+                // box. The table below already shows every value in order,
+                // so that's the real answer for a field like this.
+                <p className="hint timeline-not-chartable">
+                  {fieldTypeLabel(timeline.field_type)} fields aren&rsquo;t shown as a
+                  line chart — there&rsquo;s no number to plot. Every value is listed
+                  in order below instead.
+                </p>
+              )}
 
             <div className="timeline-table-wrapper">
               <table className="timeline-table">
@@ -2355,19 +2088,48 @@ function Timeline({ projects }) {
 function ProjectDetail({
   project,
   projects,
+  userId,
   onSchemaPreview,
   onSchemaSaved,
   onEntryCreated,
+  onEntryUpdated,
+  onEntryDeleted,
   onEditProject,
   onToggleArchive,
   onDeleteProject,
   onOpenProject,
+  onLeaveProject,
+  hintsSuppressed = false,
 }) {
   const [tab, setTab] = useState("entries")
+  const [leaving, setLeaving] = useState(false)
+  const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
     setTab("entries")
   }, [project.id])
+
+  // US-3.23: the same "first time you open this" coach mark as the page
+  // tours, scoped to a project's own tabs instead of the app's top-level
+  // views — schema, entries and tasks each get explained once, the moment
+  // somebody actually looks at that tab. Suppressed while the welcome tour
+  // or the current page's own hint is still on screen — PageHint has no
+  // scrim by design (it shouldn't block whatever you were doing), which
+  // means opening a project before dismissing the page-level hint is a
+  // perfectly normal thing to do, and would otherwise stack a second
+  // unrelated hint on top of it.
+  const projectTour = hintsSuppressed ? null : PROJECT_TOURS[tab]
+  const showProjectHint = projectTour && !seenTours().includes(projectTour.id)
+
+  const handleLeave = async () => {
+    if (!window.confirm(`Leave "${project.name}"? Entries you wrote stay in it.`)) return
+    setLeaving(true)
+    try {
+      await onLeaveProject?.()
+    } finally {
+      setLeaving(false)
+    }
+  }
 
   return (
     <section className="project-detail">
@@ -2440,9 +2202,14 @@ function ProjectDetail({
             <EntryList
               entries={project.entries || []}
               schema={project.entry_schema || []}
+              schemaVersion={project.schema_version}
               retiredSchema={project.retired_schema || []}
               projects={projects}
+              project={project}
+              userId={userId}
               onOpenProject={onOpenProject}
+              onEntryUpdated={onEntryUpdated}
+              onEntryDeleted={onEntryDeleted}
             />
           </>
         ) : tab === "schema" ? (
@@ -2460,10 +2227,20 @@ function ProjectDetail({
       </div>
       <footer className="detail-footer">
         {project.shared ? (
-          <p className="detail-shared-note">
-            Shared with you. You can add entries here; changing the project's
-            fields, archiving and exporting stay with its owner.
-          </p>
+          <div className="detail-shared-note">
+            <p>
+              Shared with you. You can add entries and correct your own; changing
+              the project's fields, archiving and exporting stay with its owner.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary detail-leave-btn"
+              onClick={handleLeave}
+              disabled={leaving}
+            >
+              {leaving ? "Leaving…" : "Leave project"}
+            </button>
+          </div>
         ) : (
           <>
             <ShareProjectPanel projectId={project.id} />
@@ -2480,6 +2257,12 @@ function ProjectDetail({
           </>
         )}
       </footer>
+      {showProjectHint && (
+        <PageHint
+          hint={projectTour}
+          onDismiss={() => setProjectHintTick((tick) => tick + 1)}
+        />
+      )}
     </section>
   )
 }
@@ -2599,14 +2382,14 @@ function ShareProjectPanel({ projectId }) {
     try {
       const member = await shareProject(projectId, address)
       // Sharing is idempotent on the server, so re-inviting someone returns
-      // them rather than failing — don't list them twice.
+      // their existing invitation rather than failing — don't list them twice.
       setMembers((current) =>
         current.some((person) => person.user_id === member.user_id)
-          ? current
+          ? current.map((person) => (person.user_id === member.user_id ? member : person))
           : [...current, member]
       )
       setEmail("")
-      setNotice(`${member.full_name} can now add entries to this project.`)
+      setNotice(`${member.full_name} has been invited. Nothing changes until they accept.`)
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -2631,7 +2414,8 @@ function ShareProjectPanel({ projectId }) {
     <div className="share-panel">
       <h4 className="share-title">Shared with</h4>
       <p className="share-hint">
-        People you add can read this project and write entries in it. Only you can
+        People you invite can read this project and write entries in it once
+        they accept — nothing changes for them until they do. Only you can
         change its fields, archive it or export it.
       </p>
 
@@ -2643,12 +2427,17 @@ function ShareProjectPanel({ projectId }) {
             <li key={member.user_id} className="share-member">
               <span className="share-member-name">{member.full_name}</span>
               <span className="share-member-email">{member.email}</span>
+              {member.status !== "accepted" && (
+                <span className={`status-badge share-status-${member.status}`}>
+                  {member.status === "pending" ? "Invited" : "Declined"}
+                </span>
+              )}
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => revoke(member)}
               >
-                Remove
+                {member.status === "pending" ? "Cancel invite" : "Remove"}
               </button>
             </li>
           ))}
@@ -2760,6 +2549,19 @@ function App() {
     params.set("view", currentView)
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
+
+  // US-3.23: a one-time welcome tour, then a single coach mark the first
+  // time each page is opened. Both read seenTours() fresh on every render
+  // rather than caching "have I shown this" in state — the tick counters
+  // below exist only to force that re-read once a tour marks itself seen,
+  // since the dismissal itself lives in localStorage, not component state.
+  const [, setWelcomeTick] = useState(0)
+  const [, setHintTick] = useState(0)
+  const showWelcome = !loading && !seenTours().includes(WELCOME_TOUR.id)
+  const pageKey = view === "timeline" ? "timeline" : currentView
+  const pageTour = PAGE_TOURS[pageKey]
+  const showPageHint =
+    !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
 
   const sendMiraMessage = useCallback(async (message) => {
     const trimmed = message.trim()
@@ -3009,6 +2811,20 @@ function App() {
     setView("timeline")
   }
 
+  const handleLeaveProject = async () => {
+    if (!selectedProject) return
+    try {
+      await leaveProject(selectedProject.id)
+      // The entries you wrote stay in the project's record; leaving only ends
+      // your access, so this only has to drop it from your own workspace.
+      setProjects((prev) => prev.filter((project) => project.id !== selectedProject.id))
+      setSelectedId(null)
+      setView("timeline")
+    } catch (err) {
+      setError(formatError(err))
+    }
+  }
+
   const handleEntryCreated = async (payload) => {
     if (!selectedProject) return
 
@@ -3048,6 +2864,31 @@ function App() {
       )
       await refreshQueued()
     }
+  }
+
+  const handleEntryUpdated = (updated) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === updated.project_id
+          ? {
+              ...project,
+              entries: (project.entries || []).map((entry) =>
+                entry.id === updated.id ? updated : entry
+              ),
+            }
+          : project
+      )
+    )
+  }
+
+  const handleEntryDeleted = (entryId) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        (project.entries || []).some((entry) => entry.id === entryId)
+          ? { ...project, entries: project.entries.filter((entry) => entry.id !== entryId) }
+          : project
+      )
+    )
   }
 
   const loadEntries = useCallback(async () => {
@@ -3147,6 +2988,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <AmbientBackground />
       <div className="app-bg-dynamic" aria-hidden="true">
         <div className="app-bg-sky" />
         <div className="app-bg-waves">
@@ -3155,40 +2997,6 @@ function App() {
           </svg>
           <svg className="wave wave-mid" viewBox="0 0 1440 320" preserveAspectRatio="none">
             <path d="M0,256L48,245.3C96,235,192,213,288,202.7C384,192,480,192,576,208C672,224,768,256,864,261.3C960,267,1056,245,1152,229.3C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
-          </svg>
-          <svg className="wave wave-silhouettes" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <g className="silhouette-scene">
-              <g transform="translate(208, 130)">
-                <circle cx="46" cy="32" r="14" />
-                <path d="M34 50c-10 20-12 48-4 69h36c8-21 5-49-5-69z" />
-                <path d="M40 119l-10 53h14l13-50 13 50h14l-12-53z" />
-                <rect x="77" y="89" width="72" height="7" rx="3" />
-                <rect x="91" y="95" width="7" height="78" rx="3" />
-                <path d="M60 68l28 20 7-9-27-27z" />
-                <rect x="85" y="57" width="37" height="26" rx="3" transform="rotate(10 103 70)" />
-              </g>
-              <g transform="translate(535, 130)">
-                <circle cx="45" cy="31" r="14" />
-                <path d="M34 50c-8 24-4 49 8 66h15c12-17 16-42 7-66z" />
-                <path d="M42 115l-13 57h16l12-49 12 49h16l-14-57z" />
-                <path className="silhouette-detail" d="M37 65L9 88m57-22l30 19" />
-                <circle cx="7" cy="89" r="5" />
-              </g>
-              <g transform="translate(825, 164)">
-                <circle cx="49" cy="29" r="13" />
-                <path d="M41 46l29 20-14 28-30-16z" />
-                <path className="silhouette-detail" d="M38 59L5 55m50 38L35 134m14-40l39 28" />
-                <circle cx="108" cy="136" r="26" className="silhouette-detail" />
-                <circle cx="108" cy="136" r="5" />
-              </g>
-              <g transform="translate(1125, 128)">
-                <circle cx="44" cy="31" r="14" />
-                <path d="M32 50c-7 23-3 50 8 67h16c10-17 14-44 7-67z" />
-                <path d="M40 116l-14 56h16l12-48 13 48h16l-15-56z" />
-                <path className="silhouette-detail" d="M36 64L11 32m53 32l27-33" />
-                <circle cx="8" cy="29" r="5" /><circle cx="94" cy="28" r="5" />
-              </g>
-            </g>
           </svg>
           <svg className="wave wave-front" viewBox="0 0 1440 320" preserveAspectRatio="none">
             <path d="M0,288L48,282.7C96,277,192,267,288,245.3C384,224,480,192,576,197.3C672,203,768,245,864,261.3C960,277,1056,267,1152,250.7C1248,235,1344,213,1392,202.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
@@ -3291,6 +3099,7 @@ function App() {
           </div>
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
+            <Invitations onChanged={loadProjects} />
             <AuthActions />
           </div>
         </nav>
@@ -3326,42 +3135,53 @@ function App() {
           />
         </div>}
         <div className="content">
-          {loading ? (
-            <p className="hint">Loading…</p>
-          ) : currentView === "calendar" ? (
-            <CalendarView projects={projects} />
-          ) : currentView === "today" ? (
-            <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
-          ) : currentView === "assistant" ? (
-            <MiraAssistantPage conversation={miraConversation} />
-          ) : currentView === "tasks" ? (
-            <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "entries" ? (
-            <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
-          ) : currentView === "board" ? (
-            <BoardView projects={projects} />
-          ) : currentView === "outstanding" ? (
-            <OutstandingPage projects={projects} onNavigate={setCurrentView} />
-          ) : view === "timeline" ? (
-            <Timeline projects={projects} onOpenProject={handleSelectProject} />
-          ) : selectedProject ? (
-            <ProjectDetail
-              key={selectedProject.id}
-              project={openProject}
-              projects={projects}
-              onSchemaPreview={handleSchemaPreview}
-              onSchemaSaved={handleSchemaSave}
-              onEntryCreated={handleEntryCreated}
-              onEditProject={() => setIsEditModalOpen(true)}
-              onToggleArchive={handleToggleArchive}
-              onDeleteProject={handleDeleteProject}
-              onOpenProject={handleSelectProject}
-            />
-          ) : projects.length > 0 ? (
-            <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
-          ) : (
-            <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
-          )}
+          {/* Keyed on the tab, the timeline toggle, the open project and the
+              loading flag, so switching any of those animates — including
+              the moment a fetch finishes and real content replaces the
+              loader, which now fades/slides in rather than popping in. */}
+          <ViewTransition viewKey={`${currentView}:${view}:${selectedId || "none"}:${loading ? "loading" : "ready"}`}>
+            {loading ? (
+              <ViewLoader label="Opening your logbook…" delay={0} />
+            ) : currentView === "calendar" ? (
+              <CalendarView projects={projects} />
+            ) : currentView === "today" ? (
+              <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
+            ) : currentView === "assistant" ? (
+              <MiraAssistantPage conversation={miraConversation} />
+            ) : currentView === "tasks" ? (
+              <TasksPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+            ) : currentView === "entries" ? (
+              <EntriesPage projects={projects} onCreate={() => setIsModalOpen(true)} />
+            ) : currentView === "board" ? (
+              <BoardView projects={projects} />
+            ) : currentView === "outstanding" ? (
+              <OutstandingPage projects={projects} onNavigate={setCurrentView} />
+            ) : view === "timeline" ? (
+              <Timeline projects={projects} onOpenProject={handleSelectProject} />
+            ) : selectedProject ? (
+              <ProjectDetail
+                key={selectedProject.id}
+                project={openProject}
+                projects={projects}
+                userId={userId}
+                onSchemaPreview={handleSchemaPreview}
+                onSchemaSaved={handleSchemaSave}
+                onEntryCreated={handleEntryCreated}
+                onEntryUpdated={handleEntryUpdated}
+                onEntryDeleted={handleEntryDeleted}
+                onEditProject={() => setIsEditModalOpen(true)}
+                onToggleArchive={handleToggleArchive}
+                onDeleteProject={handleDeleteProject}
+                onOpenProject={handleSelectProject}
+                onLeaveProject={handleLeaveProject}
+                hintsSuppressed={showWelcome || showPageHint}
+              />
+            ) : projects.length > 0 ? (
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
+            ) : (
+              <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
+            )}
+          </ViewTransition>
         </div>
       </main>
       <CreateProjectModal
@@ -3376,6 +3196,12 @@ function App() {
         onSave={handleProjectUpdate}
       />
       <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
+      {showWelcome && (
+        <WelcomeTour tour={WELCOME_TOUR} onFinish={() => setWelcomeTick((tick) => tick + 1)} />
+      )}
+      {showPageHint && (
+        <PageHint hint={pageTour} onDismiss={() => setHintTick((tick) => tick + 1)} />
+      )}
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )

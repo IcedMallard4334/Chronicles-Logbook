@@ -27,3 +27,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local-only QA harness pages for scripted screenshots (inject a fake auth
+# token into localStorage, so they must never ship in the production
+# frontend bundle under public/).
+public/__flow.html
+public/__measure.html
+public/__probe.html

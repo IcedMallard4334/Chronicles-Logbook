@@ -1,25 +1,29 @@
-"""Editing a schema that already has entries (US-2.6, US-2.7).
+"""Editing a schema, and what it does (or doesn't do) to existing entries.
 
-Adding a field to an empty project is trivial. Doing it to a project with two
-hundred entries is not, because every one of those entries was validated
-against the old shape and has to satisfy the new one. Left alone, the entry
-form would demand a value that no historical entry has, and the entry list
-would show gaps it cannot explain.
+A schema edit only ever changes the *project* — ``entry_schema`` and
+``schema_version`` — never an entry that has already been saved. Every entry
+keeps recording under the exact shape (``schema_snapshot``) it was created
+with, permanently, until someone deliberately edits that one entry and
+chooses to bring it up to date. Nothing reaches back and rewrites history on
+its own: not adding a field, not removing one, not saving the schema at all.
 
-Three rules make an edit safe:
+That "bring up to date" choice is what this module actually migrates. Two
+rules govern it, applied to one entry at a time, at the moment someone opts
+in:
 
-  - a new field is backfilled on every existing entry with a default that
-    suits its type, so the entry stays valid and the list stays complete;
-  - a value that cannot survive the edit is moved to ``Entry.retired_data``
-    rather than deleted, and the field's definition to
-    ``Project.retired_schema`` so the value still has a label. "Removed from
-    the schema" means "no longer offered", not "erased";
-  - a field that comes back under the same id gets its retired value back.
+  - a field the entry didn't have gets a default that suits its type, so the
+    edit form has something to start from;
+  - a value that cannot survive the shape it is moving to is moved to
+    ``Entry.retired_data`` rather than dropped, and the field's definition to
+    ``Project.retired_schema`` so the value still has a label. "No longer in
+    this entry's shape" means "kept but hidden", not "erased".
 
-The impact of an edit is worked out by running the migration against the real
-entries and reporting what happened, then, if the user accepts, running it
-again to write the result. Both paths call ``simulate``, so the review the
-user approves cannot disagree with what is saved.
+The same ``simulate``/``migrate_entry_data`` pair backs two call sites: a
+preview before a schema save (which no longer touches any entry — its output
+describes the shape *new* entries will use, nothing more) and a preview
+before migrating one specific entry during an edit. Both run the real
+migration and report what it produced, so neither review can disagree with
+what a save actually does.
 """
 
 from dataclasses import dataclass
@@ -188,6 +192,7 @@ def describe_changes(
     current_schema: list[dict[str, Any]],
     proposed_schema: list[dict[str, Any]],
     project_names: dict[str, str] | None = None,
+    scope: str = "project",
 ) -> list[FieldChange]:
     """The structural differences between two schemas, without counting data.
 
@@ -195,7 +200,17 @@ def describe_changes(
     an edit: it is the difference between renaming a field and replacing it.
     ``project_names`` maps project ids to names, so a retargeted link can be
     described by the project it will point at.
+
+    ``scope`` picks which of two true things to say, since this same diff
+    backs two different reviews:
+
+      - ``"project"`` (a schema save, which touches no entry): describes what
+        changes for *new* entries, and says plainly that existing ones keep
+        recording under their current shape.
+      - ``"entry"`` (migrating one specific entry during an edit): describes
+        what changing *this entry's* shape right now will do.
     """
+    for_entry = scope == "entry"
     current_by_id = {field["id"]: field for field in current_schema}
     proposed_by_id = {field["id"]: field for field in proposed_schema}
     changes: list[FieldChange] = []
@@ -205,27 +220,28 @@ def describe_changes(
         previous = current_by_id.get(field_id)
 
         if previous is None:
+            description = (
+                f"'{field['name']}' is added to this entry, with a starting value you can fill in."
+                if for_entry
+                else f"'{field['name']}' is new. Entries already recorded won't show it until "
+                "they're individually updated to the current schema."
+            )
             changes.append(
-                FieldChange(
-                    kind=ADDED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=f"'{field['name']}' is new and will be filled in on past entries.",
-                )
+                FieldChange(kind=ADDED, field_id=field_id, field_name=field["name"], description=description)
             )
             continue
 
         if previous.get("type") != field.get("type"):
+            description = (
+                f"'{field['name']}' becomes {_type_label(field.get('type'))} on this entry "
+                f"(it was {_type_label(previous.get('type'))})."
+                if for_entry
+                else f"'{field['name']}' changes from {_type_label(previous.get('type'))} to "
+                f"{_type_label(field.get('type'))} for new entries. Entries already recorded "
+                "keep the old type until they're individually updated."
+            )
             changes.append(
-                FieldChange(
-                    kind=RETYPED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=(
-                        f"'{field['name']}' changes from "
-                        f"{_type_label(previous.get('type'))} to {_type_label(field.get('type'))}."
-                    ),
-                )
+                FieldChange(kind=RETYPED, field_id=field_id, field_name=field["name"], description=description)
             )
         elif previous.get("options") != field.get("options") and field.get("type") == "dropdown":
             removed = [
@@ -233,32 +249,35 @@ def describe_changes(
                 for option in (previous.get("options") or [])
                 if option not in (field.get("options") or [])
             ]
-            description = f"The choices for '{field['name']}' change."
-            if removed:
-                description = (
-                    f"'{', '.join(removed)}' "
-                    f"{'is' if len(removed) == 1 else 'are'} no longer a choice "
-                    f"for '{field['name']}'."
-                )
+            if for_entry:
+                description = f"The choices for '{field['name']}' change on this entry."
+                if removed:
+                    description = (
+                        f"'{', '.join(removed)}' "
+                        f"{'is' if len(removed) == 1 else 'are'} no longer a choice "
+                        f"for '{field['name']}' on this entry."
+                    )
+            else:
+                description = f"The choices for '{field['name']}' change for new entries."
+                if removed:
+                    description = (
+                        f"'{', '.join(removed)}' "
+                        f"{'is' if len(removed) == 1 else 'are'} no longer offered for "
+                        f"'{field['name']}' on new entries. Entries already recorded keep "
+                        "whatever they already have until individually updated."
+                    )
             changes.append(
-                FieldChange(
-                    kind=OPTIONS_CHANGED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=description,
-                )
+                FieldChange(kind=OPTIONS_CHANGED, field_id=field_id, field_name=field["name"], description=description)
             )
         elif previous.get("expression") != field.get("expression"):
+            description = (
+                f"'{field['name']}' is recalculated for this entry from its new formula."
+                if for_entry
+                else f"'{field['name']}' is worked out differently from now on. Entries already "
+                "recorded keep their previously calculated value until individually updated."
+            )
             changes.append(
-                FieldChange(
-                    kind=EXPRESSION_CHANGED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=(
-                        f"'{field['name']}' is worked out differently and will be "
-                        f"recalculated on past entries."
-                    ),
-                )
+                FieldChange(kind=EXPRESSION_CHANGED, field_id=field_id, field_name=field["name"], description=description)
             )
         elif (
             field.get("type") == "project_reference"
@@ -268,45 +287,42 @@ def describe_changes(
             target_name = (
                 project_names.get(str(target)) if target and project_names else None
             )
+            target_phrase = f"'{target_name}'" if target_name else "a different project"
+            description = (
+                f"'{field['name']}' will point at {target_phrase} on this entry."
+                if for_entry
+                else f"'{field['name']}' will point at {target_phrase} for new entries. Entries "
+                "already recorded keep pointing at what they already have until individually "
+                "updated."
+            )
             changes.append(
-                FieldChange(
-                    kind=LINK_CHANGED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=(
-                        f"'{field['name']}' will point at '{target_name}' and past "
-                        f"entries will be relinked."
-                        if target_name
-                        else f"'{field['name']}' will point at a different project "
-                        "and past entries will be relinked."
-                    ),
-                )
+                FieldChange(kind=LINK_CHANGED, field_id=field_id, field_name=field["name"], description=description)
             )
 
         # A rename is reported alongside any of the above, because it is the
         # change the user will recognise in the entry list.
         if previous.get("name") != field.get("name"):
+            description = (
+                f"'{previous.get('name')}' is renamed to '{field['name']}' on this entry."
+                if for_entry
+                else f"'{previous.get('name')}' is renamed to '{field['name']}' for new entries. "
+                f"Entries already recorded keep showing '{previous.get('name')}' until "
+                "individually updated."
+            )
             changes.append(
-                FieldChange(
-                    kind=RENAMED,
-                    field_id=field_id,
-                    field_name=field["name"],
-                    description=f"'{previous.get('name')}' is renamed to '{field['name']}'.",
-                )
+                FieldChange(kind=RENAMED, field_id=field_id, field_name=field["name"], description=description)
             )
 
     for field in current_schema:
         if field["id"] not in proposed_by_id:
+            description = (
+                f"'{field['name']}' is removed from this entry. What it recorded is kept, but hidden."
+                if for_entry
+                else f"'{field['name']}' will no longer be asked for on new entries. Entries "
+                "already recorded keep it exactly as recorded, unless individually updated."
+            )
             changes.append(
-                FieldChange(
-                    kind=REMOVED,
-                    field_id=field["id"],
-                    field_name=field["name"],
-                    description=(
-                        f"'{field['name']}' will no longer be asked for. What past "
-                        f"entries recorded under it is kept, but hidden."
-                    ),
-                )
+                FieldChange(kind=REMOVED, field_id=field["id"], field_name=field["name"], description=description)
             )
 
     return changes
@@ -430,14 +446,22 @@ def simulate(
     proposed_schema: list[dict[str, Any]],
     known_project_ids: dict[str, str] | set[str] | None = None,
 ) -> Simulation:
-    """Work out an edit in full without writing any of it.
+    """Describe what saving this schema would change, going forward.
 
-    The preview endpoint returns this; the apply endpoint writes it. Running
-    the same code for both is what makes the review honest.
+    ``entries`` is always ``[]`` for an ordinary schema save now — a save
+    touches no entry, so there is nothing to migrate and nothing to count.
+    The loop below only still runs anything when a caller explicitly passes
+    entries in, which nothing in this codebase does anymore; it is kept
+    rather than deleted only because ``describe_changes``/``migrate_entry_data``
+    still need one shared place that knows how to fold a migrated entry's
+    outcome into ``FieldChange`` counts, and that place is here.
     """
     current_schema = project.entry_schema or []
     changes = describe_changes(
-        current_schema, proposed_schema, known_project_ids if isinstance(known_project_ids, dict) else None
+        current_schema,
+        proposed_schema,
+        known_project_ids if isinstance(known_project_ids, dict) else None,
+        scope="project",
     )
 
     result = Simulation(changes=changes)
@@ -463,6 +487,39 @@ def simulate(
     )
 
     return result
+
+
+def simulate_entry_migration(
+    entry: Any,
+    target_schema: list[dict[str, Any]],
+    known_project_ids: dict[str, str] | set[str] | None = None,
+) -> Simulation:
+    """What bringing one entry up to ``target_schema`` would do, unwritten.
+
+    The entry-edit equivalent of ``simulate``: the "current" shape is this
+    one entry's own ``schema_snapshot`` (not the project's schema — the two
+    may have long since diverged, that's the whole point of an entry staying
+    frozen), and the "proposed" shape is whatever it would be migrated to.
+    """
+    current_schema = entry.schema_snapshot or []
+    changes = describe_changes(current_schema, target_schema, scope="entry")
+
+    data, retired = migrate_entry_data(
+        entry.data or {},
+        entry.retired_data or {},
+        entry.created_at,
+        current_schema,
+        target_schema,
+        known_project_ids,
+    )
+
+    for change in changes:
+        _count_change(change, entry.data or {}, data, retired)
+
+    return Simulation(
+        changes=changes,
+        entries=[MigratedEntry(entry=entry, data=data, retired_data=retired)],
+    )
 
 
 def _merge_retired_schema(

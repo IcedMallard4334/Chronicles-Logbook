@@ -345,6 +345,41 @@
   font-weight: 700;
 }
 
+.auth-dev-login {
+  margin-top: 34px;
+  padding-top: 4px;
+}
+
+.auth-dev-login .auth-divider {
+  margin-top: 0;
+}
+
+.auth-dev-login-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.auth-dev-login .auth-form {
+  margin-top: 16px;
+  gap: 14px;
+}
+
+.auth-submit.auth-dev-submit {
+  background: var(--surface-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.auth-submit.auth-dev-submit:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+  transform: none;
+  box-shadow: none;
+}
+
 .auth-callback-shell {
   display: grid;
   min-height: 100svh;

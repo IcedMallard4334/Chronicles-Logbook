@@ -330,6 +330,12 @@ async def test_field_statistics_respect_historical_schema_versions(
         field for field in body["fields"] if field["field_id"] == "category"
     )
 
+    # old_entry predates "category" and was never touched by the schema
+    # change — a save no longer migrates any entry (see
+    # schema_migration.py), so old_entry's own schema_snapshot still says
+    # it only ever had "hours". It correctly contributes nothing to a field
+    # it never recorded, rather than being counted against a value it was
+    # never actually given.
     assert category["count"] == 1
     assert category["groups"] == [
         {"value": "Work", "count": 1}
@@ -534,6 +540,12 @@ async def test_field_timeline_respects_historical_schema_versions(
 
     assert [point["value"] for point in body["points"]] == [4, 8]
 
+    # The first point stays pinned at schema_version 1: the schema change
+    # that added "category" never touched the entry that predates it (see
+    # schema_migration.py — a save migrates no entry), so its own
+    # schema_snapshot, and the version reported here, are exactly what they
+    # were when it was written. Its "hours" value is unaffected either way,
+    # since "hours" exists unchanged in both versions.
     assert [
         point["schema_version"] for point in body["points"]
     ] == [1, 2]

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences } from "./preferences"
+import { resetTours } from "./tourSteps"
+import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
 import "./ProfilePage.css"
 
@@ -47,19 +49,26 @@ function useDensity() {
 }
 
 function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmation, setConfirmation }) {
+  // Always mounted only while it should be shown (the parent renders it
+  // conditionally), so isOpen is just "true, for as long as this exists".
+  const dialogRef = useDialogFocus(true, onClose)
+
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
         className="modal-card delete-account-modal"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-account-title"
+        aria-describedby="profile-delete-account-description profile-delete-account-warning"
+        tabIndex={-1}
       >
         <LogoIcon size={90} />
         <h2 id="delete-account-title">Delete your account?</h2>
-        <p>This will permanently delete your Chronicles account and all of its projects, entries, and tasks.</p>
-        <p className="delete-warning">This action cannot be undone.</p>
+        <p id="profile-delete-account-description">This will permanently delete your Chronicles account and all of its projects, entries, and tasks.</p>
+        <p id="profile-delete-account-warning" className="delete-warning">This action cannot be undone.</p>
         <label className="field-label full">
           Type <strong>DELETE</strong> to confirm
           <input
@@ -67,7 +76,6 @@ function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmatio
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
             placeholder="DELETE"
-            autoFocus
             disabled={isDeleting}
           />
         </label>
@@ -133,6 +141,14 @@ export default function ProfilePage() {
 
   const handleSignOut = () => {
     clearSession()
+  }
+
+  // The tour marks itself seen in localStorage as it's dismissed; forgetting
+  // that here and returning to the workspace is what makes it "replayable"
+  // rather than a one-time-only offer (US-3.23).
+  const replayTour = () => {
+    resetTours()
+    navigate("/app")
   }
 
   const openDeleteModal = () => {
@@ -235,7 +251,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="app-main profile-main">
-        <div className="profile-card">
+        <div className="profile-card view-transition">
           <div className="profile-header">
             <div className="profile-avatar">
               {user?.avatar_url ? (
@@ -299,6 +315,24 @@ export default function ProfilePage() {
                 <select className="profile-select" value={startView} onChange={(event) => updateStartView(event.target.value)} aria-label="Default opening page">
                   <option value="home">Home workspace</option><option value="today">Today</option><option value="calendar">Calendar</option>
                 </select>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Guided tour</span>
+                  <span className="profile-row-value">See the welcome tour and every page's first-visit tip again.</span>
+                </div>
+                <button type="button" className="btn-secondary" onClick={replayTour}>
+                  Replay tour
+                </button>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Help manual</span>
+                  <span className="profile-row-value">Search how-to guides for every feature and field type.</span>
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => navigate("/help")}>
+                  Open help
+                </button>
               </div>
             </section>
 

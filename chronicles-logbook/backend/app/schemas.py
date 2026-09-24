@@ -31,6 +31,15 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
+class DevLoginRequest(BaseModel):
+    """Body for POST /auth/dev-login — local development only, see config.ENABLE_DEV_LOGIN."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str | None = None
+    full_name: str | None = None
+
+
 class FieldType(str, Enum):
     TEXT = "text"
     NUMBER = "number"
@@ -251,6 +260,25 @@ class ProjectMemberResponse(BaseModel):
     full_name: str
     email: str
     avatar_url: str | None = None
+    # "pending" until the person accepts, so the owner can see an invitation
+    # is out rather than assuming access they have not agreed to.
+    status: Literal["pending", "accepted", "declined"] = "accepted"
+    invited_at: datetime | None = None
+
+
+class ProjectInvitationResponse(BaseModel):
+    """An invitation as the person being invited sees it.
+
+    Carries the project and the inviter by name: "Thandi invited you to
+    Fieldwork" is something you can answer, and a pair of ids is not.
+    """
+
+    project_id: UUID
+    project_name: str
+    project_description: str | None = None
+    invited_by_name: str | None = None
+    entry_count: int = 0
+    invited_at: datetime
 
 
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
@@ -306,7 +334,24 @@ class SchemaChangeResult(SchemaChangePreview):
     project: ProjectResponse
 
 
+class EntryMigrationPreview(BaseModel):
+    """What bringing one entry up to the project's current schema would do.
+
+    Shown before an edit that chooses to migrate, the same way
+    SchemaChangePreview is shown before a schema save — the values here are
+    exactly what a save with migrate_to_current_schema=true would write,
+    since both run the same migration function.
+    """
+
+    data: dict[str, Any]
+    retired_data: dict[str, Any]
+    changes: list[SchemaChange]
+
+
 class EntryCreate(BaseModel):
+    # Optional. Blank is fine — the entry list falls back to a value drawn
+    # from its data when there is nothing else to show.
+    title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any]
     time_spent: int | None = Field(default=None, ge=0)
 
@@ -352,10 +397,19 @@ class EntryUpdate(BaseModel):
     once, at creation, and is not rewritable afterwards.
     """
 
+    title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any] | None = None
     time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
+
+    # An entry keeps the exact shape it was recorded in by default — a
+    # schema change does not reach back and touch entries that already
+    # exist. Setting this to true is how one entry, chosen by whoever is
+    # editing it, opts into being brought up to the project's *current*
+    # schema as part of this same save. See "Editing an entry after the
+    # schema has changed" in the API docs.
+    migrate_to_current_schema: bool = False
 
 
 class EntryResponse(BaseModel):
@@ -363,6 +417,7 @@ class EntryResponse(BaseModel):
 
     id: UUID
     project_id: UUID
+    title: str | None = None
     data: dict[str, Any]
     schema_version: int
     schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
@@ -428,6 +483,29 @@ class TaskResponse(BaseModel):
 # ── Saved filters ────────────────────────────────────────────────
 
 
+class FieldCondition(BaseModel):
+    """One condition in a structured search over custom fields (US-3.11).
+
+    ``operator`` is one of the type-appropriate operators app.search defines
+    for the target field's type (e.g. ``contains``/``equals`` for text,
+    ``gt``/``gte``/``lt``/``lte``/``between``/``equals`` for number and
+    computed fields) — validated there, against the project's schema, rather
+    than as a fixed enum here, since which operators are legal depends on
+    the field being queried. ``value2`` is only read by ``between``.
+
+    Extra keys are forbidden for the same reason as on FilterCriteria: this
+    travels inside a saved filter's criteria, and should never grow a field
+    the search endpoint does not also expect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    field_id: str = Field(..., min_length=1, max_length=100)
+    operator: str = Field(..., min_length=1, max_length=20)
+    value: Any = None
+    value2: Any = None
+
+
 class FilterCriteria(BaseModel):
     """The parts of the entries view a saved filter can restore.
 
@@ -440,7 +518,12 @@ class FilterCriteria(BaseModel):
     q: str | None = Field(default=None, max_length=255)
     project_id: UUID | None = None
     todo: bool | None = None
-    sort: Literal["newest", "oldest", "due_date"] = "newest"
+    sort: Literal["newest", "oldest", "due_date", "relevance"] = "newest"
+    # US-3.11: structured conditions over custom fields, combined with either
+    # AND (every condition must hold) or OR (any one is enough). Capped so a
+    # saved filter cannot be used to build an arbitrarily expensive query.
+    conditions: list[FieldCondition] = Field(default_factory=list, max_length=10)
+    match: Literal["all", "any"] = "all"
 
     @model_validator(mode="after")
     def clean_keyword(self):
@@ -606,10 +689,18 @@ class TimelineEntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     project_name: str
+    title: str | None = None
     data: dict[str, Any]
+    # The shape this entry actually recorded, since it stays frozen at its
+    # own schema until someone chooses to migrate it — a row rendered from
+    # the project's *current* schema instead would show fields this entry
+    # never had, or mislabel ones it does.
+    schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    created_by: UUID | None = None
+    created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

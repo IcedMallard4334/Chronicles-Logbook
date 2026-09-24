@@ -124,35 +124,47 @@ Results are rounded to six decimal places, so `0.1 + 0.2` stores as `0.3`.
 
 ## Editing a live schema
 
-Changing the schema of a project that already has entries has to bring those
-entries along. Three rules make that safe:
+Changing the schema of a project that already has entries changes the
+**project** — `entry_schema` and `schema_version` — and nothing else. No
+existing entry is touched. Every entry keeps recording under the exact shape
+(`schema_snapshot`) it was created with, permanently, until someone
+individually edits that one entry and opts in to bringing it up to date (see
+[Update entry](entries.md#update-entry)). Saving a schema is instant and free
+of consequence to your data no matter how many entries the project has,
+precisely because it doesn't reach into any of them.
 
-1. **A new field is backfilled** on every existing entry with a default suited
-   to its type: `""` for text, `0` for number, the first choice for a dropdown,
-   the link's target for a reference, and for a date the day that entry was
-   captured. (The entry's own capture date is the only honest guess available;
-   today's date would be wrong on every historical entry.)
-2. **A value that cannot survive the change is retired, not deleted.** It moves
-   to `entries.retired_data`, and its field definition to
+That "bring up to date" migration, when someone chooses it for one entry,
+follows the same two rules either way:
+
+1. **A field the entry didn't have gets a default suited to its type:** `""`
+   for text, `0` for number, the first choice for a dropdown, the link's
+   target for a reference, and for a date the day that entry was captured.
+   (The entry's own capture date is the only honest guess available; today's
+   date would be wrong.)
+2. **A value that cannot survive the new shape is retired, not deleted.** It
+   moves to `entries.retired_data`, and its field definition to
    `projects.retired_schema` — a value without its label is not a record of
-   anything.
-3. **A field restored under the same id finds its values waiting.** This is what
-   makes removing a field by mistake recoverable.
+   anything. A field restored under the same id later finds its retired
+   values waiting.
 
 ### Changes that are detected
 
-| `kind` | Meaning | Severity |
-|---|---|---|
-| `added` | A field is new to the schema | `info` |
-| `removed` | A field is no longer asked for | `warning` if any entry had a value |
-| `renamed` | The field's name changed; values are untouched | `info` |
-| `retyped` | The field's type changed; values are coerced or retired | `warning` if any value moves |
-| `options_changed` | A dropdown's choices changed; values outside the new list are retired | `warning` if any value moves |
-| `expression_changed` | A calculation was rewritten; every entry is recomputed | `info` |
-| `link_changed` | A link now points at a different project; every entry is relinked | `info` |
+| `kind` | Meaning |
+|---|---|
+| `added` | A field is new to the schema |
+| `removed` | A field is no longer asked for |
+| `renamed` | The field's name changed |
+| `retyped` | The field's type changed |
+| `options_changed` | A dropdown's choices changed |
+| `expression_changed` | A calculation was rewritten |
+| `link_changed` | A link now points at a different project |
 
-`severity` is decided by the server so that the review screen and the API
-cannot form different opinions about which changes are worth stopping for.
+Every `severity` from `POST /schema/preview` and `PUT /schema` is `info` —
+saving a schema costs no existing entry anything, so there is nothing left to
+warn about. `severity` can still read `warning` from
+`GET /projects/{id}/entries/{id}/migration-preview` (see
+[entries.md](entries.md#preview-migrating-an-entry-to-the-current-schema)),
+where it describes what migrating that *one* entry would actually cost it.
 
 ---
 
@@ -162,7 +174,9 @@ cannot form different opinions about which changes are worth stopping for.
 POST /projects/{project_id}/schema/preview
 ```
 
-Reports what a change *would* do. Writes nothing.
+Reports what changes for **new** entries. Writes nothing, and — since a
+schema save never touches an existing entry — doesn't simulate against any
+either.
 
 **Body:**
 
@@ -180,17 +194,17 @@ Reports what a change *would* do. Writes nothing.
 ```json
 {
   "entry_count": 4,
-  "entries_affected": 3,
+  "entries_affected": 0,
   "changes": [
     {
       "kind": "removed",
       "field_id": "f-notes",
       "field_name": "Notes",
-      "description": "'Notes' is no longer asked for.",
-      "severity": "warning",
-      "entries_affected": 3,
+      "description": "'Notes' will no longer be asked for on new entries. Entries already recorded keep it exactly as recorded, unless individually updated.",
+      "severity": "info",
+      "entries_affected": 0,
       "values_coerced": 0,
-      "values_retired": 3
+      "values_retired": 0
     }
   ]
 }
@@ -198,11 +212,9 @@ Reports what a change *would* do. Writes nothing.
 
 | Field | Description |
 |---|---|
-| `entry_count` | Entries the project has |
-| `entries_affected` | How many would change. `0` means the edit is free of consequence |
-| `changes` | One record per difference, with what it costs |
-| `values_coerced` | Values rewritten to fit the new type or option list |
-| `values_retired` | Values moved to `retired_data` |
+| `entry_count` | Entries the project has — informational; none of them are affected |
+| `entries_affected` | Always `0` for a schema save. Kept in the response shape so it matches the entry-level migration preview, which reuses the same counters for a real cost |
+| `changes` | One record per schema-level difference, phrased in terms of what changes for *new* entries |
 
 **Errors:** `422` for an invalid schema, `404` if the project is not the
 caller's.
@@ -215,14 +227,15 @@ caller's.
 PUT /projects/{project_id}/schema
 ```
 
-Same body as the preview. Replaces the schema and migrates every entry.
+Same body as the preview. Replaces the project's schema. No existing entry is
+changed.
 
 **Response:** `200 OK` — the preview payload plus the updated project:
 
 ```json
 {
   "entry_count": 4,
-  "entries_affected": 3,
+  "entries_affected": 0,
   "changes": [ "..." ],
   "project": {
     "id": "...",
@@ -239,17 +252,19 @@ Same body as the preview. Replaces the schema and migrates every entry.
 caller's, `409` if the project is archived.
 
 !!! tip "Preview and apply cannot disagree"
-    Both endpoints call the same migration function against the same entries.
-    Preview discards the result; apply writes it. The report a user approves is
-    therefore what happens, not an estimate of it.
+    Both run the same schema diff. Preview discards the result; apply writes
+    it to the project. The report a user sees is therefore exactly what
+    saving does — and since neither one touches an entry, that report is the
+    whole story, not a preview of migration work still to come.
 
-!!! note "PUT /projects also migrates"
+!!! note "PUT /projects follows the same rule"
     Sending a different `entry_schema` to
-    [`PUT /projects/{project_id}`](projects.md#update-project) runs the same
-    migration, so there is no route by which a schema changes and its entries
-    do not. Use the schema endpoints when you want the change report; use the
-    project endpoint when you are editing a name or description and the schema
-    happens to be part of the payload.
+    [`PUT /projects/{project_id}`](projects.md#update-project) goes through
+    this same path, so there is no route by which a schema change reaches an
+    entry without that entry's own edit choosing it. Use the schema endpoints
+    when you want the change report; use the project endpoint when you are
+    editing a name or description and the schema happens to be part of the
+    payload.
 
     An archived project rejects a schema change with `409`, but only when the
     schema actually differs — re-sending the schema it already has is how the
@@ -269,4 +284,7 @@ Both are returned by the API and carried through
 the database can see is a claim rather than a feature. Both default to empty, so
 export files written before this feature still import.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5
+AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5;
+the "Editing a live schema" section and the preview/apply endpoints were rewritten with
+Claude Code, Claude Sonnet 5, to describe entries staying frozen at their own recorded
+shape rather than being eagerly migrated on every schema save.

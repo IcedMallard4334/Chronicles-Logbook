@@ -61,25 +61,6 @@
   animation: wave-sway 10s ease-in-out infinite alternate;
 }
 
-.wave-silhouettes {
-  bottom: 0;
-  opacity: 0.56;
-  pointer-events: none;
-  animation: wave-sway 14s ease-in-out infinite alternate-reverse;
-}
-
-.wave-silhouettes .silhouette-scene {
-  fill: var(--silhouette);
-}
-
-.wave-silhouettes .silhouette-detail {
-  fill: none;
-  stroke: var(--silhouette);
-  stroke-width: 5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 @keyframes wave-sway {
   0% {
     transform: scaleY(1) translateY(0);
@@ -1128,6 +1109,18 @@
   border: 1px solid var(--line);
 }
 
+.status-badge.share-status-pending {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-soft);
+}
+
+.status-badge.share-status-declined {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+}
+
 .detail-description {
   color: var(--muted);
   font-size: 0.9rem;
@@ -1339,9 +1332,21 @@
    -------------------------------------------------- */
 
 .detail-shared-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.detail-shared-note p {
   margin: 0;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.detail-leave-btn {
+  flex-shrink: 0;
 }
 
 .share-panel {
@@ -1455,6 +1460,7 @@
 }
 
 .hint {
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -1603,6 +1609,101 @@
   width: auto;
   padding: 0;
   accent-color: var(--blue);
+}
+
+.checkbox-with-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: end;
+  padding-bottom: 11px;
+}
+
+/* Only appears once "This is still to do" is checked — a due date on a
+   record of finished work doesn't mean anything, so it stays out of the
+   way rather than sitting there disabled. */
+.due-date-field {
+  animation: due-date-in 220ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes due-date-in {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .due-date-field { animation: none; }
+}
+
+.checkbox-with-tip .checkbox-label {
+  padding-bottom: 0;
+  align-self: auto;
+}
+
+/* A small "what does this mean" hint beside a control. The bubble is
+   positioned rather than a native `title`, so it can be styled to match the
+   app and — via :focus-within, not just :hover — reached with a keyboard. */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: help;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.info-tip-trigger svg {
+  width: 15px;
+  height: 15px;
+}
+
+.info-tip-trigger:hover,
+.info-tip-trigger:focus-visible {
+  color: var(--blue);
+  background: var(--blue-bg);
+  outline: none;
+}
+
+.info-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms;
+}
+
+.info-tip-trigger:hover + .info-tip-bubble,
+.info-tip-trigger:focus-visible + .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .field-label input,
@@ -1876,23 +1977,28 @@
    -------------------------------------------------- */
 
 .error {
+  margin: 0 0 12px;
   color: var(--error);
   font-size: 0.88rem;
   font-weight: 600;
 }
 
 .success {
-  padding: 12px 16px;
-  border: 1px solid var(--success-soft);
-  border-radius: var(--radius-sm);
-  background: var(--success-bg);
-  color: var(--success);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--blue-soft);
+  border-radius: var(--radius-md);
+  background: var(--blue-bg);
+  color: var(--blue);
   font-size: 0.88rem;
   font-weight: 600;
 }
 
 .success p {
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .btn-text {
@@ -2117,6 +2223,12 @@
   flex-wrap: wrap;
   border-radius: var(--radius-sm);
   transition: background-color 150ms ease;
+  cursor: pointer;
+}
+
+.log-row:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
 }
 
 /* One row is one entry: a hover light answers "where does this entry end
@@ -2133,6 +2245,22 @@
 
 .log-row.is-unsynced {
   opacity: 0.82;
+}
+
+.log-title {
+  width: 100%;
+  margin: 0 0 4px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.log-stale-note {
+  width: 100%;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-style: italic;
 }
 
 .log-fields {
@@ -2427,6 +2555,105 @@ button.log-link-chip:hover {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 24px;
+}
+
+/* --------------------------------------------------
+   ENTRY DETAIL
+   -------------------------------------------------- */
+
+.entry-detail-card {
+  width: min(640px, 100%);
+  text-align: left;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.modal-close:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.entry-detail-meta {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.entry-detail-stale {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--blue-soft);
+  border-radius: var(--radius-sm);
+  background: var(--blue-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.entry-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 0 0 16px;
+}
+
+.entry-detail-field dt {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.entry-detail-field dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.entry-detail-schema-choice {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.entry-detail-schema-choice button {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.entry-detail-schema-choice button.is-selected {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+.entry-detail-confirm-text {
+  margin-right: auto;
+  color: var(--text);
+  font-size: 0.88rem;
 }
 
 /* --------------------------------------------------
@@ -2768,36 +2995,90 @@ button.log-link-chip:hover {
   text-align: center;
 }
 
+.timeline-results {
+  margin-top: 8px;
+}
+
+.timeline-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.timeline-summary h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.timeline-summary p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.timeline-field-type {
+  text-transform: capitalize;
+}
+
+.timeline-not-chartable {
+  margin: 1.5rem 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
 .timeline-chart {
   width: 100%;
   height: 320px;
   margin: 1.5rem 0;
   padding: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--surface-color);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   box-sizing: border-box;
 }
 
 .timeline-table-wrapper {
   width: 100%;
   overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 .timeline-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.85rem;
 }
 
 .timeline-table th,
 .timeline-table td {
-  padding: 0.75rem;
+  padding: 10px 14px;
   text-align: left;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+
+.timeline-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.timeline-table tbody tr:hover {
+  background: var(--surface-soft);
 }
 
 .timeline-table th {
-  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--surface-soft);
 }
 /* ── Tags field ─────────────────────────────────────────────────── */
 
@@ -2973,7 +3254,7 @@ button.log-link-chip:hover {
 .share-member-name,
 .profile-email,
 .workspace-entry-preview,
-.detail-shared-note {
+.detail-shared-note p {
   overflow-wrap: anywhere;
 }
 
@@ -3089,11 +3370,9 @@ button.log-link-chip:hover {
     padding-bottom: 88px;
   }
 
-  /* 2. The command trigger and Mira's launcher are both pinned bottom-right
-        and sat on top of each other. Mira keeps the corner; search moves to
-        the opposite one, where nothing else is. */
+  /* 2. Tighter corner spacing at phone width; the left-vs-right split
+        itself is the default now, not a mobile-only override. */
   .command-trigger {
-    right: auto;
     left: 16px;
     bottom: 16px;
   }
