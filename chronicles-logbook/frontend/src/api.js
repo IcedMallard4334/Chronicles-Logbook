@@ -224,11 +224,12 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null, todo, due_date, id, created_at } = hasNestedData
+  const { data, time_spent = null, todo, due_date, id, created_at, title } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
 
   const body = { data, time_spent }
+  if (title !== undefined) body.title = title
 
   // Outstanding-work fields (US-2.15) are omitted unless the entry is being
   // logged as something still to do, so the server default of "done" holds.
@@ -252,14 +253,30 @@ export async function fetchEntry(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}`)
 }
 
-export async function updateEntry(projectId, entryId, { data, time_spent, todo, due_date }) {
+// What bringing this one entry up to the project's current schema would
+// produce, without saving it — feeds the "update to current schema" choice
+// in the entry detail view so it can show real values before committing.
+export async function fetchEntryMigrationPreview(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/migration-preview`)
+}
+
+export async function updateEntry(
+  projectId,
+  entryId,
+  { title, data, time_spent, todo, due_date, migrateToCurrentSchema }
+) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
   const body = {}
+  if (title !== undefined) body.title = title
   if (data !== undefined) body.data = data
   if (time_spent !== undefined) body.time_spent = time_spent
   if (todo !== undefined) body.todo = todo
   if (due_date !== undefined) body.due_date = due_date
+  // An entry keeps the exact shape it was recorded in by default; this is
+  // the explicit, per-entry opt-in to bring it up to the project's current
+  // schema as part of this same save.
+  if (migrateToCurrentSchema) body.migrate_to_current_schema = true
 
   return request(`/projects/${projectId}/entries/${entryId}`, {
     method: "PUT",

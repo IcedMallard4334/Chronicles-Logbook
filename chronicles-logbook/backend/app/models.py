@@ -211,6 +211,11 @@ class Entry(Base):
         index=True,
     )
 
+    # An optional free-text identifier, independent of the project's schema —
+    # so an entry can be named and recognised (in a list, in a link picker)
+    # without depending on whichever field happens to be first.
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Stores the field-id -> value mapping for this entry.
     data: Mapped[dict[str, Any]] = mapped_column(
         JSONType,

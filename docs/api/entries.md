@@ -17,10 +17,13 @@ Returns all entries for a project, ordered newest first.
   {
     "id": "...",
     "project_id": "...",
+    "title": "Login page",
     "data": {
       "field-id-1": 3,
       "field-id-2": "Finished login page"
     },
+    "schema_version": 1,
+    "schema_snapshot": [ { "id": "field-id-1", "name": "Hours", "type": "number" } ],
     "time_spent": 90,
     "retired_data": {},
     "created_at": "...",
@@ -44,6 +47,7 @@ POST /projects/{project_id}/entries
 
 ```json
 {
+  "title": "Login page",
   "data": {
     "field-id-1": 3,
     "field-id-2": "Finished login page"
@@ -54,6 +58,7 @@ POST /projects/{project_id}/entries
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `title` | string | No | A free-text identifier, independent of the project's schema — used to label the entry wherever it's listed or linked to |
 | `data` | object | Yes | Values keyed by field ID from the project's `entry_schema` |
 | `time_spent` | integer | No | Time spent on the entry, in minutes |
 | `id` | UUID | No | Client-supplied identifier. Makes creation idempotent — see below |
@@ -102,36 +107,88 @@ PUT /projects/{project_id}/entries/{entry_id}
 
 ```json
 {
+  "title": "Sprint 3 review",
   "data": {
     "field-id-1": 4,
     "field-id-2": "Updated text"
   },
-  "time_spent": 120
+  "time_spent": 120,
+  "migrate_to_current_schema": false
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `data` | object | Replacement values. Revalidated against the project's **current** schema |
+| `title` | string \| null | A free-text identifier, independent of the project's schema. Send `null` (or an empty string) to clear it |
+| `data` | object | Replacement values |
 | `time_spent` | integer \| null | Omit to leave unchanged; send `null` to clear a recorded duration |
+| `migrate_to_current_schema` | boolean | Default `false`. See below |
 
 !!! warning "Editing an entry after the schema has changed"
-    `data` is validated exactly as it is on create: every field in the project's current `entry_schema` must be present, and no others are allowed.
+    An entry keeps the exact shape it was recorded in — `schema_snapshot` —
+    permanently. A schema change touches no existing entry at all (see
+    [Editing a live schema](schema.md#editing-a-live-schema)); only the
+    *project's* `entry_schema`/`schema_version` move forward. So by default
+    (`migrate_to_current_schema` omitted or `false`), `data` here is validated
+    against **this entry's own `schema_snapshot`**, not the project's current
+    schema — correcting a typo on an old entry does not require also filling
+    in every field a later schema change added.
 
-    If the schema changed after the entry was written, the update must satisfy the **new** shape. Values for fields that no longer exist in the schema are not carried over. Editing a typo on an old entry therefore migrates that entry to the current schema.
-
-    A schema change already migrates every entry as it is made — see
-    [Editing a live schema](schema.md#editing-a-live-schema) — so an entry is
-    always in the current shape before anyone edits it, not just normally.
-    Each entry's own `schema_version`/`schema_snapshot` (also returned on this
-    response) are refreshed by that same migration, so they never disagree
-    with what `data` actually holds.
+    Set `migrate_to_current_schema: true` to opt this one entry into the
+    project's current schema as part of the same save. The entry's existing
+    values are migrated first (new fields get a type-appropriate default,
+    values for fields no longer in the schema move to `retired_data`), then
+    whatever `data` sends here is applied on top of that — so filling in a
+    newly-added field and migrating can happen in one request. `data` is then
+    validated against the project's *current* schema, and the entry's own
+    `schema_version`/`schema_snapshot` are updated to match. See
+    `GET .../migration-preview` below to show what this would produce before
+    committing to it.
 
 `created_at` cannot be changed. An entry's capture time is set once, at creation, so editing an entry never moves it in the timeline.
 
 **Response:** `200 OK` — returns the updated entry.
 
-**Errors:** `422` for schema validation failures, `404` if the entry does not exist in that project, `409` if the project is archived.
+**Errors:** `422` for schema validation failures, `404` if the entry does not exist in that project, `409` if the project is archived, `403` if the caller is neither the project's owner nor the entry's own author.
+
+---
+
+## Preview migrating an entry to the current schema
+
+```
+GET /projects/{project_id}/entries/{entry_id}/migration-preview
+```
+
+Read-only — shows what `PUT .../entries/{entry_id}` with
+`migrate_to_current_schema: true` would produce, without saving anything, the
+entry-level equivalent of [`POST /schema/preview`](schema.md#preview-a-schema-change).
+Both the preview and the real save run the same migration function, so the
+preview cannot disagree with what committing to it actually does.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": { "field-id-1": 4, "field-id-2": "", "field-id-3": "New field" },
+  "retired_data": {},
+  "changes": [
+    {
+      "kind": "added",
+      "field_id": "field-id-3",
+      "field_name": "Mood",
+      "description": "'Mood' is added to this entry, with a starting value you can fill in.",
+      "severity": "info",
+      "entries_affected": 1,
+      "values_coerced": 0,
+      "values_retired": 0
+    }
+  ]
+}
+```
+
+**Errors:** `404` if the entry does not exist in that project. Readable by
+the project's owner or any accepted member — looking at a preview changes
+nothing, so it isn't restricted to whoever could actually save it.
 
 ---
 
@@ -179,13 +236,20 @@ Returns entries across all projects owned by the authenticated user, ordered new
     "id": "...",
     "project_id": "...",
     "project_name": "My Project",
+    "title": "Login page",
     "data": { "field-id-1": 3, "field-id-2": "Finished login page" },
+    "schema_snapshot": [ { "id": "field-id-1", "name": "Hours", "type": "number" } ],
     "time_spent": 90,
+    "created_by": "...",
+    "created_by_name": "Ada",
     "created_at": "...",
     "updated_at": "..."
   }
 ]
 ```
+
+`schema_snapshot` is this entry's own recorded shape, not necessarily the
+project's current one — see the warning below.
 
 ### Structured search over custom fields (US-3.11)
 
@@ -222,10 +286,11 @@ operator that field's type doesn't support, is also a `422` with a plain
 description of what was wrong, not a generic validation error.
 
 **Which entries can answer a condition.** Each entry is evaluated against its
-*own* `schema_snapshot` — the schema its project had when the entry was
-written, the same source [statistics](statistics.md) reads historical values
-from — not against the project's current schema. An entry from before a
-field existed, or that never got the value backfilled onto its own snapshot,
+*own* `schema_snapshot` — the exact shape it was recorded in, which the same
+source [statistics](statistics.md) reads historical values from — never
+against the project's current schema. An entry keeps that shape permanently
+unless it is individually edited with `migrate_to_current_schema: true` (see
+[Update entry](#update-entry)), so an entry from before a field existed
 simply cannot answer a condition on that field: it is excluded, never an
 error and never a guess.
 
@@ -240,4 +305,8 @@ answer. `match=all` conditions don't affect the first term (everything that
 survives already satisfied all of them), so ranking among an AND'd result set
 falls straight through to the keyword and recency terms.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5; this section (Structured search over custom fields / Relevance ranking) was added with Claude Code, Claude Sonnet 5, for code + docs.
+AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5; the
+Structured search over custom fields / Relevance ranking section was added with Claude Code,
+Claude Sonnet 5, for code + docs. The `title` field, the entries-stay-frozen-by-default
+behaviour of "Update entry", and the new "Preview migrating an entry to the current schema"
+endpoint were also added with Claude Code, Claude Sonnet 5.

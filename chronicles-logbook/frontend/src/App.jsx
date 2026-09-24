@@ -1,5 +1,14 @@
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
+import {
+  EntryDetailModal,
+  EntryFieldInput,
+  LinkChip,
+  RetiredValues,
+  deriveProjectStatus,
+  formatEntryValue,
+  useProjectStatuses,
+} from "./EntryShared"
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
@@ -544,86 +553,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
         </form>
       </div>
     </div>
-  )
-}
-
-/** The sidebar's status language for a project, read from its open tasks. */
-function deriveProjectStatus(tasks, today) {
-  const late = tasks.some((task) => task.due_date && task.due_date < today)
-  return late ? "Needs attention" : tasks.length ? "In progress" : "On track"
-}
-
-/**
- * The status of each of a set of projects, as the sidebar shows it.
- *
- * A link to another project carries the same dot the sidebar does, so the
- * status has to be derived the same way — one rule, learned once, read
- * anywhere. Only the projects asked for are fetched, which for a link chip
- * means the one or two a schema points at.
- */
-function useProjectStatuses(projectIds) {
-  const [statuses, setStatuses] = useState({})
-  const key = projectIds.join("\n")
-  const ids = useMemo(() => (key ? key.split("\n") : []), [key])
-
-  useEffect(() => {
-    if (ids.length === 0) return undefined
-
-    let active = true
-    const today = new Date().toLocaleDateString("en-CA")
-    Promise.allSettled(ids.map((id) => fetchTasks(id, false))).then((results) => {
-      if (!active) return
-      setStatuses(
-        Object.fromEntries(
-          results.map((result, index) => [
-            ids[index],
-            deriveProjectStatus(result.status === "fulfilled" ? result.value : [], today),
-          ])
-        )
-      )
-    })
-    return () => {
-      active = false
-    }
-  }, [ids])
-
-  return statuses
-}
-
-/**
- * A project link as it reads among values: the target's name on the
- * sidebar's status dot, and — wherever a click can be acted on — the target
- * itself.
- *
- * The dot is what makes it read as a connection rather than as text: the
- * same green unless the project needs attention, exactly as the sidebar
- * shows it.
- */
-function LinkChip({ targetId, projects, status, onOpen }) {
-  const target = projects.find((project) => project.id === targetId)
-  const content = (
-    <>
-      <span
-        className={`log-link-dot ${status === "Needs attention" ? "is-attention" : ""}`}
-        aria-hidden="true"
-      />
-      {target ? target.name : "A project you no longer have"}
-    </>
-  )
-
-  if (!target || !onOpen) {
-    return <span className="log-link-chip is-static">{content}</span>
-  }
-
-  return (
-    <button
-      type="button"
-      className="log-link-chip"
-      onClick={() => onOpen(targetId)}
-      title={`Open ${target.name}`}
-    >
-      {content}
-    </button>
   )
 }
 
@@ -1503,304 +1432,9 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
-function TagsInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addTag = () => {
-    const tag = input.trim()
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag])
-    }
-    setInput("")
-  }
-
-  const removeTag = (tag) => {
-    onChange(value.filter((t) => t !== tag))
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === "Backspace" && input === "" && value.length > 0) {
-      onChange(value.slice(0, -1))
-    }
-  }
-
-  return (
-    <div className="tags-input">
-      <div className="tags-list">
-        {value.map((tag) => (
-          <span key={tag} className="tag-chip">
-            {tag}
-            <button
-              type="button"
-              className="tag-remove"
-              onClick={() => removeTag(tag)}
-              aria-label={`Remove ${tag}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={value.length === 0 ? "Type and press Enter…" : ""}
-      />
-    </div>
-  )
-}
-
-function ChecklistInput({ value, onChange }) {
-  const [input, setInput] = useState("")
-
-  const addItem = () => {
-    const text = input.trim()
-    if (text) {
-      onChange([
-        ...value,
-        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
-      ])
-    }
-    setInput("")
-  }
-
-  const toggleItem = (id) => {
-    onChange(value.map((item) =>
-      item.id === id ? { ...item, completed: !item.completed } : item
-    ))
-  }
-
-  const removeItem = (id) => {
-    onChange(value.filter((item) => item.id !== id))
-  }
-
-  const moveItem = (index, direction) => {
-    const target = index + direction
-    if (target < 0 || target >= value.length) return
-    const next = [...value]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    onChange(next)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addItem()
-    }
-  }
-
-  return (
-    <div className="checklist-input">
-      {value.map((item, index) => (
-        <div key={item.id} className="checklist-item">
-          <input
-            type="checkbox"
-            checked={item.completed}
-            onChange={() => toggleItem(item.id)}
-          />
-          <span className={item.completed ? "checklist-done" : ""}>
-            {item.text}
-          </span>
-          <div className="checklist-actions">
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, -1)}
-              disabled={index === 0}
-              aria-label="Move up"
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="btn-text-small"
-              onClick={() => moveItem(index, 1)}
-              disabled={index === value.length - 1}
-              aria-label="Move down"
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              className="btn-text-small btn-text-danger"
-              onClick={() => removeItem(item.id)}
-              aria-label="Remove item"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      ))}
-      <div className="checklist-add">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add item and press Enter…"
-        />
-      </div>
-      {value.length > 0 && (
-        <span className="checklist-count">
-          {value.filter((i) => i.completed).length}/{value.length} complete
-        </span>
-      )}
-    </div>
-  )
-}
-
-function LinkInput({ value, onChange, entries }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="link-select"
-    >
-      <option value="">No link</option>
-      {entries.map((entry) => {
-        // Build a preview from the first text field value
-        const preview = Object.values(entry.data || {})
-          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
-        return (
-          <option key={entry.id} value={entry.id}>
-            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
-          </option>
-        )
-      })}
-    </select>
-  )
-}
-
-/**
- * One field on the new-entry form.
- *
- * A calculation is shown rather than asked for (US-2.5): it is worked out from
- * the figures beside it, so an input would invite someone to type a value the
- * server would immediately overwrite.
- */
-function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
-  if (field.type === "computed") {
-    // The badge's word and colour come from the field-type registry, so the
-    // form, the table and the schema view can never disagree about what a
-    // type is called or how it is marked.
-    const meta = FIELD_TYPE_META[field.type]
-    return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
-        <output className="computed-value">
-          {computed === null || computed === undefined ? "—" : computed}
-        </output>
-      </div>
-    )
-  }
-
-  // A link is decided once, in the schema (US-2.4), rather than answered
-  // on every entry — so it is shown rather than asked for. The value is the
-  // same chip the entry list shows: the target's name on its status dot,
-  // clickable through to the project. A boxed read-out would read as a text
-  // box awaiting input; a chip reads as a thing you act on.
-  if (field.type === "project_reference") {
-    const meta = FIELD_TYPE_META[field.type]
-    return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
-        {field.linked_project_id ? (
-          <LinkChip
-            targetId={field.linked_project_id}
-            projects={projects}
-            status={status}
-            onOpen={onOpenProject}
-          />
-        ) : (
-          <output className="computed-value is-link is-unset">
-            Not pointed at a project yet
-          </output>
-        )}
-      </div>
-    )
-  }
-
-  // Tags and checklists hold a list, not a string, and each renders several
-  // controls — so they get a div rather than a label, which would bind every
-  // click to whichever control happened to come first.
-  if (field.type === "tags") {
-    return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
-        <TagsInput
-          value={Array.isArray(value) ? value : []}
-          onChange={(next) => onChange(field.id, next)}
-        />
-      </div>
-    )
-  }
-
-  if (field.type === "checklist") {
-    return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
-        <ChecklistInput
-          value={Array.isArray(value) ? value : []}
-          onChange={(next) => onChange(field.id, next)}
-        />
-      </div>
-    )
-  }
-
-  if (field.type === "link") {
-    return (
-      <label className="field-label">
-        {field.name}
-        <LinkInput
-          value={value || ""}
-          onChange={(next) => onChange(field.id, next)}
-          entries={entries}
-        />
-      </label>
-    )
-  }
-
-  return (
-    <label className="field-label">
-      {field.name}
-      {field.type === "dropdown" ? (
-        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
-          <option value="" disabled>
-            Select…
-          </option>
-          {(field.options || []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          type={field.type}
-          value={value || ""}
-          onChange={(e) => onChange(field.id, e.target.value)}
-          placeholder={field.name}
-          required
-        />
-      )}
-    </label>
-  )
-}
-
 function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
+  const [title, setTitle] = useState("")
   const [data, setData] = useState({})
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
@@ -1846,6 +1480,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const statuses = useProjectStatuses(linkedIds)
 
   useEffect(() => {
+    setTitle("")
     setData({})
     setHoursSpent("")
     setMinutesSpent("")
@@ -1897,6 +1532,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
       await onCreated({
+        title: title.trim() || undefined,
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
@@ -1904,6 +1540,7 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
         // instead of rejecting an empty date.
         due_date: dueDate || null,
       })
+      setTitle("")
       setData({})
       setHoursSpent("")
       setMinutesSpent("")
@@ -1932,6 +1569,15 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
       <div className="panel-head">
         <h3>New entry</h3>
       </div>
+      <label className="field-label">
+        Title (optional)
+        <input
+          type="text"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Give this entry a name so it's easy to find later"
+        />
+      </label>
       <div className="form-grid">
         {schema.map((field) => (
           <EntryFieldInput
@@ -2004,48 +1650,19 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   )
 }
 
-/**
- * A stored value as it should read on the page.
- *
- * A reference is held as a project id, which is the right thing to store and
- * the wrong thing to show, so it is resolved to the project's name here.
- */
-function formatEntryValue(field, value, projectNames) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (field?.type === "project_reference") {
-    return projectNames.get(value) || "A project you no longer have"
-  }
-  return String(value)
-}
-
-/**
- * What an entry recorded under fields the schema has since dropped (US-2.7).
- *
- * Removing a field stops it being asked for; it does not erase what was already
- * answered. That history is kept out of the way but never out of reach.
- */
-function RetiredValues({ retiredData, retiredSchema }) {
-  const fields = retiredSchema.filter(
-    (field) => retiredData[field.id] !== undefined && retiredData[field.id] !== null
-  )
-  if (fields.length === 0) return null
-
-  return (
-    <details className="retired-values">
-      <summary>No longer recorded ({fields.length})</summary>
-      <div className="log-fields">
-        {fields.map((field) => (
-          <div key={field.id} className="log-field">
-            <span className="log-label">{field.name}</span>
-            <span className="log-value">{String(retiredData[field.id])}</span>
-          </div>
-        ))}
-      </div>
-    </details>
-  )
-}
-
-function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenProject }) {
+function EntryList({
+  entries,
+  schema,
+  schemaVersion,
+  retiredSchema = [],
+  projects = [],
+  project,
+  userId,
+  onOpenProject,
+  onEntryUpdated,
+  onEntryDeleted,
+}) {
+  const [selectedEntryId, setSelectedEntryId] = useState(null)
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
@@ -2064,6 +1681,7 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
     [schema]
   )
   const statuses = useProjectStatuses(linkedIds)
+  const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || null
 
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
@@ -2078,18 +1696,42 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
       <h3>Recent entries</h3>
       <ul className="log-list" role="list">
         {entries.map((entry) => {
+          // An entry keeps the exact shape it was recorded in until someone
+          // individually migrates it — the *project's* current schema is
+          // the wrong thing to render an old entry against, since it can
+          // ask for a field this entry never had. Each row reads its own
+          // schema_snapshot instead, falling back to the passed-down schema
+          // only for a legacy entry written before snapshots existed.
+          const rowSchema = entry.schema_snapshot?.length ? entry.schema_snapshot : schema
           // Recomputed rather than read back: an entry captured offline holds
           // no stored calculation until it syncs, and the current formula is
           // the honest answer either way. What the server stored agrees with
-          // it, because every write and every schema change re-derives.
-          const data = withComputedValues(entry.data || {}, schema)
+          // it, because every write re-derives against the entry's own shape.
+          const data = withComputedValues(entry.data || {}, rowSchema)
+          const isStale = entry.schema_version != null && schemaVersion != null && entry.schema_version < schemaVersion
           return (
             <li
               key={entry.id}
               className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-label="Open entry detail"
+              onClick={() => setSelectedEntryId(entry.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  setSelectedEntryId(entry.id)
+                }
+              }}
             >
+              {entry.title && <p className="log-title">{entry.title}</p>}
+              {isStale && (
+                <p className="log-stale-note">
+                  Recorded under an earlier version of this project&rsquo;s schema.
+                </p>
+              )}
               <div className="log-fields">
-                {schema.map((field) => {
+                {rowSchema.map((field) => {
                   const meta = FIELD_TYPE_META[field.type]
                   return (
                     <div
@@ -2111,12 +1753,17 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                       </span>
                       <span className="log-value">
                         {field.type === "project_reference" && data[field.id] ? (
-                          <LinkChip
-                            targetId={data[field.id]}
-                            projects={projects}
-                            status={statuses[data[field.id]]}
-                            onOpen={onOpenProject}
-                          />
+                          // The chip opens a different project; the row it
+                          // sits in opens this entry's detail. Without this,
+                          // clicking the chip would fire both.
+                          <span onClick={(event) => event.stopPropagation()}>
+                            <LinkChip
+                              targetId={data[field.id]}
+                              projects={projects}
+                              status={statuses[data[field.id]]}
+                              onOpen={onOpenProject}
+                            />
+                          </span>
                         ) : (
                           formatEntryValue(field, data[field.id], projectNames)
                         )}
@@ -2155,15 +1802,35 @@ function EntryList({ entries, schema, retiredSchema = [], projects = [], onOpenP
                 )}
               </span>
               {/* Last, and collapsed: history worth keeping is not history worth
-                  leading with. */}
-              <RetiredValues
-                retiredData={entry.retired_data || {}}
-                retiredSchema={retiredSchema}
-              />
+                  leading with. Stops the click so expanding it doesn't also
+                  open the row's own detail view. */}
+              <span onClick={(event) => event.stopPropagation()}>
+                <RetiredValues
+                  retiredData={entry.retired_data || {}}
+                  retiredSchema={retiredSchema}
+                />
+              </span>
             </li>
           )
         })}
       </ul>
+      {selectedEntry && project && (
+        <EntryDetailModal
+          project={project}
+          entry={selectedEntry}
+          projects={projects}
+          canManage={!project.shared || (Boolean(userId) && selectedEntry.created_by === userId)}
+          onClose={() => setSelectedEntryId(null)}
+          onSaved={(saved) => {
+            onEntryUpdated?.(saved)
+            setSelectedEntryId(null)
+          }}
+          onDeleted={(id) => {
+            onEntryDeleted?.(id)
+            setSelectedEntryId(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -2376,9 +2043,12 @@ function Timeline({ projects }) {
 function ProjectDetail({
   project,
   projects,
+  userId,
   onSchemaPreview,
   onSchemaSaved,
   onEntryCreated,
+  onEntryUpdated,
+  onEntryDeleted,
   onEditProject,
   onToggleArchive,
   onDeleteProject,
@@ -2487,9 +2157,14 @@ function ProjectDetail({
             <EntryList
               entries={project.entries || []}
               schema={project.entry_schema || []}
+              schemaVersion={project.schema_version}
               retiredSchema={project.retired_schema || []}
               projects={projects}
+              project={project}
+              userId={userId}
               onOpenProject={onOpenProject}
+              onEntryUpdated={onEntryUpdated}
+              onEntryDeleted={onEntryDeleted}
             />
           </>
         ) : tab === "schema" ? (
@@ -3146,6 +2821,31 @@ function App() {
     }
   }
 
+  const handleEntryUpdated = (updated) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === updated.project_id
+          ? {
+              ...project,
+              entries: (project.entries || []).map((entry) =>
+                entry.id === updated.id ? updated : entry
+              ),
+            }
+          : project
+      )
+    )
+  }
+
+  const handleEntryDeleted = (entryId) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        (project.entries || []).some((entry) => entry.id === entryId)
+          ? { ...project, entries: project.entries.filter((entry) => entry.id !== entryId) }
+          : project
+      )
+    )
+  }
+
   const loadEntries = useCallback(async () => {
     if (!selectedId) return
     try {
@@ -3252,40 +2952,6 @@ function App() {
           </svg>
           <svg className="wave wave-mid" viewBox="0 0 1440 320" preserveAspectRatio="none">
             <path d="M0,256L48,245.3C96,235,192,213,288,202.7C384,192,480,192,576,208C672,224,768,256,864,261.3C960,267,1056,245,1152,229.3C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
-          </svg>
-          <svg className="wave wave-silhouettes" viewBox="0 0 1440 320" preserveAspectRatio="none">
-            <g className="silhouette-scene">
-              <g transform="translate(208, 130)">
-                <circle cx="46" cy="32" r="14" />
-                <path d="M34 50c-10 20-12 48-4 69h36c8-21 5-49-5-69z" />
-                <path d="M40 119l-10 53h14l13-50 13 50h14l-12-53z" />
-                <rect x="77" y="89" width="72" height="7" rx="3" />
-                <rect x="91" y="95" width="7" height="78" rx="3" />
-                <path d="M60 68l28 20 7-9-27-27z" />
-                <rect x="85" y="57" width="37" height="26" rx="3" transform="rotate(10 103 70)" />
-              </g>
-              <g transform="translate(535, 130)">
-                <circle cx="45" cy="31" r="14" />
-                <path d="M34 50c-8 24-4 49 8 66h15c12-17 16-42 7-66z" />
-                <path d="M42 115l-13 57h16l12-49 12 49h16l-14-57z" />
-                <path className="silhouette-detail" d="M37 65L9 88m57-22l30 19" />
-                <circle cx="7" cy="89" r="5" />
-              </g>
-              <g transform="translate(825, 164)">
-                <circle cx="49" cy="29" r="13" />
-                <path d="M41 46l29 20-14 28-30-16z" />
-                <path className="silhouette-detail" d="M38 59L5 55m50 38L35 134m14-40l39 28" />
-                <circle cx="108" cy="136" r="26" className="silhouette-detail" />
-                <circle cx="108" cy="136" r="5" />
-              </g>
-              <g transform="translate(1125, 128)">
-                <circle cx="44" cy="31" r="14" />
-                <path d="M32 50c-7 23-3 50 8 67h16c10-17 14-44 7-67z" />
-                <path d="M40 116l-14 56h16l12-48 13 48h16l-15-56z" />
-                <path className="silhouette-detail" d="M36 64L11 32m53 32l27-33" />
-                <circle cx="8" cy="29" r="5" /><circle cx="94" cy="28" r="5" />
-              </g>
-            </g>
           </svg>
           <svg className="wave wave-front" viewBox="0 0 1440 320" preserveAspectRatio="none">
             <path d="M0,288L48,282.7C96,277,192,267,288,245.3C384,224,480,192,576,197.3C672,203,768,245,864,261.3C960,277,1056,267,1152,250.7C1248,235,1344,213,1392,202.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
@@ -3451,9 +3117,12 @@ function App() {
                 key={selectedProject.id}
                 project={openProject}
                 projects={projects}
+                userId={userId}
                 onSchemaPreview={handleSchemaPreview}
                 onSchemaSaved={handleSchemaSave}
                 onEntryCreated={handleEntryCreated}
+                onEntryUpdated={handleEntryUpdated}
+                onEntryDeleted={handleEntryDeleted}
                 onEditProject={() => setIsEditModalOpen(true)}
                 onToggleArchive={handleToggleArchive}
                 onDeleteProject={handleDeleteProject}

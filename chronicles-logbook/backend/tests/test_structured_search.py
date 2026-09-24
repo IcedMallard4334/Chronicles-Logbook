@@ -335,14 +335,14 @@ async def test_conditions_require_a_project(authenticated_client, search_entries
 # ── Schema versioning interaction ───────────────────────────────────
 
 
-async def test_conditions_include_an_entry_backfilled_by_a_later_schema_change(
+async def test_conditions_exclude_an_entry_that_predates_the_field(
     authenticated_client, search_project
 ):
-    """An entry written before a field existed still gets a schema_snapshot
-    that includes it, once a schema change migrates that entry onto the new
-    shape (both its data *and* its snapshot move forward together — see
-    projects.py's _replace_schema). So a condition on the new field can
-    correctly match it against the value it was backfilled with."""
+    """An entry written before a field existed keeps its own schema_snapshot
+    frozen at whatever it actually had — a schema change touches no entry
+    (see schema_migration.py) — so a condition on the new field correctly
+    leaves it out rather than matching it against a value it was never
+    actually given."""
     pid = search_project["id"]
     old_entry = await _make_entry(authenticated_client, pid, **{"f-title": "Before priority"})
 
@@ -371,20 +371,16 @@ async def test_conditions_include_an_entry_backfilled_by_a_later_schema_change(
     )
     assert response.status_code == 200
     ids = {entry["id"] for entry in response.json()}
-    # old_entry was backfilled with the new field's default ("Low", its
-    # first option) at the schema edit, and its schema_snapshot was
-    # refreshed by that same migration — so it correctly answers this
-    # condition rather than being silently excluded.
-    assert old_entry["id"] in ids
+    assert old_entry["id"] not in ids
     assert new_entry["id"] not in ids  # its own priority is "High", not "Low"
 
 
 def test_condition_matches_excludes_a_field_absent_from_the_entrys_own_snapshot():
-    """Unit-level check of app.search's own defensive behaviour: given a
-    schema_snapshot that genuinely doesn't list a field — legacy data,
-    a partially-applied import, or any other source the API layer's
-    always-in-sync migration doesn't cover — a condition on that field
-    is excluded rather than guessed at or errored on."""
+    """Unit-level check of app.search's own behaviour: given a
+    schema_snapshot that doesn't list a field — the ordinary case for any
+    entry that predates it, since a schema change touches no entry (see
+    schema_migration.py) — a condition on that field is excluded rather
+    than guessed at or errored on."""
     from app.schemas import FieldCondition
     from app.search import condition_matches
 

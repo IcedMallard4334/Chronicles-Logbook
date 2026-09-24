@@ -9,6 +9,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchEntry,
+  fetchEntryMigrationPreview,
   fetchFieldTimeline,
   fetchProjects,
   fetchStatistics,
@@ -138,6 +139,37 @@ describe("api", () => {
     await updateEntry("proj-1", "entry-1", { time_spent: null })
 
     expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify({ time_spent: null }))
+  })
+
+  it("sends migrate_to_current_schema only when explicitly requested", async () => {
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) })
+
+    await updateEntry("proj-1", "entry-1", { data: { hours: 3 }, migrateToCurrentSchema: true })
+
+    expect(fetch.mock.calls[0][1].body).toBe(
+      JSON.stringify({ data: { hours: 3 }, migrate_to_current_schema: true })
+    )
+  })
+
+  it("omits migrate_to_current_schema for an ordinary edit", async () => {
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) })
+
+    await updateEntry("proj-1", "entry-1", { data: { hours: 3 } })
+
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).not.toHaveProperty("migrate_to_current_schema")
+  })
+
+  it("fetches a preview of migrating one entry to the current schema", async () => {
+    const preview = { data: { hours: 3 }, retired_data: {}, changes: [] }
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => preview })
+
+    const result = await fetchEntryMigrationPreview("proj-1", "entry-1")
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/projects/proj-1/entries/entry-1/migration-preview",
+      { credentials: "include", headers: { "Content-Type": "application/json" } }
+    )
+    expect(result).toEqual(preview)
   })
 
   it("deletes an entry", async () => {

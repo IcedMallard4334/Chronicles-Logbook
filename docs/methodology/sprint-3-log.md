@@ -868,3 +868,163 @@ search filter was mutation-tested (`matchesQuery` stubbed to always return
 AI-assisted: the content research pass, `HelpPage.jsx`/`.css`, the wiring,
 the tests, the bug found and fixed via manual browser verification, and this
 log entry were all done with Claude Code (Sonnet 5).
+
+## 11. Follow-up: visual polish and removing a decorative background scene
+
+Three small fixes from a real-app review pass, none touching data or logic:
+
+- **The background's silhouette figures were removed.** `App.jsx`'s
+  `app-bg-waves` decoration included a hand-drawn scene of four human
+  silhouettes (`wave-silhouettes`), pre-existing from before this sprint —
+  reported as looking out of place. Removed the SVG group, its dedicated CSS
+  (`.wave-silhouettes`, `.silhouette-scene`, `.silhouette-detail`), and the
+  now-orphaned `--silhouette` custom property (all three theme variants).
+  Purely decorative and `aria-hidden`, so nothing else referenced it;
+  confirmed with `grep` before deleting, and `App.test.jsx` still passes.
+
+AI-assisted: found, confirmed unused elsewhere, and removed with Claude Code
+(Sonnet 5).
+
+## 12. Follow-up: entries stay frozen at their own schema; naming, editing and deleting them
+
+**The report, with a screenshot:** after adding a field to a project's
+schema, an already-existing entry showed the new field with a blank/dash
+value it never actually recorded — Story 2 (section 2 above) chose "eager
+migration" for performance, which backfills every entry the moment a schema
+is saved. Seeing that in practice, the call was to revisit it: entries
+should keep the exact shape they were recorded in until someone explicitly
+chooses to update one. Flagged before implementing, since it reopens an
+explicit prior decision and touches a lot of existing test coverage from
+earlier in this workstream (and, with permission, one other team member's
+Sprint 2 area) — confirmed before making the change.
+
+**The new rule:** a schema save changes the *project* only
+(`entry_schema`/`schema_version`). No entry is touched. An entry's own
+`schema_snapshot` moves forward only when that one entry is individually
+edited with `migrate_to_current_schema: true`. This actually removes a
+standing inconsistency rather than trading one for another: previously,
+`entry.data` moved forward eagerly at schema-save time while nothing forced
+`entry.schema_snapshot` to agree with it except a second, separate write in
+the same transaction — the exact seam Story 2 had to patch. With neither
+touched until an explicit per-entry migration, the two can never drift apart
+in the first place.
+
+**Changed, backend:**
+
+- `app/schema_migration.py` — `describe_changes()` takes a `scope`
+  (`"project"` vs `"entry"`) and returns different, accurate wording for
+  each, since the same diff function now backs two genuinely different
+  claims: what changes for *new* entries (schema save) vs. what changing
+  *this* entry's shape right now would do (an edit that migrates). New
+  `simulate_entry_migration()` reuses `describe_changes`/`migrate_entry_data`/
+  `_count_change` scoped to one entry, migrating from that entry's own
+  `schema_snapshot` to a target schema, rather than from the project's
+  schema.
+- `app/routers/projects.py` — `_replace_schema` no longer loops over
+  entries at all; it only bumps `project.schema_version`, sets
+  `entry_schema`, and recomputes `retired_schema` (a pure schema diff, no
+  entry data needed). `_plan_schema_change` no longer fetches entries,
+  since none are simulated — `entry_count` is now a cheap `COUNT(*)` for the
+  review screen's "N entries, none of them affected" framing.
+  `update_entry` defaults to validating `data` against **the entry's own**
+  `schema_snapshot`; `migrate_to_current_schema: true` migrates the entry's
+  existing values onto the project's current schema first, layers whatever
+  `data` was sent on top (so filling in a new field and migrating happen in
+  one request), and only then updates the entry's own
+  `schema_version`/`schema_snapshot`. New
+  `GET .../entries/{id}/migration-preview` — read-only, entry-level sibling
+  of `POST /schema/preview`, so the frontend can show what migrating would
+  produce before the user commits to it, the same "preview and apply cannot
+  disagree" guarantee schema changes already had.
+- `app/models.py`, `migrations/009_entry_title.sql`, `main.py` — `Entry`
+  gains an optional `title`, independent of any project's schema, so an
+  entry has an identifier that doesn't depend on concatenating whatever its
+  first field happens to hold.
+- `app/schemas.py` — `title` on `EntryCreate`/`EntryUpdate`/`EntryResponse`;
+  `migrate_to_current_schema` on `EntryUpdate`; new
+  `EntryMigrationPreview`; `TimelineEntryResponse` (the global-search
+  response shape) gains `title`, `schema_snapshot`, `created_by`,
+  `created_by_name` — needed so a cross-project entry list can render each
+  row against what that entry actually recorded, not assume the project's
+  current schema applies uniformly to every row.
+
+**A real, separate bug found only by loading the app for real:** after all
+of the above, the "All Entries" table still showed the field-concatenation
+preview instead of the title just set. `search_entries` (`GET /entries`)
+builds its own response dict by hand rather than returning the ORM `Entry`
+directly — pre-existing, and it simply never copied `title`/`schema_snapshot`/
+`created_by`/`created_by_name` into that dict, so Pydantic silently filled
+in each field's default (`null`/`[]`) instead of erroring. No automated test
+was exercising those specific fields on this endpoint before, so nothing
+caught it until a real browser check against a real backend showed a title
+that wouldn't display. Fixed by copying the four fields across;
+`test_search_entries_includes_title_snapshot_and_author` guards it,
+mutation-tested (removed the four keys, confirmed the test fails on `title`
+being `None`, restored).
+
+**Changed, frontend:**
+
+- `frontend/src/EntryShared.jsx` (new) — `EntryDetailModal` (view, edit,
+  the "edit as recorded" vs. "update to current schema" choice — shown only
+  when the entry actually is stale — delete with an inline confirm step),
+  plus `EntryFieldInput`, `LinkChip`, `useProjectStatuses`,
+  `deriveProjectStatus`, `formatEntryValue`, `RetiredValues` and their small
+  private helpers (`TagsInput`, `ChecklistInput`, `LinkInput`), moved out of
+  `App.jsx` so both `App.jsx` (the per-project entry list) and
+  `WorkspacePages.jsx` (the cross-project "All Entries" table) can share one
+  modal without a circular import between the two — see the note below on
+  how that was found.
+- `App.jsx` — `EntryList` now reads each row's own `schema_snapshot`
+  (falling back to the project's schema only for a legacy entry that
+  predates snapshots), fixing the same "phantom field" rendering bug
+  reported in the screenshot on the per-project entries list, not just the
+  backend data. A stale entry gets a small "recorded under an earlier
+  version…" note. Rows are now a clickable/keyboard-operable
+  `role="button"` opening `EntryDetailModal`; the nested `LinkChip` and
+  `RetiredValues` `<details>` each stop click propagation so acting on them
+  doesn't also open the row. `EntryForm` gained a "Title (optional)" field.
+- `WorkspacePages.jsx` — the "All Entries" row's preview text prefers
+  `entry.title`; clicking a row looks the entry's project up from the
+  already-loaded `projects` list (no extra fetch) and opens the same
+  `EntryDetailModal`.
+- `EntryFieldInput`'s plain text/number/date input lost its `required`
+  attribute — caught by a test that legitimately hung, not by reasoning
+  about it first: migrating a new text field backfills it with `""`, which
+  is valid data the backend already accepts, but a `required` HTML input
+  silently blocks form submission on an empty value before React's own
+  handler ever runs. The backend doesn't actually require non-blank text
+  for any type this touches, so removing it is a correction, not a
+  loosening of a real rule.
+
+**Design note — permissions.** `ProjectResponse` never exposed the owner's
+`user_id` to the frontend, only a `shared: bool`. `canManage` for the modal
+is therefore `!project.shared || entry.created_by === userId` (owner, or a
+member editing their own entry) rather than an id comparison — matches
+`_get_writable_entry`'s actual backend rule without needing a new field.
+
+**Tests:** backend — `test_schema_editing.py` substantially rewritten (36
+tests: what a schema save does and doesn't touch, per-field description
+wording for both scopes, the full migrate-on-edit flow, the
+migration-preview endpoint); `test_entries.py`,
+`test_statistics.py`, `test_structured_search.py` updated where they had
+encoded the old eager-migration behavior as their expected result (each
+with a comment explaining the corrected expectation); `conftest.py` fixed
+to explicitly pin `ENABLE_DEV_LOGIN=false` for the test suite — it was
+silently inheriting `true` from the real local `.env` (section 9's own
+feature, working as intended there), which is exactly the kind of
+environment-dependent flakiness a test suite shouldn't have. Frontend —
+`EntryShared.test.jsx` (12 tests: view/edit rendering against the entry's
+own shape vs. the project's, the stale-entry banner, `canManage` hiding
+actions, an ordinary edit's payload, the migrate choice fetching a preview
+and pre-filling the form, the migrated save's payload, delete's confirm
+step, Escape-to-close). The `update_entry` schema-snapshot default was
+mutation-tested (reverted to validating against the project's current
+schema, confirmed three tests fail for the right reason, restored).
+
+Backend: 375 passing. Frontend: 424 passing. Both mutation-tested at the
+points above.
+
+AI-assisted: the architecture discussion, backend and frontend
+implementation, the two real bugs found through actual use (the `required`
+hang, the missing-fields dict), the tests, the docs, and this log entry were
+all done with Claude Code (Sonnet 5).

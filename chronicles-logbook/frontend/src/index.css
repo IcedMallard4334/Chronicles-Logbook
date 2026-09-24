@@ -47,7 +47,6 @@
   --wave-back: #dde1eb;
   --wave-mid: #d3d8e4;
   --wave-front: #c8cedc;
-  --silhouette: #525d76;
 
   --radius-lg: 16px;
   --radius-md: 12px;
@@ -104,7 +103,6 @@
     --wave-back: #171a21;
     --wave-mid: #1d212a;
     --wave-front: #252a35;
-    --silhouette: #10131a;
   }
 }
 
@@ -147,7 +145,6 @@
   --wave-back: #171a21;
   --wave-mid: #1d212a;
   --wave-front: #252a35;
-  --silhouette: #10131a;
 }
 
 :root[data-accent="ocean"] { --blue:#1686c8; --blue-soft:#8ecce9; --blue-bg:#dceff8; --mauve:#1a9b87; --mauve-soft:#93d8ca; --mauve-bg:#dff2ed; --focus:#1686c8; }

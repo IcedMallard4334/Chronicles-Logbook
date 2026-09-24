@@ -330,15 +330,15 @@ async def test_field_statistics_respect_historical_schema_versions(
         field for field in body["fields"] if field["field_id"] == "category"
     )
 
-    # old_entry predates "category" and was backfilled with the new
-    # dropdown's default ("Work", its first option) when the schema change
-    # was applied. Its own schema_snapshot is kept in step with that same
-    # migration (see projects.py's _replace_schema), so this value is
-    # correctly counted here rather than silently skipped as belonging to a
-    # field the entry's snapshot doesn't recognise.
-    assert category["count"] == 2
+    # old_entry predates "category" and was never touched by the schema
+    # change — a save no longer migrates any entry (see
+    # schema_migration.py), so old_entry's own schema_snapshot still says
+    # it only ever had "hours". It correctly contributes nothing to a field
+    # it never recorded, rather than being counted against a value it was
+    # never actually given.
+    assert category["count"] == 1
     assert category["groups"] == [
-        {"value": "Work", "count": 2}
+        {"value": "Work", "count": 1}
     ]
 
 async def test_field_timeline_returns_values_in_chronological_order(
@@ -540,15 +540,15 @@ async def test_field_timeline_respects_historical_schema_versions(
 
     assert [point["value"] for point in body["points"]] == [4, 8]
 
-    # Both points report schema_version 2: the schema change that added
-    # "category" migrated the first entry onto that same version too (its
-    # "hours" value is untouched by the migration, but the entry itself —
-    # and its schema_snapshot — moved forward with the rest of the
-    # project, same as every other entry). It never stays pinned at the
-    # version it happened to be created under.
+    # The first point stays pinned at schema_version 1: the schema change
+    # that added "category" never touched the entry that predates it (see
+    # schema_migration.py — a save migrates no entry), so its own
+    # schema_snapshot, and the version reported here, are exactly what they
+    # were when it was written. Its "hours" value is unaffected either way,
+    # since "hours" exists unchanged in both versions.
     assert [
         point["schema_version"] for point in body["points"]
-    ] == [2, 2]
+    ] == [1, 2]
 
     assert body["points"][0]["created_at"].startswith("2026-05-01")
     assert body["points"][1]["created_at"].startswith("2026-05-05")

@@ -334,7 +334,24 @@ class SchemaChangeResult(SchemaChangePreview):
     project: ProjectResponse
 
 
+class EntryMigrationPreview(BaseModel):
+    """What bringing one entry up to the project's current schema would do.
+
+    Shown before an edit that chooses to migrate, the same way
+    SchemaChangePreview is shown before a schema save — the values here are
+    exactly what a save with migrate_to_current_schema=true would write,
+    since both run the same migration function.
+    """
+
+    data: dict[str, Any]
+    retired_data: dict[str, Any]
+    changes: list[SchemaChange]
+
+
 class EntryCreate(BaseModel):
+    # Optional. Blank is fine — the entry list falls back to a value drawn
+    # from its data when there is nothing else to show.
+    title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any]
     time_spent: int | None = Field(default=None, ge=0)
 
@@ -380,10 +397,19 @@ class EntryUpdate(BaseModel):
     once, at creation, and is not rewritable afterwards.
     """
 
+    title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any] | None = None
     time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
+
+    # An entry keeps the exact shape it was recorded in by default — a
+    # schema change does not reach back and touch entries that already
+    # exist. Setting this to true is how one entry, chosen by whoever is
+    # editing it, opts into being brought up to the project's *current*
+    # schema as part of this same save. See "Editing an entry after the
+    # schema has changed" in the API docs.
+    migrate_to_current_schema: bool = False
 
 
 class EntryResponse(BaseModel):
@@ -391,6 +417,7 @@ class EntryResponse(BaseModel):
 
     id: UUID
     project_id: UUID
+    title: str | None = None
     data: dict[str, Any]
     schema_version: int
     schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
@@ -654,10 +681,18 @@ class TimelineEntryResponse(BaseModel):
     id: UUID
     project_id: UUID
     project_name: str
+    title: str | None = None
     data: dict[str, Any]
+    # The shape this entry actually recorded, since it stays frozen at its
+    # own schema until someone chooses to migrate it — a row rendered from
+    # the project's *current* schema instead would show fields this entry
+    # never had, or mislabel ones it does.
+    schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    created_by: UUID | None = None
+    created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

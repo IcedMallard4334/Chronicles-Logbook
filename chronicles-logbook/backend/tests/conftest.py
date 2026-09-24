@@ -26,6 +26,13 @@ os.environ["SESSION_SECRET_KEY"] = "test-session-secret-key-that-is-long-enough"
 os.environ["GOOGLE_CLIENT_ID"] = "test-google-client-id"
 os.environ["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret"
 os.environ["FRONTEND_URL"] = "http://frontend.test"
+# Explicit, not just "leave it unset": load_dotenv() (called by app.config,
+# imported below) does not override a key already in os.environ, but it
+# does happily set one from a developer's real backend/.env that isn't set
+# here yet — and ENABLE_DEV_LOGIN=true is exactly the kind of thing a local
+# .env legitimately has, for that developer's own local runs. Without this,
+# the test suite's behavior would depend on a file it never reads on purpose.
+os.environ["ENABLE_DEV_LOGIN"] = "false"
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

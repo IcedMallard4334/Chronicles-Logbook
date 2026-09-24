@@ -53,6 +53,7 @@ _ADDED_COLUMNS = (
     ("project_members", "status", "VARCHAR(20) NOT NULL DEFAULT 'accepted'"),
     ("project_members", "invited_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
     ("project_members", "responded_at", "TIMESTAMPTZ"),
+    ("entries", "title", "VARCHAR(255)"),
 )
 
 
