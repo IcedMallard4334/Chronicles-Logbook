@@ -350,4 +350,112 @@ placeholder... during data fetches" requirement) belongs to Story 5
 AI-assisted: porting, wiring, and the test file written with Claude Code
 (Sonnet 5).
 
+## 5. US-3.17 — Perceived performance & Lighthouse pass
+
+**Investigation (root cause, before any fix):** ran Google Lighthouse
+(installed locally — `npm install lighthouse chrome-launcher`, driven
+against a local Chrome install, mobile preset, standard simulated
+throttling — the same default most Lighthouse/PageSpeed Insights runs use)
+against the live site's landing page, the only page reachable without real
+account credentials (this sandbox has no way to complete a real Google
+OAuth sign-in against production, and the local dev-login script only
+works against a local backend/database, confirmed by reading it before
+relying on it):
+
+| Metric | Live site (`/`) |
+|---|---|
+| Performance score | 60/100 |
+| LCP | 8.2s |
+| FCP | 6.6s |
+| CLS | 0 (already fine — not the problem) |
+
+Traced the actual network waterfall rather than guessing: the document and
+all network requests finish loading by ~1.3s, but first paint doesn't
+happen until 6.6s — so the bottleneck isn't network or a slow API, it's
+what the browser has to do with what already arrived. `main.jsx` statically
+imports `App.jsx` (which imports `recharts`, `CalendarView`, the AI
+assistant, everything) into one 737KB bundle — loaded and parsed even for
+someone who hasn't signed in yet and is only looking at the sign-in page.
+`unused-javascript` audit: 553KB (75%) of that bundle unused on this page.
+No route-based code splitting existed anywhere (`vite.config.js` has no
+manual chunking; `main.jsx` had no `React.lazy`/`Suspense`). This is a
+frontend build/bundling problem, not a backend data-fetching one — checked
+that possibility first per the project owner's instruction, and the
+`server-response-time` and `network-server-latency` audits both came back
+fine (180ms/597ms respectively).
+
+**Fix:** `frontend/src/main.jsx` — every route except the landing page
+(`AuthPage`, static import, unavoidable — it's the first thing an
+unauthenticated visitor sees) converted to `React.lazy()`, wrapped in a
+single `<Suspense fallback={<ViewLoader delay={0} />}>` around the router.
+`MiraConsentGate` (a named export used to wrap the lazy `App`) split out via
+`.then(module => ({ default: module.MiraConsentGate }))` since `React.lazy`
+only resolves default exports.
+
+**Measured result** (built locally, served via `vite preview`, audited with
+the same Lighthouse config before and after — a real before/after on
+identical infrastructure, not a live-site re-run, since the fix isn't
+deployed):
+
+| Metric | Before | After |
+|---|---|---|
+| Performance score | 83 | 93 |
+| LCP | 3.7s | 2.6s |
+| FCP | 3.1s | 2.6s |
+| Total Blocking Time | 40ms | 0ms |
+| CLS | 0 | 0 |
+
+(These local numbers are lower than the live site's 8.2s/6.6s because they
+don't include the live site's real network distance to Azure UAE-North —
+the fix addresses the CPU/bundle-parsing bottleneck specifically, which is
+additive to and independent of that network cost, so the live site should
+see a comparable multi-second drop once deployed, but that can only be
+confirmed by re-running Lighthouse against the live URL after this branch
+ships.)
+
+Build output confirms the split: the landing page's critical JS dropped
+from 764KB to 237KB (`index-*.js`); the 499KB app chunk (`App-*.js`) still
+exists but now only loads once a signed-in visit reaches `/app`.
+
+**Skeleton loading placeholders (the other half of this story's AC1):**
+audited every major view's loading state before touching anything —
+`BoardView`, `OutstandingPage`, `TaskPanel`, `TodayPage`, `CalendarView`,
+`ProfilePage` already show an explicit "still loading" message
+(`role="status"`), and `HomeWorkspace` already had its own bespoke skeleton
+placeholder. All already satisfy AC1 as written ("skeleton placeholders
+*or* an explicit still-loading message"). Upgraded one — `EntriesPage`
+(`WorkspacePages.jsx`, my own code from Story 1) — from plain "Loading
+entries…" text to `SkeletonRows`, both because a table view suits row
+placeholders better than a message and to actually put `SkeletonRows`
+(shipped in Story 4, unused until now) to use somewhere. Didn't rewrite the
+other views' already-adequate loading states — proportionate to what the
+acceptance criterion actually asks for, not a blanket redesign.
+
+**Independently re-measured** (fresh agent, own `vite preview` instance, two
+separate Lighthouse runs): Performance 92–93, LCP 2.6–2.8s, FCP 2.6s, TBT
+0ms, CLS 0 both times — closely reproduces the numbers above. Honest
+caveat: LCP sits right at Google's 2.5s "good" boundary, not cleanly under
+it — a real, large improvement (8.2s → ~2.7s), not a fully "solved"
+number. Further gains from here would mean shrinking the 499KB app chunk
+itself (recharts is a likely next target), which is follow-up work, not
+done in this pass.
+
+**Also flagged:** `main.test.jsx` mocks `react-dom/client` entirely, so it
+never actually exercises Suspense/lazy resolution — it's a smoke test that
+the module imports without throwing, not real coverage of the lazy-loading
+behavior. The practical verification here came from Lighthouse actually
+loading the built app in real Chrome across multiple routes without
+errors, which is meaningful evidence but not a substitute for a real test;
+noted rather than quietly left uncovered.
+
+**Known follow-up, not done here:** re-running Lighthouse against the live
+URL once this branch is deployed, to confirm the same improvement holds
+with real network latency included, and to audit the authenticated `/app`
+pages directly (blocked in this session by not having real account
+credentials for the live deployment).
+
+AI-assisted: the Lighthouse investigation (tooling setup, trace analysis,
+root-cause tracing), the code-splitting fix, and the before/after
+measurement were done with Claude Code (Sonnet 5).
+
 <!-- Per-story sections appended below as each story completes. -->
