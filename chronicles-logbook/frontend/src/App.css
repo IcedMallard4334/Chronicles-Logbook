@@ -1410,6 +1410,7 @@
 }
 
 .hint {
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -1926,23 +1927,28 @@
    -------------------------------------------------- */
 
 .error {
+  margin: 0 0 12px;
   color: var(--error);
   font-size: 0.88rem;
   font-weight: 600;
 }
 
 .success {
-  padding: 12px 16px;
-  border: 1px solid var(--success-soft);
-  border-radius: var(--radius-sm);
-  background: var(--success-bg);
-  color: var(--success);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--blue-soft);
+  border-radius: var(--radius-md);
+  background: var(--blue-bg);
+  color: var(--blue);
   font-size: 0.88rem;
   font-weight: 600;
 }
 
 .success p {
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .btn-text {

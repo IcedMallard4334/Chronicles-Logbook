@@ -3127,10 +3127,11 @@ function App() {
           />
         </div>}
         <div className="content">
-          {/* Keyed on the tab, the timeline toggle and the open project, so
-              switching any of those animates, while a data refresh inside
-              one view (the same key) does not. */}
-          <ViewTransition viewKey={`${currentView}:${view}:${selectedId || "none"}`}>
+          {/* Keyed on the tab, the timeline toggle, the open project and the
+              loading flag, so switching any of those animates — including
+              the moment a fetch finishes and real content replaces the
+              loader, which now fades/slides in rather than popping in. */}
+          <ViewTransition viewKey={`${currentView}:${view}:${selectedId || "none"}:${loading ? "loading" : "ready"}`}>
             {loading ? (
               <ViewLoader label="Opening your logbook…" delay={0} />
             ) : currentView === "calendar" ? (

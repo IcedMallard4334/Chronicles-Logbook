@@ -126,7 +126,7 @@ export default function HelpPage() {
       </header>
 
       <main className="app-main help-main">
-        <div className="help-card">
+        <div className="help-card view-transition">
           <div className="help-header">
             <h1>Help &amp; documentation</h1>
             <p className="help-subtitle">

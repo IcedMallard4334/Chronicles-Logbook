@@ -63,7 +63,7 @@ function SessionGate({ children }) {
       <main className="auth-callback-shell">
         <section className="auth-callback-card" aria-live="polite">
           <ChroniclesLogo size={64} />
-          <h1>Restoring your session…</h1>
+          <h1>Picking up where you left off…</h1>
           <p className="auth-callback-hint">Just a moment.</p>
           <div className="auth-callback-spinner" aria-hidden="true" />
         </section>
@@ -117,7 +117,7 @@ function ProtectedHelpRoute() {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <Suspense fallback={<ViewLoader label="Loading…" delay={0} />}>
+      <Suspense fallback={<ViewLoader label="Turning the page…" delay={0} fullScreen />}>
         <Routes>
           <Route element={<SessionGate />}>
             <Route path="/" element={<LandingRoute />} />

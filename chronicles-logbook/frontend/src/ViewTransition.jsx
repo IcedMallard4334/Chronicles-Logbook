@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from "react"
+import ChroniclesLogo from "./ChroniclesLogo.jsx"
 import "./ViewTransition.css"
 
 /**
@@ -47,7 +48,7 @@ export default function ViewTransition({ viewKey, children }) {
  * `label` is announced to screen readers; the lines are decorative. `delay`
  * exists so that a request that resolves in 80ms never shows anything at all.
  */
-export function ViewLoader({ label = "Loading…", delay = 220 }) {
+export function ViewLoader({ label = "Loading…", delay = 220, fullScreen = false }) {
   const [visible, setVisible] = useState(delay === 0)
 
   useEffect(() => {
@@ -58,8 +59,9 @@ export function ViewLoader({ label = "Loading…", delay = 220 }) {
 
   if (!visible) return null
 
-  return (
-    <div className="view-loader" role="status" aria-live="polite">
+  const loader = (
+    <div className="view-loader view-transition" role="status" aria-live="polite">
+      {fullScreen && <ChroniclesLogo size={40} className="view-loader-logo" />}
       <svg className="view-loader-flow" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
         <path d="M-20 70 C60 20 120 100 200 50 S320 10 420 60" />
         <path d="M-20 40 C70 95 140 10 230 55 S340 90 420 30" />
@@ -68,6 +70,8 @@ export function ViewLoader({ label = "Loading…", delay = 220 }) {
       <span className="view-loader-label">{label}</span>
     </div>
   )
+
+  return fullScreen ? <div className="view-loader-screen">{loader}</div> : loader
 }
 
 /**

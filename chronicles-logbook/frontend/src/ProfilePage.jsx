@@ -246,7 +246,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="app-main profile-main">
-        <div className="profile-card">
+        <div className="profile-card view-transition">
           <div className="profile-header">
             <div className="profile-avatar">
               {user?.avatar_url ? (

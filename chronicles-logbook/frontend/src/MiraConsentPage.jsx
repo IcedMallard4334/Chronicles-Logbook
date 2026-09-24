@@ -5,22 +5,30 @@ import OnboardingLayout from './OnboardingLayout'
 import { readPreference } from './preferences'
 import './SetupPage.css'
 
+// Consent is decided once per sign-in and rarely changes; caching it here
+// means navigating away from /app and back doesn't re-show this gate's
+// loading screen every time. A fresh fetch still runs in the background to
+// pick up changes made on the Mira permissions page, it just doesn't block
+// the view the user already had access to a moment ago.
+let consentCache = null
+
 export function MiraConsentGate({ children }) {
-  const [state, setState] = useState('loading')
+  const [state, setState] = useState(consentCache?.decided ? 'ready' : 'loading')
   const navigate = useNavigate()
   useEffect(() => {
     let active = true
     fetchMiraConsent().then(choice => {
+      consentCache = choice
       if (!active) return
       if (!choice.decided) navigate('/mira-permissions', { replace: true })
       else setState('ready')
-    }).catch(() => { if (active) setState('error') })
+    }).catch(() => { if (active && !consentCache?.decided) setState('error') })
     return () => { active = false }
   }, [navigate])
   if (state === 'ready') return children
-  return <OnboardingLayout><section className="setup-card"><div className="mira-gate-status" role="status">
+  return <OnboardingLayout><section className="setup-card view-transition"><div className="mira-gate-status" role="status">
     {state !== 'error' && <span className="mira-gate-spinner" aria-hidden="true" />}
-    <p>{state === 'error' ? 'Could not load your Mira permissions.' : 'Checking your Mira preferences…'}</p>
+    <p>{state === 'error' ? 'Could not load your Mira permissions.' : 'Dusting off your logbook…'}</p>
   </div>{state === 'error' && <button className="btn-secondary" onClick={() => window.location.reload()}>Try again</button>}</section></OnboardingLayout>
 }
 
@@ -34,10 +42,11 @@ export default function MiraConsentPage() {
     setError('')
     try {
       await saveMiraConsent(accepted)
+      consentCache = { decided: true, accepted }
       navigate(`/app?view=${readPreference('start-view', 'home')}`, { replace: true })
     } catch { setError('Your choice could not be saved. Please try again.'); setSaving(false) }
   }
-  return <section className="setup-card" aria-labelledby="consent-title">
+  return <section className="setup-card view-transition" aria-labelledby="consent-title">
     <header className="setup-header"><p className="setup-eyebrow">STEP 3 OF 3 · YOUR CHOICE</p><h1 id="consent-title">Your work. Your permission.</h1><p>Choose how you use Mira before entering your workspace.</p></header>
     <section className="consent-summary" aria-label="Permission summary">
       <p><strong>Accept:</strong> Your Mira messages go to Google Gemini for AI replies and project proposals.</p>
