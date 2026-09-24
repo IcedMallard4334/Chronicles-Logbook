@@ -689,10 +689,19 @@ async def test_update_entry_rejects_fields_outside_the_schema(
     assert response.status_code == 422
 
 
-async def test_update_entry_validates_against_its_schema_snapshot(
+async def test_update_entry_validates_against_the_current_schema_after_a_change(
     authenticated_client, project_with_schema, existing_entry
 ):
-    """An existing entry continues using the schema captured at creation."""
+    """An edit is validated against the project's *current* schema.
+
+    A schema change already migrates every entry onto the new shape the
+    moment it is applied (see test_schema_editing.py), so by the time
+    anyone edits an old entry, its stored data already fits the current
+    schema. Validating an edit against anything else would let a stale
+    client revert this one entry back out of step with the rest of the
+    project — see docs/api/entries.md, "Editing an entry after the schema
+    has changed".
+    """
     project_id = project_with_schema["id"]
 
     schema_update = await authenticated_client.put(
@@ -708,15 +717,14 @@ async def test_update_entry_validates_against_its_schema_snapshot(
     )
     assert schema_update.status_code == 200
 
-    # The original shape remains valid for the historical entry.
-    original_shape = await authenticated_client.put(
+    # A stale client still holding the entry's original shape is rejected.
+    stale_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={"data": VALID_DATA},
     )
-    assert original_shape.status_code == 200
-    assert original_shape.json()["data"] == VALID_DATA
+    assert stale_shape.status_code == 422
 
-    # The new project shape is invalid for an entry using the old snapshot.
+    # An edit in the project's current shape succeeds.
     current_shape = await authenticated_client.put(
         f"/projects/{project_id}/entries/{existing_entry['id']}",
         json={
@@ -727,7 +735,38 @@ async def test_update_entry_validates_against_its_schema_snapshot(
             }
         },
     )
-    assert current_shape.status_code == 422
+    assert current_shape.status_code == 200
+    assert current_shape.json()["data"]["field-4"] == "Focused"
+
+
+async def test_schema_change_refreshes_entry_schema_snapshot(
+    authenticated_client, project_with_schema, existing_entry
+):
+    """Migrating an entry keeps its own schema_snapshot in step with what
+    its data was just migrated onto — not just the project's, and not just
+    at creation. Otherwise a later edit, or statistics reading historical
+    values, would be looking at a schema this entry's data no longer
+    actually matches."""
+    project_id = project_with_schema["id"]
+    new_schema = [
+        {"id": "field-1", "name": "Hours", "type": FieldType.NUMBER.value},
+        {"id": "field-2", "name": "Notes", "type": FieldType.TEXT.value},
+        {"id": "field-4", "name": "Mood", "type": FieldType.TEXT.value},
+    ]
+
+    schema_update = await authenticated_client.put(
+        f"/projects/{project_id}", json={"entry_schema": new_schema}
+    )
+    assert schema_update.status_code == 200
+    new_version = schema_update.json()["schema_version"]
+
+    entry = await authenticated_client.get(
+        f"/projects/{project_id}/entries/{existing_entry['id']}"
+    )
+    assert entry.status_code == 200
+    body = entry.json()
+    assert body["schema_version"] == new_version
+    assert body["schema_snapshot"] == new_schema
 
 
 async def test_update_entry_rejects_incomplete_data(

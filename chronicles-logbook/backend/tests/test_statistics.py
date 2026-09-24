@@ -330,9 +330,15 @@ async def test_field_statistics_respect_historical_schema_versions(
         field for field in body["fields"] if field["field_id"] == "category"
     )
 
-    assert category["count"] == 1
+    # old_entry predates "category" and was backfilled with the new
+    # dropdown's default ("Work", its first option) when the schema change
+    # was applied. Its own schema_snapshot is kept in step with that same
+    # migration (see projects.py's _replace_schema), so this value is
+    # correctly counted here rather than silently skipped as belonging to a
+    # field the entry's snapshot doesn't recognise.
+    assert category["count"] == 2
     assert category["groups"] == [
-        {"value": "Work", "count": 1}
+        {"value": "Work", "count": 2}
     ]
 
 async def test_field_timeline_returns_values_in_chronological_order(
@@ -534,9 +540,15 @@ async def test_field_timeline_respects_historical_schema_versions(
 
     assert [point["value"] for point in body["points"]] == [4, 8]
 
+    # Both points report schema_version 2: the schema change that added
+    # "category" migrated the first entry onto that same version too (its
+    # "hours" value is untouched by the migration, but the entry itself —
+    # and its schema_snapshot — moved forward with the rest of the
+    # project, same as every other entry). It never stays pinned at the
+    # version it happened to be created under.
     assert [
         point["schema_version"] for point in body["points"]
-    ] == [1, 2]
+    ] == [2, 2]
 
     assert body["points"][0]["created_at"].startswith("2026-05-01")
     assert body["points"][1]["created_at"].startswith("2026-05-05")

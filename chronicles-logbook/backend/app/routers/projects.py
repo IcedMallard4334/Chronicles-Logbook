@@ -505,11 +505,20 @@ async def _replace_schema(
 
     simulation, _ = await _plan_schema_change(project, proposed_schema, user, db)
 
+    new_version = project.schema_version + 1
+
     for migrated in simulation.entries:
         migrated.entry.data = migrated.data
         migrated.entry.retired_data = migrated.retired_data
+        # An entry's schema_snapshot is what a later edit is validated
+        # against (see update_entry) and what statistics reads a field's
+        # type from — both have to agree with what data was just migrated
+        # onto, or the entry disagrees with itself the moment anything
+        # touches it again.
+        migrated.entry.schema_version = new_version
+        migrated.entry.schema_snapshot = proposed_schema
 
-    project.schema_version += 1
+    project.schema_version = new_version
 
     project.entry_schema = proposed_schema
     project.retired_schema = simulation.retired_schema
@@ -741,8 +750,11 @@ async def update_entry(
 ):
     """Update an entry's values or the time spent on it.
 
-    Entry data is validated against the schema snapshot captured when the
-    entry was created, preserving its historical format across schema changes.
+    Entry data is validated against the project's *current* schema. A schema
+    change already migrates every entry onto that shape the moment it is
+    applied (see _replace_schema), so an edit that used anything else would
+    immediately put this one entry out of step with the rest of the project.
+    See "Editing an entry after the schema has changed" in the API docs.
     """
     project = await _get_user_project(project_id, user, db)
     entry = await _get_project_entry(entry_id, project_id, db)
@@ -754,7 +766,7 @@ async def update_entry(
         )
 
     if payload.data is not None:
-        entry_schema = entry.schema_snapshot or project.entry_schema
+        entry_schema = project.entry_schema
         payload_data = _apply_project_references(payload.data, entry_schema)
         await _validate_entry_data(
             payload_data,

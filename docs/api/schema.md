@@ -139,6 +139,12 @@ entries along. Three rules make that safe:
 3. **A field restored under the same id finds its values waiting.** This is what
    makes removing a field by mistake recoverable.
 
+Every migrated entry's own `schema_version`/`schema_snapshot` move forward
+with it in the same step — not just the project's. This is what lets a later
+edit to that entry validate against the shape it now actually holds, and lets
+[statistics](statistics.md) type a backfilled value correctly instead of
+reading it against a schema that predates the field.
+
 ### Changes that are detected
 
 | `kind` | Meaning | Severity |

@@ -120,9 +120,12 @@ PUT /projects/{project_id}/entries/{entry_id}
 
     If the schema changed after the entry was written, the update must satisfy the **new** shape. Values for fields that no longer exist in the schema are not carried over. Editing a typo on an old entry therefore migrates that entry to the current schema.
 
-    In practice a schema change already migrates every entry as it is made — see
+    A schema change already migrates every entry as it is made — see
     [Editing a live schema](schema.md#editing-a-live-schema) — so an entry is
-    normally in the current shape before anyone edits it.
+    always in the current shape before anyone edits it, not just normally.
+    Each entry's own `schema_version`/`schema_snapshot` (also returned on this
+    response) are refreshed by that same migration, so they never disagree
+    with what `data` actually holds.
 
 `created_at` cannot be changed. An entry's capture time is set once, at creation, so editing an entry never moves it in the timeline.
 

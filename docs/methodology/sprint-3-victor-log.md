@@ -141,4 +141,94 @@ question above, a relevance-scoring quality issue, and two places the
 `sort` validator needed extending in lockstep. All four were fixed before
 any code was written against the original plan.
 
+## 2. Schema edits should not corrupt old entries
+
+**Investigation (reported to the project owner before any fix was
+written):** eager migration (`_replace_schema` in `projects.py`) already
+never destroys data — a value that doesn't survive a schema change moves to
+`retired_data`, never deleted. But it never refreshed `entry.schema_version`/
+`entry.schema_snapshot`, which stayed frozen at creation time. That mattered
+because `update_entry` validated an edit against `entry.schema_snapshot or
+project.entry_schema` — the *stale* value — while `entry.data` had already
+been migrated to the *current* schema by the same eager migration. A test
+already on main, `test_update_entry_validates_against_its_schema_snapshot`,
+locked in the resulting bug: after a schema change, submitting an edit in
+the entry's original (superseded) shape succeeded and reverted that one
+entry's data back out of step with the rest of the project, while
+submitting the edit in the project's actual current shape was rejected with
+422 — the opposite of both common sense and what `docs/api/entries.md`
+already documented. A related discovery: `statistics.py` also reads a
+field's type from `entry.schema_snapshot`, so the same staleness was
+silently dropping backfilled values from statistics for any entry that had
+survived a migration.
+
+**Decision:** given a choice between (a) a small fix that keeps eager
+migration and closes the staleness/validation inconsistency, or (b) a much
+bigger rewrite to true immutable per-entry schema versioning with read-time
+reconciliation everywhere, the project owner chose (a) for performance —
+eager migration does the work once, at edit time, rather than reconciling
+on every read.
+
+**Changed:**
+
+- `backend/app/routers/projects.py` — `_replace_schema` now refreshes
+  `entry.schema_version`/`entry.schema_snapshot` to the new schema for
+  every entry it migrates, using the same `new_version` it assigns to the
+  project. `update_entry` now validates against `project.entry_schema`
+  (current) instead of the stale snapshot; docstring updated to match.
+- `backend/tests/test_entries.py` — the existing test rewritten
+  (`test_update_entry_validates_against_the_current_schema_after_a_change`)
+  to assert the corrected behavior (stale shape rejected, current shape
+  accepted), plus a new test confirming an entry's own
+  `schema_version`/`schema_snapshot` are refreshed by a migration.
+- `backend/tests/test_statistics.py` — two existing tests
+  (`test_field_statistics_respect_historical_schema_versions`,
+  `test_field_timeline_respects_historical_schema_versions`) updated: they
+  were passing only because they encoded the same staleness bug from the
+  statistics side (a backfilled value silently uncounted; an entry's
+  reported schema_version never advancing). **Flagged to the project
+  owner and explicitly approved before touching Person 3/Ronald's test
+  file** — no changes to `statistics.py` itself were needed or made, only
+  to what the tests assert the (now more accurate) output should be, with
+  a comment on each explaining why.
+- `backend/tests/test_structured_search.py` (from Story 1, US-3.11) —
+  one of my own tests changed behavior as a direct consequence of this
+  fix: an entry backfilled by a later schema change now correctly gets a
+  refreshed snapshot too, so it *does* answer a search condition on the
+  new field (previously excluded, which was the bug). Rewrote the test to
+  assert the corrected inclusion, and added a separate unit-level test
+  exercising `search.py`'s own defensive fallback (excluding a condition
+  on a field genuinely absent from a hand-crafted snapshot), since that
+  fallback is still correct and worth covering even though the staleness
+  gap it originally demonstrated can no longer occur through the normal
+  API path.
+- `docs/api/entries.md`, `docs/api/schema.md` — updated to state plainly
+  that an entry's schema_version/schema_snapshot move forward with every
+  migration that touches it, not just at creation.
+
+**A mistake made and caught during this story:** I initially also reworded
+`_validate_entry_data`'s "Unknown field: {id}" error into a plainer
+sentence, since the project owner asked for error messages a non-technical
+person could understand. Running the full test suite caught that this
+detail string is a *shared* contract: `frontend/src/offlineSync.js`'s
+`classifyFailure` pattern-matches the literal text "Unknown field" to
+decide whether a queued offline entry needs the user's attention or can be
+retried, and the import/transfer error format
+(`docs/api/transfer.md`) embeds the same string. Reworded the message
+without first checking who else depended on its exact text — reverted it
+immediately once the full suite (not just the backend) surfaced the
+problem. Left as a note for later: this wording *should* eventually be
+improved, but as its own change that updates every dependent call site
+together, not as a one-line aside inside an unrelated fix.
+
+AI-assisted: investigation, plan, implementation and tests with Claude
+Code (Sonnet 5). The plan was reviewed independently before implementation
+(also Sonnet 5, fresh context) — it verified every factual claim against
+the actual code, confirmed both `PUT /projects/{id}` and
+`PUT /projects/{id}/schema` route through the same fixed function, and
+caught the statistics-test breakage by actually applying the patch and
+running the suite rather than reasoning about it abstractly. That's the
+finding that was escalated to the project owner before the statistics test
+file was touched.
+
 <!-- Per-story sections appended below as each story completes. -->
