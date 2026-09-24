@@ -38,13 +38,32 @@ jobs:
           $profile = [xml]$env:AZURE_BACKEND_PUBLISH_PROFILE
           $entry = $profile.publishData.publishProfile | Where-Object { $_.publishMethod -eq 'ZipDeploy' } | Select-Object -First 1
           Write-Host "Deploying to: $($entry.publishUrl)"
-          $uri = "https://$($entry.publishUrl)/api/zipdeploy"
           $creds = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($entry.userName):$($entry.userPWD)"))
-          Invoke-RestMethod -Uri $uri `
-            -Method POST `
-            -Headers @{ Authorization = "Basic $creds" } `
-            -InFile ..\backend.zip `
-            -ContentType 'application/zip'
+          $headers = @{ Authorization = "Basic $creds" }
+
+          # A plain (synchronous) zipdeploy call blocks on this request until
+          # Oryx finishes installing dependencies on the server, which for
+          # this app routinely runs past the platform's own gateway timeout
+          # (~230s) and fails the job with a 504 even when the deployment
+          # goes on to succeed anyway. isAsync starts the deployment and
+          # hands back a status URL, so we can wait it out ourselves instead
+          # of racing the gateway's clock.
+          $deployUri = "https://$($entry.publishUrl)/api/zipdeploy?isAsync=true"
+          $response = Invoke-WebRequest -Uri $deployUri -Method POST -Headers $headers -InFile ..\backend.zip -ContentType 'application/zip'
+          $statusUri = $response.Headers['Location'] | Select-Object -First 1
+          if (-not $statusUri) { throw "zipdeploy did not return a deployment status URL to poll." }
+
+          Write-Host "Deployment started. Polling: $statusUri"
+          $deadline = (Get-Date).AddMinutes(15)
+          do {
+            Start-Sleep -Seconds 10
+            $status = Invoke-RestMethod -Uri $statusUri -Headers $headers
+            Write-Host "Status: $($status.status_text) (complete=$($status.complete))"
+          } until ($status.complete -or (Get-Date) -gt $deadline)
+
+          if (-not $status.complete) { throw "Deployment did not finish within 15 minutes." }
+          if ($status.status -ne 4) { throw "Deployment failed: $($status.status_text)" }
+          Write-Host "Deployment succeeded."
         working-directory: chronicles-logbook/backend
 
   deploy_frontend:
