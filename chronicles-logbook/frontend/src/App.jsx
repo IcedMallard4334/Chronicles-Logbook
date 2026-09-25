@@ -1856,7 +1856,7 @@ function EntryList({
   )
 }
 
-function Timeline({ projects }) {
+function FieldTimeline({ projects }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
   const [start, setStart] = useState("")
@@ -3159,7 +3159,7 @@ function App() {
             ) : currentView === "outstanding" ? (
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
             ) : view === "timeline" ? (
-              <Timeline projects={projects} onOpenProject={handleSelectProject} />
+              <FieldTimeline projects={projects} onOpenProject={handleSelectProject} />
             ) : selectedProject ? (
               <ProjectDetail
                 key={selectedProject.id}
