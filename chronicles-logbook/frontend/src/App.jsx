@@ -1856,6 +1856,43 @@ function EntryList({
   )
 }
 
+function EntryTimeline({ projects }) {
+  const [mode, setMode] = useState("entries")
+
+  if (mode === "fields") {
+    return (
+      <section>
+        <button
+          type="button"
+          onClick={() => setMode("entries")}
+        >
+          Entry timeline
+        </button>
+
+        <FieldTimeline projects={projects} />
+      </section>
+    )
+  }
+
+  return (
+    <section className="timeline" aria-label="Entry timeline">
+      <header className="timeline-header">
+        <h2>Activity</h2>
+        <p>
+          Browse your entries across all projects in chronological order.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setMode("fields")}
+        >
+          Field trends
+        </button>
+      </header>
+    </section>
+  )
+}
+
 function FieldTimeline({ projects }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
@@ -3159,7 +3196,7 @@ function App() {
             ) : currentView === "outstanding" ? (
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
             ) : view === "timeline" ? (
-              <FieldTimeline projects={projects} onOpenProject={handleSelectProject} />
+              <EntryTimeline projects={projects} />
             ) : selectedProject ? (
               <ProjectDetail
                 key={selectedProject.id}
