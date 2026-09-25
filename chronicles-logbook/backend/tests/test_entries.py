@@ -429,6 +429,122 @@ async def test_search_entries_pagination_applies_after_keyword_filter(
     assert len(third_data) == 1
     assert "match" in third_data[0]["data"]["field-2"].lower()
 
+async def test_search_entries_filters_by_start_date(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+
+    old = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(
+                2026, 1, 10, 9, 0, tzinfo=timezone.utc
+            ).isoformat(),
+        },
+    )
+
+    recent = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(
+                2026, 6, 10, 9, 0, tzinfo=timezone.utc
+            ).isoformat(),
+        },
+    )
+
+    response = await authenticated_client.get(
+        "/entries?start=2026-05-01T00:00:00%2B00:00"
+    )
+
+    assert response.status_code == 200
+
+    ids = [entry["id"] for entry in response.json()]
+
+    assert recent.json()["id"] in ids
+    assert old.json()["id"] not in ids
+
+
+async def test_search_entries_filters_by_end_date(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+
+    old = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(
+                2026, 1, 10, 9, 0, tzinfo=timezone.utc
+            ).isoformat(),
+        },
+    )
+
+    recent = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={
+            "data": VALID_DATA,
+            "created_at": datetime(
+                2026, 6, 10, 9, 0, tzinfo=timezone.utc
+            ).isoformat(),
+        },
+    )
+
+    response = await authenticated_client.get(
+        "/entries?end=2026-02-01T23:59:59%2B00:00"
+    )
+
+    assert response.status_code == 200
+
+    ids = [entry["id"] for entry in response.json()]
+
+    assert old.json()["id"] in ids
+    assert recent.json()["id"] not in ids
+
+
+async def test_search_entries_filters_by_date_range(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+
+    timestamps = [
+        datetime(2026, 1, 10, 9, 0, tzinfo=timezone.utc),
+        datetime(2026, 3, 10, 9, 0, tzinfo=timezone.utc),
+        datetime(2026, 6, 10, 9, 0, tzinfo=timezone.utc),
+    ]
+
+    created = []
+
+    for index, timestamp in enumerate(timestamps):
+        response = await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={
+                "data": {
+                    "field-1": index,
+                    "field-2": f"timeline entry {index}",
+                    "field-3": "Open",
+                },
+                "created_at": timestamp.isoformat(),
+            },
+        )
+        assert response.status_code == 201
+        created.append(response.json())
+
+    response = await authenticated_client.get(
+        "/entries"
+        "?start=2026-03-01T00:00:00%2B00:00"
+        "&end=2026-04-01T23:59:59%2B00:00"
+    )
+
+    assert response.status_code == 200
+
+    ids = [entry["id"] for entry in response.json()]
+
+    assert created[1]["id"] in ids
+    assert created[0]["id"] not in ids
+    assert created[2]["id"] not in ids
+
 
 # ── Client-supplied id and created_at ────────────────────────────────
 #

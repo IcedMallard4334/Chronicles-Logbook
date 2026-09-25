@@ -1,5 +1,6 @@
 """Global entry search and filtering endpoints."""
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -29,6 +30,8 @@ async def search_entries(
     project_id: UUID | None = None,
     tag: str | None = None,
     todo: bool | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     conditions: str | None = Query(
         None,
         description=(
@@ -100,6 +103,12 @@ async def search_entries(
         stmt = stmt.where(Entry.project_id == project_id)
     if todo is not None:
         stmt = stmt.where(Entry.todo == todo)
+
+    if start is not None:
+        stmt = stmt.where(Entry.created_at >= start)
+
+    if end is not None:
+        stmt = stmt.where(Entry.created_at <= end)
 
     if sort == "due_date":
         # Undated outstanding work sorts last: a deadline that exists is more
