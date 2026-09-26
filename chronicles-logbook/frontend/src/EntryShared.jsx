@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
-import { FIELD_TYPE_META, withComputedValues } from "./fieldTypes"
+import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
 
 // Kept separate from App.jsx (which has its own copy, same as ProfilePage.jsx
@@ -117,18 +117,38 @@ export function LinkChip({ targetId, projects, status, onOpen }) {
   )
 }
 
-function TagsInput({ value, onChange }) {
+function TagsInput({ value, onChange, suggestions = [] }) {
   const [input, setInput] = useState("")
+  const [notice, setNotice] = useState(null)
+  const suggestionId = useId()
+
+  // The tags already used elsewhere in this project, minus the ones on this
+  // entry: a filter only works when the same label is written the same way
+  // twice, so the second time is offered rather than remembered.
+  const offered = suggestions.filter((tag) => !value.includes(tag))
 
   const addTag = () => {
     const tag = input.trim()
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag])
+    if (!tag) return
+    if (tag.length > TAGS_LIMIT.length) {
+      setNotice(`A tag can be at most ${TAGS_LIMIT.length} characters.`)
+      return
     }
+    if (value.includes(tag)) {
+      setNotice(`"${tag}" is already on this entry.`)
+      return
+    }
+    if (value.length >= TAGS_LIMIT.count) {
+      setNotice(`An entry can carry up to ${TAGS_LIMIT.count} tags.`)
+      return
+    }
+    setNotice(null)
+    onChange([...value, tag])
     setInput("")
   }
 
   const removeTag = (tag) => {
+    setNotice(null)
     onChange(value.filter((t) => t !== tag))
   }
 
@@ -162,25 +182,58 @@ function TagsInput({ value, onChange }) {
       <input
         type="text"
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        maxLength={TAGS_LIMIT.length}
+        list={offered.length > 0 ? suggestionId : undefined}
+        onChange={(e) => {
+          setInput(e.target.value)
+          setNotice(null)
+        }}
         onKeyDown={handleKeyDown}
         placeholder={value.length === 0 ? "Type and press Enter…" : ""}
       />
+      {offered.length > 0 && (
+        <datalist id={suggestionId}>
+          {offered.map((tag) => (
+            <option key={tag} value={tag} />
+          ))}
+        </datalist>
+      )}
+      <span className="tags-count">
+        {value.length}/{TAGS_LIMIT.count} tags
+      </span>
+      {notice && (
+        <p className="field-notice" role="alert">
+          {notice}
+        </p>
+      )}
     </div>
   )
 }
 
 function ChecklistInput({ value, onChange }) {
   const [input, setInput] = useState("")
+  const [notice, setNotice] = useState(null)
 
   const addItem = () => {
     const text = input.trim()
-    if (text) {
-      onChange([
-        ...value,
-        { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
-      ])
+    if (!text) return
+    if (text.length > CHECKLIST_LIMIT.length) {
+      setNotice(`An item can be at most ${CHECKLIST_LIMIT.length} characters.`)
+      return
     }
+    if (value.some((item) => item.text.trim().toLowerCase() === text.toLowerCase())) {
+      setNotice(`"${text}" is already on this checklist.`)
+      return
+    }
+    if (value.length >= CHECKLIST_LIMIT.count) {
+      setNotice(`A checklist can hold up to ${CHECKLIST_LIMIT.count} items.`)
+      return
+    }
+    setNotice(null)
+    onChange([
+      ...value,
+      { id: `ci-${Math.random().toString(36).slice(2, 9)}`, text, completed: false },
+    ])
     setInput("")
   }
 
@@ -191,6 +244,7 @@ function ChecklistInput({ value, onChange }) {
   }
 
   const removeItem = (id) => {
+    setNotice(null)
     onChange(value.filter((item) => item.id !== id))
   }
 
@@ -217,6 +271,7 @@ function ChecklistInput({ value, onChange }) {
             type="checkbox"
             checked={item.completed}
             onChange={() => toggleItem(item.id)}
+            aria-label={item.completed ? `Untick ${item.text}` : `Tick ${item.text}`}
           />
           <span className={item.completed ? "checklist-done" : ""}>
             {item.text}
@@ -255,7 +310,11 @@ function ChecklistInput({ value, onChange }) {
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          maxLength={CHECKLIST_LIMIT.length}
+          onChange={(e) => {
+            setInput(e.target.value)
+            setNotice(null)
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Add item and press Enter…"
         />
@@ -265,8 +324,30 @@ function ChecklistInput({ value, onChange }) {
           {value.filter((i) => i.completed).length}/{value.length} complete
         </span>
       )}
+      {notice && (
+        <p className="field-notice" role="alert">
+          {notice}
+        </p>
+      )}
     </div>
   )
+}
+
+/**
+ * An entry named in one line.
+ *
+ * The first text a schema asked for is the closest thing an entry has to a
+ * title; when there is none, the day it was written stands in. Used wherever
+ * an entry has to be named in a single string — the link dropdown and the
+ * backlinks line under a row — so the same entry reads the same way in both.
+ */
+export function entryPreview(entry) {
+  if (!entry) return "An entry that is no longer there"
+  const firstText = Object.values(entry.data || {}).find(
+    (value) => typeof value === "string" && value.trim()
+  )
+  const text = firstText || `Entry of ${new Date(entry.created_at).toLocaleDateString()}`
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text
 }
 
 function LinkInput({ value, onChange, entries }) {
@@ -277,16 +358,11 @@ function LinkInput({ value, onChange, entries }) {
       className="link-select"
     >
       <option value="">No link</option>
-      {entries.map((entry) => {
-        // Build a preview from the first text field value
-        const preview = Object.values(entry.data || {})
-          .find((v) => typeof v === "string") || entry.id.slice(0, 8)
-        return (
-          <option key={entry.id} value={entry.id}>
-            {String(preview).slice(0, 60)} — {new Date(entry.created_at).toLocaleDateString()}
-          </option>
-        )
-      })}
+      {entries.map((entry) => (
+        <option key={entry.id} value={entry.id}>
+          {entryPreview(entry)} — {new Date(entry.created_at).toLocaleDateString()}
+        </option>
+      ))}
     </select>
   )
 }
@@ -298,7 +374,7 @@ function LinkInput({ value, onChange, entries }) {
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-export function EntryFieldInput({ field, value, computed, projects, status, entries = [], onOpenProject, onChange }) {
+export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange }) {
   if (field.type === "computed") {
     // The badge's word and colour come from the field-type registry, so the
     // form, the table and the schema view can never disagree about what a
@@ -356,6 +432,7 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
         <TagsInput
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
+          suggestions={suggestions}
         />
       </div>
     )
@@ -423,7 +500,7 @@ export function formatEntryValue(field, value, projectNames) {
   if (field?.type === "project_reference") {
     return projectNames.get(value) || "A project you no longer have"
   }
-  return String(value)
+  return humaniseValue(value)
 }
 
 /**
@@ -445,7 +522,7 @@ export function RetiredValues({ retiredData, retiredSchema }) {
         {fields.map((field) => (
           <div key={field.id} className="log-field">
             <span className="log-label">{field.name}</span>
-            <span className="log-value">{String(retiredData[field.id])}</span>
+            <span className="log-value">{humaniseValue(retiredData[field.id])}</span>
           </div>
         ))}
       </div>
@@ -463,7 +540,7 @@ export function RetiredValues({ retiredData, retiredSchema }) {
  * appears when the entry is actually stale; an entry already on the current
  * schema has nothing to choose between.
  */
-export function EntryDetailModal({ project, entry, projects = [], canManage = true, onClose, onSaved, onDeleted }) {
+export function EntryDetailModal({ project, entry, projects = [], entries = [], canManage = true, onClose, onSaved, onDeleted }) {
   const [mode, setMode] = useState("view")
   const [migrateChosen, setMigrateChosen] = useState(false)
   const [migrationError, setMigrationError] = useState(null)
@@ -502,6 +579,29 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
   )
   const statuses = useProjectStatuses(linkedIds)
   const linkable = useMemo(() => projects.filter((item) => item.id !== project.id), [projects, project.id])
+
+  // A link may only name an entry in the same project (US-2.3), and the tags
+  // worth offering are the ones this project already uses (US-2.1) — so both
+  // read from the project's own entries. The entry being edited is excluded
+  // from its own link options: a link to itself carries no information.
+  const linkOptions = useMemo(
+    () => entries.filter((item) => item.id !== entry.id),
+    [entries, entry.id]
+  )
+  const entryById = useMemo(() => new Map(entries.map((item) => [item.id, item])), [entries])
+  const tagSuggestions = useMemo(() => {
+    const tagFields = activeSchema.filter((field) => field.type === "tags")
+    if (tagFields.length === 0) return []
+    const seen = new Set()
+    for (const item of entries) {
+      for (const field of tagFields) {
+        for (const tag of item.data?.[field.id] || []) {
+          if (typeof tag === "string" && tag.trim()) seen.add(tag)
+        }
+      }
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b))
+  }, [entries, activeSchema])
 
   useEffect(() => {
     if (!migrateChosen) {
@@ -630,6 +730,13 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
                         projects={projects}
                         status={statuses[entry.data[field.id]]}
                       />
+                    ) : field.type === "link" && entry.data?.[field.id] ? (
+                      <span
+                        className="link-badge"
+                        title={entryById.has(entry.data[field.id]) ? "This entry links to that one" : "The entry it linked to is gone"}
+                      >
+                        ↳ {entryById.has(entry.data[field.id]) ? entryPreview(entryById.get(entry.data[field.id])) : "linked entry"}
+                      </span>
                     ) : (
                       formatEntryValue(field, entry.data?.[field.id], projectNames)
                     )}
@@ -719,6 +826,8 @@ export function EntryDetailModal({ project, entry, projects = [], canManage = tr
                   computed={withComputedValues(data, activeSchema)[field.id]}
                   projects={linkable}
                   status={statuses[field.linked_project_id]}
+                  entries={linkOptions}
+                  suggestions={tagSuggestions}
                   onChange={handleFieldChange}
                 />
               ))}

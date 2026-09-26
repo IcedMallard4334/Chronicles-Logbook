@@ -2407,6 +2407,28 @@ button.log-link-chip:hover {
   margin-bottom: 10px;
 }
 
+/* The entries that point at this one (US-2.3). A quiet footnote under the
+   row: the value it explains is the link column above it, and this is the
+   other half of that story. */
+.entry-backlinks {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.entry-backlinks-label {
+  margin-right: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.entry-backlink {
+  margin-right: 10px;
+}
+
 /* --------------------------------------------------
    COMPUTED ENTRY FIELDS
    -------------------------------------------------- */
@@ -3197,6 +3219,23 @@ button.log-link-chip:hover {
 .checklist-count {
   font-size: 0.78rem;
   color: var(--muted, #888);
+}
+
+/* How full the field is, beside the control that fills it: a limit someone
+   can see coming is not a limit they run into. */
+.tags-count {
+  font-size: 0.78rem;
+  color: var(--muted, #888);
+}
+
+/* A refusal from the field itself — a duplicate item, a tag past the limit —
+   said under the control being used rather than in the form's error line,
+   which belongs to the save. */
+.field-notice {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--error, #b91c1c);
 }
 
 .checklist-preview {

@@ -859,3 +859,322 @@ describe("reading entries back", () => {
     expect(within(list).getByTitle("Calculated")).toBeInTheDocument()
   })
 })
+
+// ── Rich entries (US-2.1, US-2.2, US-2.3) ────────────────────────────────────
+
+describe("filling in a rich entry", () => {
+  const TAGS = { id: "f-tags", name: "Labels", type: "tags" }
+  const CHECKLIST = { id: "f-checklist", name: "Steps", type: "checklist" }
+  const ENTRY_LINK = { id: "f-entry-link", name: "Follows on from", type: "link" }
+
+  // The placeholder disappears once a tag is on the entry, so the input is
+  // found by where it lives rather than by what it says while empty.
+  const tagInput = () => document.querySelector(".tags-input input")
+  const addTag = (tag) => {
+    fireEvent.change(tagInput(), { target: { value: tag } })
+    fireEvent.keyDown(tagInput(), { key: "Enter" })
+  }
+
+  const itemInput = () => document.querySelector(".checklist-add input")
+  const addItem = (text) => {
+    fireEvent.change(itemInput(), { target: { value: text } })
+    fireEvent.keyDown(itemInput(), { key: "Enter" })
+  }
+
+  it("keeps tags as chips and counts them against the limit", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addTag("prototype")
+    addTag("research")
+
+    expect(screen.getByText("prototype")).toBeInTheDocument()
+    expect(screen.getByText("research")).toBeInTheDocument()
+    expect(screen.getByText("2/10 tags")).toBeInTheDocument()
+
+    // A chip is a thing you can take off again, which is the point of tags.
+    fireEvent.click(screen.getByRole("button", { name: "Remove prototype" }))
+    expect(screen.queryByText("prototype")).not.toBeInTheDocument()
+    expect(screen.getByText("1/10 tags")).toBeInTheDocument()
+  })
+
+  it("refuses an eleventh tag, the most an entry can carry", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    for (let index = 0; index < 10; index += 1) addTag(`tag-${index}`)
+    addTag("one-too-many")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("up to 10 tags")
+    expect(screen.getByText("10/10 tags")).toBeInTheDocument()
+    expect(screen.queryByText("one-too-many")).not.toBeInTheDocument()
+  })
+
+  it("refuses a tag longer than thirty characters", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addTag("x".repeat(31))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("at most 30 characters")
+    expect(screen.getByText("0/10 tags")).toBeInTheDocument()
+  })
+
+  it("refuses a tag the entry already carries", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addTag("prototype")
+    addTag("prototype")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("already on this entry")
+    expect(screen.getByText("1/10 tags")).toBeInTheDocument()
+  })
+
+  it("offers the tags earlier entries already carry", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-tags": ["prototype"] }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    const suggested = [...document.querySelectorAll("datalist option")].map(
+      (option) => option.value
+    )
+    expect(suggested).toContain("prototype")
+  })
+
+  it("will not save a tags field that carries no tags", async () => {
+    // The server refuses an empty tags list (US-2.1); the form says so beside
+    // itself first, rather than as a rejection after the entry was sent.
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("needs at least one tag")
+    expect(createEntry).not.toHaveBeenCalled()
+  })
+
+  it("ticks a checklist item and counts the progress", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [CHECKLIST] },
+      otherProject,
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addItem("Pack bags")
+    expect(screen.getByText("0/1 complete")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tick Pack bags" }))
+    expect(screen.getByText("1/1 complete")).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Untick Pack bags" })).toBeChecked()
+  })
+
+  it("refuses a checklist item the list already carries", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [CHECKLIST] },
+      otherProject,
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addItem("Pack bags")
+    addItem("pack bags")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("already on this checklist")
+    expect(screen.getByText("0/1 complete")).toBeInTheDocument()
+  })
+
+  it("refuses a checklist item longer than thirty characters", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [CHECKLIST] },
+      otherProject,
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    addItem("x".repeat(31))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("at most 30 characters")
+  })
+
+  it("refuses a twenty-first checklist item", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [CHECKLIST] },
+      otherProject,
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    for (let index = 0; index < 20; index += 1) addItem(`step-${index}`)
+    addItem("one-too-many")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("up to 20 items")
+    expect(screen.queryByText("one-too-many")).not.toBeInTheDocument()
+  })
+
+  it("saves the tags and checklist that were filled in", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [NOTES, TAGS, CHECKLIST] },
+      otherProject,
+    ])
+    createEntry.mockResolvedValue({ id: "e1", data: {}, created_at: "2026-09-12T10:00:00Z" })
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Packed the van" } })
+    addTag("prototype")
+    addItem("Pack bags")
+
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    await waitFor(() =>
+      expect(createEntry).toHaveBeenCalledWith("proj-1", {
+        data: {
+          "f-notes": "Packed the van",
+          "f-tags": ["prototype"],
+          "f-checklist": [
+            { id: expect.any(String), text: "Pack bags", completed: false },
+          ],
+        },
+        time_spent: null,
+        todo: false,
+        due_date: null,
+      })
+    )
+  })
+
+  it("offers the project's recorded entries to link to", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [ENTRY_LINK, NOTES] },
+      otherProject,
+    ])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-notes": "Bought the tent" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    const select = await screen.findByLabelText("Follows on from")
+    await waitFor(() =>
+      expect(within(select).getByRole("option", { name: /Bought the tent/ })).toBeInTheDocument()
+    )
+  })
+
+  it("offers an entry created a moment ago, without a reload", async () => {
+    // The dropdown used to be filled once when the form mounted, so the
+    // first entry of a session could not be linked to anything.
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [ENTRY_LINK, NOTES] },
+      otherProject,
+    ])
+    createEntry.mockResolvedValue({
+      id: "e2",
+      data: { "f-notes": "Pitched the tent" },
+      created_at: "2026-09-12T10:00:00Z",
+    })
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Pitched the tent" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    const select = screen.getByLabelText("Follows on from")
+    await waitFor(() =>
+      expect(within(select).getByRole("option", { name: /Pitched the tent/ })).toBeInTheDocument()
+    )
+  })
+})
+
+describe("reading rich values back", () => {
+  const TAGS = { id: "f-tags", name: "Labels", type: "tags" }
+  const CHECKLIST = { id: "f-checklist", name: "Steps", type: "checklist" }
+  const ENTRY_LINK = { id: "f-entry-link", name: "Follows on from", type: "link" }
+
+  it("shows tags as chips and a checklist as progress, never as JSON", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [TAGS, CHECKLIST] },
+      otherProject,
+    ])
+    fetchEntries.mockResolvedValue([
+      {
+        id: "e1",
+        data: {
+          "f-tags": ["prototype", "urgent"],
+          "f-checklist": [
+            { id: "ci-1", text: "Pack bags", completed: true },
+            { id: "ci-2", text: "Book taxi", completed: false },
+          ],
+        },
+        created_at: "2026-09-12T10:00:00Z",
+      },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    expect(within(list).getByText("prototype")).toBeInTheDocument()
+    expect(within(list).getByText("urgent")).toBeInTheDocument()
+    expect(within(list).getByText("1 of 2 done")).toBeInTheDocument()
+    expect(within(list).queryByText(/\[object Object\]/)).not.toBeInTheDocument()
+  })
+
+  it("names the entry a link points at, and the entries that point back", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [NOTES, ENTRY_LINK] },
+      otherProject,
+    ])
+    fetchEntries.mockResolvedValue([
+      {
+        id: "e1",
+        data: { "f-notes": "Read the manual" },
+        created_at: "2026-09-12T10:00:00Z",
+      },
+      {
+        id: "e2",
+        data: { "f-notes": "Built the shelf", "f-entry-link": "e1" },
+        created_at: "2026-09-12T11:00:00Z",
+      },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    // The link column names its target rather than showing the id it stores.
+    expect(within(list).getByTitle("This entry links to that one")).toHaveTextContent(
+      "↳ Read the manual"
+    )
+    // And the target names the entries that point at it (US-2.3).
+    const backlinks = within(list).getByText("Linked from").closest("p")
+    expect(within(backlinks).getByText("Built the shelf")).toBeInTheDocument()
+  })
+
+  it("says plainly when a link's target is not among the entries", async () => {
+    fetchProjects.mockResolvedValue([
+      { ...fieldNotes, entry_schema: [NOTES, ENTRY_LINK] },
+      otherProject,
+    ])
+    fetchEntries.mockResolvedValue([
+      {
+        id: "e1",
+        data: { "f-notes": "Read the manual", "f-entry-link": "e-gone" },
+        created_at: "2026-09-12T10:00:00Z",
+      },
+    ])
+
+    await openProject()
+
+    const list = await entryList()
+    expect(
+      within(list).getByTitle("The entry it linked to is gone")
+    ).toHaveTextContent("An entry that is no longer there")
+  })
+})

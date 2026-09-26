@@ -107,6 +107,77 @@ async def test_tags_reject_non_string_items(authenticated_client, rich_project):
     assert response.status_code == 422
 
 
+async def test_tags_reject_empty_list(authenticated_client, rich_project):
+    """A tags field needs at least one tag — an empty list is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Untagged entry",
+                "f-tags": [],
+                "f-checklist": [],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "at least one tag" in response.json()["detail"].lower()
+
+
+async def test_tags_reject_too_many(authenticated_client, rich_project):
+    """More than ten tags on one entry is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Over-tagged entry",
+                "f-tags": [f"tag-{index}" for index in range(11)],
+                "f-checklist": [],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "10" in response.json()["detail"]
+
+
+async def test_tags_reject_overlong_tag(authenticated_client, rich_project):
+    """A single tag longer than thirty characters is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Long tag",
+                "f-tags": ["x" * 31],
+                "f-checklist": [],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "30" in response.json()["detail"]
+
+
+async def test_tags_reject_blank_tag(authenticated_client, rich_project):
+    """A tag made only of whitespace is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Blank tag",
+                "f-tags": ["   "],
+                "f-checklist": [],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+
+
 async def test_update_entry_adds_and_removes_tags(
     authenticated_client, rich_project, entry_a
 ):
@@ -161,6 +232,27 @@ async def test_global_search_filters_by_tag(
     assert results[0]["id"] == entry_a["id"]
 
 
+async def test_global_search_returns_schema_snapshot(
+    authenticated_client, rich_project, entry_a
+):
+    """Global search carries each entry's schema snapshot.
+
+    The snapshot is what lets a reader render a link value as words instead
+    of showing the target's bare id: without it, an entry id is
+    indistinguishable from an id-shaped text value (US-2.3).
+    """
+    response = await authenticated_client.get("/entries", params={"tag": "backend"})
+    assert response.status_code == 200
+    results = response.json()
+    assert len(results) == 1
+    types_by_id = {
+        field["id"]: field["type"] for field in results[0]["schema_snapshot"]
+    }
+    assert types_by_id.get("f-link") == FieldType.LINK.value
+    assert types_by_id.get("f-tags") == FieldType.TAGS.value
+    assert types_by_id.get("f-checklist") == FieldType.CHECKLIST.value
+
+
 # ── US-2.2  Add checklists to an entry ───────────────────────────────
 
 
@@ -172,7 +264,7 @@ async def test_create_entry_with_checklist(authenticated_client, rich_project):
         json={
             "data": {
                 "f-title": "Checklist entry",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [
                     {"id": "ci-a", "text": "Design schema", "completed": True},
                     {"id": "ci-b", "text": "Build form", "completed": False},
@@ -197,7 +289,7 @@ async def test_checklist_rejects_missing_text(authenticated_client, rich_project
         json={
             "data": {
                 "f-title": "Bad checklist",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [{"id": "ci-1"}],  # missing 'text'
                 "f-link": "",
             },
@@ -214,8 +306,91 @@ async def test_checklist_rejects_non_list(authenticated_client, rich_project):
         json={
             "data": {
                 "f-title": "Bad checklist",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": "not-a-list",
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_checklist_rejects_duplicate_items(authenticated_client, rich_project):
+    """Two items with the same text are rejected — steps must be unique."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Duplicate steps",
+                "f-tags": ["general"],
+                "f-checklist": [
+                    {"id": "ci-1", "text": "Write tests", "completed": False},
+                    {"id": "ci-2", "text": "write tests", "completed": True},
+                ],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "unique" in response.json()["detail"].lower()
+
+
+async def test_checklist_rejects_overlong_item(authenticated_client, rich_project):
+    """An item longer than thirty characters is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Long step",
+                "f-tags": ["general"],
+                "f-checklist": [
+                    {"id": "ci-1", "text": "y" * 31, "completed": False},
+                ],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "30" in response.json()["detail"]
+
+
+async def test_checklist_rejects_too_many_items(authenticated_client, rich_project):
+    """More than twenty items in one checklist is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Long checklist",
+                "f-tags": ["general"],
+                "f-checklist": [
+                    {"id": f"ci-{index}", "text": f"Step {index}", "completed": False}
+                    for index in range(21)
+                ],
+                "f-link": "",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "20" in response.json()["detail"]
+
+
+async def test_checklist_rejects_non_boolean_completed(
+    authenticated_client, rich_project
+):
+    """A non-boolean completion state is rejected."""
+    pid = rich_project["id"]
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "data": {
+                "f-title": "Bad completion flag",
+                "f-tags": ["general"],
+                "f-checklist": [
+                    {"id": "ci-1", "text": "Write tests", "completed": "yes"},
+                ],
                 "f-link": "",
             },
         },
@@ -289,7 +464,7 @@ async def test_create_entry_with_link(authenticated_client, rich_project, entry_
         json={
             "data": {
                 "f-title": "Linked entry",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": entry_a["id"],
             },
@@ -310,7 +485,7 @@ async def test_link_rejects_nonexistent_entry(
         json={
             "data": {
                 "f-title": "Broken link",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": fake_id,
             },
@@ -328,13 +503,84 @@ async def test_link_rejects_invalid_uuid(authenticated_client, rich_project):
         json={
             "data": {
                 "f-title": "Bad link",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": "not-a-uuid",
             },
         },
     )
     assert response.status_code == 422
+
+
+async def test_link_rejects_self_link(authenticated_client, rich_project, entry_a):
+    """An entry cannot be linked to itself."""
+    pid = rich_project["id"]
+    response = await authenticated_client.put(
+        f"/projects/{pid}/entries/{entry_a['id']}",
+        json={
+            "data": {
+                "f-title": "Entry A",
+                "f-tags": entry_a["data"]["f-tags"],
+                "f-checklist": entry_a["data"]["f-checklist"],
+                "f-link": entry_a["id"],
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "itself" in response.json()["detail"].lower()
+
+
+async def test_link_rejects_self_link_on_create(authenticated_client, rich_project):
+    """A create that names its own id and links to it is rejected."""
+    pid = rich_project["id"]
+    chosen_id = str(uuid4())
+    response = await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={
+            "id": chosen_id,
+            "data": {
+                "f-title": "Self-referencing entry",
+                "f-tags": ["general"],
+                "f-checklist": [],
+                "f-link": chosen_id,
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "itself" in response.json()["detail"].lower()
+
+
+async def test_link_rejects_entry_in_another_project(
+    authenticated_client, rich_project, entry_a
+):
+    """A link must point at an entry in the same project."""
+    response = await authenticated_client.post(
+        "/projects",
+        json={
+            "name": "Somewhere Else",
+            "entry_schema": [{"id": "f-note", "name": "Note", "type": "text"}],
+        },
+    )
+    other_project = response.json()
+    response = await authenticated_client.post(
+        f"/projects/{other_project['id']}/entries",
+        json={"data": {"f-note": "Work in another project"}},
+    )
+    outsider = response.json()
+
+    response = await authenticated_client.post(
+        f"/projects/{rich_project['id']}/entries",
+        json={
+            "data": {
+                "f-title": "Cross-project link",
+                "f-tags": ["general"],
+                "f-checklist": [],
+                "f-link": outsider["id"],
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "different project" in response.json()["detail"].lower()
 
 
 async def test_bidirectional_link_lookup(
@@ -349,7 +595,7 @@ async def test_bidirectional_link_lookup(
         json={
             "data": {
                 "f-title": "Entry B links to A",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": entry_a["id"],
             },
@@ -380,7 +626,7 @@ async def test_delete_entry_clears_broken_links(
         json={
             "data": {
                 "f-title": "Entry B links to A",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": entry_a["id"],
             },
@@ -410,7 +656,7 @@ async def test_empty_link_value_is_accepted(authenticated_client, rich_project):
         json={
             "data": {
                 "f-title": "No link",
-                "f-tags": [],
+                "f-tags": ["general"],
                 "f-checklist": [],
                 "f-link": "",
             },
