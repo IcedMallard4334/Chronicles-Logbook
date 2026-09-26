@@ -162,15 +162,18 @@ describe("App workspace", () => {
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
 
-  it("opens the field timeline view from the sidebar", async () => {
+  it("opens the entry timeline view from the sidebar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    expect(await screen.findByRole("heading", { name: "Field Timeline" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Select project")).toBeInTheDocument()
-    expect(screen.getByLabelText("Select field")).toBeInTheDocument()
-    expect(screen.getByLabelText("Start date")).toBeInTheDocument()
-    expect(screen.getByLabelText("End date")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("heading", { name: "Activity" })
+    ).toBeInTheDocument()
+
+    expect(
+      screen.getByText(
+        "Browse your entries across all projects in chronological order."
+      )
+    ).toBeInTheDocument()
   })
 
   it("generates a field timeline for a selected project and field", async () => {
@@ -201,6 +204,10 @@ describe("App workspace", () => {
 
   fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
 
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Field trends" }),
+  )
+
   fireEvent.change(screen.getByLabelText("Select project"), {
     target: { value: "proj-1" },
   })
@@ -226,13 +233,9 @@ describe("App workspace", () => {
     target: { value: "2026-05-31" },
   })
 
-  console.log("ABOUT TO SUBMIT")
-
   fireEvent.submit(
     screen.getByRole("button", { name: "Generate timeline" }).closest("form"),
   )
-
-  console.log("SUBMIT FINISHED")
 
   await waitFor(() => {
     expect(fetchFieldTimeline).toHaveBeenCalledWith(
@@ -267,7 +270,14 @@ describe("App workspace", () => {
     render(<MemoryRouter><App /></MemoryRouter>)
 
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Field trends" }),
+    )
+
+    fireEvent.change(screen.getByLabelText("Select project"), {
+      target: { value: "proj-1" },
+    })
     await waitFor(() => expect(screen.getByLabelText("Select field")).toBeEnabled())
     fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
     fireEvent.submit(screen.getByRole("button", { name: "Generate timeline" }).closest("form"))

@@ -258,7 +258,7 @@ describe("api", () => {
     expect(result).toEqual(entries)
   })
 
-  it("fetches entries globally with search and project filters", async () => {
+  it("fetches entries globally with search, project and date filters", async () => {
     const entries = [{ id: "entry-1", data: { hours: 2 } }]
     fetch.mockResolvedValueOnce({
       ok: true,
@@ -269,12 +269,14 @@ describe("api", () => {
     const result = await fetchEntriesGlobal({
       q: "notes",
       projectId: "proj-1",
+      start: "2026-09-01T00:00:00",
+      end: "2026-09-30T23:59:59.999",
       page: 2,
       pageSize: 10,
     })
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/entries?q=notes&project_id=proj-1&page=2&page_size=10",
+      "http://localhost:8000/entries?q=notes&project_id=proj-1&start=2026-09-01T00%3A00%3A00&end=2026-09-30T23%3A59%3A59.999&page=2&page_size=10",
       {
         credentials: "include", headers: { "Content-Type": "application/json" },
       }
