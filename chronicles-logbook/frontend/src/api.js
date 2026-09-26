@@ -257,6 +257,10 @@ export async function fetchEntry(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}`)
 }
 
+export async function fetchEntryHistory(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/history`)
+}
+
 // What bringing this one entry up to the project's current schema would
 // produce, without saving it — feeds the "update to current schema" choice
 // in the entry detail view so it can show real values before committing.
@@ -384,21 +388,6 @@ export async function fetchFieldTimeline(projectId, fieldId, start, end) {
 
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
-}
-
-// Local development only — see AuthPage's "Continue without Google" option
-// and the backend's ENABLE_DEV_LOGIN setting. Stores the session exactly
-// like a real Google sign-in does, so the rest of the app can't tell them
-// apart.
-export async function devLogin(email, fullName) {
-  const session = await request("/auth/dev-login", {
-    method: "POST",
-    body: JSON.stringify({ email: email || undefined, full_name: fullName || undefined }),
-  })
-  window.localStorage.removeItem("chronicles_signed_out")
-  window.localStorage.setItem("chronicles_token", session.access_token)
-  window.localStorage.setItem("chronicles_user", JSON.stringify(session.user))
-  return session
 }
 
 export async function fetchCurrentUser() {

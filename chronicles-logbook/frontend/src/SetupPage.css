@@ -38,6 +38,34 @@
 .setup-options label { display: grid; gap: 7px; color: var(--muted); font-size: .76rem; font-weight: 700; }
 .setup-options select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--text); }
 .setup-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 24px 0 0; }
+/* Onboarding loads before the workspace bundle, so it needs its own small
+   action treatment instead of relying on App.css. It follows the same clear
+   primary/secondary shape as the workspace's "Open Today" action and picks
+   up whichever accent the person has just chosen. */
+.setup-footer .btn-primary,
+.setup-footer .btn-secondary {
+  min-height: 48px;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.setup-footer .btn-primary {
+  border: 1px solid var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+.setup-footer .btn-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.setup-footer .btn-secondary {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+.setup-footer .btn-secondary:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.setup-footer .btn-primary:disabled,
+.setup-footer .btn-secondary:disabled { cursor: wait; opacity: .55; }
 .mira-gate-status { display: flex; align-items: center; gap: 10px; padding: 20px 0; color: var(--muted); }
 .mira-gate-spinner { width: 18px; height: 18px; flex: 0 0 auto; border: 2px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: mira-gate-spin .8s linear infinite; }
 @keyframes mira-gate-spin { to { transform: rotate(360deg); } }

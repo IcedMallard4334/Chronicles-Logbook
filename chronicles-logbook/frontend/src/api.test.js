@@ -10,6 +10,7 @@ import {
   fetchFieldStatistics,
   fetchEntriesGlobal,
   fetchEntry,
+  fetchEntryHistory,
   fetchEntryMigrationPreview,
   fetchFieldTimeline,
   fetchProjects,
@@ -115,6 +116,17 @@ describe("api", () => {
       { credentials: "include", headers: { "Content-Type": "application/json" } }
     )
     expect(result).toEqual(entry)
+  })
+
+  it("fetches immutable entry revisions", async () => {
+    const history = [{ id: "revision-2", revision: 2 }]
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => history })
+
+    await expect(fetchEntryHistory("proj-1", "entry-1")).resolves.toEqual(history)
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/projects/proj-1/entries/entry-1/history",
+      { credentials: "include", headers: { "Content-Type": "application/json" } }
+    )
   })
 
   it("updates an entry's data without touching time_spent", async () => {

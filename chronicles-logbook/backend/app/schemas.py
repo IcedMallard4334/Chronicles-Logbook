@@ -446,6 +446,25 @@ class EntryResponse(BaseModel):
     updated_at: datetime
 
 
+class EntryRevisionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    entry_id: UUID
+    revision: int
+    title: str | None = None
+    data: dict[str, Any]
+    retired_data: dict[str, Any] = Field(default_factory=dict)
+    schema_version: int
+    schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    time_spent: int | None = None
+    todo: bool = False
+    due_date: date | None = None
+    changed_by: UUID | None = None
+    changed_by_name: str | None = None
+    changed_at: datetime
+
+
 # ── Tasks ────────────────────────────────────────────────────────────
 
 

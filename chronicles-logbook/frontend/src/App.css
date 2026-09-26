@@ -2678,6 +2678,41 @@ button.log-link-chip:hover {
   font-size: 0.88rem;
 }
 
+.entry-history {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.entry-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entry-history-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.entry-history-revision {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.entry-history-revision summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.entry-history-revision .entry-detail-fields {
+  margin: 14px 0 0;
+}
+
 /* --------------------------------------------------
    DELETE ACCOUNT MODAL
    -------------------------------------------------- */

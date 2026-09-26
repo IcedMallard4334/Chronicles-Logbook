@@ -299,6 +299,39 @@ class Entry(Base):
     )
 
 
+class EntryRevision(Base):
+    """An immutable snapshot of an entry after it is created or edited."""
+
+    __tablename__ = "entry_revisions"
+    __table_args__ = (UniqueConstraint("entry_id", "revision", name="uq_entry_revisions_entry_revision"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    retired_data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, nullable=False, default=list)
+    time_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    todo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    changed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    editor = relationship("User", lazy="selectin", foreign_keys=[changed_by])
+
+    @property
+    def changed_by_name(self) -> str | None:
+        return self.editor.full_name if self.editor else None
+
+
 class Task(Base):
     __tablename__ = "tasks"
 

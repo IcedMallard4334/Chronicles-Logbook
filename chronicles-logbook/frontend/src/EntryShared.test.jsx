@@ -2,12 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EntryDetailModal, entryPreview, InfoTip } from "./EntryShared"
-import { deleteEntry, fetchEntryMigrationPreview, updateEntry } from "./api"
+import { deleteEntry, fetchEntryHistory, fetchEntryMigrationPreview, updateEntry } from "./api"
 
 vi.mock("./api", () => ({
   updateEntry: vi.fn(),
   deleteEntry: vi.fn(),
   fetchEntryMigrationPreview: vi.fn(),
+  fetchEntryHistory: vi.fn(),
   fetchTasks: vi.fn().mockResolvedValue([]),
 }))
 
@@ -120,6 +121,22 @@ describe("EntryDetailModal", () => {
 
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+  })
+
+  it("loads and displays saved entry revisions on request", async () => {
+    fetchEntryHistory.mockResolvedValue([
+      {
+        id: "revision-2", revision: 2, changed_at: "2026-09-21T10:00:00Z",
+        changed_by_name: "Sam", data: { "f-hours": 5, "f-notes": "Updated", "f-mood": "Focused" },
+        schema_snapshot: currentSchema, time_spent: 120, todo: false,
+      },
+    ])
+    render(<EntryDetailModal project={project} entry={upToDateEntry()} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "View history" }))
+
+    await waitFor(() => expect(fetchEntryHistory).toHaveBeenCalledWith("p1", "e1"))
+    expect(await screen.findByText(/Revision 2/)).toHaveTextContent("Sam")
   })
 
   it("saves an ordinary edit against the entry's own shape, not the current schema", async () => {

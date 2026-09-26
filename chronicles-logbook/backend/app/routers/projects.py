@@ -13,6 +13,7 @@ from app.models import (
     MEMBERSHIP_DECLINED,
     MEMBERSHIP_PENDING,
     Entry,
+    EntryRevision,
     Project,
     ProjectMember,
     Task,
@@ -28,6 +29,7 @@ from app.schemas import (
     EntryCreate,
     EntryMigrationPreview,
     EntryResponse,
+    EntryRevisionResponse,
     EntryUpdate,
     ProjectCreate,
     ProjectMemberResponse,
@@ -41,6 +43,23 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
+
+
+def _record_entry_revision(entry: Entry, user_id: UUID, revision: int) -> EntryRevision:
+    """Copy the saved state into the entry's append-only audit trail."""
+    return EntryRevision(
+        entry_id=entry.id,
+        revision=revision,
+        title=entry.title,
+        data=dict(entry.data or {}),
+        retired_data=dict(entry.retired_data or {}),
+        schema_version=entry.schema_version,
+        schema_snapshot=[dict(field) for field in (entry.schema_snapshot or [])],
+        time_spent=entry.time_spent,
+        todo=entry.todo,
+        due_date=entry.due_date,
+        changed_by=user_id,
+    )
 
 # Field types the caller need not fill in: a computed field is derived by the
 # server (US-2.5), and a reference may legitimately be left blank (US-2.4) so
@@ -795,7 +814,8 @@ async def create_entry(
         entry.created_at = data.created_at
 
     db.add(entry)
-
+    await db.flush()
+    db.add(_record_entry_revision(entry, user.id, revision=1))
     await db.commit()
     await db.refresh(entry)
 
@@ -846,6 +866,27 @@ async def get_entry(
     await _get_readable_project(project_id, user, db)
 
     return await _get_project_entry(entry_id, project_id, db)
+
+
+@router.get(
+    "/{project_id}/entries/{entry_id}/history",
+    response_model=list[EntryRevisionResponse],
+)
+async def get_entry_history(
+    project_id: UUID,
+    entry_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return immutable entry revisions, newest first, to project readers."""
+    await _get_readable_project(project_id, user, db)
+    await _get_project_entry(entry_id, project_id, db)
+    result = await db.execute(
+        select(EntryRevision)
+        .where(EntryRevision.entry_id == entry_id)
+        .order_by(EntryRevision.revision.desc())
+    )
+    return result.scalars().all()
 
 
 @router.get(
@@ -998,6 +1039,10 @@ async def update_entry(
     if "due_date" in payload.model_fields_set:
         entry.due_date = payload.due_date
 
+    latest_revision = await db.scalar(
+        select(func.max(EntryRevision.revision)).where(EntryRevision.entry_id == entry.id)
+    )
+    db.add(_record_entry_revision(entry, user.id, revision=(latest_revision or 0) + 1))
     await db.commit()
     await db.refresh(entry)
 
