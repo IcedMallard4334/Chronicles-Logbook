@@ -546,6 +546,44 @@ async def test_search_entries_filters_by_date_range(
     assert created[2]["id"] not in ids
 
 
+async def test_search_entries_rejects_reversed_date_range(authenticated_client):
+    response = await authenticated_client.get(
+        "/entries"
+        "?start=2026-09-30T00:00:00%2B00:00"
+        "&end=2026-09-01T23:59:59%2B00:00"
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Start date must be on or before end date."
+
+
+async def test_search_entries_order_is_deterministic_when_timestamps_match(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    captured_at = datetime(2026, 5, 10, 9, 0, tzinfo=timezone.utc).isoformat()
+    ids = [
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000003",
+        "00000000-0000-0000-0000-000000000002",
+    ]
+
+    for entry_id in ids:
+        response = await authenticated_client.post(
+            f"/projects/{project_id}/entries",
+            json={"id": entry_id, "created_at": captured_at, "data": VALID_DATA},
+        )
+        assert response.status_code == 201
+
+    newest = await authenticated_client.get("/entries?sort=newest&page_size=2")
+    newest_page_two = await authenticated_client.get("/entries?sort=newest&page=2&page_size=2")
+    oldest = await authenticated_client.get("/entries?sort=oldest&page_size=3")
+
+    assert [item["id"] for item in newest.json()] == [ids[1], ids[2]]
+    assert [item["id"] for item in newest_page_two.json()] == [ids[0]]
+    assert [item["id"] for item in oldest.json()] == sorted(ids)
+
+
 # ── Client-supplied id and created_at ────────────────────────────────
 #
 # Shared foundation for offline sync (US-2.16) and import (US-2.17). Both

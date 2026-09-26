@@ -71,6 +71,9 @@ async def search_entries(
     except SearchQueryError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
+    if start is not None and end is not None and start > end:
+        raise HTTPException(status_code=422, detail="Start date must be on or before end date.")
+
     if field_conditions and project_id is None:
         raise HTTPException(
             status_code=422,
@@ -94,6 +97,13 @@ async def search_entries(
         except SearchQueryError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
+    query = q.strip().lower() if q else ""
+    tag_filter = tag.strip() if tag else ""
+    # Keyword, tag and structured conditions inspect decoded JSON in Python.
+    # When none are active, let the database page the ordered result instead
+    # of materialising an owner's entire history for every timeline request.
+    paginate_in_sql = not query and not tag_filter and not field_conditions and sort != "relevance"
+
     stmt = (
         select(Entry, Project.name.label("project_name"))
         .join(Project, Entry.project_id == Project.id)
@@ -113,7 +123,9 @@ async def search_entries(
     if sort == "due_date":
         # Undated outstanding work sorts last: a deadline that exists is more
         # urgent than one that was never set, whatever its date.
-        stmt = stmt.order_by(Entry.due_date.asc().nulls_last(), Entry.created_at.desc())
+        stmt = stmt.order_by(
+            Entry.due_date.asc().nulls_last(), Entry.created_at.desc(), Entry.id.desc()
+        )
     elif sort == "oldest":
         stmt = stmt.order_by(Entry.created_at.asc(), Entry.id.asc())
     else:
@@ -121,11 +133,12 @@ async def search_entries(
         # this ordering is only its tiebreak / the plain fallback for "newest".
         stmt = stmt.order_by(Entry.created_at.desc(), Entry.id.desc())
 
+    if paginate_in_sql:
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
     result = await db.execute(stmt)
     rows = result.all()
 
-    query = q.strip().lower() if q else ""
-    tag_filter = tag.strip() if tag else ""
     matched: list[dict[str, Any]] = []
     for entry, project_name in rows:
         keyword_ok, keyword_hits = keyword_matches(project_name, entry.data, query)
@@ -173,6 +186,9 @@ async def search_entries(
         matched.sort(key=lambda row: row["_relevance"], reverse=True)
     for row in matched:
         row.pop("_relevance", None)
+
+    if paginate_in_sql:
+        return matched
 
     offset = (page - 1) * page_size
     return matched[offset : offset + page_size]
