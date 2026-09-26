@@ -8,6 +8,7 @@ import {
   LinkChip,
   RetiredValues,
   deriveProjectStatus,
+  entryPreview,
   formatEntryValue,
   useProjectStatuses,
 } from "./EntryShared"
@@ -38,8 +39,6 @@ import {
   deleteAccount,
   deleteProject,
   fetchEntries,
-  fetchEntriesGlobal,
-  fetchEntryLinks,
   fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
@@ -63,13 +62,16 @@ import {
   YAxis,
 } from "recharts"
 import {
+  CHECKLIST_LIMIT,
   FIELD_TYPE_META,
   FIELD_TYPES,
+  TAGS_LIMIT,
   describeExpression,
   expressionCanonical,
   expressionError,
   expressionToDisplay,
   fieldTypeLabel,
+  humaniseValue,
   isNumericField,
   previewExpressionValue,
   referencedFieldIds,
@@ -1443,7 +1445,42 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   )
 }
 
-function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
+/**
+ * Why the rich fields cannot be saved yet, or `null` if they can.
+ *
+ * The server applies the same rules and its word is final (US-2.1–US-2.3).
+ * Checking here means the problem is explained beside the form it was made
+ * in, rather than as a rejection after the entry has been sent. Only what
+ * the payload holds is judged: a link left empty is no link, and a checklist
+ * nobody touched is an empty list the server accepts.
+ */
+function richFieldProblem(schema, payload) {
+  for (const field of schema) {
+    const value = payload[field.id]
+    if (field.type === "tags" && Array.isArray(value)) {
+      if (value.length === 0) return `"${field.name}" needs at least one tag.`
+      if (value.length > TAGS_LIMIT.count)
+        return `"${field.name}" can hold up to ${TAGS_LIMIT.count} tags.`
+      if (value.some((tag) => String(tag).trim().length > TAGS_LIMIT.length))
+        return `Each tag in "${field.name}" can be at most ${TAGS_LIMIT.length} characters.`
+    }
+    if (field.type === "checklist" && Array.isArray(value)) {
+      if (value.length > CHECKLIST_LIMIT.count)
+        return `"${field.name}" can hold up to ${CHECKLIST_LIMIT.count} items.`
+      const texts = value.map((item) => String(item?.text || "").trim())
+      if (texts.some((text) => !text))
+        return `Every item in "${field.name}" needs some text.`
+      if (texts.some((text) => text.length > CHECKLIST_LIMIT.length))
+        return `Each item in "${field.name}" can be at most ${CHECKLIST_LIMIT.length} characters.`
+      const folded = texts.map((text) => text.toLowerCase())
+      if (new Set(folded).size !== folded.length)
+        return `Every item in "${field.name}" must be different.`
+    }
+  }
+  return null
+}
+
+function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProject }) {
   const schema = useMemo(() => project.entry_schema || [], [project.entry_schema])
   const [title, setTitle] = useState("")
   const [data, setData] = useState({})
@@ -1453,21 +1490,28 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [projectEntries, setProjectEntries] = useState([])
-
-  // Load existing entries for the link field selector
-  useEffect(() => {
-    const hasLinkField = schema.some((f) => f.type === "link")
-    if (hasLinkField) {
-      fetchEntries(project.id)
-        .then(setProjectEntries)
-        .catch(() => setProjectEntries([]))
-    }
-  }, [project.id, schema])
 
   // Recomputed as you type, so a calculation settles while the entry is being
   // filled in rather than only after it is saved.
   const computed = useMemo(() => withComputedValues(data, schema), [data, schema])
+
+  // Every tag this project's entries already carry, offered as you type: a
+  // filter only works when the same label is written the same way twice, and
+  // the entries come from the parent's up-to-date list rather than a copy
+  // taken when this form first mounted.
+  const tagSuggestions = useMemo(() => {
+    const tagFields = schema.filter((field) => field.type === "tags")
+    if (tagFields.length === 0) return []
+    const seen = new Set()
+    for (const entry of entries) {
+      for (const field of tagFields) {
+        for (const tag of entry.data?.[field.id] || []) {
+          if (typeof tag === "string" && tag.trim()) seen.add(tag)
+        }
+      }
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b))
+  }, [entries, schema])
 
   // A link to the project you are already in carries no information, so it is
   // not offered.
@@ -1539,6 +1583,11 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
           payload[field.id] = ""
         }
       }
+      const problem = richFieldProblem(schema, payload)
+      if (problem) {
+        setError(problem)
+        return
+      }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
@@ -1598,7 +1647,8 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
             computed={computed[field.id]}
             projects={linkable}
             status={statuses[field.linked_project_id]}
-            entries={projectEntries}
+            entries={entries}
+            suggestions={tagSuggestions}
             onOpenProject={onOpenProject}
             onChange={handleChange}
           />
@@ -1669,6 +1719,61 @@ function EntryForm({ project, projects = [], onCreated, onOpenProject }) {
   )
 }
 
+/** The tags an entry carries, as the chips they were written as. */
+function TagsValue({ value }) {
+  const tags = Array.isArray(value) ? value : []
+  if (tags.length === 0) return "—"
+  return (
+    <span className="tag-list">
+      {tags.map((tag) => (
+        <span key={tag} className="tag-chip-small">
+          {tag}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * How far along a checklist is: the count, with the items themselves on
+ * hover — the number is what the row has room for, the list is what someone
+ * checking progress actually wants (US-2.2).
+ */
+function ChecklistValue({ value }) {
+  const items = Array.isArray(value) ? value : []
+  if (items.length === 0) return "—"
+  const done = items.filter((item) => item && item.completed).length
+  return (
+    <span
+      className="checklist-preview"
+      title={items
+        .map((item) => `${item.completed ? "✓" : "○"} ${item.text}`)
+        .join("\n")}
+    >
+      {done} of {items.length} done
+    </span>
+  )
+}
+
+/**
+ * An entry link's target, named rather than shown as the id it is stored as.
+ *
+ * The target is looked up in the rows already on the page; a link whose
+ * target cannot be found says so plainly instead of showing a bare UUID.
+ */
+function LinkValue({ value, entryById }) {
+  if (!value) return "—"
+  const target = entryById.get(value)
+  return (
+    <span
+      className="link-badge"
+      title={target ? "This entry links to that one" : "The entry it linked to is gone"}
+    >
+      ↳ {entryPreview(target)}
+    </span>
+  )
+}
+
 function EntryList({
   entries,
   schema,
@@ -1686,6 +1791,30 @@ function EntryList({
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
   )
+
+  // A link stores its target's id — right to store, unreadable to show — so
+  // the rows index themselves by id and the cell resolves the name. The same
+  // index answers the other direction: which entries point at this one
+  // (US-2.3), worked out from the rows already on the page rather than by
+  // asking the server once per row.
+  const entryById = useMemo(
+    () => new Map(entries.map((entry) => [entry.id, entry])),
+    [entries]
+  )
+  const backlinksById = useMemo(() => {
+    const linkFields = (schema || []).filter((field) => field.type === "link")
+    const map = new Map()
+    if (linkFields.length === 0) return map
+    for (const entry of entries) {
+      for (const field of linkFields) {
+        const targetId = entry.data?.[field.id]
+        if (!targetId) continue
+        if (!map.has(targetId)) map.set(targetId, [])
+        map.get(targetId).push(entry)
+      }
+    }
+    return map
+  }, [entries, schema])
 
   // The status of every project this schema links to, for the chips below.
   const linkedIds = useMemo(
@@ -1728,6 +1857,7 @@ function EntryList({
           // it, because every write re-derives against the entry's own shape.
           const data = withComputedValues(entry.data || {}, rowSchema)
           const isStale = entry.schema_version != null && schemaVersion != null && entry.schema_version < schemaVersion
+          const backlinks = backlinksById.get(entry.id) || []
           return (
             <li
               key={entry.id}
@@ -1752,6 +1882,7 @@ function EntryList({
               <div className="log-fields">
                 {rowSchema.map((field) => {
                   const meta = FIELD_TYPE_META[field.type]
+                  const value = data[field.id]
                   return (
                     <div
                       key={field.id}
@@ -1771,20 +1902,26 @@ function EntryList({
                         )}
                       </span>
                       <span className="log-value">
-                        {field.type === "project_reference" && data[field.id] ? (
+                        {field.type === "project_reference" && value ? (
                           // The chip opens a different project; the row it
                           // sits in opens this entry's detail. Without this,
                           // clicking the chip would fire both.
                           <span onClick={(event) => event.stopPropagation()}>
                             <LinkChip
-                              targetId={data[field.id]}
+                              targetId={value}
                               projects={projects}
-                              status={statuses[data[field.id]]}
+                              status={statuses[value]}
                               onOpen={onOpenProject}
                             />
                           </span>
+                        ) : field.type === "tags" ? (
+                          <TagsValue value={value} />
+                        ) : field.type === "checklist" ? (
+                          <ChecklistValue value={value} />
+                        ) : field.type === "link" ? (
+                          <LinkValue value={value} entryById={entryById} />
                         ) : (
-                          formatEntryValue(field, data[field.id], projectNames)
+                          formatEntryValue(field, value, projectNames)
                         )}
                         {/* Marked so a derived figure is never mistaken for one
                             that was typed in — for sighted and screen reader
@@ -1822,6 +1959,18 @@ function EntryList({
                   <span className="entry-author"> · {entry.created_by_name}</span>
                 )}
               </span>
+              {/* Which entries point at this one (US-2.3), worked out from
+                  the rows already on the page: one pass, no extra requests. */}
+              {backlinks.length > 0 && (
+                <p className="entry-backlinks">
+                  <span className="entry-backlinks-label">Linked from</span>
+                  {backlinks.map((source) => (
+                    <span key={source.id} className="entry-backlink">
+                      {entryPreview(source)}
+                    </span>
+                  ))}
+                </p>
+              )}
               {/* Last, and collapsed: history worth keeping is not history worth
                   leading with. Stops the click so expanding it doesn't also
                   open the row's own detail view. */}
@@ -1840,6 +1989,7 @@ function EntryList({
           project={project}
           entry={selectedEntry}
           projects={projects}
+          entries={entries}
           canManage={!project.shared || (Boolean(userId) && selectedEntry.created_by === userId)}
           onClose={() => setSelectedEntryId(null)}
           onSaved={(saved) => {
@@ -2236,7 +2386,7 @@ function ProjectDetail({
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
             ) : (
-              <EntryForm project={project} projects={projects} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
+              <EntryForm project={project} projects={projects} entries={project.entries || []} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
             )}
             <EntryList
               entries={project.entries || []}

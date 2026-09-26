@@ -220,7 +220,7 @@ Returns entries across all projects owned by the authenticated user, ordered new
 |---|---|---|---|
 | `q` | string | — | Keyword matched against project name and entry field values |
 | `project_id` | UUID | — | Filter to a single project. Required when `conditions` is used |
-| `tag` | string | — | Only entries whose tag-type fields contain this tag |
+| `tag` | string | — | Only entries whose tag-type fields contain this tag (case-insensitive) |
 | `todo` | boolean | — | Narrow to outstanding (`true`) or completed (`false`) work |
 | `conditions` | string (JSON) | — | Structured filters over the project's own custom fields — see below |
 | `match` | `all` \| `any` | `all` | How `conditions` combine: AND or OR |
@@ -238,7 +238,10 @@ Returns entries across all projects owned by the authenticated user, ordered new
     "project_name": "My Project",
     "title": "Login page",
     "data": { "field-id-1": 3, "field-id-2": "Finished login page" },
-    "schema_snapshot": [ { "id": "field-id-1", "name": "Hours", "type": "number" } ],
+    "schema_snapshot": [
+      { "id": "field-id-1", "name": "Hours", "type": "number" },
+      { "id": "field-id-2", "name": "Summary", "type": "text" }
+    ],
     "time_spent": 90,
     "created_by": "...",
     "created_by_name": "Ada",
@@ -249,7 +252,8 @@ Returns entries across all projects owned by the authenticated user, ordered new
 ```
 
 `schema_snapshot` is this entry's own recorded shape, not necessarily the
-project's current one — see the warning below.
+project's current one — see the warning below. It is also what lets a client
+render a `link` value as a link rather than showing the target's bare id.
 
 ### Structured search over custom fields (US-3.11)
 

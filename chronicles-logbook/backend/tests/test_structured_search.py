@@ -39,12 +39,14 @@ async def search_project(authenticated_client):
 
 
 async def _make_entry(client, project_id, **overrides):
+    # A tags field must carry at least one tag (the US-2.1 repair), so the
+    # default entry carries one; tests that care about tags override it.
     data = {
         "f-title": "Untitled",
         "f-hours": 1,
         "f-date": "2026-01-01",
         "f-status": "Open",
-        "f-tags": [],
+        "f-tags": ["untagged"],
         "f-checklist": [],
     }
     data.update(overrides)
