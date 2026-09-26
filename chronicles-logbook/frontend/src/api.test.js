@@ -7,6 +7,7 @@ import {
   deleteEntry,
   fetchCurrentUser,
   fetchEntries,
+  fetchFieldStatistics,
   fetchEntriesGlobal,
   fetchEntry,
   fetchEntryMigrationPreview,

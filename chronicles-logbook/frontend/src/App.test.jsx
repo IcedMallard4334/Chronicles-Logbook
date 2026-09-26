@@ -6,7 +6,7 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
-  fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
 }))
 
@@ -28,6 +28,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchFieldTimeline,
+  fetchFieldStatistics,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -57,6 +58,7 @@ beforeEach(() => {
   fetchEntriesGlobal.mockResolvedValue([])
   fetchTasks.mockResolvedValue([])
   fetchStatistics.mockResolvedValue(emptyStatistics)
+  fetchFieldStatistics.mockResolvedValue({ project_id: "proj-1", schema_version: 1, fields: [] })
 })
 
 describe("workspace summary", () => {

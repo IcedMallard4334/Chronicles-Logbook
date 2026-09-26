@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
-import ChronologicalTimeline from "./EntryTimeline"
 import {
   EntryDetailModal,
   EntryFieldInput,
@@ -2360,6 +2359,15 @@ function ProjectDetail({
           >
             Tasks
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "statistics"}
+            className={tab === "statistics" ? "active" : ""}
+            onClick={() => setTab("statistics")}
+          >
+            Statistics
+          </button>
         </div>
       </header>
       <div className="detail-body">
@@ -2394,8 +2402,10 @@ function ProjectDetail({
             disabled={project.archived || project.shared}
             onSwitchToEntries={() => setTab("entries")}
           />
-        ) : (
+        ) : tab === "tasks" ? (
           <TaskPanel projectId={project.id} />
+        ) : (
+          <FieldStatisticsPanel projectId={project.id} schemaVersion={project.schema_version} />
         )}
       </div>
       <footer className="detail-footer">
