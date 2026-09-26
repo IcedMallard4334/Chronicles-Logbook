@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
+import ChronologicalTimeline from "./EntryTimeline"
 import {
   EntryDetailModal,
   EntryFieldInput,
@@ -71,7 +72,6 @@ import {
   expressionError,
   expressionToDisplay,
   fieldTypeLabel,
-  humaniseValue,
   isNumericField,
   previewExpressionValue,
   referencedFieldIds,
@@ -2024,23 +2024,7 @@ function EntryTimeline({ projects }) {
     )
   }
 
-  return (
-    <section className="timeline" aria-label="Entry timeline">
-      <header className="timeline-header">
-        <h2>Activity</h2>
-        <p>
-          Browse your entries across all projects in chronological order.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => setMode("fields")}
-        >
-          Field trends
-        </button>
-      </header>
-    </section>
-  )
+  return <ChronologicalTimeline projects={projects} onShowFieldTrends={() => setMode("fields")} />
 }
 
 function FieldTimeline({ projects }) {
