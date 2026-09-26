@@ -2040,7 +2040,21 @@ function FieldTimeline({ projects }) {
     [projects, projectId],
   )
 
-  const fields = selectedProject?.entry_schema || []
+  // Removed fields remain chartable history. Their definitions are retained
+  // by the project precisely so older entry values still have a meaning.
+  const fields = useMemo(() => {
+    const seen = new Set()
+    return [...(selectedProject?.entry_schema || []), ...(selectedProject?.retired_schema || [])]
+      .filter((field) => {
+        if (seen.has(field.id)) return false
+        seen.add(field.id)
+        return true
+      })
+  }, [selectedProject])
+
+  const rangeError = start && end && start > end
+    ? "Start date must be on or before end date."
+    : null
 
   useEffect(() => {
     setFieldId("")
@@ -2053,6 +2067,11 @@ function FieldTimeline({ projects }) {
 
     if (!projectId || !fieldId) {
       setError("Please select a project and field.")
+      return
+    }
+
+    if (rangeError) {
+      setError(rangeError)
       return
     }
 
@@ -2123,6 +2142,7 @@ function FieldTimeline({ projects }) {
           <input
             type="date"
             value={start}
+            max={end || undefined}
             onChange={(event) => setStart(event.target.value)}
             aria-label="Start date"
           />
@@ -2133,6 +2153,7 @@ function FieldTimeline({ projects }) {
           <input
             type="date"
             value={end}
+            min={start || undefined}
             onChange={(event) => setEnd(event.target.value)}
             aria-label="End date"
           />
@@ -2141,7 +2162,7 @@ function FieldTimeline({ projects }) {
         <button
           type="submit"
           className="btn-primary timeline-submit"
-          disabled={loading || !projectId || !fieldId}
+          disabled={loading || !projectId || !fieldId || Boolean(rangeError)}
         >
           {loading ? "Loading…" : "Generate timeline"}
         </button>

@@ -253,6 +253,24 @@ describe("App workspace", () => {
   expect(screen.getByText("8")).toBeInTheDocument()
 })
 
+  it("keeps a removed field available for historical charting", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [], retired_schema: [fieldNotes.entry_schema[0]] }])
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    expect(await screen.findByRole("option", { name: "Hours" })).toBeInTheDocument()
+  })
+
+  it("does not request a chart for an inverted date range", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-06-10" } })
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-06-01" } })
+    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeDisabled()
+  })
+
   it("shows a plain explanation instead of an empty chart for a non-numeric field", async () => {
     // A line chart has nowhere honest to put a text value on its Y-axis —
     // this used to render as a blank, confusing box. It should say so in

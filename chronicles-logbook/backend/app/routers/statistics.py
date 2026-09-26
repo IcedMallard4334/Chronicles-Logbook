@@ -327,6 +327,9 @@ async def read_field_timeline(
             detail="Project not found",
         )
 
+    if start is not None and end is not None and start > end:
+        raise HTTPException(status_code=422, detail="Start date must be on or before end date.")
+
     result = await db.execute(
         select(Entry)
         .where(
@@ -345,6 +348,16 @@ async def read_field_timeline(
         if field["id"] == field_id:
             field_definition = field
             break
+
+    # A removed field is still a meaningful historical series. Looking in the
+    # retired schema before the range-limited entry scan also means an empty
+    # range returns an empty series instead of claiming the valid field never
+    # existed.
+    if field_definition is None:
+        for field in project.retired_schema:
+            if field["id"] == field_id:
+                field_definition = field
+                break
 
     # Otherwise find the field in historical schemas.
     if field_definition is None:

@@ -504,6 +504,42 @@ async def test_field_timeline_respects_start_and_end_dates(
     assert [point["value"] for point in body["points"]] == [5]
     assert body["points"][0]["created_at"].startswith("2026-05-05")
 
+
+async def test_field_timeline_rejects_a_reversed_date_range(authenticated_client):
+    project = await authenticated_client.post(
+        "/projects",
+        json={"name": "Range validation", "entry_schema": [{"id": "hours", "name": "Hours", "type": "number"}]},
+    )
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project.json()['id']}/fields/hours/timeline",
+        params={"start": at(2026, 5, 10), "end": at(2026, 5, 1)},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Start date must be on or before end date."
+
+
+async def test_field_timeline_allows_a_retired_field_with_an_empty_range(authenticated_client):
+    project = await authenticated_client.post(
+        "/projects",
+        json={"name": "Retired timeline", "entry_schema": [{"id": "weight", "name": "Weight", "type": "number"}]},
+    )
+    project_id = project.json()["id"]
+    await authenticated_client.post(
+        f"/projects/{project_id}/entries", json={"data": {"weight": 70}, "created_at": at(2026, 1, 1)}
+    )
+    await authenticated_client.put(f"/projects/{project_id}", json={"entry_schema": []})
+
+    response = await authenticated_client.get(
+        f"/statistics/projects/{project_id}/fields/weight/timeline",
+        params={"start": at(2026, 6, 1), "end": at(2026, 6, 30)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["field_name"] == "Weight"
+    assert response.json()["points"] == []
+
 async def test_field_timeline_respects_historical_schema_versions(
     authenticated_client,
 ):
