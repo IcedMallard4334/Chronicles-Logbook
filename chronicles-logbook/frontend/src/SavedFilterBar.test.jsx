@@ -27,7 +27,7 @@ const projects = [
 const savedFilter = {
   id: "filter-1",
   name: "Overdue research",
-  criteria: { q: "prototype", project_id: "p2", todo: true, sort: "due_date" },
+  criteria: { q: "prototype", project_id: "p2", tag: "prototype", todo: true, sort: "due_date" },
   created_at: "2026-09-01T08:00:00Z",
   updated_at: "2026-09-01T08:00:00Z",
 }
@@ -132,6 +132,7 @@ describe("EntriesPage saved filters", () => {
       expect(fetchEntriesGlobal).toHaveBeenLastCalledWith({
         q: "prototype",
         projectId: "p2",
+        tag: "prototype",
         todo: true,
         sort: "due_date",
         conditions: [],
@@ -142,6 +143,7 @@ describe("EntriesPage saved filters", () => {
     )
     expect(screen.getByLabelText(/Search entries/)).toHaveValue("prototype")
     expect(screen.getByLabelText(/Project/)).toHaveValue("p2")
+    expect(screen.getByLabelText(/Tag/)).toHaveValue("prototype")
     expect(screen.getByLabelText(/Status/)).toHaveValue("true")
     expect(screen.getByLabelText(/Sort/)).toHaveValue("due_date")
   })
@@ -161,6 +163,7 @@ describe("EntriesPage saved filters", () => {
       expect(saveFilter).toHaveBeenCalledWith("My outstanding work", {
         q: null,
         project_id: null,
+        tag: null,
         todo: true,
         sort: "due_date",
         conditions: [],
@@ -180,5 +183,58 @@ describe("EntriesPage saved filters", () => {
         expect.objectContaining({ todo: false }),
       ),
     )
+  })
+
+  it("narrows the search to entries carrying a tag", async () => {
+    render(<EntriesPage projects={projects} onCreate={vi.fn()} />)
+    await waitFor(() => expect(fetchEntriesGlobal).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText(/Tag/), { target: { value: "prototype" } })
+
+    await waitFor(() =>
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tag: "prototype" }),
+      ),
+    )
+  })
+})
+
+describe("EntriesPage previews", () => {
+  it("reads lists as words and links as links, never as JSON or ids", async () => {
+    // The row has one line to spend, so lists become words: a checklist that
+    // reads as "Pack bags ✓" is the point of the field. A link says what it
+    // is rather than showing the target's id, which is right to store and
+    // meaningless to read here.
+    fetchEntriesGlobal.mockResolvedValue([
+      {
+        id: "e1",
+        project_name: "Operations",
+        schema_snapshot: [
+          { id: "f-tags", name: "Labels", type: "tags" },
+          { id: "f-checklist", name: "Steps", type: "checklist" },
+          { id: "f-link", name: "Follows on", type: "link" },
+        ],
+        data: {
+          "f-tags": ["prototype"],
+          "f-checklist": [
+            { id: "ci-1", text: "Pack bags", completed: true },
+            { id: "ci-2", text: "Book taxi", completed: false },
+          ],
+          "f-link": "7d2ea4f5-e9fd-41ee-abe0-2463af6f80cf",
+        },
+        created_at: "2026-09-12T10:00:00Z",
+        due_date: null,
+        time_spent: null,
+        todo: false,
+      },
+    ])
+
+    render(<EntriesPage projects={projects} onCreate={vi.fn()} />)
+
+    expect(
+      await screen.findByText("prototype · Pack bags ✓, Book taxi · ↳ linked entry")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/7d2ea4f5/)).not.toBeInTheDocument()
   })
 })

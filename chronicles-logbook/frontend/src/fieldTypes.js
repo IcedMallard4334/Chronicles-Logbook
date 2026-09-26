@@ -62,6 +62,42 @@ export const NUMERIC_FIELD_TYPES = ["number", "computed"]
 /** Types the person filling in an entry does not type a value for. */
 export const READ_ONLY_FIELD_TYPES = ["computed"]
 
+/**
+ * What a tag or checklist field will accept (US-2.1, US-2.2).
+ *
+ * The server enforces these limits on every write and remains the authority;
+ * the form quotes the same numbers so the message shown while typing is the
+ * one that would come back after saving. A message that disagreed with the
+ * check it came from would be worse than no message at all.
+ */
+export const TAGS_LIMIT = { count: 10, length: 30 }
+export const CHECKLIST_LIMIT = { count: 20, length: 30 }
+
+/**
+ * A stored value written out for somewhere that can only show one string.
+ *
+ * Lists get words rather than JSON: tags read as a comma-joined list and
+ * checklist items as "text ✓". The entry list formats each type properly
+ * itself — "2 of 3 done" belongs there — so this is the fallback for
+ * contexts with a single line to spend, and it exists so that a list never
+ * has to render as [object Object].
+ */
+export function humaniseValue(value) {
+  if (value === null || value === undefined || value === "") return "—"
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—"
+    return value
+      .map((item) =>
+        item && typeof item === "object" && typeof item.text === "string"
+          ? `${item.text}${item.completed ? " ✓" : ""}`
+          : String(item)
+      )
+      .join(", ")
+  }
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
+}
+
 export function fieldTypeLabel(type) {
   return FIELD_TYPE_META[type]?.label || type
 }

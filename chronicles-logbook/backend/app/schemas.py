@@ -56,6 +56,16 @@ class FieldType(str, Enum):
     COMPUTED = "computed"
 
 
+# Limits for the rich field types (US-2.1, US-2.2). They live beside the
+# FieldType enum because both the entry validation that enforces them and the
+# saved-filter shape that quotes them need the same numbers, and a message
+# that disagrees with the check it came from is worse than no message at all.
+MAX_TAGS = 10
+MAX_TAG_LENGTH = 30
+MAX_CHECKLIST_ITEMS = 20
+MAX_CHECKLIST_ITEM_LENGTH = 30
+
+
 class BaseFieldDefinition(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., min_length=1, max_length=100, description="Display label for the field")
@@ -517,6 +527,9 @@ class FilterCriteria(BaseModel):
 
     q: str | None = Field(default=None, max_length=255)
     project_id: UUID | None = None
+    # US-2.1: the tag the entries view was narrowed to, so a saved filter can
+    # restore it the same way it restores a keyword or a project.
+    tag: str | None = Field(default=None, max_length=MAX_TAG_LENGTH)
     todo: bool | None = None
     sort: Literal["newest", "oldest", "due_date", "relevance"] = "newest"
     # US-3.11: structured conditions over custom fields, combined with either
@@ -694,7 +707,9 @@ class TimelineEntryResponse(BaseModel):
     # The shape this entry actually recorded, since it stays frozen at its
     # own schema until someone chooses to migrate it — a row rendered from
     # the project's *current* schema instead would show fields this entry
-    # never had, or mislabel ones it does.
+    # never had, or mislabel ones it does. Carried on the global search
+    # results too, so a reader can tell a link value (a bare entry id)
+    # from an id-shaped text value without a second request per row (US-2.3).
     schema_snapshot: list[dict[str, Any]] = Field(default_factory=list)
     time_spent: int | None
     todo: bool = False
