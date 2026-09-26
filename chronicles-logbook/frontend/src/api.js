@@ -382,21 +382,6 @@ export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }
 
-// Local development only — see AuthPage's "Continue without Google" option
-// and the backend's ENABLE_DEV_LOGIN setting. Stores the session exactly
-// like a real Google sign-in does, so the rest of the app can't tell them
-// apart.
-export async function devLogin(email, fullName) {
-  const session = await request("/auth/dev-login", {
-    method: "POST",
-    body: JSON.stringify({ email: email || undefined, full_name: fullName || undefined }),
-  })
-  window.localStorage.removeItem("chronicles_signed_out")
-  window.localStorage.setItem("chronicles_token", session.access_token)
-  window.localStorage.setItem("chronicles_user", JSON.stringify(session.user))
-  return session
-}
-
 export async function fetchCurrentUser() {
   return request("/auth/me")
 }
