@@ -253,6 +253,10 @@ export async function fetchEntry(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}`)
 }
 
+export async function fetchEntryHistory(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/history`)
+}
+
 // What bringing this one entry up to the project's current schema would
 // produce, without saving it — feeds the "update to current schema" choice
 // in the entry detail view so it can show real values before committing.

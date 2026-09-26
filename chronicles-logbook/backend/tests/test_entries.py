@@ -643,6 +643,48 @@ async def test_get_entry_from_wrong_project_is_404(
     assert response.status_code == 404
 
 
+async def test_entry_history_keeps_immutable_snapshots(
+    authenticated_client, project_with_schema, existing_entry
+):
+    project_id = project_with_schema["id"]
+    entry_id = existing_entry["id"]
+
+    initial = await authenticated_client.get(
+        f"/projects/{project_id}/entries/{entry_id}/history"
+    )
+    assert initial.status_code == 200
+    assert len(initial.json()) == 1
+    assert initial.json()[0]["revision"] == 1
+    assert initial.json()[0]["data"]["field-2"] == "Worked on UI"
+
+    edited = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}",
+        json={"data": {**VALID_DATA, "field-2": "Corrected the typo"}, "time_spent": 75},
+    )
+    assert edited.status_code == 200
+
+    history = await authenticated_client.get(
+        f"/projects/{project_id}/entries/{entry_id}/history"
+    )
+    assert history.status_code == 200
+    revisions = history.json()
+    assert [revision["revision"] for revision in revisions] == [2, 1]
+    assert revisions[0]["data"]["field-2"] == "Corrected the typo"
+    assert revisions[0]["time_spent"] == 75
+    assert revisions[1]["data"]["field-2"] == "Worked on UI"
+    assert revisions[1]["time_spent"] == existing_entry["time_spent"]
+    assert revisions[0]["changed_by_name"] == "Test User"
+
+
+async def test_entry_history_is_not_visible_outside_the_project(
+    authenticated_client, second_authenticated_client, project_with_schema, existing_entry
+):
+    response = await second_authenticated_client.get(
+        f"/projects/{project_with_schema['id']}/entries/{existing_entry['id']}/history"
+    )
+    assert response.status_code == 404
+
+
 async def test_update_entry_data(
     authenticated_client, project_with_schema, existing_entry
 ):
