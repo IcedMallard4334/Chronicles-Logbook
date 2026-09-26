@@ -71,7 +71,6 @@ import {
   expressionError,
   expressionToDisplay,
   fieldTypeLabel,
-  humaniseValue,
   isNumericField,
   previewExpressionValue,
   referencedFieldIds,
@@ -2006,7 +2005,28 @@ function EntryList({
   )
 }
 
-function Timeline({ projects }) {
+function EntryTimeline({ projects }) {
+  const [mode, setMode] = useState("entries")
+
+  if (mode === "fields") {
+    return (
+      <section>
+        <button
+          type="button"
+          onClick={() => setMode("entries")}
+        >
+          Entry timeline
+        </button>
+
+        <FieldTimeline projects={projects} />
+      </section>
+    )
+  }
+
+  return <ChronologicalTimeline projects={projects} onShowFieldTrends={() => setMode("fields")} />
+}
+
+function FieldTimeline({ projects }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
   const [start, setStart] = useState("")
@@ -2020,7 +2040,21 @@ function Timeline({ projects }) {
     [projects, projectId],
   )
 
-  const fields = selectedProject?.entry_schema || []
+  // Removed fields remain chartable history. Their definitions are retained
+  // by the project precisely so older entry values still have a meaning.
+  const fields = useMemo(() => {
+    const seen = new Set()
+    return [...(selectedProject?.entry_schema || []), ...(selectedProject?.retired_schema || [])]
+      .filter((field) => {
+        if (seen.has(field.id)) return false
+        seen.add(field.id)
+        return true
+      })
+  }, [selectedProject])
+
+  const rangeError = start && end && start > end
+    ? "Start date must be on or before end date."
+    : null
 
   useEffect(() => {
     setFieldId("")
@@ -2033,6 +2067,11 @@ function Timeline({ projects }) {
 
     if (!projectId || !fieldId) {
       setError("Please select a project and field.")
+      return
+    }
+
+    if (rangeError) {
+      setError(rangeError)
       return
     }
 
@@ -2103,6 +2142,7 @@ function Timeline({ projects }) {
           <input
             type="date"
             value={start}
+            max={end || undefined}
             onChange={(event) => setStart(event.target.value)}
             aria-label="Start date"
           />
@@ -2113,6 +2153,7 @@ function Timeline({ projects }) {
           <input
             type="date"
             value={end}
+            min={start || undefined}
             onChange={(event) => setEnd(event.target.value)}
             aria-label="End date"
           />
@@ -2121,7 +2162,7 @@ function Timeline({ projects }) {
         <button
           type="submit"
           className="btn-primary timeline-submit"
-          disabled={loading || !projectId || !fieldId}
+          disabled={loading || !projectId || !fieldId || Boolean(rangeError)}
         >
           {loading ? "Loading…" : "Generate timeline"}
         </button>
@@ -2339,6 +2380,15 @@ function ProjectDetail({
           >
             Tasks
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "statistics"}
+            className={tab === "statistics" ? "active" : ""}
+            onClick={() => setTab("statistics")}
+          >
+            Statistics
+          </button>
         </div>
       </header>
       <div className="detail-body">
@@ -2373,8 +2423,10 @@ function ProjectDetail({
             disabled={project.archived || project.shared}
             onSwitchToEntries={() => setTab("entries")}
           />
-        ) : (
+        ) : tab === "tasks" ? (
           <TaskPanel projectId={project.id} />
+        ) : (
+          <FieldStatisticsPanel projectId={project.id} schemaVersion={project.schema_version} />
         )}
       </div>
       <footer className="detail-footer">
@@ -3309,7 +3361,7 @@ function App() {
             ) : currentView === "outstanding" ? (
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
             ) : view === "timeline" ? (
-              <Timeline projects={projects} onOpenProject={handleSelectProject} />
+              <EntryTimeline projects={projects} />
             ) : selectedProject ? (
               <ProjectDetail
                 key={selectedProject.id}

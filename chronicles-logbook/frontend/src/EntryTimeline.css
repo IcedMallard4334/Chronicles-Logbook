@@ -1,0 +1,73 @@
+.timeline-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.timeline-content {
+  min-height: 16rem;
+}
+
+.timeline-list {
+  position: relative;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-list::before {
+  content: "";
+  position: absolute;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  left: 0.38rem;
+  width: 2px;
+  background: var(--line);
+}
+
+.timeline-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+}
+
+.timeline-row article {
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.timeline-marker {
+  z-index: 1;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.5rem;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue);
+}
+
+.timeline-entry-title {
+  margin: 0.65rem 0 0;
+  font-size: 1rem;
+}
+
+.timeline-fields dd {
+  margin-inline-start: 0;
+}
+
+.timeline-pagination {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .timeline-title-row {
+    flex-direction: column;
+  }
+}

@@ -6,7 +6,7 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
-  fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
 }))
 
@@ -28,6 +28,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchFieldTimeline,
+  fetchFieldStatistics,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -57,6 +58,7 @@ beforeEach(() => {
   fetchEntriesGlobal.mockResolvedValue([])
   fetchTasks.mockResolvedValue([])
   fetchStatistics.mockResolvedValue(emptyStatistics)
+  fetchFieldStatistics.mockResolvedValue({ project_id: "proj-1", schema_version: 1, fields: [] })
 })
 
 describe("workspace summary", () => {
@@ -162,15 +164,18 @@ describe("App workspace", () => {
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
 
-  it("opens the field timeline view from the sidebar", async () => {
+  it("opens the entry timeline view from the sidebar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    expect(await screen.findByRole("heading", { name: "Field Timeline" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Select project")).toBeInTheDocument()
-    expect(screen.getByLabelText("Select field")).toBeInTheDocument()
-    expect(screen.getByLabelText("Start date")).toBeInTheDocument()
-    expect(screen.getByLabelText("End date")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeInTheDocument()
+    expect(
+      await screen.findByRole("heading", { name: "Activity" })
+    ).toBeInTheDocument()
+
+    expect(
+      screen.getByText(
+        "Browse your entries across all projects in chronological order."
+      )
+    ).toBeInTheDocument()
   })
 
   it("generates a field timeline for a selected project and field", async () => {
@@ -201,6 +206,10 @@ describe("App workspace", () => {
 
   fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
 
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Field trends" }),
+  )
+
   fireEvent.change(screen.getByLabelText("Select project"), {
     target: { value: "proj-1" },
   })
@@ -226,13 +235,9 @@ describe("App workspace", () => {
     target: { value: "2026-05-31" },
   })
 
-  console.log("ABOUT TO SUBMIT")
-
   fireEvent.submit(
     screen.getByRole("button", { name: "Generate timeline" }).closest("form"),
   )
-
-  console.log("SUBMIT FINISHED")
 
   await waitFor(() => {
     expect(fetchFieldTimeline).toHaveBeenCalledWith(
@@ -247,6 +252,24 @@ describe("App workspace", () => {
   expect(screen.getByText("5")).toBeInTheDocument()
   expect(screen.getByText("8")).toBeInTheDocument()
 })
+
+  it("keeps a removed field available for historical charting", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [], retired_schema: [fieldNotes.entry_schema[0]] }])
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    expect(await screen.findByRole("option", { name: "Hours" })).toBeInTheDocument()
+  })
+
+  it("does not request a chart for an inverted date range", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+    fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-06-10" } })
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-06-01" } })
+    expect(screen.getByRole("button", { name: "Generate timeline" })).toBeDisabled()
+  })
 
   it("shows a plain explanation instead of an empty chart for a non-numeric field", async () => {
     // A line chart has nowhere honest to put a text value on its Y-axis —
@@ -267,7 +290,14 @@ describe("App workspace", () => {
     render(<MemoryRouter><App /></MemoryRouter>)
 
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
-    fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Field trends" }),
+    )
+
+    fireEvent.change(screen.getByLabelText("Select project"), {
+      target: { value: "proj-1" },
+    })
     await waitFor(() => expect(screen.getByLabelText("Select field")).toBeEnabled())
     fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
     fireEvent.submit(screen.getByRole("button", { name: "Generate timeline" }).closest("form"))
