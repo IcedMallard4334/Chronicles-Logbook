@@ -196,6 +196,8 @@ export async function fetchEntriesGlobal({
   projectId,
   tag,
   todo,
+  start,
+  end,
   sort,
   conditions,
   match,
@@ -206,6 +208,8 @@ export async function fetchEntriesGlobal({
   if (q) params.append("q", q)
   if (projectId) params.append("project_id", projectId)
   if (tag) params.append("tag", tag)
+  if (start) params.append("start", start)
+  if (end) params.append("end", end)
   // Compared against undefined so `todo: false` still narrows the search to
   // completed work rather than being dropped as falsy.
   if (todo !== undefined) params.append("todo", todo)

@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { sendAIMessage, signOut } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
-import FieldStatisticsPanel from "./FieldStatisticsPanel"
 import {
   EntryDetailModal,
   EntryFieldInput,
@@ -72,7 +71,6 @@ import {
   expressionError,
   expressionToDisplay,
   fieldTypeLabel,
-  humaniseValue,
   isNumericField,
   previewExpressionValue,
   referencedFieldIds,
@@ -2007,7 +2005,28 @@ function EntryList({
   )
 }
 
-function Timeline({ projects }) {
+function EntryTimeline({ projects }) {
+  const [mode, setMode] = useState("entries")
+
+  if (mode === "fields") {
+    return (
+      <section>
+        <button
+          type="button"
+          onClick={() => setMode("entries")}
+        >
+          Entry timeline
+        </button>
+
+        <FieldTimeline projects={projects} />
+      </section>
+    )
+  }
+
+  return <ChronologicalTimeline projects={projects} onShowFieldTrends={() => setMode("fields")} />
+}
+
+function FieldTimeline({ projects }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
   const [start, setStart] = useState("")
@@ -3321,7 +3340,7 @@ function App() {
             ) : currentView === "outstanding" ? (
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
             ) : view === "timeline" ? (
-              <Timeline projects={projects} onOpenProject={handleSelectProject} />
+              <EntryTimeline projects={projects} />
             ) : selectedProject ? (
               <ProjectDetail
                 key={selectedProject.id}
