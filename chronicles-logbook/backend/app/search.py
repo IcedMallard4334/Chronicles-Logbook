@@ -328,17 +328,25 @@ def conditions_match(
     return passed, satisfied
 
 
-def keyword_matches(project_name: str, entry_data: dict[str, Any], query: str) -> tuple[bool, int]:
+def keyword_matches(
+    project_name: str,
+    entry_title: str | None,
+    entry_data: dict[str, Any],
+    query: str,
+) -> tuple[bool, int]:
     """Whether the free-text query appears anywhere in the entry, and how often.
 
     Mirrors the previous plain-keyword search (project name plus every field
     value, stringified and lower-cased) but also counts occurrences, which
-    feeds the relevance ranking below.
+    feeds the relevance ranking below. The entry's title is searched too: it
+    is the name somebody gave the entry, and the likeliest thing to look for.
     """
     if not query:
         return True, 0
 
-    haystacks = [project_name] + [str(value) for value in entry_data.values()]
+    haystacks = [project_name, entry_title or ""] + [
+        str(value) for value in entry_data.values()
+    ]
     text = " ".join(haystacks).lower()
     count = text.count(query)
     return count > 0, count

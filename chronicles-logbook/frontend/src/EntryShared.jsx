@@ -333,21 +333,44 @@ function ChecklistInput({ value, onChange }) {
   )
 }
 
+/** A stored link value: the target's id — right to keep, never a name to show. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * An entry named in one line.
  *
- * The first text a schema asked for is the closest thing an entry has to a
- * title; when there is none, the day it was written stands in. Used wherever
- * an entry has to be named in a single string — the link dropdown and the
- * backlinks line under a row — so the same entry reads the same way in both.
+ * The entry's own title comes first — it is the name somebody chose for the
+ * entry. Before titles existed, the first text a schema asked for stood in;
+ * a link field's value is an id rather than words, so it never gets to
+ * stand in for a name. When there is neither, the day the entry was written
+ * does. Used wherever an entry has to be named in a single string — the link
+ * dropdown and the backlinks line under a row — so the same entry reads the
+ * same way everywhere.
  */
 export function entryPreview(entry) {
   if (!entry) return "An entry that is no longer there"
+  const title = typeof entry.title === "string" ? entry.title.trim() : ""
+  if (title) return title.length > 60 ? `${title.slice(0, 59)}…` : title
   const firstText = Object.values(entry.data || {}).find(
-    (value) => typeof value === "string" && value.trim()
+    (value) =>
+      typeof value === "string" &&
+      value.trim() &&
+      !UUID_PATTERN.test(value.trim())
   )
   const text = firstText || `Entry of ${new Date(entry.created_at).toLocaleDateString()}`
   return text.length > 60 ? `${text.slice(0, 59)}…` : text
+}
+
+/**
+ * The dropdown offers entries somebody has to tell apart, so the day rides
+ * along — unless the preview already is that day, where repeating it would
+ * only say the same thing twice.
+ */
+function entryOptionLabel(entry) {
+  const preview = entryPreview(entry)
+  const day = new Date(entry.created_at).toLocaleDateString()
+  return preview.endsWith(day) ? preview : `${preview} — ${day}`
 }
 
 function LinkInput({ value, onChange, entries }) {
@@ -360,7 +383,7 @@ function LinkInput({ value, onChange, entries }) {
       <option value="">No link</option>
       {entries.map((entry) => (
         <option key={entry.id} value={entry.id}>
-          {entryPreview(entry)} — {new Date(entry.created_at).toLocaleDateString()}
+          {entryOptionLabel(entry)}
         </option>
       ))}
     </select>
@@ -589,6 +612,22 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
     [entries, entry.id]
   )
   const entryById = useMemo(() => new Map(entries.map((item) => [item.id, item])), [entries])
+  // Who points at this entry (US-2.3) — the same rule the rows use, so the
+  // line under a row and the one here can never disagree: an entry links to
+  // this one when a link field of the project's schema carries this entry's
+  // id. Bidirectionality is the point of a link, so the target gets to see
+  // its sources without hunting for them.
+  const backlinks = useMemo(() => {
+    const linkFieldIds = projectSchema
+      .filter((field) => field.type === "link")
+      .map((field) => field.id)
+    if (linkFieldIds.length === 0) return []
+    return entries.filter(
+      (item) =>
+        item.id !== entry.id &&
+        linkFieldIds.some((fieldId) => item.data?.[fieldId] === entry.id)
+    )
+  }, [entries, entry.id, projectSchema])
   const tagSuggestions = useMemo(() => {
     const tagFields = activeSchema.filter((field) => field.type === "tags")
     if (tagFields.length === 0) return []
@@ -752,6 +791,16 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 <dd>{entry.todo ? `Still to do${entry.due_date ? ` · due ${entry.due_date}` : ""}` : "Done"}</dd>
               </div>
             </dl>
+            {backlinks.length > 0 && (
+              <p className="entry-backlinks">
+                <span className="entry-backlinks-label">Linked from</span>
+                {backlinks.map((source) => (
+                  <span key={source.id} className="entry-backlink">
+                    {entryPreview(source)}
+                  </span>
+                ))}
+              </p>
+            )}
             <RetiredValues retiredData={entry.retired_data || {}} retiredSchema={project.retired_schema || []} />
             {canManage && (
               <div className="actions">

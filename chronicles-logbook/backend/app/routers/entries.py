@@ -119,7 +119,7 @@ async def search_entries(
     tag_filter = tag.strip() if tag else ""
     matched: list[dict[str, Any]] = []
     for entry, project_name in rows:
-        keyword_ok, keyword_hits = keyword_matches(project_name, entry.data, query)
+        keyword_ok, keyword_hits = keyword_matches(project_name, entry.title, entry.data, query)
         if not keyword_ok:
             continue
 
