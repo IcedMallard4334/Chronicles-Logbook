@@ -38,7 +38,7 @@ async def search_project(authenticated_client):
     return response.json()
 
 
-async def _make_entry(client, project_id, **overrides):
+async def _make_entry(client, project_id, title=None, **overrides):
     # A tags field must carry at least one tag (the US-2.1 repair), so the
     # default entry carries one; tests that care about tags override it.
     data = {
@@ -50,7 +50,10 @@ async def _make_entry(client, project_id, **overrides):
         "f-checklist": [],
     }
     data.update(overrides)
-    response = await client.post(f"/projects/{project_id}/entries", json={"data": data})
+    payload = {"data": data}
+    if title is not None:
+        payload["title"] = title
+    response = await client.post(f"/projects/{project_id}/entries", json=payload)
     assert response.status_code == 201
     return response.json()
 
@@ -445,3 +448,18 @@ async def test_sort_relevance_is_a_valid_value(authenticated_client, search_entr
         "/entries", params={"project_id": s["project_id"], "sort": "relevance"}
     )
     assert response.status_code == 200
+
+
+async def test_keyword_search_matches_an_entrys_title(authenticated_client, search_project):
+    """A title is the name somebody gave an entry — the free-text query has
+    to find it, not just field values and project names. Without this, an
+    entry whose fields carry no text (tags and checklists only) could never
+    be found by searching for the name it was given."""
+    named = await _make_entry(authenticated_client, search_project["id"], title="Quarterly review")
+
+    response = await authenticated_client.get(
+        "/entries", params={"project_id": search_project["id"], "q": "quarterly"}
+    )
+    assert response.status_code == 200
+    ids = {entry["id"] for entry in response.json()}
+    assert named["id"] in ids

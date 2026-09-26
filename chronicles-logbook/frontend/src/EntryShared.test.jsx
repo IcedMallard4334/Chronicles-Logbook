@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { EntryDetailModal, InfoTip } from "./EntryShared"
+import { EntryDetailModal, entryPreview, InfoTip } from "./EntryShared"
 import { deleteEntry, fetchEntryMigrationPreview, updateEntry } from "./api"
 
 vi.mock("./api", () => ({
@@ -211,6 +211,108 @@ describe("EntryDetailModal", () => {
     fireEvent.keyDown(document, { key: "Escape" })
 
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it("names a link by its target's title, never the id it stores", () => {
+    // A link field holds the target's id — showing that id is showing the
+    // storage, not the relationship. The target's own title is its name.
+    const schema = [
+      { id: "f-hours", name: "Hours", type: "number" },
+      { id: "f-related", name: "Related Entry", type: "link" },
+    ]
+    const linkedProject = { ...project, entry_schema: schema }
+    const target = upToDateEntry({
+      id: "e2",
+      title: "Project Alpha",
+      data: { "f-hours": 2 },
+      schema_snapshot: schema,
+    })
+    const source = upToDateEntry({
+      title: "Project Beta",
+      data: { "f-hours": 1, "f-related": "e2" },
+      schema_snapshot: schema,
+    })
+
+    render(
+      <EntryDetailModal
+        project={linkedProject}
+        entry={source}
+        entries={[source, target]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle("This entry links to that one")).toHaveTextContent(
+      "Project Alpha"
+    )
+  })
+
+  it("shows who links to this entry, by name (US-2.3)", () => {
+    const schema = [
+      { id: "f-hours", name: "Hours", type: "number" },
+      { id: "f-related", name: "Related Entry", type: "link" },
+    ]
+    const linkedProject = { ...project, entry_schema: schema }
+    const target = upToDateEntry({
+      id: "e2",
+      title: "Project Alpha",
+      data: { "f-hours": 2 },
+      schema_snapshot: schema,
+    })
+    const source = upToDateEntry({
+      title: "Project Beta",
+      data: { "f-hours": 1, "f-related": "e2" },
+      schema_snapshot: schema,
+    })
+
+    render(
+      <EntryDetailModal
+        project={linkedProject}
+        entry={target}
+        entries={[source, target]}
+        onClose={vi.fn()}
+      />
+    )
+
+    const backlinks = screen.getByText("Linked from").closest("p")
+    expect(backlinks).toHaveTextContent("Project Beta")
+  })
+})
+
+describe("entryPreview", () => {
+  it("prefers the entry's title over anything its fields hold", () => {
+    expect(
+      entryPreview({
+        title: "Project Alpha",
+        data: { "f-hours": 3, "f-notes": "Site visit" },
+        created_at: "2026-09-26T10:00:00Z",
+      })
+    ).toBe("Project Alpha")
+  })
+
+  it("never lets a link field's stored id stand in as the entry's name", () => {
+    // The entry's only string values are a link target's id and some real
+    // text — the text is the name; the id is bookkeeping.
+    expect(
+      entryPreview({
+        title: null,
+        data: {
+          "f-related": "303566d3-9ac5-4f8c-ba69-8c02b3431d81",
+          "f-notes": "Site visit",
+        },
+        created_at: "2026-09-26T10:00:00Z",
+      })
+    ).toBe("Site visit")
+  })
+
+  it("falls back to the day an entry with no name and no text was written", () => {
+    expect(
+      entryPreview({
+        title: null,
+        data: { "f-hours": 3 },
+        created_at: "2026-09-26T10:00:00Z",
+      })
+    ).toBe(`Entry of ${new Date("2026-09-26T10:00:00Z").toLocaleDateString()}`)
   })
 })
 
