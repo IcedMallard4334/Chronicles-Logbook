@@ -7,6 +7,7 @@ import {
   deleteEntry,
   fetchCurrentUser,
   fetchEntries,
+  fetchFieldStatistics,
   fetchEntriesGlobal,
   fetchEntry,
   fetchEntryMigrationPreview,
@@ -256,6 +257,17 @@ describe("api", () => {
       }
     )
     expect(result).toEqual(entries)
+  })
+
+  it("fetches schema-aware field statistics for a project", async () => {
+    const statistics = { project_id: "proj-1", fields: [] }
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => statistics })
+
+    await expect(fetchFieldStatistics("proj-1")).resolves.toEqual(statistics)
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/statistics/projects/proj-1/fields",
+      { credentials: "include", headers: { "Content-Type": "application/json" } },
+    )
   })
 
   it("fetches entries globally with search and project filters", async () => {

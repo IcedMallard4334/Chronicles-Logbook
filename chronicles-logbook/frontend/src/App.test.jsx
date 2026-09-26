@@ -6,7 +6,7 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
-  fetchStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
 }))
 
@@ -28,6 +28,7 @@ import {
   fetchEntries,
   fetchEntriesGlobal,
   fetchFieldTimeline,
+  fetchFieldStatistics,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -57,6 +58,7 @@ beforeEach(() => {
   fetchEntriesGlobal.mockResolvedValue([])
   fetchTasks.mockResolvedValue([])
   fetchStatistics.mockResolvedValue(emptyStatistics)
+  fetchFieldStatistics.mockResolvedValue({ project_id: "proj-1", schema_version: 1, fields: [] })
 })
 
 describe("workspace summary", () => {
@@ -160,6 +162,18 @@ describe("App workspace", () => {
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     fireEvent.click(within(projects).getByText("Field Notes"))
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
+  })
+
+  it("opens schema-aware statistics for a project", async () => {
+    fetchFieldStatistics.mockResolvedValue({
+      project_id: "proj-1", schema_version: 1,
+      fields: [{ field_id: "hours", name: "Hours", type: "number", count: 1, total: 3, average: 3, groups: [] }],
+    })
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(within(await screen.findByRole("listbox", { name: "Projects" })).getByText("Field Notes"))
+    fireEvent.click(screen.getByRole("tab", { name: "Statistics" }))
+    expect(await screen.findByLabelText("Hours metrics")).toHaveTextContent("Total3")
+    expect(fetchFieldStatistics).toHaveBeenCalledWith("proj-1")
   })
 
   it("opens the field timeline view from the sidebar", async () => {

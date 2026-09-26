@@ -202,6 +202,42 @@ async def test_field_statistics_sums_and_averages_numeric_fields(
     assert hours["total"] == 12
     assert hours["average"] == 4
     assert hours["groups"] == []
+
+
+async def test_field_statistics_include_empty_and_historical_only_fields(authenticated_client):
+    project = await authenticated_client.post(
+        "/projects",
+        json={"name": "Empty fields", "entry_schema": [{"id": "old", "name": "Old", "type": "text"}]},
+    )
+    project_id = project.json()["id"]
+    await authenticated_client.post(f"/projects/{project_id}/entries", json={"data": {"old": "kept"}})
+    await authenticated_client.put(
+        f"/projects/{project_id}",
+        json={"entry_schema": [{"id": "new", "name": "New", "type": "number"}]},
+    )
+
+    response = await authenticated_client.get(f"/statistics/projects/{project_id}/fields")
+
+    assert response.status_code == 200
+    fields = {field["field_id"]: field for field in response.json()["fields"]}
+    assert fields["old"]["groups"] == [{"value": "kept", "count": 1}]
+    assert fields["new"]["count"] == 0
+    assert fields["new"]["total"] is None
+
+
+async def test_field_statistics_hide_another_users_project(
+    authenticated_client, second_authenticated_client
+):
+    project = await authenticated_client.post(
+        "/projects", json={"name": "Private statistics", "entry_schema": STATS_SCHEMA}
+    )
+
+    response = await second_authenticated_client.get(
+        f"/statistics/projects/{project.json()['id']}/fields"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
     
 async def test_field_statistics_groups_categorical_fields(authenticated_client):
     response = await authenticated_client.post(
