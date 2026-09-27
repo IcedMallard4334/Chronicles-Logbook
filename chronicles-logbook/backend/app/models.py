@@ -472,3 +472,122 @@ class LoginSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# ── Entry automation (US-3.12) ───────────────────────────────────────────────
+
+
+class EntryRule(Base):
+    """A rule the logbook applies by itself when a new entry is captured.
+
+    ``conditions`` use the same shape as a structured search (US-3.11), so a
+    rule reads exactly like a saved search: "when an entry matches this, do
+    that". ``actions`` is a small closed set — add tags, fill a field, mark as
+    to-do — validated against the project's schema when the rule is saved and
+    checked again when it runs, because the schema can change in between.
+
+    Rules act only at capture. Re-running them on every edit would fight the
+    person editing: a tag they removed on purpose would come straight back.
+    """
+
+    __tablename__ = "entry_rules"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    match: Mapped[str] = mapped_column(String(3), nullable=False, default="all", server_default="all")
+    conditions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType, nullable=False, default=list, server_default="[]"
+    )
+    actions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType, nullable=False, default=list, server_default="[]"
+    )
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class EntryRecurrence(Base):
+    """Makes an entry repeat: daily, weekly or monthly, every ``interval`` periods.
+
+    The source entry is the template — each occurrence copies its *current*
+    title and values, so editing the source changes what future occurrences
+    look like without touching the ones already created.
+
+    Occurrence n falls on ``starts_on + n * period``, always counted from the
+    anchor rather than from the previous occurrence, so a monthly entry that
+    starts on the 31st lands on the last day of shorter months and returns to
+    the 31st afterwards instead of drifting earlier every month.
+    """
+
+    __tablename__ = "entry_recurrences"
+    __table_args__ = (UniqueConstraint("entry_id", name="uq_entry_recurrences_entry"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("entries.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    frequency: Mapped[str] = mapped_column(String(10), nullable=False)
+    interval: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
+    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Index of the next occurrence to create (the source entry is occurrence 0)
+    # and the date it falls on. The date is derivable from the index, but it is
+    # stored so "what is due?" is an indexed comparison rather than a
+    # calculation over every recurrence.
+    next_index: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    next_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class RecurrenceOccurrence(Base):
+    """One occurrence a recurrence has already produced.
+
+    The unique (recurrence, date) pair is what makes creating occurrences safe
+    to run from any request, any number of times, in any number of worker
+    processes: a second attempt at the same date fails the constraint instead
+    of producing a duplicate entry. ``entry_id`` is cleared rather than the row
+    deleted when someone deletes the entry, so a deleted occurrence stays
+    deleted instead of being recreated on the next check.
+    """
+
+    __tablename__ = "recurrence_occurrences"
+    __table_args__ = (
+        UniqueConstraint("recurrence_id", "occurrence_on", name="uq_recurrence_occurrences_date"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    recurrence_id: Mapped[UUID] = mapped_column(
+        ForeignKey("entry_recurrences.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    occurrence_on: Mapped[date] = mapped_column(Date, nullable=False)
+    entry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("entries.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

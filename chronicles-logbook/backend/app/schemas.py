@@ -444,6 +444,9 @@ class EntryResponse(BaseModel):
     created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Rules that fired when this entry was captured (US-3.12). Only filled in
+    # on the response to the request that created the entry; empty elsewhere.
+    applied_rules: list["AppliedRule"] = Field(default_factory=list)
 
 
 class EntryRevisionResponse(BaseModel):
@@ -811,3 +814,149 @@ class AIProjectActionProposal(BaseModel):
     payload: AIProjectActionPayload
     requires_confirmation: Literal[True] = True
 
+
+
+# ── Entry automation (US-3.12) ───────────────────────────────────────────────
+#
+# Every request model here forbids unknown keys: a rule with a misspelled key
+# should be refused, not saved as something that silently does nothing.
+
+MAX_RULES_PER_PROJECT = 20
+MAX_ACTIONS_PER_RULE = 5
+MAX_RULE_CONDITIONS = 10
+MAX_DUE_IN_DAYS = 365
+MAX_CATCH_UP_OCCURRENCES = 31
+MAX_REMINDER_WINDOW_DAYS = 60
+
+
+class AddTagsAction(BaseModel):
+    """Add these tags to a tags field (kept alongside any the author entered)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["add_tags"]
+    field_id: str = Field(..., min_length=1, max_length=100)
+    tags: list[str] = Field(..., min_length=1, max_length=MAX_TAGS)
+
+
+class SetFieldAction(BaseModel):
+    """Fill a field. Only fills a blank field unless ``overwrite`` is true."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["set_field"]
+    field_id: str = Field(..., min_length=1, max_length=100)
+    value: Any
+    overwrite: bool = False
+
+
+class MarkTodoAction(BaseModel):
+    """Mark the entry as outstanding work, optionally due N days after capture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["mark_todo"]
+    due_in_days: int | None = Field(default=None, ge=0, le=MAX_DUE_IN_DAYS)
+
+
+RuleAction = Annotated[
+    AddTagsAction | SetFieldAction | MarkTodoAction,
+    Field(discriminator="type"),
+]
+
+
+class EntryRuleCreate(BaseModel):
+    """The full definition of a rule. PUT replaces a rule with one of these."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=100)
+    enabled: bool = True
+    # Same meaning as on a structured search: every condition, or any one.
+    match: Literal["all", "any"] = "all"
+    # No conditions means the rule applies to every new entry in the project.
+    conditions: list[FieldCondition] = Field(default_factory=list, max_length=MAX_RULE_CONDITIONS)
+    actions: list[RuleAction] = Field(..., min_length=1, max_length=MAX_ACTIONS_PER_RULE)
+
+
+class EntryRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    name: str
+    enabled: bool
+    match: Literal["all", "any"]
+    conditions: list[dict[str, Any]]
+    actions: list[dict[str, Any]]
+    created_by: UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AppliedRule(BaseModel):
+    """A rule that fired when an entry was captured, returned with the entry."""
+
+    id: UUID
+    name: str
+
+
+class RecurrenceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    frequency: Literal["daily", "weekly", "monthly"]
+    interval: int = Field(default=1, ge=1, le=365)
+    # The date the source entry stands for. Defaults to its due date, or
+    # today when it has none. The first new occurrence is one period later.
+    starts_on: date | None = None
+    ends_on: date | None = None
+
+    @model_validator(mode="after")
+    def ends_after_start(self):
+        if self.starts_on and self.ends_on and self.ends_on < self.starts_on:
+            raise ValueError("ends_on cannot be before starts_on.")
+        return self
+
+
+class RecurrenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    entry_id: UUID
+    project_id: UUID
+    frequency: Literal["daily", "weekly", "monthly"]
+    interval: int
+    starts_on: date
+    ends_on: date | None = None
+    # Null once the recurrence has run past its end date.
+    next_on: date | None = None
+    active: bool
+    occurrences_created: int = 0
+    created_at: datetime
+
+
+class ReminderItem(BaseModel):
+    kind: Literal["entry", "task"]
+    id: UUID
+    project_id: UUID
+    project_name: str
+    title: str | None = None
+    due_date: date
+    status: Literal["overdue", "due_today", "upcoming"]
+    # Negative when overdue: -3 means three days late.
+    days_until: int
+
+
+class RemindersResponse(BaseModel):
+    today: date
+    within_days: int
+    overdue_count: int
+    due_today_count: int
+    upcoming_count: int
+    # Recurring entries created by this call, so the UI can refresh lists.
+    occurrences_created: int
+    items: list[ReminderItem]
+
+
+# EntryResponse refers to AppliedRule, which is declared further down.
+EntryResponse.model_rebuild()

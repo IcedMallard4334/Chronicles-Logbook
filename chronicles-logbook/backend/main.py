@@ -12,6 +12,7 @@ from app.routers import (
     activities,
     ai,
     auth,
+    automation,
     calendar,
     entries,
     invitations,
@@ -64,6 +65,11 @@ async def lifespan(app: FastAPI):
     # sprints, replace this with a real migration tool (Alembic) so existing
     # data isn't at risk of being silently out of sync with the models.
     async with async_engine.begin() as conn:
+        if async_engine.dialect.name == "postgresql":
+            # With several worker processes (startup.txt) each one runs this on
+            # boot. The transaction-scoped lock makes them take turns, so two
+            # workers can't race to create the same table on a fresh database.
+            await conn.execute(text("SELECT pg_advisory_xact_lock(724113)"))
         await conn.run_sync(Base.metadata.create_all)
         # Only Postgres understands the conditional form. SQLite is used for
         # fresh test databases, which ``create_all`` already builds correctly.
@@ -109,6 +115,9 @@ app.include_router(tasks.router)
 app.include_router(calendar.router)
 app.include_router(activities.router)
 app.include_router(ai.router)
+app.include_router(automation.rules_router)
+app.include_router(automation.recurrence_router)
+app.include_router(automation.reminders_router)
 
 
 @app.get("/health")

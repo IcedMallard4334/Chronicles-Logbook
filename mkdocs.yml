@@ -103,3 +103,5 @@ nav:
     - Sprint 3 Log (Person 4): methodology/sprint-3-log.md
     - User Feedback: methodology/user-feedback.md
     - Potential Risks: methodology/risks.md
+  - Testing:
+    - API Performance: testing/api-performance.md
