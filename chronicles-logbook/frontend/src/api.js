@@ -480,3 +480,80 @@ export async function sendAIMessage(message) {
     body: JSON.stringify({ message }),
   })
 }
+
+
+// ── Entry rules, recurrence and reminders (US-3.12) ─────────────────
+
+/**
+ * Today's date on this device, as YYYY-MM-DD.
+ *
+ * Sent with reminder and recurrence requests because the server runs on UTC:
+ * between midnight and 02:00 in South Africa it still thinks it is yesterday,
+ * and "due today" should mean the user's today.
+ */
+export function localDateString(date = new Date()) {
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+export async function fetchRules(projectId) {
+  return request(`/projects/${projectId}/rules`)
+}
+
+export async function createRule(projectId, rule) {
+  return request(`/projects/${projectId}/rules`, {
+    method: "POST",
+    body: JSON.stringify(rule),
+  })
+}
+
+/** Replace a rule's whole definition — including switching it on or off. */
+export async function updateRule(projectId, ruleId, rule) {
+  return request(`/projects/${projectId}/rules/${ruleId}`, {
+    method: "PUT",
+    body: JSON.stringify(rule),
+  })
+}
+
+export async function deleteRule(projectId, ruleId) {
+  return request(`/projects/${projectId}/rules/${ruleId}`, { method: "DELETE" })
+}
+
+/** Every repeating entry in a project. Also creates any occurrences now due. */
+export async function fetchRecurrences(projectId) {
+  const params = new URLSearchParams({ today: localDateString() })
+  return request(`/projects/${projectId}/recurrences?${params}`)
+}
+
+/** How an entry repeats, or null when it doesn't. */
+export async function fetchRecurrence(projectId, entryId) {
+  try {
+    return await request(`/projects/${projectId}/entries/${entryId}/recurrence`)
+  } catch (error) {
+    if (error.status === 404) return null
+    throw error
+  }
+}
+
+/** Make an entry repeat, or change how it repeats. */
+export async function setRecurrence(projectId, entryId, recurrence) {
+  const params = new URLSearchParams({ today: localDateString() })
+  return request(`/projects/${projectId}/entries/${entryId}/recurrence?${params}`, {
+    method: "PUT",
+    body: JSON.stringify(recurrence),
+  })
+}
+
+export async function stopRecurrence(projectId, entryId) {
+  return request(`/projects/${projectId}/entries/${entryId}/recurrence`, { method: "DELETE" })
+}
+
+/**
+ * What's overdue, due today, or due within `withinDays`, across all projects.
+ * Polling this also keeps recurring entries up to date.
+ */
+export async function fetchReminders(withinDays = 7) {
+  const params = new URLSearchParams({ within_days: withinDays, today: localDateString() })
+  return request(`/reminders?${params}`)
+}

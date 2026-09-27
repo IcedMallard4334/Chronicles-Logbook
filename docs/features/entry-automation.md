@@ -106,7 +106,18 @@ Returns to-do entries and open tasks with a due date that is **overdue, due toda
 
 - **`today`** is optional. The frontend should send the device's local date: the server runs on UTC, so between 00:00 and 02:00 in South Africa it would otherwise think it's still yesterday. It must be within a day of the server's date; anything further out is rejected, so it can't be used to fast-forward recurrences.
 - An entry without a title is shown by its first text value.
-- **Frontend:** call this on app load and every few minutes. Show the counts as a badge and the items as a list. It also keeps recurring entries up to date, so no other polling is needed.
+- The frontend polls this every 5 minutes and whenever the tab regains focus. That also keeps recurring entries up to date, so nothing else needs to poll.
+
+## In the app
+
+| Where | What it does |
+|---|---|
+| **Project → Automation tab** (`AutomationPanel.jsx`) | Lists the project's rules as plain sentences ("When Kind is Bug: add tag triage to Tags; mark it as to-do, due in 3 days."), with **Turn off / Edit / Delete**. **+ New rule** opens an editor whose conditions are the same builder as structured search. Lists repeating entries with their next date and how many copies they've made. Members see everything but can't change rules. |
+| **New entry form** | Loads the project's rules. A field a rule can fill becomes optional ("Leave blank and a rule can fill this in"; dropdowns offer "Leave for the rule…"). After saving, it says which rules applied: "Saved. Rule applied: Default kind." |
+| **Entry details → Repeat** (`RecurrenceControl.jsx`) | Shows whether the entry repeats and when the next copy is due; **Repeat… / Change / Stop repeating**. Hidden from people who can't edit the entry, and in archived projects. |
+| **Top bar → reminders bell** (`Reminders.jsx`) | Appears only when something is due. The badge counts overdue + due today (red if anything is overdue, amber if only today, grey if only upcoming). The panel groups items under Overdue / Due today / Coming up, says "2 days late" or "in 3 days" in words (not colour alone), and clicking one opens its project. |
+
+Tests: `automationRules.test.js`, `AutomationPanel.test.jsx`, `RecurrenceControl.test.jsx`, `Reminders.test.jsx`, plus two in `App.test.jsx`.
 
 ## Not included (and why)
 

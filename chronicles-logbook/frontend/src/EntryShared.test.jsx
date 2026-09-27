@@ -6,6 +6,11 @@ import { deleteEntry, fetchEntryHistory, fetchEntryMigrationPreview, updateEntry
 
 vi.mock("./api", () => ({
   updateEntry: vi.fn(),
+  // US-3.12: the Repeat section asks whether the entry repeats; it doesn't.
+  fetchRecurrence: vi.fn(() => Promise.resolve(null)),
+  setRecurrence: vi.fn(),
+  stopRecurrence: vi.fn(),
+  localDateString: vi.fn(() => "2026-09-27"),
   deleteEntry: vi.fn(),
   fetchEntryMigrationPreview: vi.fn(),
   fetchEntryHistory: vi.fn(),

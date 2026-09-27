@@ -1,0 +1,214 @@
+/* --------------------------------------------------
+   AUTOMATION TAB (US-3.12) — rules and repeating entries
+   -------------------------------------------------- */
+
+.automation-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.automation-panel .hint {
+  margin: 0;
+}
+
+.automation-panel > .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.automation-subhead {
+  margin-top: 12px;
+}
+
+.automation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.automation-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface);
+}
+
+/* A switched-off rule stays readable (so it can be switched back on), just quieter. */
+.automation-item.is-off {
+  background: var(--surface-soft);
+}
+
+.automation-item.is-off .automation-copy p,
+.automation-item.is-off .automation-copy strong {
+  color: var(--muted);
+}
+
+.automation-copy {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.automation-copy strong {
+  margin-right: 8px;
+}
+
+.automation-copy p {
+  margin: 4px 0 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.automation-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-badge.is-on {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.status-badge.is-off {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.automation-editor {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface);
+}
+
+.automation-actions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+}
+
+.automation-actions legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.automation-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.automation-action:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.automation-action .field-label {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.automation-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* On the entry form: a field a rule can fill, so leaving it blank is fine. */
+.rule-fill-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.rule-applied-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--blue-bg);
+  color: var(--text);
+}
+
+/* The Repeat section in an entry's detail view. */
+/* Matches the History section above it (.entry-history in App.css). */
+.entry-recurrence {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.entry-recurrence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entry-recurrence-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.entry-recurrence .hint {
+  margin: 0;
+}
+
+/* Its own shaded box, so its Cancel/Save can't be mistaken for the dialog's
+   Delete/Edit directly underneath. Two columns: four side by side overflowed
+   the dialog, since a date input won't shrink below its own width. */
+.entry-recurrence-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface-soft);
+}
+
+.entry-recurrence-form .field-label {
+  min-width: 0;
+}
+
+.entry-recurrence-form .field-label input,
+.entry-recurrence-form .field-label select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.entry-recurrence-form .hint,
+.entry-recurrence-form .actions {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .entry-recurrence-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

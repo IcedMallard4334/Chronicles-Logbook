@@ -18,11 +18,16 @@ import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import OutstandingPage from "./OutstandingPage"
+import ChronologicalTimeline from "./EntryTimeline"
+import FieldStatisticsPanel from "./FieldStatisticsPanel"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
+import Reminders from "./Reminders"
+import AutomationPanel from "./AutomationPanel"
+import { ruleFillableFieldIds } from "./automationRules"
 import AmbientBackground from "./AmbientBackground"
 import ViewTransition, { ViewLoader } from "./ViewTransition"
 import { useDialogFocus } from "./useDialogFocus"
@@ -42,6 +47,7 @@ import {
   fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
+  fetchRules,
   fetchStatistics,
   fetchTasks,
   leaveProject,
@@ -1453,11 +1459,13 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
  * the payload holds is judged: a link left empty is no link, and a checklist
  * nobody touched is an empty list the server accepts.
  */
-function richFieldProblem(schema, payload) {
+function richFieldProblem(schema, payload, ruleFillable = new Set()) {
   for (const field of schema) {
     const value = payload[field.id]
     if (field.type === "tags" && Array.isArray(value)) {
-      if (value.length === 0) return `"${field.name}" needs at least one tag.`
+      // An empty tags field is fine when a rule may add tags to it (US-3.12);
+      // if the rule turns out not to apply, the server says so.
+      if (value.length === 0 && !ruleFillable.has(field.id)) return `"${field.name}" needs at least one tag.`
       if (value.length > TAGS_LIMIT.count)
         return `"${field.name}" can hold up to ${TAGS_LIMIT.count} tags.`
       if (value.some((tag) => String(tag).trim().length > TAGS_LIMIT.length))
@@ -1489,6 +1497,21 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
   const [dueDate, setDueDate] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  // US-3.12: the project's rules, so a field a rule can fill may be left
+  // blank, and a note of which rules changed the entry just saved.
+  const [rules, setRules] = useState([])
+  const [ruleNotice, setRuleNotice] = useState(null)
+  const ruleFillable = useMemo(() => ruleFillableFieldIds(rules), [rules])
+
+  useEffect(() => {
+    let active = true
+    setRuleNotice(null)
+    fetchRules(project.id)
+      .then((loaded) => { if (active) setRules(Array.isArray(loaded) ? loaded : []) })
+      // Rules only relax the form; without them it simply behaves as before.
+      .catch(() => { if (active) setRules([]) })
+    return () => { active = false }
+  }, [project.id])
 
   // Recomputed as you type, so a calculation settles while the entry is being
   // filled in rather than only after it is saved.
@@ -1582,7 +1605,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           payload[field.id] = ""
         }
       }
-      const problem = richFieldProblem(schema, payload)
+      const problem = richFieldProblem(schema, payload, ruleFillable)
       if (problem) {
         setError(problem)
         return
@@ -1590,7 +1613,8 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
-      await onCreated({
+      setRuleNotice(null)
+      const created = await onCreated({
         title: title.trim() || undefined,
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
@@ -1599,6 +1623,12 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         // instead of rejecting an empty date.
         due_date: dueDate || null,
       })
+      const applied = created?.applied_rules || []
+      if (applied.length > 0) {
+        setRuleNotice(
+          `Saved. ${applied.length === 1 ? "Rule" : "Rules"} applied: ${applied.map((rule) => rule.name).join(", ")}.`
+        )
+      }
       setTitle("")
       setData({})
       setHoursSpent("")
@@ -1650,6 +1680,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
             suggestions={tagSuggestions}
             onOpenProject={onOpenProject}
             onChange={handleChange}
+            ruleCanFill={ruleFillable.has(field.id)}
           />
         ))}
       </div>
@@ -1705,6 +1736,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
+      {ruleNotice && <p className="rule-applied-notice" role="status">{ruleNotice}</p>}
       <div className="actions">
         <button
           type="submit"
@@ -2389,6 +2421,15 @@ function ProjectDetail({
           >
             Statistics
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "automation"}
+            className={tab === "automation" ? "active" : ""}
+            onClick={() => setTab("automation")}
+          >
+            Automation
+          </button>
         </div>
       </header>
       <div className="detail-body">
@@ -2425,6 +2466,8 @@ function ProjectDetail({
           />
         ) : tab === "tasks" ? (
           <TaskPanel projectId={project.id} />
+        ) : tab === "automation" ? (
+          <AutomationPanel project={project} />
         ) : (
           <FieldStatisticsPanel projectId={project.id} schemaVersion={project.schema_version} />
         )}
@@ -3041,6 +3084,8 @@ function App() {
             : project
         )
       )
+      // Returned so the form can say which rules (US-3.12) changed it.
+      return entry
     } catch (err) {
       // US-2.16: losing the connection must not lose what was typed. Any
       // other failure — a validation error, an archived project — is the
@@ -3304,6 +3349,7 @@ function App() {
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
             <Invitations onChanged={loadProjects} />
+            <Reminders onOpenProject={handleSelectProject} onOccurrencesCreated={loadEntries} />
             <AuthActions />
           </div>
         </nav>
