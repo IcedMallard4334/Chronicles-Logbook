@@ -78,13 +78,13 @@ nav:
     - Database: architecture/database.md
     - Use Case Diagrams: architecture/use-case-diagrams.md
     - Authentication & Azure: architecture/authentication-and-azure.md
-    - Features: features/entry-automation.md
   - API Reference:
     - Authentication: api/authentication.md
     - Projects: api/projects.md
     - Schema and field types: api/schema.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
+    - Rules, recurrence and reminders: features/entry-automation.md
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
     - Export and import: api/transfer.md
