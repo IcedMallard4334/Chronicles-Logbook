@@ -4,6 +4,40 @@
 // bullet lists, numbered steps, or a term/definition/example glossary list.
 export const HELP_SECTIONS = [
   {
+    id: "what-is-a-logbook",
+    title: "What is a logbook?",
+    articles: [
+      {
+        id: "what-is-a-logbook",
+        title: "What Chronicles is for",
+        keywords: ["logbook", "what is chronicles", "purpose", "why", "journal", "diary", "overview", "what is this"],
+        blocks: [
+          {
+            type: "p",
+            text: "A logbook is a running, dated record of work as it actually happened — what you did, when, and for how long — kept as you go rather than reconstructed afterwards from memory. Sailors, pilots and lab researchers have always kept one for the same reason: a decision or a result is only as trustworthy as the record behind it, and memory alone doesn't hold up to that.",
+          },
+          {
+            type: "p",
+            text: "Chronicles is a digital logbook for project work generally — a course, a thesis, a job, a side project, anything that unfolds over time and is worth being able to account for later. You define what an entry looks like for each project (see Schema editing), then log entries as you work. Nothing is a form to fill in for its own sake — every field you add exists because you'll want to search, chart or filter by it later.",
+          },
+          {
+            type: "ul",
+            items: [
+              "Answering 'what did I actually do last week/month/term?' without having to reconstruct it from memory or scattered notes.",
+              "Proving or reviewing time spent — hours logged per project, over a week, a term, or a whole account.",
+              "Tracking what's still outstanding alongside what's already done, instead of losing track of one or the other.",
+              "Keeping a defensible, dated history: every entry keeps a snapshot of the schema it was written under, and edits to it are kept as revisions rather than silently overwritten (see Entry history).",
+            ],
+          },
+          {
+            type: "p",
+            text: "If you're new here, Creating your first project (next in this section) is the fastest way to see this in practice.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "getting-started",
     title: "Getting started",
     articles: [
@@ -312,6 +346,21 @@ export const HELP_SECTIONS = [
           },
         ],
       },
+      {
+        id: "entry-history",
+        title: "Entry history: seeing what an entry used to say",
+        keywords: ["entry history", "revisions", "past values", "who changed", "audit", "version history", "previous value"],
+        blocks: [
+          {
+            type: "p",
+            text: "Editing an entry doesn't overwrite its past — every save keeps the entry's previous values as a numbered revision. Open an entry and click 'View history' to see them, newest first, each showing every field's value at that point, the time spent recorded then, when the change was made and, where known, who made it.",
+          },
+          {
+            type: "p",
+            text: "This is read-only: there's no 'restore this revision' button today, it's a record for reference — checking what a figure used to be, or when a change was actually made — rather than a way to undo an edit.",
+          },
+        ],
+      },
     ],
   },
   {
@@ -531,11 +580,78 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "Switching the Home sidebar from 'Projects' to 'Activity' opens the Field Timeline tool: choose a project, one of its fields, and an optional date range, and it plots that field's recorded values over time as a line chart, with a table beneath listing each entry's date, value and the schema version it was recorded under.",
+            text: "Switching the Home sidebar from 'Projects' to 'Activity' opens every entry across every project in one chronological list — search it, filter by project, tag or status, or narrow it to a date range. Its 'Field trends' button switches to the Field Timeline tool instead: choose a project, one of its fields, and an optional date range, and it plots that field's recorded values over time as a line chart, with a table beneath listing each entry's date, value and the schema version it was recorded under.",
+          },
+          {
+            type: "p",
+            text: "A project's own Statistics tab does the same charting for that one project's fields specifically, without needing to pick the project first.",
           },
           {
             type: "p",
             text: "Time spent is tracked per entry, in minutes, and summed automatically into each project's total — visible on the project itself and in the workspace totals.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "automation",
+    title: "Automation: rules, recurring entries and reminders",
+    articles: [
+      {
+        id: "entry-rules",
+        title: "Rules that run when an entry is saved",
+        keywords: ["automation", "rule", "rules", "add tags", "fill in a field", "mark as to-do", "condition", "trigger"],
+        blocks: [
+          {
+            type: "p",
+            text: "A project's Automation tab lets its owner set up rules that run automatically whenever an entry in that project is created — the same condition builder used by structured search decides which entries a rule applies to.",
+          },
+          {
+            type: "p",
+            text: "With 'Match all' or 'Match any' of one or more conditions satisfied, a rule can take one or more actions:",
+          },
+          {
+            type: "dl",
+            items: [
+              { term: "Add tags", detail: "Adds one or more tags to the entry (only offered if the project has a Tags field)." },
+              { term: "Fill in a field", detail: "Sets a Text, Number, Date or Choice field to a fixed value — optionally only when that field is still empty, so it never overwrites something you typed yourself, or always, if 'overwrite' is turned on." },
+              { term: "Mark as to-do", detail: "Flags the entry as still outstanding, optionally with a due date a set number of days out." },
+            ],
+          },
+          {
+            type: "p",
+            text: "Rules can be switched off without deleting them, and members of a shared project see them running (so a tag or a to-do flag that appeared on their entry isn't a mystery) even though only the owner can create or edit one.",
+          },
+        ],
+      },
+      {
+        id: "recurring-entries",
+        title: "Recurring entries",
+        keywords: ["recurrence", "recurring", "repeat", "repeating entry", "schedule", "daily", "weekly", "monthly"],
+        blocks: [
+          {
+            type: "p",
+            text: "Any entry can be set to repeat — daily, weekly or monthly, every N of that unit — from the Recurrence control on the entry form. Chronicles then creates a fresh copy of that entry automatically each time it comes due, rather than you re-typing the same entry on a schedule.",
+          },
+          {
+            type: "p",
+            text: "Occurrences are created in the background on a regular check, so a new one may take a few minutes to appear rather than the instant its due time arrives. Editing a field on the original entry doesn't retroactively change occurrences already created from it.",
+          },
+        ],
+      },
+      {
+        id: "reminders",
+        title: "Reminders",
+        keywords: ["reminders", "bell", "notifications", "due", "overdue", "upcoming", "due today"],
+        blocks: [
+          {
+            type: "p",
+            text: "The bell icon in the top nav bar lists everything due across every project — to-do entries and tasks together, since from the point of view of what needs attention, they're the same kind of thing. Grouped as Overdue, Due today and Coming up (the next seven days).",
+          },
+          {
+            type: "p",
+            text: "Reminders live inside the app only — nothing is emailed or sent outside Chronicles. The list refreshes automatically every few minutes and whenever you switch back to the tab.",
           },
         ],
       },
@@ -689,7 +805,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "Beyond that, the first time you open each page — Home, Today, All Entries, All Tasks, Board, Outstanding, Calendar, Mira, and the Activity/Field Timeline view — or each tab inside a project (Schema, Entries, Tasks), a single dismissible coach mark explains what that page is for. Each one shows only once and never blocks what you were doing.",
+            text: "Beyond that, the first time you open each page — Home, Today, All Entries, All Tasks, Board, Outstanding, Calendar, Mira, and Activity (with its Field Timeline view) — or each tab inside a project (Entries, Schema, Tasks, Statistics, Automation), a single dismissible coach mark explains what that page is for. Each one shows only once and never blocks what you were doing.",
           },
           {
             type: "p",

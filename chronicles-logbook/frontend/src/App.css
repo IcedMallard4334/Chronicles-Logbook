@@ -1080,12 +1080,22 @@
 .detail-header h2 {
   font-size: 1.4rem;
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.detail-title-block {
+  /* Without this, a flex child's min-width defaults to the size of its
+     longest unbreakable content — a description with no spaces would push
+     the header wider instead of wrapping, running the text behind the tabs
+     on the other side of the header. */
+  min-width: 0;
 }
 
 .project-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .project-title-row .btn-icon {
@@ -1127,6 +1137,7 @@
   margin-top: 6px;
   max-width: 48ch;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .detail-meta {
