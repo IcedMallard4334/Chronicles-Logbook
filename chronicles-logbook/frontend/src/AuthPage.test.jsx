@@ -1,15 +1,17 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AuthPage from "./AuthPage"
-import { getGoogleLoginUrl } from "./api"
+import { devLogin, fetchCurrentUser, getGoogleLoginUrl } from "./api"
 
 vi.mock("./api", async (importOriginal) => {
   const original = await importOriginal()
   return {
     ...original,
     getGoogleLoginUrl: vi.fn(),
+    devLogin: vi.fn(),
+    fetchCurrentUser: vi.fn(),
   }
 })
 function renderPage() {
@@ -27,7 +29,12 @@ function renderPage() {
 describe("AuthPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     getGoogleLoginUrl.mockReturnValue("http://localhost:8000/auth/google/login")
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it("renders the sign-in panel with Google as the only provider", () => {
@@ -64,5 +71,57 @@ describe("AuthPage", () => {
       "http://localhost:8000/auth/google/login"
     )
     expect(screen.getByText("Don’t have an account?")).toBeInTheDocument()
+  })
+
+  it("hides the without-Google option outside local runs", () => {
+    // Stubbed rather than left to the ambient .env, so the test says the same
+    // thing on a developer machine (which may set VITE_ENABLE_DEV_LOGIN) as in
+    // CI (which never does).
+    vi.stubEnv("VITE_ENABLE_DEV_LOGIN", "")
+    renderPage()
+
+    expect(screen.queryByRole("button", { name: "Continue without Google" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Sign in as")).not.toBeInTheDocument()
+  })
+
+  it("signs in without Google when the local option is on", async () => {
+    vi.stubEnv("VITE_ENABLE_DEV_LOGIN", "true")
+    devLogin.mockResolvedValue({ access_token: "local-dev-token" })
+    fetchCurrentUser.mockResolvedValue({
+      id: "user-1",
+      full_name: "Dev Tester",
+      email: "qa@chronicles.local",
+    })
+
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText("Sign in as"), {
+      target: { value: "qa@chronicles.local" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Continue without Google" }))
+
+    expect(await screen.findByText("Workspace setup")).toBeInTheDocument()
+    expect(devLogin).toHaveBeenCalledWith("qa@chronicles.local")
+    expect(window.localStorage.getItem("chronicles_token")).toBe("local-dev-token")
+    expect(JSON.parse(window.localStorage.getItem("chronicles_user"))).toEqual(
+      expect.objectContaining({ email: "qa@chronicles.local" })
+    )
+  })
+
+  it("shows the backend's refusal inline rather than navigating", async () => {
+    vi.stubEnv("VITE_ENABLE_DEV_LOGIN", "true")
+    devLogin.mockRejectedValue(new Error("Not found."))
+
+    renderPage()
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue without Google" }))
+
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("Not found.")
+    expect(window.localStorage.getItem("chronicles_token")).toBeNull()
+    // The button comes back once the refusal is shown.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue without Google" })).not.toBeDisabled()
+    )
   })
 })

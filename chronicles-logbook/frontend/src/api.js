@@ -438,6 +438,18 @@ export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }
 
+// Local development only, matching backend/.env.example: POST /auth/dev-login
+// signs in as a chosen email without Google, and the backend answers 404
+// unless its own .env sets ENABLE_DEV_LOGIN=true. Only reachable from the
+// sign-in page when VITE_ENABLE_DEV_LOGIN is set, which never happens in a
+// production build, so this stays a developer-machine convenience.
+export async function devLogin(email) {
+  return request("/auth/dev-login", {
+    method: "POST",
+    body: JSON.stringify({ email: email || null }),
+  })
+}
+
 export async function fetchCurrentUser() {
   return request("/auth/me")
 }
