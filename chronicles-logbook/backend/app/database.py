@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -29,11 +31,28 @@ _connect_args = (
     else {}
 )
 
+# Connection pool sizing (US-3.18). SQLAlchemy's defaults (5 pooled + 10 overflow)
+# made requests queue for a connection once ~15 were in flight, and overflow
+# connections are closed as soon as they're returned, so sustained load kept
+# opening fresh TLS connections to Azure Postgres. Per worker process: keep the
+# total (pool + overflow) x workers under the database's connection limit.
+_pool_args = (
+    {
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
+        "pool_pre_ping": True,  # drop connections Azure closed while idle
+        "pool_recycle": 1800,
+    }
+    if DATABASE_URL.startswith("postgresql")
+    else {}
+)
+
 async_engine = create_async_engine(
     DATABASE_URL,
     echo=SQL_DEBUG,
     hide_parameters=True,
     connect_args=_connect_args,
+    **_pool_args,
 )
 
 

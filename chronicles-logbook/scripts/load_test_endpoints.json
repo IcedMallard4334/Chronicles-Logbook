@@ -1,0 +1,29 @@
+{
+  "_comment": "Real routes from the deployed API's /openapi.json. {project_id} is replaced with the test project's id. The first entry is the health check. \"load\": false = write route, only used by robustness mode. \"fuzz\" = fields the robustness test breaks one at a time (oversized, wrong type, negative). Deliberately left out: /ai/chat (costs money per call), /calendar/google/* (hits Google), /export and /import (heavy), all DELETE routes.",
+  "endpoints": [
+    { "method": "GET",  "path": "/health" },
+    { "method": "GET",  "path": "/auth/me" },
+    { "method": "GET",  "path": "/projects" },
+    { "method": "GET",  "path": "/projects/{project_id}" },
+    { "method": "GET",  "path": "/projects/{project_id}/entries" },
+    { "method": "GET",  "path": "/projects/{project_id}/tasks" },
+    { "method": "GET",  "path": "/entries" },
+    { "method": "GET",  "path": "/saved-filters" },
+    { "method": "GET",  "path": "/statistics" },
+    { "method": "GET",  "path": "/statistics/projects/{project_id}/fields" },
+    { "method": "GET",  "path": "/calendar/activities?start=2026-09-01&end=2026-09-30" },
+
+    { "method": "POST", "path": "/projects",
+      "body": { "name": "load-test project" }, "fuzz": ["name"], "load": false },
+    { "method": "PUT",  "path": "/projects/{project_id}",
+      "body": { "name": "Load test (safe to delete)" }, "fuzz": ["name", "description"], "load": false },
+    { "method": "POST", "path": "/projects/{project_id}/entries",
+      "body": { "data": {} }, "fuzz": ["title", "data", "time_spent", "due_date"], "load": false },
+    { "method": "POST", "path": "/projects/{project_id}/tasks",
+      "body": { "title": "load-test task" }, "fuzz": ["title", "description", "due_date"], "load": false },
+    { "method": "POST", "path": "/saved-filters",
+      "body": { "name": "load-test filter", "criteria": {} }, "fuzz": ["name", "criteria"], "load": false },
+    { "method": "POST", "path": "/calendar/activities",
+      "body": { "title": "load-test", "day": "2026-09-28" }, "fuzz": ["title", "day", "start_time"], "load": false }
+  ]
+}

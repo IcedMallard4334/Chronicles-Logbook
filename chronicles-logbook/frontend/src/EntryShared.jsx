@@ -4,6 +4,7 @@ import { createPortal } from "react-dom"
 import { deleteEntry, fetchEntryHistory, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
 import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
+import RecurrenceControl from "./RecurrenceControl"
 
 // Kept separate from App.jsx (which has its own copy, same as ProfilePage.jsx
 // does) so this file has no import edge back into App.jsx — EntryDetailModal
@@ -397,7 +398,14 @@ function LinkInput({ value, onChange, entries }) {
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange }) {
+// A field an entry rule can fill in (US-3.12) may be left blank: the rule
+// supplies the value when the entry is saved.
+function RuleFillHint({ show }) {
+  if (!show) return null
+  return <span className="rule-fill-hint">Leave blank and a rule can fill this in.</span>
+}
+
+export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange, ruleCanFill = false }) {
   if (field.type === "computed") {
     // The badge's word and colour come from the field-type registry, so the
     // form, the table and the schema view can never disagree about what a
@@ -457,6 +465,7 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
           onChange={(next) => onChange(field.id, next)}
           suggestions={suggestions}
         />
+        <RuleFillHint show={ruleCanFill} />
       </div>
     )
   }
@@ -490,9 +499,9 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
     <label className="field-label">
       {field.name}
       {field.type === "dropdown" ? (
-        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required>
-          <option value="" disabled>
-            Select…
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required={!ruleCanFill}>
+          <option value="" disabled={!ruleCanFill}>
+            {ruleCanFill ? "Leave for the rule…" : "Select…"}
           </option>
           {(field.options || []).map((option) => (
             <option key={option} value={option}>
@@ -508,6 +517,7 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
           placeholder={field.name}
         />
       )}
+      <RuleFillHint show={ruleCanFill && field.type !== "dropdown"} />
     </label>
   )
 }
@@ -845,6 +855,12 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 </details>
               ))}
             </section>
+            <RecurrenceControl
+              projectId={project.id}
+              entry={entry}
+              canManage={canManage}
+              archived={Boolean(project.archived)}
+            />
             {canManage && (
               <div className="actions">
                 {confirmingDelete ? (

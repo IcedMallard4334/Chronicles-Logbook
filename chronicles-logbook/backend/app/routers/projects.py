@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.automation import apply_entry_rules
 from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import (
@@ -13,7 +14,9 @@ from app.models import (
     MEMBERSHIP_DECLINED,
     MEMBERSHIP_PENDING,
     Entry,
+    EntryRecurrence,
     EntryRevision,
+    EntryRule,
     Project,
     ProjectMember,
     Task,
@@ -532,6 +535,10 @@ async def delete_project(
     await _get_user_project(project_id, user, db)
 
     await db.execute(delete(Task).where(Task.project_id == project_id))
+    # Recurrences before entries: they reference the entries they repeat.
+    # (Their occurrence records go with them via ON DELETE CASCADE.)
+    await db.execute(delete(EntryRecurrence).where(EntryRecurrence.project_id == project_id))
+    await db.execute(delete(EntryRule).where(EntryRule.project_id == project_id))
     await db.execute(delete(Entry).where(Entry.project_id == project_id))
     await db.execute(delete(ProjectMember).where(ProjectMember.project_id == project_id))
     await db.execute(delete(Project).where(Project.id == project_id))
@@ -782,6 +789,12 @@ async def create_entry(
         )
 
     payload_data = _apply_project_references(data.data, project.entry_schema)
+
+    # Rules run before validation (US-3.12): a rule may fill in a field the
+    # author left blank, and the finished entry is what has to be valid.
+    rules = await apply_entry_rules(db, project, payload_data)
+    payload_data = rules.data
+
     await _validate_entry_data(
         payload_data,
         project.entry_schema,
@@ -801,8 +814,9 @@ async def create_entry(
         schema_version=project.schema_version,
         schema_snapshot=[dict(field) for field in project.entry_schema],
         time_spent=data.time_spent,
-        todo=data.todo,
-        due_date=data.due_date,
+        todo=data.todo or rules.mark_todo,
+        # A due date the author chose always beats one a rule suggests.
+        due_date=data.due_date or rules.due_date,
         created_by=user.id,
     )
 
@@ -819,6 +833,9 @@ async def create_entry(
     await db.commit()
     await db.refresh(entry)
 
+    # Not a column — read by EntryResponse so the author can see which rules
+    # changed what they saved, on the one response where that is news.
+    entry.applied_rules = rules.applied
     return entry
 
 

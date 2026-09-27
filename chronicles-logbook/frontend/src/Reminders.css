@@ -1,0 +1,64 @@
+/* --------------------------------------------------
+   REMINDERS (US-3.12) — reuses the invitations bell and panel, adds urgency.
+   -------------------------------------------------- */
+
+/* Not colour alone: every item also says "2 days late" / "today" in words.
+   Modifier classes rather than a shared "is-overdue": TodayPage.css paints any
+   .is-overdue red with !important, which would turn the badge's number red
+   on its red background. */
+.reminders-count--overdue { background: var(--error); }
+.reminders-count--today { background: var(--warning); color: #1a1a1a; }
+.reminders-count--upcoming { background: var(--muted); }
+
+.reminders-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.reminders-group h4 {
+  margin: 0;
+  padding: 10px 16px 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.reminders-group .invites-list {
+  max-height: none;
+  overflow: visible;
+}
+
+.reminders-item {
+  padding: 0;
+}
+
+.reminders-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reminders-open:hover,
+.reminders-open:focus-visible {
+  background: var(--surface-soft);
+}
+
+.reminders-due {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.reminders-due--overdue { color: var(--error); }
+.reminders-due--due_today { color: var(--warning); }
+.reminders-due--upcoming { color: var(--muted); }

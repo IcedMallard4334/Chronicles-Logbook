@@ -8,6 +8,10 @@ vi.mock("./api", () => ({
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
+  // US-3.12: no rules, nothing repeating, nothing to be reminded of.
+  fetchRules: vi.fn(() => Promise.resolve([])), fetchRecurrences: vi.fn(() => Promise.resolve([])),
+  fetchRecurrence: vi.fn(() => Promise.resolve(null)), localDateString: vi.fn(() => "2026-09-27"),
+  fetchReminders: vi.fn(() => Promise.resolve({ items: [], overdue_count: 0, due_today_count: 0, upcoming_count: 0, occurrences_created: 0 })),
 }))
 
 // The real engine opens IndexedDB, which this jsdom environment doesn't
@@ -24,12 +28,14 @@ vi.mock("./offlineSync", () => ({
 
 import App from "./App"
 import {
+  createEntry,
   createProject,
   fetchEntries,
   fetchEntriesGlobal,
   fetchFieldTimeline,
   fetchFieldStatistics,
   fetchProjects,
+  fetchRules,
   fetchStatistics,
   fetchTasks,
   sendAIMessage,
@@ -257,6 +263,7 @@ describe("App workspace", () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [], retired_schema: [fieldNotes.entry_schema[0]] }])
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Field trends" }))
     fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
     expect(await screen.findByRole("option", { name: "Hours" })).toBeInTheDocument()
   })
@@ -264,6 +271,7 @@ describe("App workspace", () => {
   it("does not request a chart for an inverted date range", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Activity/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Field trends" }))
     fireEvent.change(screen.getByLabelText("Select project"), { target: { value: "proj-1" } })
     fireEvent.change(screen.getByLabelText("Select field"), { target: { value: "hours" } })
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-06-10" } })
@@ -430,5 +438,56 @@ describe("account menu navigation", () => {
     expect(assign).not.toHaveBeenCalled()
 
     vi.unstubAllGlobals()
+  })
+})
+
+describe("entry rules in a project (US-3.12)", () => {
+  const bugs = {
+    id: "proj-2", name: "Bug Log", description: null, archived: false,
+    entry_schema: [
+      { id: "hours", name: "Hours", type: "number" },
+      { id: "kind", name: "Kind", type: "dropdown", options: ["Bug", "Feature"] },
+    ],
+  }
+  const defaultKind = {
+    id: "rule-1", project_id: "proj-2", name: "Default kind", enabled: true, match: "all",
+    conditions: [], actions: [{ type: "set_field", field_id: "kind", value: "Bug", overwrite: false }],
+  }
+
+  async function openBugLog() {
+    fetchProjects.mockResolvedValue([bugs])
+    fetchRules.mockResolvedValue([defaultKind])
+    render(<MemoryRouter><App /></MemoryRouter>)
+    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    fireEvent.click(within(projects).getByText("Bug Log"))
+    await screen.findByRole("heading", { name: "Bug Log" })
+  }
+
+  it("has an Automation tab listing the project's rules", async () => {
+    await openBugLog()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Automation" }))
+
+    expect(await screen.findByText("Default kind")).toBeInTheDocument()
+    expect(screen.getByText("For every new entry: fill in Kind with Bug.")).toBeInTheDocument()
+  })
+
+  it("lets a field a rule fills be left blank, and says which rule applied", async () => {
+    createEntry.mockResolvedValue({
+      id: "entry-9", project_id: "proj-2", title: null, data: { hours: 2, kind: "Bug" },
+      created_at: "2026-09-27T08:00:00Z", applied_rules: [{ id: "rule-1", name: "Default kind" }],
+    })
+    await openBugLog()
+
+    const kind = await screen.findByRole("combobox", { name: /Kind/ })
+    await waitFor(() => expect(kind).not.toBeRequired())
+    expect(screen.getByText("Leave for the rule…")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText("Hours"), { target: { value: "2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    await waitFor(() => expect(createEntry).toHaveBeenCalled())
+    expect(createEntry.mock.lastCall[1].data).toEqual({ hours: 2 })
+    expect(await screen.findByText("Saved. Rule applied: Default kind.")).toBeInTheDocument()
   })
 })

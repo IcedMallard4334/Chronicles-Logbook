@@ -9,7 +9,16 @@ import { fieldTypeLabel, searchOperatorsFor } from "./fieldTypes"
  * than trying to offer every field across every project at once. When no
  * project is selected, it explains why instead of rendering an empty form.
  */
-export function StructuredSearch({ schema, conditions, match, onChange }) {
+export function StructuredSearch({
+  schema,
+  conditions,
+  match,
+  onChange,
+  // Rules (US-3.12) reuse this builder for "when an entry matches…", where
+  // the wording of a search filter would read oddly.
+  legend = "Filter by custom field",
+  addLabel = "+ Add filter",
+}) {
   const listId = useId()
 
   if (!schema) {
@@ -61,7 +70,7 @@ export function StructuredSearch({ schema, conditions, match, onChange }) {
 
   return (
     <fieldset className="structured-search" aria-labelledby={listId}>
-      <legend id={listId}>Filter by custom field</legend>
+      <legend id={listId}>{legend}</legend>
 
       {conditions.map((condition, index) => {
         const field = queryableFields.find((candidate) => candidate.id === condition.field_id) || queryableFields[0]
@@ -120,7 +129,7 @@ export function StructuredSearch({ schema, conditions, match, onChange }) {
 
       <div className="structured-search-actions">
         <button type="button" className="btn-secondary" onClick={addCondition}>
-          + Add filter
+          {addLabel}
         </button>
 
         {conditions.length > 1 && (
