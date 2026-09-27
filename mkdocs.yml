@@ -39,6 +39,7 @@ theme:
     - search.suggest
     - search.highlight
     - content.code.copy
+
   icon:
     repo: fontawesome/brands/git-alt
 
@@ -83,6 +84,7 @@ nav:
     - Schema and field types: api/schema.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
+    - Rules, recurrence and reminders: features/entry-automation.md
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
     - Export and import: api/transfer.md
