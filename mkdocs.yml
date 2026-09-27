@@ -39,6 +39,7 @@ theme:
     - search.suggest
     - search.highlight
     - content.code.copy
+
   icon:
     repo: fontawesome/brands/git-alt
 
@@ -77,6 +78,7 @@ nav:
     - Database: architecture/database.md
     - Use Case Diagrams: architecture/use-case-diagrams.md
     - Authentication & Azure: architecture/authentication-and-azure.md
+    - Features: features/entry-automation.md
   - API Reference:
     - Authentication: api/authentication.md
     - Projects: api/projects.md
