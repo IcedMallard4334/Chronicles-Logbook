@@ -1077,3 +1077,133 @@ return, confirmed the test fails, restored).
 AI-assisted: the whole investigation — the CDP-driven script that found and
 measured the actual bug, the fix, the test, and this log entry — was done
 with Claude Code (Sonnet 5).
+
+## 14. Statistics page (US-3.7)
+
+**The ask:** build the dedicated Statistics page that section 10 of this log
+found missing when writing the Help manual ("No dedicated Statistics page
+exists either, despite one being referenced in `tourSteps.js`'s dead
+`PAGE_TOURS.statistics` key"). Part A of a two-part story: the page, the two
+endpoints behind it, and the tests. (Part B — user-defined custom stats,
+US-3.8 — is logged separately below once complete.)
+
+**Changed, backend:**
+
+- `app/routers/statistics.py` — `GET /statistics/activity?weeks=12`
+  (entries grouped by week for the last 1–52 weeks, zero-filled so the chart
+  has no gaps, plus the busiest weekday; days aggregated in SQL with
+  `func.date(Entry.created_at)` and folded into Monday-based weeks in
+  Python, so it works on both SQLite and PostgreSQL) and
+  `GET`/`PUT /statistics/layout` (the per-user panel arrangement;
+  plain-language 400s — never a 500 — for an unknown, duplicated or
+  not-true/false panel).
+- `app/models.py`, `app/schemas.py` — the `StatisticsLayout` model (one row
+  per user, same JSON column type as `SavedFilter.criteria`) and the
+  activity/layout response models.
+- `migrations/012_statistics_layout.sql`.
+- `tests/test_statistics.py` — 15 new tests (8 activity: empty logbook,
+  zero-week filling, bounds, another user's entries excluded, busiest
+  weekday; 7 layout: default when unsaved, save/read-back, re-save replaces,
+  the three 400s, per-user isolation).
+
+**Changed, frontend:**
+
+- `StatisticsPage.jsx`/`.css` (new) — headline cards, "Where your time went"
+  and "Your activity" charts (Recharts with "Show as table" toggles), "Look
+  inside a project" reusing `FieldStatisticsPanel`, "A field over time"
+  reusing `FieldTimeline` (hidden by default), the Customise drawer
+  (show/hide, reorder, save via `PUT /statistics/layout`), skeleton loading,
+  error Retry, and the three-step empty state.
+- `FieldTimeline.jsx` and `formatDuration.js` extracted out of `App.jsx` into
+  shared modules so the page can reuse them; `App.jsx` gains the Statistics
+  nav item, and the dead `DashboardPanel` (never rendered, hardcoded
+  "Coming soon" placeholders — grep-confirmed unreferenced) and the
+  now-duplicated inline `FieldTimeline` were deleted.
+- `api.js` (`fetchStatisticsActivity`/`fetchStatisticsLayout`/
+  `saveStatisticsLayout`), `tourSteps.js` (the formerly dead statistics tour
+  key, now anchored to the nav item), `helpContent.js` (the statistics
+  article rewritten for the new page).
+- Tests: `StatisticsPage.test.jsx` (new — formatted cards, empty state,
+  Customise save, reorder, error Retry) and the `App.test.jsx` api mock
+  updated.
+- `docs/api/statistics.md` — the two new endpoints documented in the page's
+  existing style.
+
+**Verified:** backend 509 passing, frontend 513 passing across 43 files,
+oxlint clean, `vite build` green. (The frontend suite needs Node ≥ 20.19 for
+Vite 8 — the sandbox's system Node is 18, so the run used a Node 22 install;
+`better-sqlite3`, the one dependency that fails to build here, is referenced
+nowhere in the source or configs and was installed with `--ignore-scripts`.)
+
+AI-assisted: backend, frontend, tests and docs for this story were
+implemented with Qoder (the AI coding assistant used for this session),
+working from a written two-part build brief.
+
+## 15. Custom statistics (US-3.8)
+
+**The ask:** Part B of the Statistics story — let a person define their own
+figures ("Average hours in Lab practicals"), save them under a name, and see
+each one worked out fresh every time the page loads. Logged separately from
+Part A (section 14), as the brief split the work in two.
+
+**Changed, backend:**
+
+- `app/custom_statistics.py` (new) — the formula evaluator, modelled on
+  `computed.py`'s expression machinery: parsed with `ast` against an
+  allowlist and never executed, so a formula may hold numbers, `+ - * /`,
+  unary minus, parentheses and calls to `sum`/`avg`/`min`/`max` — each
+  taking exactly one `{Field Name}` reference — plus `count()`, which takes
+  none. Fields resolve by name (case-insensitive) or id against the
+  project's `entry_schema`, only number and computed fields may feed a
+  sum/average, and each entry's value is read from its own frozen
+  `schema_snapshot`, exactly as the field statistics read them. Formulas are
+  stored canonicalised with field ids and shown back with names, so a rename
+  is a label change. Rejections are sentences, with a `difflib` "Did you
+  mean 'Hours'?" where one fits; and dividing by zero over no matching
+  entries yields `null` with a note rather than an error.
+- `app/routers/statistics.py` — `GET /statistics/custom` (each saved stat
+  with its value worked out fresh), `POST`, `PUT /{id}` (re-checked only
+  when the formula or project changes), `DELETE /{id}` and
+  `POST /statistics/custom/preview`; the list reads each project's entries
+  once however many stats watch it, and another account's project or stat
+  reads as a plain 404.
+- `app/models.py`, `app/schemas.py` — the `SavedStatistic` model (name
+  ≤ 100 characters, formula ≤ 500, cascading from both user and project)
+  and its response models.
+- `migrations/013_saved_statistics.sql`.
+- `tests/test_custom_statistics.py` (new) — 63 tests: 45 over the evaluator
+  (the five aggregates, arithmetic over their results, case-insensitive and
+  by-id resolution, per-snapshot reads, booleans rejected as numbers,
+  computed fields, division-by-zero variants, canonicalisation, and an
+  18-row rejection table with `__import__('os')` among the rows) and 18
+  over the endpoints (preview, save/edit/delete, scoping, rename survival,
+  drift reported as a note rather than an error, and the cascade on project
+  deletion).
+
+**Changed, frontend:**
+
+- `StatisticsPage.jsx` — the "My stats" placeholder replaced: saved stats
+  render as cards (name, big value, "Average of Hours · Lab practicals",
+  edit and delete), and "Make your own stat" opens a sentence to fill in —
+  Show the [Average|Total|Highest|Lowest|Count] of [number field] in
+  [project] — with a live preview from the preview endpoint and an
+  "advanced: write a formula" toggle for hand-written ones, whose errors
+  appear inline in plain words. Reopening a saved stat parses it back into
+  the sentence when it has that shape and falls back to the formula box for
+  anything else, so editing never silently changes what a stat says.
+- `api.js` (the five custom-statistic calls), `StatisticsPage.css` (cards,
+  dialog, sentence, preview), and a `helpContent.js` paragraph for the new
+  panel.
+- Tests: seven new in `StatisticsPage.test.jsx` (cards with their values,
+  the empty invite, a sentence-built preview and save, an inline formula
+  error, the edit round-trip in both sentence and formula forms, delete)
+  and the `App.test.jsx` api mock extended.
+- `docs/api/statistics.md` — the formula grammar and all five endpoints
+  documented in the page's existing style.
+
+**Verified:** backend 572 passing (63 of them new), frontend 520 passing
+across 43 files, oxlint clean, `vite build` green.
+
+AI-assisted: Part B — model, evaluator, endpoints, dialog, tests and docs —
+was implemented with Qoder (the AI coding assistant used for this session),
+working from the same written two-part build brief as section 14.

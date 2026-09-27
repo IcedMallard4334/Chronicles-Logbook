@@ -7,6 +7,11 @@ vi.mock("./api", () => ({
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
+  fetchStatisticsActivity: vi.fn(), fetchStatisticsLayout: vi.fn(), saveStatisticsLayout: vi.fn(),
+  // US-3.8: the My stats panel loads its own list when the page renders.
+  fetchCustomStatistics: vi.fn(() => Promise.resolve([])),
+  previewCustomStatistic: vi.fn(() => Promise.resolve({ value: 0, entries_used: 0, note: null })),
+  createCustomStatistic: vi.fn(), updateCustomStatistic: vi.fn(), deleteCustomStatistic: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
   // US-3.12: no rules, nothing repeating, nothing to be reminded of.
   fetchRules: vi.fn(() => Promise.resolve([])), fetchRecurrences: vi.fn(() => Promise.resolve([])),

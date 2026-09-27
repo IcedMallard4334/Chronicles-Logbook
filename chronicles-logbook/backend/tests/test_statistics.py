@@ -786,3 +786,211 @@ async def test_a_project_with_no_entries_has_no_streak(authenticated_client, pro
     assert body["projects"][0]["current_streak"] == 0
     assert body["projects"][0]["longest_streak"] == 0
     assert body["totals"]["current_streak"] == 0
+
+
+# ── Activity by week (US-3.7) ────────────────────────────────────────────────
+
+
+def _on_recent_weekday(target: int) -> str:
+    """A timestamp on the most recent *target* weekday (0 = Monday), so
+    weekday tests do not depend on the day the suite happens to run."""
+    now = datetime.now(timezone.utc)
+    days_back = (now.weekday() - target) % 7
+    return (now - timedelta(days=days_back)).isoformat()
+
+
+async def test_activity_requires_authentication(async_client):
+    response = await async_client.get("/statistics/activity")
+    assert response.status_code == 401
+
+
+async def test_activity_for_an_empty_logbook(authenticated_client):
+    response = await authenticated_client.get("/statistics/activity")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["weeks"]) == 12
+    assert all(week["entries"] == 0 for week in body["weeks"])
+    assert all(week["time_spent"] == 0 for week in body["weeks"])
+    assert body["busiest_weekday"] is None
+
+
+async def test_activity_fills_quiet_weeks_so_the_chart_has_no_gaps(
+    authenticated_client, project
+):
+    await _log(authenticated_client, project["id"], "today", when=_days_ago(0), minutes=30)
+
+    body = (await authenticated_client.get("/statistics/activity")).json()
+
+    assert len(body["weeks"]) == 12
+    logged = [week for week in body["weeks"] if week["entries"] > 0]
+    assert len(logged) == 1
+    assert logged[0]["entries"] == 1
+    assert logged[0]["time_spent"] == 30
+
+    # The weeks run oldest first, every Monday, ending with this week.
+    starts = [date.fromisoformat(week["week_start"]) for week in body["weeks"]]
+    assert all(week_start.weekday() == 0 for week_start in starts)
+    assert all((starts[i + 1] - starts[i]).days == 7 for i in range(len(starts) - 1))
+    today = datetime.now(timezone.utc).date()
+    assert starts[-1] <= today < starts[-1] + timedelta(days=7)
+
+
+async def test_activity_sums_entries_and_time_spent(authenticated_client, project):
+    project_id = project["id"]
+    await _log(authenticated_client, project_id, "one", when=_days_ago(0), minutes=60)
+    await _log(authenticated_client, project_id, "two", when=_days_ago(0), minutes=30)
+    await _log(authenticated_client, project_id, "three")  # no duration recorded
+
+    body = (await authenticated_client.get("/statistics/activity")).json()
+
+    this_week = body["weeks"][-1]
+    assert this_week["entries"] == 3
+    assert this_week["time_spent"] == 90
+
+
+async def test_activity_window_ends_with_the_current_week(
+    authenticated_client, project
+):
+    project_id = project["id"]
+    await _log(authenticated_client, project_id, "today", when=_days_ago(0))
+    await _log(authenticated_client, project_id, "last week", when=_days_ago(7))
+
+    one_week = (await authenticated_client.get("/statistics/activity?weeks=1")).json()
+    assert len(one_week["weeks"]) == 1
+    assert one_week["weeks"][0]["entries"] == 1  # only this week's entry is inside
+
+    twelve_weeks = (await authenticated_client.get("/statistics/activity")).json()
+    assert sum(week["entries"] for week in twelve_weeks["weeks"]) == 2
+
+
+async def test_activity_rejects_weeks_out_of_bounds(authenticated_client):
+    assert (await authenticated_client.get("/statistics/activity?weeks=0")).status_code == 422
+    assert (await authenticated_client.get("/statistics/activity?weeks=53")).status_code == 422
+    assert (await authenticated_client.get("/statistics/activity?weeks=1")).status_code == 200
+    assert (await authenticated_client.get("/statistics/activity?weeks=52")).status_code == 200
+
+
+async def test_activity_excludes_another_users_entries(
+    authenticated_client, second_authenticated_client, project
+):
+    await _log(authenticated_client, project["id"], "mine", when=_days_ago(0), minutes=15)
+
+    body = (await second_authenticated_client.get("/statistics/activity")).json()
+
+    assert all(week["entries"] == 0 for week in body["weeks"])
+    assert all(week["time_spent"] == 0 for week in body["weeks"])
+    assert body["busiest_weekday"] is None
+
+
+async def test_activity_reports_the_busiest_weekday(authenticated_client, project):
+    project_id = project["id"]
+    await _log(authenticated_client, project_id, "tuesday morning", when=_on_recent_weekday(1))
+    await _log(authenticated_client, project_id, "tuesday evening", when=_on_recent_weekday(1))
+    await _log(authenticated_client, project_id, "friday", when=_on_recent_weekday(4))
+
+    body = (await authenticated_client.get("/statistics/activity")).json()
+
+    assert body["busiest_weekday"] == "Tuesday"
+    assert sum(week["entries"] for week in body["weeks"]) == 3
+
+
+# ── Statistics page layout (US-3.7) ────────────────────────────────────────
+
+
+DEFAULT_LAYOUT = [
+    {"id": "cards", "visible": True},
+    {"id": "time", "visible": True},
+    {"id": "activity", "visible": True},
+    {"id": "custom", "visible": True},
+    {"id": "fields", "visible": True},
+    {"id": "trend", "visible": False},
+]
+
+
+async def test_layout_requires_authentication(async_client):
+    assert (await async_client.get("/statistics/layout")).status_code == 401
+    assert (
+        await async_client.put("/statistics/layout", json=DEFAULT_LAYOUT)
+    ).status_code == 401
+
+
+async def test_layout_defaults_when_never_saved(authenticated_client):
+    response = await authenticated_client.get("/statistics/layout")
+
+    assert response.status_code == 200
+    assert response.json() == DEFAULT_LAYOUT
+
+
+async def test_layout_saves_and_reads_back(authenticated_client):
+    layout = [
+        {"id": "trend", "visible": True},
+        {"id": "cards", "visible": True},
+        {"id": "time", "visible": False},
+    ]
+    save = await authenticated_client.put("/statistics/layout", json=layout)
+
+    assert save.status_code == 200
+    assert save.json() == layout
+
+    assert (await authenticated_client.get("/statistics/layout")).json() == layout
+
+
+async def test_layout_saving_again_replaces_the_saved_panels(authenticated_client):
+    await authenticated_client.put(
+        "/statistics/layout", json=[{"id": "cards", "visible": True}]
+    )
+    await authenticated_client.put(
+        "/statistics/layout", json=[{"id": "cards", "visible": False}]
+    )
+
+    assert (await authenticated_client.get("/statistics/layout")).json() == [
+        {"id": "cards", "visible": False}
+    ]
+
+
+async def test_layout_rejects_an_unknown_panel(authenticated_client):
+    response = await authenticated_client.put(
+        "/statistics/layout",
+        json=[{"id": "cards", "visible": True}, {"id": "weather", "visible": True}],
+    )
+
+    assert response.status_code == 400
+    assert "weather" in response.json()["detail"]
+
+
+async def test_layout_rejects_a_duplicate_panel(authenticated_client):
+    response = await authenticated_client.put(
+        "/statistics/layout",
+        json=[{"id": "cards", "visible": True}, {"id": "cards", "visible": False}],
+    )
+
+    assert response.status_code == 400
+    assert "more than once" in response.json()["detail"]
+
+
+async def test_layout_rejects_a_visible_that_is_not_true_or_false(authenticated_client):
+    response = await authenticated_client.put(
+        "/statistics/layout", json=[{"id": "cards", "visible": "yes"}]
+    )
+
+    assert response.status_code == 400
+    assert "visible" in response.json()["detail"]
+
+
+async def test_layout_is_private_to_each_user(
+    authenticated_client, second_authenticated_client
+):
+    await authenticated_client.put(
+        "/statistics/layout", json=[{"id": "cards", "visible": False}]
+    )
+
+    assert (await second_authenticated_client.get("/statistics/layout")).json() == DEFAULT_LAYOUT
+
+    await second_authenticated_client.put(
+        "/statistics/layout", json=[{"id": "trend", "visible": True}]
+    )
+
+    assert (await authenticated_client.get("/statistics/layout")).json() == [
+        {"id": "cards", "visible": False}
+    ]

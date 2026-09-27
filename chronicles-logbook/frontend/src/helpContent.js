@@ -571,9 +571,33 @@ export const HELP_SECTIONS = [
     articles: [
       {
         id: "statistics-and-timelines",
-        title: "Workspace totals and the field timeline",
-        keywords: ["statistics", "stats", "activity", "field timeline", "dashboard", "chart", "totals", "time spent"],
+        title: "The Statistics page, workspace totals and the field timeline",
+        keywords: ["statistics", "stats", "activity", "field timeline", "dashboard", "chart", "totals", "time spent", "streak", "customise", "layout", "my stats", "own stat", "formula"],
         blocks: [
+          {
+            type: "p",
+            text: "The Statistics item in the top navigation opens a whole-logbook page. Four headline cards lead it — the time you've logged, the entries you've written, the days you've been active, and your current day streak with your best run underneath. Each card has a ? button that explains, in one sentence, what it counts.",
+          },
+          {
+            type: "p",
+            text: "'Where your time went' charts how that time splits between your projects, with the biggest called out above it, and 'Your activity' charts how many entries you log each week, noting the weekday you log most. Both charts have a 'Show as table' toggle that presents the same numbers as a plain table, and archived projects are left out of the time chart entirely.",
+          },
+          {
+            type: "p",
+            text: "'Look inside a project' brings a project's own field totals onto the page — pick the project and see the Total, Average and Most common for each of its fields. The 'A field over time' panel, hidden until you switch it on, plots one chosen field's values as a line.",
+          },
+          {
+            type: "p",
+            text: "'My stats' holds figures you define yourself. 'Make your own stat' opens a sentence to fill in — Show the Average of Hours in Lab practicals — previews the number it works out to as you go, and saves it under a name once you're happy with it. 'Advanced: write a formula' swaps the sentence for a formula of your own, combining totals, averages, highest, lowest and counts with +, −, × and ÷; anything that can't work is explained to you in plain words rather than as an error code. Saved stats show as cards with their current value, and each can be edited or deleted at any time.",
+          },
+          {
+            type: "p",
+            text: "Customise, in the page header, opens a drawer listing every panel: tick or untick a panel to show or hide it, use the arrows to reorder, then Save layout — your arrangement is kept per account, so the page looks the same next time. Reset to default puts it back the way it started.",
+          },
+          {
+            type: "p",
+            text: "A logbook with nothing in it yet gets a starting-out page instead of empty charts: three steps from creating a project to starting a streak, with a step already ticked when you've done it.",
+          },
           {
             type: "p",
             text: "When you're on Home with no project open, the sidebar shows running totals for your whole workspace: how many active projects you have, total entries logged, total time logged, and how many distinct days you've been active.",

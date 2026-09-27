@@ -386,6 +386,54 @@ export async function fetchFieldTimeline(projectId, fieldId, start, end) {
   return request(query ? `${path}?${query}` : path)
 }
 
+export async function fetchStatisticsActivity(weeks = 12) {
+  return request(`/statistics/activity?weeks=${weeks}`)
+}
+
+export async function fetchStatisticsLayout() {
+  return request("/statistics/layout")
+}
+
+export async function saveStatisticsLayout(panels) {
+  return request("/statistics/layout", {
+    method: "PUT",
+    body: JSON.stringify(panels),
+  })
+}
+
+// US-3.8: the figures a person defines for themselves on the Statistics page.
+// A formula is written with fields by name and stored by field id server-side,
+// so the shape sent here is exactly the shape a person reads.
+
+export async function fetchCustomStatistics() {
+  return request("/statistics/custom")
+}
+
+export async function previewCustomStatistic(projectId, expression) {
+  return request("/statistics/custom/preview", {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId, expression }),
+  })
+}
+
+export async function createCustomStatistic({ project_id, name, expression }) {
+  return request("/statistics/custom", {
+    method: "POST",
+    body: JSON.stringify({ project_id, name, expression }),
+  })
+}
+
+export async function updateCustomStatistic(id, payload) {
+  return request(`/statistics/custom/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteCustomStatistic(id) {
+  return request(`/statistics/custom/${id}`, { method: "DELETE" })
+}
+
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/auth/google/login`
 }

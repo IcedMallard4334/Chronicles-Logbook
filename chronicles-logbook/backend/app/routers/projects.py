@@ -19,6 +19,7 @@ from app.models import (
     EntryRule,
     Project,
     ProjectMember,
+    SavedStatistic,
     Task,
     User,
 )
@@ -539,6 +540,7 @@ async def delete_project(
     # (Their occurrence records go with them via ON DELETE CASCADE.)
     await db.execute(delete(EntryRecurrence).where(EntryRecurrence.project_id == project_id))
     await db.execute(delete(EntryRule).where(EntryRule.project_id == project_id))
+    await db.execute(delete(SavedStatistic).where(SavedStatistic.project_id == project_id))
     await db.execute(delete(Entry).where(Entry.project_id == project_id))
     await db.execute(delete(ProjectMember).where(ProjectMember.project_id == project_id))
     await db.execute(delete(Project).where(Project.id == project_id))
