@@ -2359,7 +2359,7 @@ function ProjectDetail({
   return (
     <section className="project-detail">
       <header className="detail-header">
-        <div>
+        <div className="detail-title-block">
           <div className="project-title-row">
             <h2>{project.name}</h2>
             {project.archived && <span className="status-badge archived-badge">Archived</span>}

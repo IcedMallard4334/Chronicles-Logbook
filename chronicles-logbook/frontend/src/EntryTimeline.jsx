@@ -109,7 +109,7 @@ export default function EntryTimeline({ projects, onShowFieldTrends }) {
         </button>
       </header>
 
-      <div className="timeline-filters" aria-label="Timeline filters">
+      <div className="entry-timeline-filters" aria-label="Timeline filters">
         <label>
           Search
           <input

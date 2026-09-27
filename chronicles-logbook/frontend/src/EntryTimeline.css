@@ -5,6 +5,30 @@
   gap: 1rem;
 }
 
+/* Its own class rather than reusing the older .timeline-filters (App.css):
+   that rule is a fixed 2-column grid built for a 2-field bar elsewhere, and
+   this one has seven fields — sharing the name meant they got crammed into
+   the wrong column count, stranding "Order" alone on its own row. */
+.entry-timeline-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.entry-timeline-filters label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.entry-timeline-filters input,
+.entry-timeline-filters select {
+  width: 100%;
+}
+
 .timeline-content {
   min-height: 16rem;
 }

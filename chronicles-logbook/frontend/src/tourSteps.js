@@ -37,7 +37,7 @@ export const WELCOME_TOUR = {
     {
       anchor: ".nav-pill-center",
       title: "Every view, across every project",
-      body: "Timeline is your record end to end. Entries is the searchable table. Statistics turns it into numbers. Your own fields work in all of them.",
+      body: "Activity is your record end to end. Entries is the searchable table. Statistics turns it into numbers. Your own fields work in all of them.",
     },
     {
       anchor: ".nav-pill-right",
@@ -121,6 +121,16 @@ export const PROJECT_TOURS = {
     id: "project-tasks",
     title: "Tasks for this project",
     body: "Things still to do, with due dates and checklists. Finished work belongs in an entry instead, so the time gets counted.",
+  },
+  statistics: {
+    id: "project-statistics",
+    title: "This project's fields, totalled",
+    body: "Whatever fields you defined for this project, charted over time — hours logged, a number field's trend, how often a Choice value comes up.",
+  },
+  automation: {
+    id: "project-automation",
+    title: "Rules that run when you save an entry",
+    body: "Set a field automatically, tag an entry, or flag it for follow-up based on what was entered. Entries can also repeat on a schedule, with reminders — set that up here too.",
   },
 }
 
