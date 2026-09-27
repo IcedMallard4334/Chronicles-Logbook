@@ -1,0 +1,298 @@
+method,path,status,ms,error,payload,kind
+POST,/projects,422,700.9,,null,generic
+POST,/projects,422,122.4,,this is not json,generic
+POST,/projects,422,126.5,,"{""unterminated"": ",generic
+POST,/projects,422,146.7,,[],generic
+POST,/projects,422,142.0,,{},generic
+POST,/projects,422,202.9,,"{""title"": null}",generic
+POST,/projects,422,183.8,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects,422,638.7,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects,422,172.7,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects,422,147.7,,"name: oversized (100,000 chars)",field
+POST,/projects,422,130.2,,name: wrong type (list),field
+POST,/projects,422,131.8,,name: negative number,field
+PUT,/projects/{project_id},422,152.2,,null,generic
+PUT,/projects/{project_id},422,121.9,,this is not json,generic
+PUT,/projects/{project_id},422,121.8,,"{""unterminated"": ",generic
+PUT,/projects/{project_id},422,133.3,,[],generic
+PUT,/projects/{project_id},200,152.8,,{},generic
+PUT,/projects/{project_id},200,397.1,,"{""title"": null}",generic
+PUT,/projects/{project_id},200,146.4,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+PUT,/projects/{project_id},200,153.5,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+PUT,/projects/{project_id},200,141.4,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+PUT,/projects/{project_id},422,217.6,,"name: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,142.8,,name: wrong type (list),field
+PUT,/projects/{project_id},422,140.7,,name: negative number,field
+PUT,/projects/{project_id},200,189.3,,"description: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,136.5,,description: wrong type (list),field
+PUT,/projects/{project_id},422,144.6,,description: negative number,field
+POST,/projects/{project_id}/entries,422,138.6,,null,generic
+POST,/projects/{project_id}/entries,422,124.4,,this is not json,generic
+POST,/projects/{project_id}/entries,422,121.5,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/entries,422,138.6,,[],generic
+POST,/projects/{project_id}/entries,422,144.1,,{},generic
+POST,/projects/{project_id}/entries,422,141.6,,"{""title"": null}",generic
+POST,/projects/{project_id}/entries,422,139.9,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/entries,422,310.0,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/entries,422,138.6,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/entries,422,149.2,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,160.6,,title: wrong type (list),field
+POST,/projects/{project_id}/entries,422,134.7,,title: negative number,field
+POST,/projects/{project_id}/entries,422,153.8,,"data: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,131.0,,data: wrong type (list),field
+POST,/projects/{project_id}/entries,422,143.5,,data: negative number,field
+POST,/projects/{project_id}/entries,422,146.0,,"time_spent: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,166.3,,time_spent: wrong type (list),field
+POST,/projects/{project_id}/entries,422,192.6,,time_spent: negative number,field
+POST,/projects/{project_id}/entries,422,153.0,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,131.3,,due_date: wrong type (list),field
+POST,/projects/{project_id}/entries,422,173.0,,due_date: negative number,field
+POST,/projects/{project_id}/tasks,422,141.4,,null,generic
+POST,/projects/{project_id}/tasks,422,120.6,,this is not json,generic
+POST,/projects/{project_id}/tasks,422,130.6,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/tasks,422,144.8,,[],generic
+POST,/projects/{project_id}/tasks,422,158.2,,{},generic
+POST,/projects/{project_id}/tasks,422,142.5,,"{""title"": null}",generic
+POST,/projects/{project_id}/tasks,422,142.6,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/tasks,422,161.7,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/tasks,422,139.3,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/tasks,422,154.8,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,139.1,,title: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,142.0,,title: negative number,field
+POST,/projects/{project_id}/tasks,201,186.6,,"description: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,136.7,,description: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,143.9,,description: negative number,field
+POST,/projects/{project_id}/tasks,422,146.2,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,139.6,,due_date: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,141.2,,due_date: negative number,field
+POST,/saved-filters,422,143.3,,null,generic
+POST,/saved-filters,422,122.7,,this is not json,generic
+POST,/saved-filters,422,152.6,,"{""unterminated"": ",generic
+POST,/saved-filters,422,139.5,,[],generic
+POST,/saved-filters,422,135.0,,{},generic
+POST,/saved-filters,422,139.2,,"{""title"": null}",generic
+POST,/saved-filters,422,141.0,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/saved-filters,422,181.0,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/saved-filters,422,137.0,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/saved-filters,422,162.6,,"name: oversized (100,000 chars)",field
+POST,/saved-filters,422,141.1,,name: wrong type (list),field
+POST,/saved-filters,422,151.2,,name: negative number,field
+POST,/saved-filters,422,183.1,,"criteria: oversized (100,000 chars)",field
+POST,/saved-filters,422,133.2,,criteria: wrong type (list),field
+POST,/saved-filters,422,132.3,,criteria: negative number,field
+POST,/calendar/activities,422,148.1,,null,generic
+POST,/calendar/activities,422,122.8,,this is not json,generic
+POST,/calendar/activities,422,131.4,,"{""unterminated"": ",generic
+POST,/calendar/activities,422,142.7,,[],generic
+POST,/calendar/activities,422,137.5,,{},generic
+POST,/calendar/activities,422,136.7,,"{""title"": null}",generic
+POST,/calendar/activities,422,140.2,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/calendar/activities,422,171.1,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/calendar/activities,422,156.1,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/calendar/activities,422,175.0,,"title: oversized (100,000 chars)",field
+POST,/calendar/activities,422,139.2,,title: wrong type (list),field
+POST,/calendar/activities,422,199.2,,title: negative number,field
+POST,/calendar/activities,422,175.3,,"day: oversized (100,000 chars)",field
+POST,/calendar/activities,422,145.9,,day: wrong type (list),field
+POST,/calendar/activities,422,179.2,,day: negative number,field
+POST,/calendar/activities,422,185.5,,"start_time: oversized (100,000 chars)",field
+POST,/calendar/activities,422,136.7,,start_time: wrong type (list),field
+POST,/calendar/activities,422,133.7,,start_time: negative number,field
+POST,/projects,422,140.8,,null,generic
+POST,/projects,422,121.9,,this is not json,generic
+POST,/projects,422,120.7,,"{""unterminated"": ",generic
+POST,/projects,422,129.9,,[],generic
+POST,/projects,422,130.6,,{},generic
+POST,/projects,422,130.0,,"{""title"": null}",generic
+POST,/projects,422,152.7,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects,422,153.1,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects,422,137.3,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects,422,155.0,,"name: oversized (100,000 chars)",field
+POST,/projects,422,134.3,,name: wrong type (list),field
+POST,/projects,422,133.1,,name: negative number,field
+PUT,/projects/{project_id},422,146.2,,null,generic
+PUT,/projects/{project_id},422,135.0,,this is not json,generic
+PUT,/projects/{project_id},422,123.9,,"{""unterminated"": ",generic
+PUT,/projects/{project_id},422,138.3,,[],generic
+PUT,/projects/{project_id},200,167.0,,{},generic
+PUT,/projects/{project_id},200,154.7,,"{""title"": null}",generic
+PUT,/projects/{project_id},200,173.0,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+PUT,/projects/{project_id},200,161.5,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+PUT,/projects/{project_id},200,229.7,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+PUT,/projects/{project_id},422,165.5,,"name: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,136.6,,name: wrong type (list),field
+PUT,/projects/{project_id},422,135.4,,name: negative number,field
+PUT,/projects/{project_id},200,171.6,,"description: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,134.7,,description: wrong type (list),field
+PUT,/projects/{project_id},422,131.2,,description: negative number,field
+POST,/projects/{project_id}/entries,422,133.9,,null,generic
+POST,/projects/{project_id}/entries,422,119.9,,this is not json,generic
+POST,/projects/{project_id}/entries,422,123.1,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/entries,422,158.4,,[],generic
+POST,/projects/{project_id}/entries,422,132.3,,{},generic
+POST,/projects/{project_id}/entries,422,134.0,,"{""title"": null}",generic
+POST,/projects/{project_id}/entries,422,150.5,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/entries,422,168.7,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/entries,422,136.0,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/entries,422,157.7,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,137.3,,title: wrong type (list),field
+POST,/projects/{project_id}/entries,422,130.6,,title: negative number,field
+POST,/projects/{project_id}/entries,422,143.9,,"data: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,149.7,,data: wrong type (list),field
+POST,/projects/{project_id}/entries,422,133.1,,data: negative number,field
+POST,/projects/{project_id}/entries,422,170.2,,"time_spent: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,136.7,,time_spent: wrong type (list),field
+POST,/projects/{project_id}/entries,422,130.8,,time_spent: negative number,field
+POST,/projects/{project_id}/entries,422,146.1,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,136.3,,due_date: wrong type (list),field
+POST,/projects/{project_id}/entries,422,140.3,,due_date: negative number,field
+POST,/projects/{project_id}/tasks,422,150.9,,null,generic
+POST,/projects/{project_id}/tasks,422,148.3,,this is not json,generic
+POST,/projects/{project_id}/tasks,422,156.3,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/tasks,422,172.7,,[],generic
+POST,/projects/{project_id}/tasks,422,133.6,,{},generic
+POST,/projects/{project_id}/tasks,422,180.8,,"{""title"": null}",generic
+POST,/projects/{project_id}/tasks,422,152.0,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/tasks,422,147.2,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/tasks,422,145.1,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/tasks,422,149.8,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,141.0,,title: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,135.3,,title: negative number,field
+POST,/projects/{project_id}/tasks,201,164.5,,"description: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,130.2,,description: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,139.5,,description: negative number,field
+POST,/projects/{project_id}/tasks,422,145.1,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,129.6,,due_date: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,132.6,,due_date: negative number,field
+POST,/saved-filters,422,131.9,,null,generic
+POST,/saved-filters,422,123.7,,this is not json,generic
+POST,/saved-filters,422,122.1,,"{""unterminated"": ",generic
+POST,/saved-filters,422,144.2,,[],generic
+POST,/saved-filters,422,132.4,,{},generic
+POST,/saved-filters,422,131.3,,"{""title"": null}",generic
+POST,/saved-filters,422,140.1,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/saved-filters,422,197.6,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/saved-filters,422,142.4,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/saved-filters,422,151.1,,"name: oversized (100,000 chars)",field
+POST,/saved-filters,422,141.6,,name: wrong type (list),field
+POST,/saved-filters,422,133.5,,name: negative number,field
+POST,/saved-filters,422,144.9,,"criteria: oversized (100,000 chars)",field
+POST,/saved-filters,422,140.6,,criteria: wrong type (list),field
+POST,/saved-filters,422,132.7,,criteria: negative number,field
+POST,/calendar/activities,422,134.6,,null,generic
+POST,/calendar/activities,422,129.7,,this is not json,generic
+POST,/calendar/activities,422,155.4,,"{""unterminated"": ",generic
+POST,/calendar/activities,422,137.7,,[],generic
+POST,/calendar/activities,422,133.4,,{},generic
+POST,/calendar/activities,422,138.0,,"{""title"": null}",generic
+POST,/calendar/activities,422,137.3,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/calendar/activities,422,165.5,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/calendar/activities,422,146.5,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/calendar/activities,422,165.4,,"title: oversized (100,000 chars)",field
+POST,/calendar/activities,422,139.0,,title: wrong type (list),field
+POST,/calendar/activities,422,149.2,,title: negative number,field
+POST,/calendar/activities,422,157.7,,"day: oversized (100,000 chars)",field
+POST,/calendar/activities,422,138.9,,day: wrong type (list),field
+POST,/calendar/activities,422,140.0,,day: negative number,field
+POST,/calendar/activities,422,146.3,,"start_time: oversized (100,000 chars)",field
+POST,/calendar/activities,422,142.9,,start_time: wrong type (list),field
+POST,/calendar/activities,422,134.0,,start_time: negative number,field
+POST,/projects,422,131.5,,null,generic
+POST,/projects,422,132.5,,this is not json,generic
+POST,/projects,422,124.6,,"{""unterminated"": ",generic
+POST,/projects,422,143.4,,[],generic
+POST,/projects,422,180.3,,{},generic
+POST,/projects,422,132.2,,"{""title"": null}",generic
+POST,/projects,422,131.1,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects,422,143.9,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects,422,165.8,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects,422,169.9,,"name: oversized (100,000 chars)",field
+POST,/projects,422,138.3,,name: wrong type (list),field
+POST,/projects,422,132.6,,name: negative number,field
+PUT,/projects/{project_id},422,169.1,,null,generic
+PUT,/projects/{project_id},422,142.3,,this is not json,generic
+PUT,/projects/{project_id},422,185.4,,"{""unterminated"": ",generic
+PUT,/projects/{project_id},422,134.7,,[],generic
+PUT,/projects/{project_id},200,154.8,,{},generic
+PUT,/projects/{project_id},200,168.3,,"{""title"": null}",generic
+PUT,/projects/{project_id},200,156.0,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+PUT,/projects/{project_id},200,164.5,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+PUT,/projects/{project_id},200,162.1,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+PUT,/projects/{project_id},422,223.0,,"name: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,144.6,,name: wrong type (list),field
+PUT,/projects/{project_id},422,141.5,,name: negative number,field
+PUT,/projects/{project_id},200,166.2,,"description: oversized (100,000 chars)",field
+PUT,/projects/{project_id},422,130.2,,description: wrong type (list),field
+PUT,/projects/{project_id},422,140.7,,description: negative number,field
+POST,/projects/{project_id}/entries,422,142.6,,null,generic
+POST,/projects/{project_id}/entries,422,129.5,,this is not json,generic
+POST,/projects/{project_id}/entries,422,123.5,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/entries,422,139.2,,[],generic
+POST,/projects/{project_id}/entries,422,151.9,,{},generic
+POST,/projects/{project_id}/entries,422,132.0,,"{""title"": null}",generic
+POST,/projects/{project_id}/entries,422,144.8,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/entries,422,242.7,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/entries,422,194.1,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/entries,422,196.3,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,194.4,,title: wrong type (list),field
+POST,/projects/{project_id}/entries,422,206.8,,title: negative number,field
+POST,/projects/{project_id}/entries,422,200.6,,"data: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,183.4,,data: wrong type (list),field
+POST,/projects/{project_id}/entries,422,305.7,,data: negative number,field
+POST,/projects/{project_id}/entries,422,188.5,,"time_spent: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,184.7,,time_spent: wrong type (list),field
+POST,/projects/{project_id}/entries,422,216.0,,time_spent: negative number,field
+POST,/projects/{project_id}/entries,422,194.1,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/entries,422,176.9,,due_date: wrong type (list),field
+POST,/projects/{project_id}/entries,422,182.6,,due_date: negative number,field
+POST,/projects/{project_id}/tasks,422,238.1,,null,generic
+POST,/projects/{project_id}/tasks,422,150.0,,this is not json,generic
+POST,/projects/{project_id}/tasks,422,168.3,,"{""unterminated"": ",generic
+POST,/projects/{project_id}/tasks,422,218.6,,[],generic
+POST,/projects/{project_id}/tasks,422,154.9,,{},generic
+POST,/projects/{project_id}/tasks,422,137.4,,"{""title"": null}",generic
+POST,/projects/{project_id}/tasks,422,143.2,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/projects/{project_id}/tasks,422,152.2,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/projects/{project_id}/tasks,422,142.5,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/projects/{project_id}/tasks,422,149.4,,"title: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,142.9,,title: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,129.7,,title: negative number,field
+POST,/projects/{project_id}/tasks,201,172.9,,"description: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,138.9,,description: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,143.6,,description: negative number,field
+POST,/projects/{project_id}/tasks,422,154.2,,"due_date: oversized (100,000 chars)",field
+POST,/projects/{project_id}/tasks,422,130.7,,due_date: wrong type (list),field
+POST,/projects/{project_id}/tasks,422,140.6,,due_date: negative number,field
+POST,/saved-filters,422,137.0,,null,generic
+POST,/saved-filters,422,122.4,,this is not json,generic
+POST,/saved-filters,422,124.6,,"{""unterminated"": ",generic
+POST,/saved-filters,422,141.9,,[],generic
+POST,/saved-filters,422,143.0,,{},generic
+POST,/saved-filters,422,140.8,,"{""title"": null}",generic
+POST,/saved-filters,422,148.2,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/saved-filters,422,192.9,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/saved-filters,422,142.8,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/saved-filters,422,146.3,,"name: oversized (100,000 chars)",field
+POST,/saved-filters,422,133.8,,name: wrong type (list),field
+POST,/saved-filters,422,140.0,,name: negative number,field
+POST,/saved-filters,422,160.3,,"criteria: oversized (100,000 chars)",field
+POST,/saved-filters,422,137.8,,criteria: wrong type (list),field
+POST,/saved-filters,422,141.7,,criteria: negative number,field
+POST,/calendar/activities,422,132.4,,null,generic
+POST,/calendar/activities,422,121.8,,this is not json,generic
+POST,/calendar/activities,422,127.8,,"{""unterminated"": ",generic
+POST,/calendar/activities,422,136.8,,[],generic
+POST,/calendar/activities,422,131.9,,{},generic
+POST,/calendar/activities,422,131.4,,"{""title"": null}",generic
+POST,/calendar/activities,422,131.8,,"{""title"": 12345, ""fields"": ""not-a-dict""}",generic
+POST,/calendar/activities,422,168.9,,"{""title"": ""xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",generic
+POST,/calendar/activities,422,151.3,,"{""unexpected_field"": true, ""__proto__"": {""admin"": true}}",generic
+POST,/calendar/activities,422,152.0,,"title: oversized (100,000 chars)",field
+POST,/calendar/activities,422,131.0,,title: wrong type (list),field
+POST,/calendar/activities,422,131.6,,title: negative number,field
+POST,/calendar/activities,422,151.4,,"day: oversized (100,000 chars)",field
+POST,/calendar/activities,422,130.7,,day: wrong type (list),field
+POST,/calendar/activities,422,138.6,,day: negative number,field
+POST,/calendar/activities,422,151.8,,"start_time: oversized (100,000 chars)",field
+POST,/calendar/activities,422,167.1,,start_time: wrong type (list),field
+POST,/calendar/activities,422,143.5,,start_time: negative number,field
