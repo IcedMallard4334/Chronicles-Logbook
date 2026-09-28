@@ -167,6 +167,64 @@ in `projects.user_id`. See the [Sharing API](../api/sharing.md).
 | `created_at` | TIMESTAMP (tz) | Creation time |
 | `updated_at` | TIMESTAMP (tz) | Last update time |
 
+### Sprint 3 tables
+
+Six tables added by migrations `010`–`013`, none of which altered an existing
+table — every one of these is purely additive.
+
+#### entry_revisions
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID (PK) | Primary key |
+| `entry_id` | UUID (FK → entries, cascade) | The entry this is a past version of |
+| `revision` | INTEGER | 1, 2, 3… per entry |
+| `data`, `retired_data`, `schema_version`, `schema_snapshot`, `title`, `time_spent`, `todo`, `due_date` | — | The entry's full state at this revision — same shape as `entries` itself |
+| `changed_by` | UUID (FK → users, set null) | Who made this change, if known |
+| `changed_at` | TIMESTAMPTZ | When |
+
+`UNIQUE (entry_id, revision)`. Existing entries were backfilled with a
+revision 1 baseline when this table was introduced, so history is available
+from the day it shipped, not only for entries edited afterwards. Read-only:
+the entries API doesn't yet let a user restore an old revision, only view it.
+
+#### entry_rules
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID (PK) | Primary key |
+| `project_id` | UUID (FK → projects, cascade) | The project this rule runs in |
+| `name` | VARCHAR(100) | Owner-given label |
+| `enabled` | BOOLEAN | Rules can be switched off without deleting them |
+| `match` | VARCHAR(3) | `"all"` or `"any"` of `conditions` |
+| `conditions` | JSONB | The structured-search condition list this rule matches against |
+| `actions` | JSONB | Add tags / fill in a field / mark as to-do |
+| `created_by` | UUID (FK → users, set null) | Owner only can create/edit |
+
+#### entry_recurrences and recurrence_occurrences
+
+| Column (`entry_recurrences`) | Type | Description |
+|---|---|---|
+| `id` | UUID (PK) | Primary key |
+| `entry_id` | UUID (FK → entries, cascade), unique | The template entry that repeats |
+| `project_id` | UUID (FK → projects, cascade) | Denormalised for lookup without a join |
+| `frequency` | VARCHAR(10) | `daily` / `weekly` / `monthly` |
+| `interval` | INTEGER | Every N of that unit |
+| `starts_on`, `ends_on` | DATE | Recurrence window |
+| `next_on` | DATE, indexed | What the background check polls on |
+| `active` | BOOLEAN | Stoppable without deleting |
+
+`recurrence_occurrences` records one row per occurrence already created
+(`UNIQUE (recurrence_id, occurrence_on)`), so two simultaneous background
+checks can't create the same day's entry twice.
+
+#### statistics_layouts and saved_statistics
+
+| Table | Key columns | Description |
+|---|---|---|
+| `statistics_layouts` | `user_id` (PK, FK → users, cascade), `panels` (JSONB) | One row per user: which Statistics-page panels they've arranged, and where (US-3.7) |
+| `saved_statistics` | `id` (PK), `user_id`, `project_id`, `name`, `expression` (VARCHAR 500) | A figure the user defines for themselves — the same computed-field expression grammar as a schema's Calculation fields, evaluated over a project's entries instead of one entry (US-3.8) |
+
 ## JSONB schema format
 
 The `entry_schema` column in `projects` stores the user-defined field definitions:
@@ -249,4 +307,5 @@ re-run:
     rewrites JSONB values inside `entries.data`. That is described on
     [Schema and field types](../api/schema.md#editing-a-live-schema).
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The "Sprint 3 tables" section above was added with Claude Code (Sonnet 5).

@@ -16,6 +16,8 @@ router = APIRouter(prefix="/calendar/activities", tags=["Activities"])
 
 
 class ActivityCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(min_length=1, max_length=255)
     description: str = Field(default="", max_length=4000)
     day: date

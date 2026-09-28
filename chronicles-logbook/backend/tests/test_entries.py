@@ -1319,3 +1319,18 @@ async def test_search_entries_rejects_unknown_sort(authenticated_client):
     response = await authenticated_client.get("/entries?sort=whenever")
 
     assert response.status_code == 422
+
+
+# API Performance, Load & Robustness, Finding 4: an unknown top-level field on
+# entry creation used to be silently ignored rather than rejected. A typo'd
+# schema field id inside `data` is unaffected by this and stays flexible, by
+# design — `data` is a free-form dict of the project's own field ids.
+
+
+async def test_create_entry_rejects_an_unknown_top_level_field(authenticated_client, project_with_schema):
+    project_id = project_with_schema["id"]
+    response = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": {}, "todoo": True},
+    )
+    assert response.status_code == 422

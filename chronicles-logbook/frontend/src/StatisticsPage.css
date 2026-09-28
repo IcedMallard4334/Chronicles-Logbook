@@ -89,6 +89,10 @@
   background: transparent;
 }
 
+.stats-project-picker + .field-statistics {
+  margin-top: 24px;
+}
+
 /* ── Headline cards ───────────────────────────────── */
 
 .stats-cards {

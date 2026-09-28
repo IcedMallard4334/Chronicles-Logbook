@@ -293,3 +293,22 @@ async def test_another_user_cannot_delete_your_task(
     )
     assert survivor.status_code == 200
     assert survivor.json()["title"] == "Do not delete"
+
+
+# API Performance, Load & Robustness, Findings 4 & 5.
+
+
+async def test_create_task_rejects_an_unknown_field(authenticated_client, test_project):
+    response = await authenticated_client.post(
+        f"/projects/{test_project['id']}/tasks",
+        json={"title": "Typo test", "tilte": "oops"},
+    )
+    assert response.status_code == 422
+
+
+async def test_create_task_rejects_an_oversized_description(authenticated_client, test_project):
+    response = await authenticated_client.post(
+        f"/projects/{test_project['id']}/tasks",
+        json={"title": "Too long", "description": "x" * 4001},
+    )
+    assert response.status_code == 422

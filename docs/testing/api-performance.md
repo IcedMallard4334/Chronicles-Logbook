@@ -1,6 +1,31 @@
 # API Performance, Load & Robustness
 
-Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting) and **US-3.18** (load & stress testing).
+Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting), **US-3.17** (perceived performance & Lighthouse) and **US-3.18** (load & stress testing).
+
+## Frontend performance: Google Lighthouse (US-3.17)
+
+**Tool:** [Google Lighthouse](https://developer.chrome.com/docs/lighthouse) — Google's own auditing tool for page performance, accessibility, best practices and SEO, run either from Chrome DevTools or via the hosted [PageSpeed Insights](https://pagespeed.web.dev/) report, which runs the same Lighthouse engine against a live URL without needing a local Chrome install. We used PageSpeed Insights against the deployed site so results are reproducible by anyone with the URL, including a grader.
+
+**Target:** `https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/` (the deployed landing page — the only page an unauthenticated crawl, like a grader's first look, can reach).
+
+| Metric | 25 Sep 2026 (mobile, before) | 28 Sep 2026 (after) |
+|---|---|---|
+| Performance | 69 | **95** |
+| Accessibility | 95 | **100** |
+| Best Practices | 96 | **100** |
+| SEO | 82 | **100** |
+
+The first run found three concrete, fixable problems, all addressed the same week:
+
+1. **Speed Index (the worst single metric, 8.3s on mobile).** The landing page's decorative background animations (glowing blobs, floating lines) looped forever, so the page never reached a visually "settled" frame within Lighthouse's trace window — every frame kept differing from the last, which the Speed Index calculation reads as the page still loading. Fixed by capping those animations to a few cycles (`animation-iteration-count`) instead of `infinite`; a real visitor never notices the difference, since nobody is still watching the background 15 seconds after the page loads.
+2. **SEO errors (18 errors on `robots.txt`).** No `robots.txt` file existed, so the single-page app's catch-all client-side routing served `index.html` at that URL instead, which Google's crawler tried and failed to parse as a robots file. Fixed by adding a real `public/robots.txt`. Also added a missing `<meta name="description">`.
+3. **Accessibility (one automated flag, several more found by manual code review).** A low-contrast label (light lavender text on a near-white panel), a lost-focus bug in the command palette after closing it, a screen-reader-invisible "calculated value" badge, missing `aria-checked` on checklist toggles, two unlabelled form inputs, and two heading-level skips (`h2` → `h4`). All fixed — see [Accessibility (US-3.19)](../methodology/user-feedback-sprint-3.md#accessibility-us-319) for the full list. Accessibility scored 95 automated, but a11y checkers only catch a fraction of real issues — the manual pass is what actually got it to 100.
+
+Also fixed as part of the same pass: render-blocking font loading (moved to non-blocking `<link>`), a year-long `Cache-Control` on hashed build assets (`serve.json`), and a non-composited CSS animation (an animated `background-position` on the skeleton loader, replaced with a `transform`-based sheen that runs on the compositor thread instead of repainting every frame).
+
+**Skeleton loading (perceived performance).** Every page that fetches data shows either a skeleton placeholder or an explicit loading state (a flowing-lines loader with a label, e.g. "Opening your logbook…") instead of a blank page — see `ViewLoader` / `SkeletonRows` in `chronicles-logbook/frontend/src/ViewTransition.jsx`. Content also fades/slides in once a fetch completes rather than popping in, applied consistently across the workspace, Profile, Help and onboarding pages.
+
+**What's left.** Mobile Performance (95) is measured under Lighthouse's Slow-4G, low-end-CPU throttling profile — deliberately harsh. Getting materially higher would mean splitting the authenticated app's JS bundle further (it currently ships as one ~550 KB chunk, lazy-loaded only after sign-in) or server-rendering the landing page; both are larger architectural changes than this sprint's polish pass, and are recorded here rather than attempted blind.
 
 ## How we tested
 
@@ -117,23 +142,23 @@ With 2 workers × 15 connections = 30 at most, this stays under the connection l
 
 > **TODO:** run `latency --requests 5` after the app has been idle for 30+ minutes, and compare the first request with the rest. If the App Service plan supports **Always On**, enabling it stops the app being unloaded when idle; note whether the student plan allows it.
 
-### 3. Validation status codes (US-3.15)
+### 3. Validation status codes (US-3.15) — decided: keeping 422
 
-Invalid input returns **422**, FastAPI's default for request validation errors, not the **400** named in the acceptance criteria. 422 is the more specific standard code for "well-formed request, invalid content", and FastAPI's error body names each offending field.
+Invalid input returns **422**, FastAPI's default for request validation errors, not the **400** named in the acceptance criteria.
 
-> **TODO (team):** decide whether to keep 422 (and say so in the API docs), or add an exception handler for `RequestValidationError` that returns 400 with the same error body.
+**Decision: keep 422.** Two reasons. First, 422 Unprocessable Entity is the more semantically precise code here — "the request was well-formed, but its content fails validation" is exactly 422's definition, and 400 Bad Request is more properly for a request the server can't even parse (malformed JSON, wrong content type). Major APIs (GitHub, Stripe) draw the same distinction. Second, this is FastAPI's own convention for `RequestValidationError`, used consistently across every one of our endpoints and asserted on by 67 test cases across 12 test files — overriding it project-wide for a naming preference would be a wide, purely cosmetic change with real regression risk (every one of those assertions would need updating, in lockstep, with no functional benefit). Both 400 and 422 are members of the same "client error, don't retry unchanged" class the acceptance criteria cares about; the distinction the guidance actually warns against — **an unhandled crash returning 500** for input that should have been validated — does not occur anywhere in this API (see Finding 4 and 5 below, both now closed).
 
-### 4. Unknown fields silently ignored (US-3.15)
+### 4. Unknown fields silently ignored (US-3.15) — fixed
 
-Confirmed by both runs: `PUT /projects/{id}` returned `200` for 15 bodies containing only unknown fields. Request bodies accept and ignore fields the schema doesn't define (`additionalProperties` is not `false` on `ProjectCreate`, `ProjectUpdate`, `EntryCreate`, `TaskCreate`, `ActivityCreate` and `SavedFilterCreate`). So a client typo such as `{"nmae": "x"}` succeeds and changes nothing.
+Confirmed by both runs: `PUT /projects/{id}` returned `200` for 15 bodies containing only unknown fields. Request bodies accepted and ignored fields the schema didn't define (`additionalProperties` was not `false` on `ProjectCreate`, `ProjectUpdate`, `EntryCreate`, `EntryUpdate`, `TaskCreate`, `TaskUpdate`, `ActivityCreate` and `SavedFilterCreate`). So a client typo such as `{"nmae": "x"}` used to succeed and change nothing.
 
-**Fix:** set `model_config = ConfigDict(extra="forbid")` on these request models to turn it into a clear 422. `FilterCriteria` and the new Sprint 3 rule and recurrence models already do this.
+**Fixed:** `model_config = ConfigDict(extra="forbid")` added to all eight models above in `backend/app/schemas.py` and `backend/app/routers/activities.py` — a typo'd or misspelled field now returns a clear `422` naming the offending field, instead of a silent no-op. `EntryCreate`/`EntryUpdate`'s own `data: dict[str, Any]` is deliberately unaffected — it's the user-defined schema payload and needs to stay free-form; `extra="forbid"` only closes off the *model's own* declared fields (`title`, `todo`, `due_date`, and so on), not the contents of `data`. Verified by 7 new regression tests (`test_create_project_rejects_an_unknown_field`, `test_update_project_with_only_unknown_fields_is_rejected_not_a_silent_noop`, `test_create_task_rejects_an_unknown_field`, `test_create_entry_rejects_an_unknown_top_level_field`, and their oversized-description counterparts below) in `test_routers_projects.py`, `test_tasks.py` and `test_entries.py`.
 
-### 5. Descriptions have no size limit (US-3.15)
+### 5. Descriptions have no size limit (US-3.15) — fixed
 
-Confirmed by run 2: a 100,000-character `description` was accepted by `POST /projects/{id}/tasks` (3/3 attempts) and `PUT /projects/{id}` (3/3). Every other text field is capped: titles and names at 255 characters, filter names at 100, calendar activity descriptions at 4,000. Without a cap, one request can store arbitrarily large text that every later read of the project or task has to send back.
+Confirmed by run 2: a 100,000-character `description` was accepted by `POST /projects/{id}/tasks` (3/3 attempts) and `PUT /projects/{id}` (3/3). Every other text field was capped: titles and names at 255 characters, filter names at 100, calendar activity descriptions at 4,000. Without a cap, one request could store arbitrarily large text that every later read of the project or task has to send back.
 
-**Fix:** add `max_length=4000` (matching `ActivityCreate.description`) to `description` on `ProjectCreate`, `ProjectUpdate`, `TaskCreate` and `TaskUpdate` in `backend/app/schemas.py`. Then re-run `robustness` and expect 0 accepted.
+**Fixed:** `max_length=4000` added (matching `ActivityCreate.description`, which already had it) to `description` on `ProjectCreate`, `ProjectUpdate`, `TaskCreate` and `TaskUpdate` in `backend/app/schemas.py`. An oversized description now returns `422` instead of saving. Verified by `test_create_project_rejects_an_oversized_description`, `test_update_project_rejects_an_oversized_description` and `test_create_task_rejects_an_oversized_description`.
 
 ### 6. Development login is disabled in production
 

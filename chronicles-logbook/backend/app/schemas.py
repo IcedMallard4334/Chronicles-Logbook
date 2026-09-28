@@ -214,8 +214,10 @@ def _validate_schema_integrity(entry_schema: list[FieldDefinition]) -> None:
 
 
 class ProjectCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -225,8 +227,10 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] | None = None
 
     @model_validator(mode="after")
@@ -359,6 +363,8 @@ class EntryMigrationPreview(BaseModel):
 
 
 class EntryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     # Optional. Blank is fine — the entry list falls back to a value drawn
     # from its data when there is nothing else to show.
     title: str | None = Field(default=None, max_length=255)
@@ -406,6 +412,8 @@ class EntryUpdate(BaseModel):
     ``created_at`` is deliberately absent: an entry's capture time is set
     once, at creation, and is not rewritable afterwards.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any] | None = None
@@ -478,15 +486,19 @@ class ChecklistItem(BaseModel):
 
 
 class TaskCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     due_date: date | None = None
     checklist: list[ChecklistItem] = Field(default_factory=list)
 
 
 class TaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     due_date: date | None = None
     completed: bool | None = None
     checklist: list[ChecklistItem] | None = None
@@ -568,6 +580,8 @@ class FilterCriteria(BaseModel):
 
 
 class SavedFilterCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=100)
     criteria: FilterCriteria
 

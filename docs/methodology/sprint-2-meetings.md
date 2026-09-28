@@ -1,6 +1,6 @@
 # Sprint 2 Meeting Minutes
 
-This page records the sprint meetings held during Sprint 2 (26 August – 15 September 2026), including dates, attendees, decisions, and the rationale behind each one. Sprint 1 meetings are documented on the [Sprint 1 Meetings](sprint-meetings.md) page.
+This page records the sprint meetings held during Sprint 2 (26 August – 15 September 2026), including dates, attendees, decisions, and the rationale behind each one. Sprint 1 meetings are documented on the [Sprint 1 Meetings](sprint-meetings.md) page, and Sprint 3's on the [Sprint 3 Meetings](sprint-3-meetings.md) page. Raw minutes and photos for this sprint are archived at [`Sprint2_meeting.zip`](../assets/meetings/Sprint2_meeting.zip).
 
 ---
 

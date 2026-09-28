@@ -1,7 +1,9 @@
 # User Feedback — Sprint 2
 
 Evidence of how user feedback was collected, what it said, what changed because
-of it, and what was deliberately not changed.
+of it, and what was deliberately not changed. See
+[User Feedback — Sprint 3](user-feedback-sprint-3.md) for the follow-up round,
+including how these findings held up.
 
 ---
 
@@ -9,7 +11,7 @@ of it, and what was deliberately not changed.
 
 | | |
 |---|---|
-| **Method** | Google Form, distributed to students |
+| **Method** | [Google Form](https://docs.google.com/forms/d/e/1FAIpQLSdCjqcB2Jo__fwqC3QtG0ch4wZ6iwtqAeKN8kUGcEe1IuvQNA/viewform), distributed to students |
 | **Date** | 14 September 2026 |
 | **Responses** | 12 |
 | **Questions** | 20 — a mix of 1–5 scales, multiple choice and free text |
