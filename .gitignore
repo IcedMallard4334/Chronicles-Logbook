@@ -8,3 +8,7 @@ site.zip
 
 # Ad-hoc linter output redirected to a file during local debugging.
 chronicles-logbook/lint-output.txt
+
+# Local dev tooling (e.g. a workspace-pinned Node runtime), never part of
+# the tracked source.
+.dev-tools/
