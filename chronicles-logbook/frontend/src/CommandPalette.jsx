@@ -41,12 +41,13 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
     if (hasOpened.current) triggerRef.current?.focus()
   }, [open])
   const commands = useMemo(() => [
-    { label: "Go to Today", hint: "Dashboard", action: () => onNavigate("today") },
+    { label: "Go to Today", hint: "Overview", action: () => onNavigate("today") },
     { label: "Go to entries", hint: "Workspace", action: () => onNavigate("entries") },
     { label: "Go to tasks", hint: "Workspace", action: () => onNavigate("tasks") },
     { label: "Go to board", hint: "Workspace", action: () => onNavigate("board") },
     { label: "Go to outstanding work", hint: "Workspace", action: () => onNavigate("outstanding") },
     { label: "Go to calendar", hint: "Schedule", action: () => onNavigate("calendar") },
+    { label: "Go to my dashboard", hint: "Dashboard", action: () => onNavigate("dashboard") },
     { label: "Create a project", hint: "New", action: onCreateProject },
     { label: "Help & documentation", hint: "Help", action: () => navigate("/help") },
     // Picking a project by name opens that project. It used to land on Home

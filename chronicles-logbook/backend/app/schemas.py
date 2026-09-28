@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from app.computed import (
     MAX_EXPRESSION_LENGTH,
@@ -586,6 +586,72 @@ class SavedFilterResponse(BaseModel):
     name: str
     criteria: FilterCriteria
     created_at: datetime
+    updated_at: datetime
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────
+
+# Per-type shape of a panel's ``config``. Kept as small, separate models
+# rather than one model with every field optional, so a panel that claims
+# to be a "board" but is missing project_id fails validation instead of
+# silently saving something the frontend cannot render later.
+#
+# A fourth type (custom statistic, US-3.8) is expected to join this dict
+# once saved expressions exist elsewhere in the codebase — adding it is a
+# new Literal value and a new config model here, not a schema change to
+# Dashboard or DashboardPanel itself.
+
+
+class DashboardPanelSavedFilterConfig(BaseModel):
+    filter_id: UUID
+
+
+class DashboardPanelBoardConfig(BaseModel):
+    project_id: UUID
+    # Matches BoardView.jsx's own sentinel for "group by status" — kept as
+    # a plain string, not an enum, because the other valid values are a
+    # project's own dropdown field ids, which this schema cannot know.
+    grouping: str = "__status__"
+
+
+class DashboardPanelStatisticConfig(BaseModel):
+    view: Literal["overview", "project_breakdown", "field_timeline"]
+    project_id: UUID | None = None
+    field_id: str | None = None
+
+
+_PANEL_CONFIG_MODELS: dict[str, type[BaseModel]] = {
+    "saved_filter": DashboardPanelSavedFilterConfig,
+    "board": DashboardPanelBoardConfig,
+    "statistic": DashboardPanelStatisticConfig,
+}
+
+
+class DashboardPanel(BaseModel):
+    id: str = Field(..., min_length=1, max_length=100)
+    type: Literal["saved_filter", "board", "statistic"]
+    title: str | None = Field(default=None, max_length=100)
+    config: dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_config(self):
+        model = _PANEL_CONFIG_MODELS[self.type]
+        try:
+            model.model_validate(self.config)
+        except ValidationError as exc:
+            readable = "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors())
+            raise ValueError(f"Invalid config for a '{self.type}' panel: {readable}") from exc
+        return self
+
+
+class DashboardUpdate(BaseModel):
+    panels: list[DashboardPanel]
+
+
+class DashboardResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    panels: list[DashboardPanel]
     updated_at: datetime
 
 

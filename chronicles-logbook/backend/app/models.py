@@ -443,6 +443,49 @@ class SavedFilter(Base):
     )
 
 
+class Dashboard(Base):
+    """A user's own arrangement of saved statistics and views (US-3.9).
+
+    One dashboard per user, not a list of named dashboards to switch
+    between — the story asks for "a dashboard of my own", singular. Panels
+    are stored as an ordered JSON list rather than their own table so that
+    adding, removing, and reordering are all the same operation from the
+    client's side: send the new full list. See schemas.py's DashboardPanel
+    for the shape of each entry and per-type config validation.
+    """
+
+    __tablename__ = "dashboards"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # [{"id": "...", "type": "saved_filter" | "board" | "statistic",
+    #   "title": "...", "config": {...}}, ...], in display order.
+    panels: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
 class GoogleCalendarAccount(Base):
     __tablename__ = "google_calendar_accounts"
     __table_args__ = (UniqueConstraint("user_id", "calendar_id"),)
