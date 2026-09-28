@@ -57,6 +57,23 @@ graph TB
 | `tasks.css` | Task-specific styles (~250 lines) |
 | `index.css` | Global CSS variables, light/dark/system themes |
 
+**Sprint 3 additions** (the diagram above predates these; not redrawn to keep
+it readable — each is a self-contained feature component reached from `App.jsx`'s
+view switch, not from the diagram's Sprint 1/2 shell):
+
+| File | Responsibility |
+|---|---|
+| `DashboardPage.jsx` | Customisable, user-arranged workspace dashboard (US-3.9) |
+| `StatisticsPage.jsx`, `FieldStatisticsPanel.jsx` | Workspace-wide and per-project field statistics/charts |
+| `EntryTimeline.jsx` | The Activity view — every entry, chronologically, searchable/filterable |
+| `AutomationPanel.jsx`, `automationRules.js` | Entry rules editor, wording and condition/action matching |
+| `RecurrenceControl.jsx` | The repeat-schedule picker on the entry form |
+| `Reminders.jsx` | The overdue/due-today/upcoming bell in the nav bar |
+| `CommandPalette.jsx` | `Ctrl`/`Cmd`+`K` quick navigation |
+| `DataTransfer.jsx` | Full-account JSON export/import from the account menu |
+| `HelpPage.jsx`, `helpContent.js` | The searchable in-app help manual |
+| `GuidedTour.jsx`, `tourSteps.js` | The welcome tour and per-page coach marks |
+
 ## Routing
 
 ```mermaid
@@ -348,4 +365,5 @@ numeric column is read down, not across.
 - **Fetch-based API client** — `api.js` wraps the native `fetch` API with token injection and error handling, rather than using Axios or another library.
 - **Preview before applying a schema change** — the alternative is an undo, which would mean storing a copy of every entry before every edit. Showing what will happen is cheaper than being able to reverse it, and clearer at the moment the decision is made.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The "Sprint 3 additions" table above was added with Claude Code (Sonnet 5).

@@ -29,10 +29,17 @@ async def lifespan(app: FastAPI):
 
 | Router | Prefix | Responsibility |
 |---|---|---|
-| `auth` | `/auth` | Google OAuth authentication, current user, account deletion |
-| `projects` | `/projects` | Project CRUD, archiving/unarchiving, entry management, schema definitions |
+| `auth` | `/auth` | Google OAuth authentication, Google Calendar OAuth, current user, account deletion |
+| `projects` | `/projects` | Project CRUD, archiving/unarchiving, entry management, schema definitions, sharing/invitations |
 | `tasks` | `/projects/{project_id}/tasks` | Task CRUD, toggle completion, filtering, checklists |
 | `entries` | `/entries` | Global entry search across projects |
+| `automation` | `/projects/{project_id}/rules`, `/reminders` | Sprint 3: entry rules, recurring entries, the cross-project reminders bell |
+| `statistics` | `/statistics` | Workspace-wide totals, streaks, field timeline, per-project field statistics |
+| `calendar` | `/calendar` | Google Calendar event reads, local calendar "activities" |
+| `activities` | `/calendar/activities` | Private, local-only calendar day items (never written to Google) |
+| `ai` | `/ai` | Mira consent (`GET`/`PUT /ai/consent`) and chat (`POST /ai/chat`) |
+| `saved_filters` | `/saved-filters` | Named, reusable Entries-page search combinations |
+| `transfer` | `/export`, `/import` | Full-account JSON export/import |
 
 ## Supporting modules
 
@@ -42,13 +49,16 @@ router reads as a sequence of decisions rather than an implementation.
 | Module | Responsibility |
 |---|---|
 | `app/config.py` | Settings, read from the environment |
-| `app/database.py` | Async engine, session factory, `JSONType` |
+| `app/database.py` | Async engine, session factory, `JSONType`, connection pool sizing |
 | `app/models.py` | SQLAlchemy ORM models |
 | `app/schemas.py` | Pydantic request and response models, including schema-field validation |
 | `app/security.py` | Token issuing and verification |
-| `app/email.py` | Outbound mail |
+| `app/email.py` | Outbound mail via Resend (account-deletion confirmation only) |
 | `app/computed.py` | Evaluates `computed` field expressions |
 | `app/schema_migration.py` | Works out and applies what a schema edit does to existing entries |
+| `app/automation.py` | Sprint 3: matches an entry against a project's rules and applies their actions |
+| `app/custom_statistics.py` | Sprint 3: per-project field aggregation/grouping behind the Statistics page |
+| `app/services/gemini_service.py` | Wraps the Google Gemini API for Mira; the one file to change to swap AI providers |
 
 ### `app/computed.py`
 
@@ -116,52 +126,41 @@ sequenceDiagram
 
 ## External API Integration
 
-Chronicles integrates with external services, satisfying the project brief's requirement for external API integration.
-
-### Google OAuth 2.0 (via Authlib) — implemented
-
-Google's OAuth 2.0 API is used for passwordless authentication. The backend communicates with Google's token endpoint and userinfo endpoint to exchange authorization codes for user profile data.
+The backend calls four external services, all fully implemented and in
+active use — full detail (exact URLs, scopes, consent, failure behaviour,
+cost) now lives in one place to avoid this page drifting out of sync with it
+again: **[External Services & Integrations](../api/external-services.md)**.
+In short:
 
 ```mermaid
 sequenceDiagram
     participant BE as Backend
     participant G as Google APIs
+    participant R as Resend
 
-    BE->>G: POST /token (exchange auth code)
-    G-->>BE: {access_token, id_token}
-    BE->>G: GET /userinfo
-    G-->>BE: {sub, email, name, picture}
-    BE->>BE: Create/find user, issue JWT
+    BE->>G: OAuth 2.0 / OpenID Connect (sign-in)
+    G-->>BE: {access_token, id_token, sub, email, name, picture}
+    BE->>G: Calendar API, read-only (optional, per user)
+    G-->>BE: events for the connected calendar
+    BE->>G: Gemini API (Mira, consent-gated)
+    G-->>BE: reply text, or a proposed create_project action
+    BE->>R: send account-deletion confirmation (best-effort)
 ```
 
-**Configuration:** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables.
-
-### Google Calendar API — planned
-
-The Google Calendar API is the next planned external integration. Outstanding tasks with due dates will sync to the student's Google Calendar, so unfinished work surfaces outside the app.
-
-**Planned scope:**
-
-- Create calendar events from tasks that have a `due_date`
-- Update events when task due dates change
-- Remove events when tasks are deleted or completed
-- Use the same Google OAuth token (with calendar scope) for authentication
-
-**Motivation:** The team decided at the Sprint 5 PO review (2026-08-24) to pursue Google Calendar integration as the external API feature, since it adds tangible value for students who already use Google Calendar for scheduling.
-
-### Brevo SMTP (Transactional Email)
-
-Brevo's SMTP service is used to send transactional emails for account creation welcome and account deletion notifications.
-
-| Email | Trigger |
-|---|---|
-| Welcome email | First Google OAuth login (new user created) |
-| Account deleted notification | `DELETE /auth/account` (success) |
-
-**Configuration:** `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT`, `BREVO_SMTP_USERNAME`, `BREVO_SMTP_PASSWORD`, `MAIL_FROM`, `MAIL_FROM_NAME` environment variables.
+| Service | Used for | Configuration |
+|---|---|---|
+| Google OAuth 2.0 / OpenID Connect | Sign-in — the only authentication method | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Google Calendar API (read-only) | Optional per-account calendar sync on the Calendar view | (same OAuth client, separate `calendar.readonly` grant) |
+| Google Gemini API | Mira, the AI assistant — consent-gated, degrades to a local-only mode if declined | `GEMINI_API_KEY`, `GEMINI_MODEL` |
+| Resend | Account-deletion confirmation email (best-effort, failure doesn't block deletion) | `RESEND_API_KEY`, `EMAIL_FROM` |
 
 ## CORS configuration
 
 CORS origins are configured via the `CORS_ORIGINS` environment variable (comma-separated). In production, this points to the Azure App Service URL.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+Router/module tables and the External API Integration section were corrected
+and updated for Sprint 3 with Claude Code (Sonnet 5) — the previous version
+described Google Calendar as "planned" (it has been implemented since Sprint
+2) and named a "Brevo SMTP" / "welcome email" integration that does not
+exist; the actual email integration is Resend, account-deletion-only.

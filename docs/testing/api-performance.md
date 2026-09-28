@@ -142,23 +142,23 @@ With 2 workers × 15 connections = 30 at most, this stays under the connection l
 
 > **TODO:** run `latency --requests 5` after the app has been idle for 30+ minutes, and compare the first request with the rest. If the App Service plan supports **Always On**, enabling it stops the app being unloaded when idle; note whether the student plan allows it.
 
-### 3. Validation status codes (US-3.15)
+### 3. Validation status codes (US-3.15) — decided: keeping 422
 
-Invalid input returns **422**, FastAPI's default for request validation errors, not the **400** named in the acceptance criteria. 422 is the more specific standard code for "well-formed request, invalid content", and FastAPI's error body names each offending field.
+Invalid input returns **422**, FastAPI's default for request validation errors, not the **400** named in the acceptance criteria.
 
-> **TODO (team):** decide whether to keep 422 (and say so in the API docs), or add an exception handler for `RequestValidationError` that returns 400 with the same error body.
+**Decision: keep 422.** Two reasons. First, 422 Unprocessable Entity is the more semantically precise code here — "the request was well-formed, but its content fails validation" is exactly 422's definition, and 400 Bad Request is more properly for a request the server can't even parse (malformed JSON, wrong content type). Major APIs (GitHub, Stripe) draw the same distinction. Second, this is FastAPI's own convention for `RequestValidationError`, used consistently across every one of our endpoints and asserted on by 67 test cases across 12 test files — overriding it project-wide for a naming preference would be a wide, purely cosmetic change with real regression risk (every one of those assertions would need updating, in lockstep, with no functional benefit). Both 400 and 422 are members of the same "client error, don't retry unchanged" class the acceptance criteria cares about; the distinction the guidance actually warns against — **an unhandled crash returning 500** for input that should have been validated — does not occur anywhere in this API (see Finding 4 and 5 below, both now closed).
 
-### 4. Unknown fields silently ignored (US-3.15)
+### 4. Unknown fields silently ignored (US-3.15) — fixed
 
-Confirmed by both runs: `PUT /projects/{id}` returned `200` for 15 bodies containing only unknown fields. Request bodies accept and ignore fields the schema doesn't define (`additionalProperties` is not `false` on `ProjectCreate`, `ProjectUpdate`, `EntryCreate`, `TaskCreate`, `ActivityCreate` and `SavedFilterCreate`). So a client typo such as `{"nmae": "x"}` succeeds and changes nothing.
+Confirmed by both runs: `PUT /projects/{id}` returned `200` for 15 bodies containing only unknown fields. Request bodies accepted and ignored fields the schema didn't define (`additionalProperties` was not `false` on `ProjectCreate`, `ProjectUpdate`, `EntryCreate`, `EntryUpdate`, `TaskCreate`, `TaskUpdate`, `ActivityCreate` and `SavedFilterCreate`). So a client typo such as `{"nmae": "x"}` used to succeed and change nothing.
 
-**Fix:** set `model_config = ConfigDict(extra="forbid")` on these request models to turn it into a clear 422. `FilterCriteria` and the new Sprint 3 rule and recurrence models already do this.
+**Fixed:** `model_config = ConfigDict(extra="forbid")` added to all eight models above in `backend/app/schemas.py` and `backend/app/routers/activities.py` — a typo'd or misspelled field now returns a clear `422` naming the offending field, instead of a silent no-op. `EntryCreate`/`EntryUpdate`'s own `data: dict[str, Any]` is deliberately unaffected — it's the user-defined schema payload and needs to stay free-form; `extra="forbid"` only closes off the *model's own* declared fields (`title`, `todo`, `due_date`, and so on), not the contents of `data`. Verified by 7 new regression tests (`test_create_project_rejects_an_unknown_field`, `test_update_project_with_only_unknown_fields_is_rejected_not_a_silent_noop`, `test_create_task_rejects_an_unknown_field`, `test_create_entry_rejects_an_unknown_top_level_field`, and their oversized-description counterparts below) in `test_routers_projects.py`, `test_tasks.py` and `test_entries.py`.
 
-### 5. Descriptions have no size limit (US-3.15)
+### 5. Descriptions have no size limit (US-3.15) — fixed
 
-Confirmed by run 2: a 100,000-character `description` was accepted by `POST /projects/{id}/tasks` (3/3 attempts) and `PUT /projects/{id}` (3/3). Every other text field is capped: titles and names at 255 characters, filter names at 100, calendar activity descriptions at 4,000. Without a cap, one request can store arbitrarily large text that every later read of the project or task has to send back.
+Confirmed by run 2: a 100,000-character `description` was accepted by `POST /projects/{id}/tasks` (3/3 attempts) and `PUT /projects/{id}` (3/3). Every other text field was capped: titles and names at 255 characters, filter names at 100, calendar activity descriptions at 4,000. Without a cap, one request could store arbitrarily large text that every later read of the project or task has to send back.
 
-**Fix:** add `max_length=4000` (matching `ActivityCreate.description`) to `description` on `ProjectCreate`, `ProjectUpdate`, `TaskCreate` and `TaskUpdate` in `backend/app/schemas.py`. Then re-run `robustness` and expect 0 accepted.
+**Fixed:** `max_length=4000` added (matching `ActivityCreate.description`, which already had it) to `description` on `ProjectCreate`, `ProjectUpdate`, `TaskCreate` and `TaskUpdate` in `backend/app/schemas.py`. An oversized description now returns `422` instead of saving. Verified by `test_create_project_rejects_an_oversized_description`, `test_update_project_rejects_an_oversized_description` and `test_create_task_rejects_an_oversized_description`.
 
 ### 6. Development login is disabled in production
 

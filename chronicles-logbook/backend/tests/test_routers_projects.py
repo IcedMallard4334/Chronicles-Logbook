@@ -277,3 +277,44 @@ async def test_deleting_a_project_twice_is_not_an_error_the_second_time(authenti
     assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 204
     # It is already gone, so it is no longer yours to delete.
     assert (await authenticated_client.delete(f"/projects/{project_id}")).status_code == 404
+
+
+# API Performance, Load & Robustness, Findings 4 & 5: a body with only unknown
+# fields used to be accepted as a silent no-op, and description had no length
+# cap. Both are load-test findings, verified here rather than only by hand.
+
+
+async def test_create_project_rejects_an_unknown_field(authenticated_client):
+    response = await authenticated_client.post(
+        "/projects", json={"name": "Typo test", "nmae": "oops"}
+    )
+    assert response.status_code == 422
+
+
+async def test_update_project_with_only_unknown_fields_is_rejected_not_a_silent_noop(
+    authenticated_client,
+):
+    project_id = await _make_project(authenticated_client)
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}", json={"title": 12345}
+    )
+
+    assert response.status_code == 422
+
+
+async def test_create_project_rejects_an_oversized_description(authenticated_client):
+    response = await authenticated_client.post(
+        "/projects", json={"name": "Too long", "description": "x" * 4001}
+    )
+    assert response.status_code == 422
+
+
+async def test_update_project_rejects_an_oversized_description(authenticated_client):
+    project_id = await _make_project(authenticated_client)
+
+    response = await authenticated_client.put(
+        f"/projects/{project_id}", json={"description": "x" * 4001}
+    )
+
+    assert response.status_code == 422

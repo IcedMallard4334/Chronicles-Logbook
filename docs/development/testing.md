@@ -57,6 +57,8 @@ async def client():
 
 ### Test Files
 
+26 files, 586 tests. Sprint 1–2 core:
+
 | File | Coverage |
 |---|---|
 | `test_auth.py` | Google OAuth, account deletion |
@@ -71,6 +73,22 @@ async def client():
 | `test_schema_editing.py` | Schema change preview and apply, entry migration, retired fields |
 | `test_schemas.py` | Pydantic schema validation |
 | `test_tasks.py` | Task CRUD, checklists, toggle, filtering |
+| `test_sharing.py` | Project invitations, member permissions |
+| `test_transfer.py` | Full-account JSON export/import |
+| `test_structured_search.py` | AND/OR condition search, per-field-type operators |
+| `test_saved_filters.py` | Saving, listing and re-applying a saved search |
+| `test_statistics.py` | Workspace totals, streaks, field timeline |
+| `test_calendar_multi.py`, `test_calendar_regressions.py` | Multi-account Google Calendar sync |
+| `test_login_sessions.py`, `test_dev_login.py` | Session refresh/expiry; the `ENABLE_DEV_LOGIN` local bypass |
+| `test_ai.py`, `test_mira_consent.py` | Mira chat (consent-gated), the consent endpoint itself |
+
+Sprint 3 additions:
+
+| File | Coverage |
+|---|---|
+| `test_automation.py` | Entry rules (conditions, actions), recurrence, reminders — 1,030 lines, the largest suite in the project |
+| `test_dashboard.py` | Customisable dashboard panels (US-3.9) |
+| `test_custom_statistics.py` | Per-project field statistics/grouping |
 
 ### Writing New Tests
 
@@ -107,6 +125,8 @@ npm run test -- --run   # Single run
 
 ### Test Files
 
+44 files, 529 tests. Core:
+
 | File | Coverage |
 |---|---|
 | `App.test.jsx` | App shell, navigation, project dashboard |
@@ -116,11 +136,29 @@ npm run test -- --run   # Single run
 | `SchemaEditor.test.jsx` | Schema view/edit/review modes, change preview, reference and computed fields on an entry |
 | `TaskPanel.test.jsx` | Task list, filters, checklist creation and toggling |
 | `ProfilePage.test.jsx` | User display, theme cycling, sign-out, delete account |
-| `api.test.js` | HTTP client, token injection, error handling |
+| `api.test.js`, `api.endpoints.test.js` | HTTP client, token injection, error handling, every endpoint wrapper |
 | `main.test.jsx` | Route protection, redirect logic |
+| `offlineSync.test.js`, `offlineQueue.test.js` | Sync queue ordering, retry, per-user isolation (see "what was deliberately not tested" below) |
+| `CalendarView.test.jsx` | Month grid, multi-account Google Calendar, day dialog |
+| `StructuredSearch.test.jsx`, `SavedFilterBar.test.jsx` | Condition builder, saved-filter chips |
+| `CommandPalette.test.jsx` | `Ctrl`/`Cmd`+`K` search, focus return on close |
+| `useDialogFocus.test.jsx` | Shared modal focus-trap/return-focus hook |
+| `MiraAssistant.test.jsx`, `MiraConsentPage.test.jsx` | Mira chat, project-proposal confirmation, consent gate |
 
-The tables list the files that cover the documented API surface. Other suites
-exist alongside them for offline sync, calendar, statistics and the assistant.
+Sprint 3 additions:
+
+| File | Coverage |
+|---|---|
+| `AutomationPanel.test.jsx`, `automationRules.test.js` | Rule builder, condition matching, action wording |
+| `RecurrenceControl.test.jsx` | Repeat-schedule picker and validation |
+| `Reminders.test.jsx` | Overdue/due-today/upcoming bell |
+| `EntryTimeline.test.jsx` | Chronological Activity view, pagination, date filters |
+| `FieldStatisticsPanel.test.jsx` | Per-project field statistics |
+| `DataTransfer.test.jsx` | Account export/import |
+
+Other suites exist alongside these (BoardView, Invitations, GuidedTour,
+HelpPage, ViewTransition and more) for the rest of the app surface;
+`npx vitest run` runs all 44.
 
 ### Writing New Tests
 
@@ -171,9 +209,33 @@ Example: `test_create_task_with_checklist_returns_201`
 
 ### Coverage Targets
 
-The project aims for tests that cover all user-facing API endpoints and critical UI interactions. Line coverage is reported as a badge on the README, but breadth of endpoint and component coverage is the target the team works to — a line executed incidentally is not the same as a behaviour that has been checked.
+The Sprint 3 guidance sets 30% as acceptable and 60% as preferable, averaged
+across codebases if there is more than one. Both of ours clear that
+comfortably on their own, without needing to average up:
 
-Backend line coverage currently stands at **94%** across 317 tests.
+| Codebase | Statement coverage | Tests | Measured |
+|---|---|---|---|
+| Backend (pytest + coverage.py) | **94%** | 586, across 24 test files | 28 September 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **78.5%** (82.2% of lines) | 529, across 44 test files | 28 September 2026 |
+
+Reproduce these numbers directly rather than trusting the badge:
+
+```bash
+cd chronicles-logbook/backend && python -m pytest --cov=app --cov-report=term-missing
+cd chronicles-logbook/frontend && npx vitest run --coverage
+```
+
+The badges on the README are generated from the same numbers by CI
+(`.gitea/workflows/ci.yml`) on every push to `main`, so they track this table;
+they are a shortcut for a glance, not the coverage report itself.
+
+Line coverage is reported here because it's what the tooling measures
+directly, but breadth of endpoint and component coverage is the target the
+team actually works to — a line executed incidentally is not the same as a
+behaviour that has been checked. The "what was deliberately not tested"
+section below exists for exactly that reason: a percentage on its own can't
+distinguish the two, so the gaps and the reasoning behind them are written
+out explicitly instead of just cited as a number.
 
 ---
 
@@ -223,6 +285,7 @@ Real coverage was **93%** all along. The lesson recorded here is that a coverage
 - **`generate_reply()` in `gemini_service.py`** was unreachable — nothing in the application or the tests called it. It accounted for 26 of the 32 uncovered statements in that module. It was **deleted rather than tested**: writing tests for dead code raises the percentage while testing nothing, which is worse than leaving it uncovered because it disguises the problem.
 - **The Google OAuth callback and Calendar token-refresh paths** are partly uncovered (`auth.py` 85%, `calendar.py` 84%). Exercising them means standing in a fake Google, and a mock of an OAuth provider mostly tests the mock. These paths are verified by signing in for real against the deployed app.
 - **The IndexedDB adapter in `offlineQueue.js`** (lines 40–69). `jsdom` provides no IndexedDB, so covering it needs a `fake-indexeddb` dependency. The queue's *behaviour* — ordering, per-user isolation, retry, rejection, attempt counting — is fully covered through `createMemoryAdapter`, which is the logic worth testing; the adapter itself is a thin translation to the browser API.
+- **`DayActivityDialog.jsx` has no test file (0% coverage) — a genuine, unaddressed gap**, not a considered exclusion like the ones above. It's the calendar day-detail dialog (agenda list, add/delete a local activity) and renders via a native `<dialog>`/`showModal()` rather than the app's usual `useDialogFocus` pattern, which is presumably why it was missed when the rest of the calendar UI was tested. Recorded honestly here rather than left silent; a Sprint 4 candidate.
 
 A worked example of why the *number* is not the goal: a first attempt at testing `newEntryId`'s older-browser fallback deleted `crypto.randomUUID` with `Reflect.deleteProperty`. The test passed — but `crypto`'s own properties are not configurable, so the deletion silently did nothing, the real implementation ran, and its output matched the UUID pattern being asserted. Coverage is what exposed it: the fallback's lines were still reported as unexecuted. Replacing the whole global with `vi.stubGlobal("crypto", {})` made the test real. **A passing test that never reaches the code it names is worse than no test, because it reports the opposite of the truth.**
 
@@ -236,7 +299,7 @@ Formal user feedback is therefore treated as part of the testing process, not as
 
 ---
 
-## Sprint 2 Requirements
+## Sprint 2 & 3 Requirements
 
 The rubric requires:
 
@@ -244,7 +307,17 @@ The rubric requires:
 - Each user story should have corresponding tests
 - Linting should show no errors or warnings
 - A testing document describing strategy and test cases
+- (Sprint 3) A code coverage **metric or report**, not only a badge, covering
+  the whole system — see Coverage Targets above
+- (Sprint 3) Load/stress testing via direct HTTP, never the UI, with evidence
+  — see [API Performance, Load & Robustness](../testing/api-performance.md)
+  and its [raw evidence index](../evidence/index.md)
+- (Sprint 3) Correct use of HTTP status codes for malformed input — see that
+  same page's Findings 3–5
 
-This documentation serves as the testing document for the project.
+This documentation, together with the two pages linked above, serves as the
+testing document for the project.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The Coverage Targets numbers, expanded test file tables, and Sprint 2 & 3
+Requirements section above were updated with Claude Code (Sonnet 5).
