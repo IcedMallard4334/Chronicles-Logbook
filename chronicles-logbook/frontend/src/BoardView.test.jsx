@@ -56,6 +56,63 @@ describe("BoardView", () => {
     expect(screen.getByRole("region", { name: "Done (1)" })).toBeInTheDocument()
   })
 
+  it("writes list fields as words rather than raw JSON", async () => {
+    fetchEntries.mockResolvedValue([
+      entry("e1", {
+        schema_snapshot: [
+          { id: "field-1", name: "Note", type: "text" },
+          { id: "field-2", name: "Stage", type: "dropdown", options: ["Open", "Blocked", "Shipped"] },
+          { id: "field-3", name: "Topics", type: "tags" },
+          { id: "field-4", name: "Steps", type: "checklist" },
+        ],
+        data: {
+          "field-1": "Chapter 21",
+          "field-2": "Open",
+          "field-3": ["Calculation", "Mastering"],
+          "field-4": [
+            { id: "c1", text: "Mastering", completed: true },
+            { id: "c2", text: "Testing", completed: false },
+          ],
+        },
+      }),
+    ])
+
+    render(<BoardView projects={projects} />)
+
+    // Tags read as a list and a checklist as its progress — a list never
+    // renders as the JSON it is stored as.
+    const card = (await screen.findByText(/Chapter 21/)).closest("li")
+    expect(card).toHaveTextContent("Calculation, Mastering")
+    expect(card).toHaveTextContent("1 of 2 done")
+    expect(card.textContent).not.toContain("{")
+  })
+
+  it("names the entry when it has a title", async () => {
+    fetchEntries.mockResolvedValue([entry("e1", { title: "Chapter 21" })])
+
+    render(<BoardView projects={projects} />)
+
+    expect(await screen.findByText("Chapter 21")).toHaveClass("board-card-title")
+  })
+
+  it("names the project a reference points at", async () => {
+    fetchEntries.mockResolvedValue([
+      entry("e1", {
+        schema_snapshot: [
+          { id: "field-1", name: "Note", type: "text" },
+          { id: "field-5", name: "Parent", type: "project_reference" },
+        ],
+        data: { "field-1": "Note e1", "field-5": "p2" },
+      }),
+    ])
+
+    render(<BoardView projects={projects} />)
+
+    const card = (await screen.findByText(/Note e1/)).closest("li")
+    expect(card).toHaveTextContent("Research")
+    expect(card).not.toHaveTextContent("p2")
+  })
+
   it("offers each dropdown field as a grouping and builds a column per option", async () => {
     fetchEntries.mockResolvedValue([entry("e1", { data: { "field-1": "Note e1", "field-2": "Blocked" } })])
 

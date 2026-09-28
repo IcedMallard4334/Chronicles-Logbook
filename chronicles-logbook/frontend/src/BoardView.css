@@ -9,6 +9,7 @@
 .board-cards { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
 .board-card { padding:12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); cursor:grab; }
 .board-card.is-dragging { opacity:.45; }
+.board-card-title { margin:0 0 4px; font-weight:600; font-size:.82rem; color:var(--text); overflow-wrap:anywhere; }
 .board-card-preview { margin:0 0 10px; font-size:.8rem; color:var(--text); overflow-wrap:anywhere; }
 .board-card-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:.68rem; color:var(--muted); }
 .board-card-move { display:flex; align-items:center; gap:5px; font-size:.62rem; font-weight:600; }
