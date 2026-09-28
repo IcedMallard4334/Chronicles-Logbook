@@ -383,16 +383,17 @@ export default function DashboardPage({ projects }) {
 
   if (panels === null) {
     return (
-      <section className="dashboard-page workspace-page">
-        <p className="hint">Loading your dashboard…</p>
+      <section className="dashboard-page workspace-page" aria-label="Dashboard workspace">
+        <p className="workspace-empty" role="status">Loading your dashboard…</p>
       </section>
     )
   }
 
   return (
     <section className="dashboard-page workspace-page" aria-labelledby="dashboard-title">
-      <header className="dashboard-page-header">
+      <header className="workspace-heading">
         <div>
+          <span className="workspace-eyebrow">ONE VIEW OF WHAT MATTERS</span>
           <h1 id="dashboard-title">My dashboard</h1>
           <p>Arrange the statistics and views that matter to you.</p>
         </div>
@@ -403,64 +404,68 @@ export default function DashboardPage({ projects }) {
         )}
       </header>
 
-      {error && <p className="dashboard-panel-error" role="alert">{error}</p>}
+      <div className="workspace-body">
+        {error && <p className="workspace-error" role="alert">{error}</p>}
 
-      {adding && (
-        <AddPanelForm
-          projects={projects}
-          savedFilters={savedFilters}
-          onAdd={handleAdd}
-          onCancel={() => setAdding(false)}
-        />
-      )}
+        {adding && (
+          <AddPanelForm
+            projects={projects}
+            savedFilters={savedFilters}
+            onAdd={handleAdd}
+            onCancel={() => setAdding(false)}
+          />
+        )}
 
-      {panels.length === 0 && !adding && (
-        <div className="dashboard-empty">
-          <p>Your dashboard is empty. Add a panel to see your statistics, saved filters, or boards at a glance.</p>
-        </div>
-      )}
-
-      <ul className="dashboard-panel-grid">
-        {panels.map((panel, index) => (
-          <li className="dashboard-panel" key={panel.id}>
-            <header className="dashboard-panel-header">
-              <span>
-                <span className="dashboard-panel-type">{PANEL_TYPE_LABELS[panel.type]}</span>
-                <strong>{defaultTitleFor(panel, { projects, savedFilters })}</strong>
-              </span>
-              <div className="dashboard-panel-controls">
-                <button
-                  type="button"
-                  aria-label="Move panel up"
-                  disabled={index === 0 || saving}
-                  onClick={() => handleMove(index, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  aria-label="Move panel down"
-                  disabled={index === panels.length - 1 || saving}
-                  onClick={() => handleMove(index, 1)}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  aria-label="Remove panel"
-                  disabled={saving}
-                  onClick={() => handleRemove(panel.id)}
-                >
-                  ×
-                </button>
-              </div>
-            </header>
-            <div className="dashboard-panel-body">
-              <PanelBody panel={panel} projects={projects} savedFilters={savedFilters} />
-            </div>
-          </li>
-        ))}
-      </ul>
+        {panels.length === 0 && !adding ? (
+          <div className="workspace-empty">
+            <span className="workspace-empty-icon">▦</span>
+            <h2>Your dashboard is empty</h2>
+            <p>Add a panel to see your statistics, saved filters, or boards at a glance.</p>
+          </div>
+        ) : (
+          <ul className="dashboard-panel-grid">
+            {panels.map((panel, index) => (
+              <li className="dashboard-panel" key={panel.id}>
+                <header className="dashboard-panel-header">
+                  <span>
+                    <span className="dashboard-panel-type">{PANEL_TYPE_LABELS[panel.type]}</span>
+                    <strong>{defaultTitleFor(panel, { projects, savedFilters })}</strong>
+                  </span>
+                  <div className="dashboard-panel-controls">
+                    <button
+                      type="button"
+                      aria-label="Move panel up"
+                      disabled={index === 0 || saving}
+                      onClick={() => handleMove(index, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Move panel down"
+                      disabled={index === panels.length - 1 || saving}
+                      onClick={() => handleMove(index, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Remove panel"
+                      disabled={saving}
+                      onClick={() => handleRemove(panel.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </header>
+                <div className="dashboard-panel-body">
+                  <PanelBody panel={panel} projects={projects} savedFilters={savedFilters} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   )
 }

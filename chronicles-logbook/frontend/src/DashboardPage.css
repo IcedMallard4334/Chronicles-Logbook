@@ -1,9 +1,7 @@
-/* Custom dashboard (US-3.9) */
-.dashboard-page { display:grid; gap:20px; }
-.dashboard-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-.dashboard-page-header h1 { margin:0; font-size:1.4rem; }
-.dashboard-page-header p { margin:4px 0 0; color:var(--muted); font-size:.85rem; }
-.dashboard-empty { padding:28px; border:1px dashed var(--line); border-radius:12px; color:var(--muted); font-size:.85rem; text-align:center; }
+/* Custom dashboard (US-3.9) — layout classes (.workspace-page,
+   .workspace-heading, .workspace-eyebrow, .workspace-body,
+   .workspace-empty) come from WorkspacePages.css, shared with every
+   other tab (Entries, Board, Outstanding, …) so this page matches them. */
 .dashboard-panel-error { margin:0; padding:10px 13px; border-radius:8px; background:color-mix(in srgb,var(--error) 10%,var(--surface)); color:var(--error); font-size:.8rem; }
 
 .dashboard-panel-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px; margin:0; padding:0; list-style:none; }
