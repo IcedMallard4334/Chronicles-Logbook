@@ -1,6 +1,31 @@
 # API Performance, Load & Robustness
 
-Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting) and **US-3.18** (load & stress testing).
+Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting), **US-3.17** (perceived performance & Lighthouse) and **US-3.18** (load & stress testing).
+
+## Frontend performance: Google Lighthouse (US-3.17)
+
+**Tool:** [Google Lighthouse](https://developer.chrome.com/docs/lighthouse) — Google's own auditing tool for page performance, accessibility, best practices and SEO, run either from Chrome DevTools or via the hosted [PageSpeed Insights](https://pagespeed.web.dev/) report, which runs the same Lighthouse engine against a live URL without needing a local Chrome install. We used PageSpeed Insights against the deployed site so results are reproducible by anyone with the URL, including a grader.
+
+**Target:** `https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/` (the deployed landing page — the only page an unauthenticated crawl, like a grader's first look, can reach).
+
+| Metric | 25 Sep 2026 (mobile, before) | 28 Sep 2026 (after) |
+|---|---|---|
+| Performance | 69 | **95** |
+| Accessibility | 95 | **100** |
+| Best Practices | 96 | **100** |
+| SEO | 82 | **100** |
+
+The first run found three concrete, fixable problems, all addressed the same week:
+
+1. **Speed Index (the worst single metric, 8.3s on mobile).** The landing page's decorative background animations (glowing blobs, floating lines) looped forever, so the page never reached a visually "settled" frame within Lighthouse's trace window — every frame kept differing from the last, which the Speed Index calculation reads as the page still loading. Fixed by capping those animations to a few cycles (`animation-iteration-count`) instead of `infinite`; a real visitor never notices the difference, since nobody is still watching the background 15 seconds after the page loads.
+2. **SEO errors (18 errors on `robots.txt`).** No `robots.txt` file existed, so the single-page app's catch-all client-side routing served `index.html` at that URL instead, which Google's crawler tried and failed to parse as a robots file. Fixed by adding a real `public/robots.txt`. Also added a missing `<meta name="description">`.
+3. **Accessibility (one automated flag, several more found by manual code review).** A low-contrast label (light lavender text on a near-white panel), a lost-focus bug in the command palette after closing it, a screen-reader-invisible "calculated value" badge, missing `aria-checked` on checklist toggles, two unlabelled form inputs, and two heading-level skips (`h2` → `h4`). All fixed — see [Accessibility (US-3.19)](../methodology/user-feedback-sprint-3.md#accessibility-us-319) for the full list. Accessibility scored 95 automated, but a11y checkers only catch a fraction of real issues — the manual pass is what actually got it to 100.
+
+Also fixed as part of the same pass: render-blocking font loading (moved to non-blocking `<link>`), a year-long `Cache-Control` on hashed build assets (`serve.json`), and a non-composited CSS animation (an animated `background-position` on the skeleton loader, replaced with a `transform`-based sheen that runs on the compositor thread instead of repainting every frame).
+
+**Skeleton loading (perceived performance).** Every page that fetches data shows either a skeleton placeholder or an explicit loading state (a flowing-lines loader with a label, e.g. "Opening your logbook…") instead of a blank page — see `ViewLoader` / `SkeletonRows` in `chronicles-logbook/frontend/src/ViewTransition.jsx`. Content also fades/slides in once a fetch completes rather than popping in, applied consistently across the workspace, Profile, Help and onboarding pages.
+
+**What's left.** Mobile Performance (95) is measured under Lighthouse's Slow-4G, low-end-CPU throttling profile — deliberately harsh. Getting materially higher would mean splitting the authenticated app's JS bundle further (it currently ships as one ~550 KB chunk, lazy-loaded only after sign-in) or server-rendering the landing page; both are larger architectural changes than this sprint's polish pass, and are recorded here rather than attempted blind.
 
 ## How we tested
 

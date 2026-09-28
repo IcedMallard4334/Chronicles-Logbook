@@ -66,7 +66,6 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - Release Notes: release-notes.md
   - Getting Started:
     - Prerequisites: getting-started/prerequisites.md
     - Installation: getting-started/installation.md
@@ -79,6 +78,7 @@ nav:
     - Use Case Diagrams: architecture/use-case-diagrams.md
     - Authentication & Azure: architecture/authentication-and-azure.md
   - API Reference:
+    - Overview (our API vs external APIs): api/overview.md
     - Authentication: api/authentication.md
     - Projects: api/projects.md
     - Schema and field types: api/schema.md
@@ -88,6 +88,7 @@ nav:
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
     - Export and import: api/transfer.md
+    - External Services & Integrations: api/external-services.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md
@@ -102,8 +103,9 @@ nav:
     - Sprint 2 Meetings: methodology/sprint-2-meetings.md
     - Sprint 2 Plan: methodology/sprint-2-plan.md
     - Sprint 2 Review: methodology/sprint-2-review.md
-    - Sprint 3 Log (Person 4): methodology/sprint-3-log.md
-    - User Feedback: methodology/user-feedback.md
+    - Sprint 3 Meetings: methodology/sprint-3-meetings.md
+    - User Feedback — Sprint 2: methodology/user-feedback.md
+    - User Feedback — Sprint 3: methodology/user-feedback-sprint-3.md
     - Potential Risks: methodology/risks.md
   - Testing:
     - API Performance: testing/api-performance.md

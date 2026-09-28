@@ -8,19 +8,39 @@ The schema is **user-defined**, not hardcoded. Entries, statistics, filters, and
 
 ## Key Features
 
-- **Custom entry schemas** — define fields with text, number, date, dropdown, project-reference, and computed types per project
-- **Editable schemas** — change a project's fields after it has entries, with a preview of what the change does to them before it is applied
+**Core (Sprint 1)**
+
+- **Custom entry schemas** — define fields with text, number, date, dropdown, tags, checklist, entry link, project link, and computed types per project
+- **Editable schemas** — change a project's fields after it has entries, with a preview of what the change does to them before it is applied; retired fields keep their recorded values rather than losing them
 - **Quick capture** — log entries in seconds with pre-filled fields
 - **Time tracking** — record time spent per entry, aggregated per project
 - **Task tracking** — manage to-do items with due dates and checklists per project
-- **Task checklists** — break tasks into sub-steps with progress tracking
 - **Project management** — create, describe, and archive/unarchive projects
-- **Timeline view** — browse entries chronologically
-- **Search and filter** — find entries across all projects
-- **Statistics** — time per project, entry counts, and streak tracking
-- **Dark mode** — light, dark, and system themes via CSS custom properties
-- **Profile page** — account details, theme switcher, sign-out, delete account
-- **Google OAuth** — sign in with your Google account
+- **Google OAuth** — sign in with your Google account, no separate password
+- **Dark mode** — light, dark, system theme, plus four accent colours, each with its own themed animated background
+
+**Sprint 2**
+
+- **Structured search** — AND/OR conditions over a project's own fields, with per-field-type operators and a "best match" relevance sort
+- **Saved filters** — name and re-apply a whole search (keyword, project, status, conditions, sort) as one click
+- **Sharing and collaboration** — invite another account to a project by email; owners and members have distinct permissions
+- **Offline capture and sync** — entries captured offline queue locally and sync automatically once reconnected, with a rejected-entry recovery flow
+- **Data export/import** — a full account JSON export/import, and a per-project CSV export via the API
+- **Board and Calendar views** — entries grouped by a Choice field with drag-and-drop; a month calendar combining entries, deadlines and (optionally) Google Calendar
+- **Command palette** — `Ctrl`/`Cmd`+`K` quick navigation across pages, commands and projects
+- **In-app help manual and guided tour** — a searchable manual plus a one-time welcome tour and per-page coach marks
+- **Mira** — a Google Gemini-backed AI assistant for turning notes into entries and proposing projects, consent-gated and otherwise fully optional
+
+**Sprint 3**
+
+- **Automation** — rules that tag, fill in a field, or flag an entry as to-do automatically when it's saved, matched against project-defined conditions
+- **Recurring entries and reminders** — entries that repeat on a schedule, and an in-app bell listing everything overdue, due today or coming up
+- **Entry history** — every edit keeps the entry's previous values as a numbered, timestamped revision, viewable (not yet restorable) from the entry itself
+- **Customisable Dashboard** — a workspace-wide, user-arranged panel layout (US-3.9)
+- **Statistics page** — workspace-wide and per-project field totals, groupings and charts, separate from the per-entry timeline
+- **Activity view** — every entry across every project in one searchable, filterable, chronological list, with a "Field trends" view plotting one field over time
+- **Accessibility pass (US-3.19)** — Lighthouse Accessibility 100/100; semantic roles, keyboard focus management, and screen-reader-visible status indicators throughout, see [External Services & Integrations](api/external-services.md) and [User Feedback — Sprint 3](methodology/user-feedback-sprint-3.md)
+- **Performance pass (US-3.17)** — Lighthouse Performance 69 → 95, see [API Performance, Load & Robustness](testing/api-performance.md)
 - **Responsive design** — adapts to desktop and mobile viewports
 
 ## Tech Stack
@@ -66,12 +86,15 @@ Visit [http://localhost:5173](http://localhost:5173) to start using Chronicles.
 |---|---|
 | [Getting Started](getting-started/prerequisites.md) | Prerequisites, installation, running the project |
 | [Architecture](architecture/overview.md) | System design, backend, frontend, database with diagrams |
-| [API Reference](api/authentication.md) | Full endpoint documentation with examples |
+| [API Reference](api/overview.md) | Our own API endpoints, plus the external APIs (Google OAuth, Calendar, Gemini) we consume |
 | [Development](development/contributing.md) | Contributing guide, testing, deployment |
-| [Methodology](methodology/project-methodology.md) | Project and Git methodology documentation |
+| [Testing](testing/api-performance.md) | Load, latency, robustness and Lighthouse performance evidence |
+| [Methodology](methodology/project-methodology.md) | Project and Git methodology, sprint meetings, user feedback |
 
 ## Team
 
 Driven by Design — COMS3011A, University of the Witwatersrand.
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The Sprint 3 features list and documentation table above were added with
+Claude Code (Sonnet 5).

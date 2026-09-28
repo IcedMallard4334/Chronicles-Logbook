@@ -26,9 +26,11 @@ graph TB
         PG[(PostgreSQL<br/>+ JSONB)]
     end
 
-    subgraph External["External Services"]
-        Google[Google OAuth 2.0]
-        SMTP[SMTP Email<br/>Account Notifications]
+    subgraph External["External Services (see External Services & Integrations)"]
+        Google[Google OAuth 2.0 /<br/>OpenID Connect]
+        Calendar[Google Calendar API<br/>read-only, optional]
+        Gemini[Google Gemini API<br/>Mira, consent-gated]
+        Resend[Resend<br/>account-deletion email]
     end
 
     UI --> Router
@@ -44,9 +46,16 @@ graph TB
     Entries --> ORM
     ORM -->|asyncpg| PG
     Auth -->|OAuth flow| Google
-    Auth -->|account emails| SMTP
+    Auth -->|read events| Calendar
+    Auth -->|account deleted| Resend
+    API_Client -->|REST / JSON| AI[AI Router]
+    AI -->|generate_response| Gemini
     Theme -.->|data-theme attr| UI
 ```
+
+Four external services in total — see
+[External Services & Integrations](../api/external-services.md) for exact
+URLs, scopes, consent handling and failure behaviour for each.
 
 ## Request Lifecycle
 
@@ -133,15 +142,21 @@ Chronicles/
 │   ├── backend/               # FastAPI application
 │   │   ├── app/
 │   │   │   ├── routers/       # API endpoint modules
-│   │   │   │   ├── auth.py    # Google OAuth authentication
+│   │   │   │   ├── auth.py    # Google OAuth + Calendar authentication
 │   │   │   │   ├── projects.py
 │   │   │   │   ├── entries.py
-│   │   │   │   └── tasks.py
+│   │   │   │   ├── tasks.py
+│   │   │   │   ├── automation.py  # Sprint 3: rules, recurrence, reminders
+│   │   │   │   ├── statistics.py
+│   │   │   │   └── ai.py      # Sprint 2: Mira (Gemini) chat + consent
+│   │   │   ├── automation.py  # Sprint 3: rule matching/action engine
+│   │   │   ├── services/
+│   │   │   │   └── gemini_service.py  # Google Gemini API wrapper
 │   │   │   ├── models.py      # SQLAlchemy ORM models
 │   │   │   ├── schemas.py     # Pydantic request/response schemas
 │   │   │   ├── database.py    # Engine, session, base class
 │   │   │   ├── security.py    # JWT creation and validation
-│   │   │   ├── email.py       # SMTP email for account notifications
+│   │   │   ├── email.py       # Resend transactional email (account deletion)
 │   │   │   └── config.py      # Environment variable loading
 │   │   ├── migrations/        # SQL migration scripts
 │   │   ├── tests/             # pytest test suite
@@ -162,4 +177,7 @@ Chronicles/
 └── README.md
 ```
 
-AI Declaration: The preceding document was reviewed and edited with: Qoder
+AI Declaration: The preceding document was reviewed and edited with: Qoder.
+The External Services diagram and Repository Structure were corrected and
+extended for Sprint 3 (adding Google Calendar, Gemini and Resend, and the
+automation module) with Claude Code (Sonnet 5).
