@@ -21,7 +21,6 @@ import DashboardPage from "./DashboardPage"
 import OutstandingPage from "./OutstandingPage"
 import StatisticsPage from "./StatisticsPage"
 import ChronologicalTimeline from "./EntryTimeline"
-import FieldStatisticsPanel from "./FieldStatisticsPanel"
 import FieldTimeline from "./FieldTimeline"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
@@ -550,7 +549,11 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onShowHome, homeActive, onShowTimeline, timelineActive }) {
+function ProjectList({
+  projects, statistics, selectedId, onSelect, onCreate,
+  onShowHome, homeActive, onShowTimeline, timelineActive,
+  onShowToday, todayActive, onShowOutstanding, outstandingActive,
+}) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
   const [pinnedIds, setPinnedIds] = useState(() => {
@@ -590,11 +593,19 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
         <div><strong>Workspace</strong><span>Projects and activity</span></div>
       </div>
       <nav className="workspace-sidebar-nav" aria-label="Workspace views">
-        <button type="button" className={homeActive ? "is-active" : ""} onClick={onShowHome}>
+        <button type="button" className={homeActive ? "is-active" : ""} aria-current={homeActive ? "page" : undefined} onClick={onShowHome}>
           <span aria-hidden="true">⌂</span> Projects
         </button>
-        <button type="button" className={timelineActive ? "is-active" : ""} onClick={onShowTimeline}>
+        <button type="button" className={timelineActive ? "is-active" : ""} aria-current={timelineActive ? "page" : undefined} onClick={onShowTimeline}>
           <span aria-hidden="true">◷</span> Activity
+        </button>
+        <button type="button" className={todayActive ? "is-active" : ""} aria-current={todayActive ? "page" : undefined} onClick={onShowToday}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          Today
+        </button>
+        <button type="button" className={outstandingActive ? "is-active" : ""} aria-current={outstandingActive ? "page" : undefined} onClick={onShowOutstanding}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /><path d="M4 4l2.5 2.5" /></svg>
+          Outstanding
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -2022,15 +2033,6 @@ function ProjectDetail({
           <button
             type="button"
             role="tab"
-            aria-selected={tab === "statistics"}
-            className={tab === "statistics" ? "active" : ""}
-            onClick={() => setTab("statistics")}
-          >
-            Statistics
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={tab === "automation"}
             className={tab === "automation" ? "active" : ""}
             onClick={() => setTab("automation")}
@@ -2075,9 +2077,7 @@ function ProjectDetail({
           <TaskPanel projectId={project.id} />
         ) : tab === "automation" ? (
           <AutomationPanel project={project} />
-        ) : (
-          <FieldStatisticsPanel projectId={project.id} schemaVersion={project.schema_version} />
-        )}
+        ) : null}
       </div>
       <footer className="detail-footer">
         {project.shared ? (
@@ -2404,6 +2404,8 @@ function App() {
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
 
+  const showWorkspaceSidebar = ["home", "today", "outstanding"].includes(currentView)
+
   // US-3.23: a one-time welcome tour, then a single coach mark the first
   // time each page is opened. Both read seenTours() fresh on every render
   // rather than caching "have I shown this" in state — the tick counters
@@ -2412,7 +2414,7 @@ function App() {
   const [, setWelcomeTick] = useState(0)
   const [, setHintTick] = useState(0)
   const showWelcome = !loading && !seenTours().includes(WELCOME_TOUR.id)
-  const pageKey = view === "timeline" ? "timeline" : currentView
+  const pageKey = currentView === "home" && view === "timeline" ? "timeline" : currentView
   const pageTour = PAGE_TOURS[pageKey]
   const showPageHint =
     !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
@@ -2861,7 +2863,7 @@ function App() {
         <div className="app-bg-grid" />
       </div>
       <header className="topbar">
-        <nav className="nav-pill">
+        <nav className="nav-pill" aria-label="Main navigation">
           <div className="nav-flow" aria-hidden="true"><svg viewBox="0 0 1400 70" preserveAspectRatio="none"><path d="M-100 55 C180 -20 330 100 600 35 S1000 0 1500 45" /><path d="M-100 15 C250 90 420 -25 740 40 S1100 80 1500 10" /><path d="M-100 60 C350 20 500 80 900 15 S1200 65 1500 35" /></svg></div>
           <div className="nav-pill-left">
             <LogoIcon size={30} />
@@ -2870,7 +2872,7 @@ function App() {
           <div className="nav-pill-center">
             <button
               type="button"
-              className={`nav-item ${currentView === "home" ? "active" : ""}`}
+              className={`nav-item ${showWorkspaceSidebar ? "active" : ""}`}
               onClick={() => { setCurrentView("home"); setSelectedId(null); setView("project") }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -2881,11 +2883,16 @@ function App() {
             </button>
             <button
               type="button"
-              className={`nav-item ${currentView === "today" ? "active" : ""}`}
-              onClick={() => setCurrentView("today")}
+              className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
+              onClick={() => setCurrentView("dashboard")}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-              <span>Today</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+              </svg>
+              <span>Dashboard</span>
             </button>
             <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
@@ -2929,18 +2936,6 @@ function App() {
             </button>
             <button
               type="button"
-              className={`nav-item ${currentView === "outstanding" ? "active" : ""}`}
-              onClick={() => setCurrentView("outstanding")}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v4l3 2" />
-                <path d="M4 4l2.5 2.5" />
-              </svg>
-              <span>Outstanding</span>
-            </button>
-            <button
-              type="button"
               className={`nav-item ${currentView === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentView("calendar")}
             >
@@ -2965,19 +2960,6 @@ function App() {
               </svg>
               <span>Statistics</span>
             </button>
-            <button
-              type="button"
-              className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
-              onClick={() => setCurrentView("dashboard")}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="9" rx="1" />
-                <rect x="14" y="3" width="7" height="5" rx="1" />
-                <rect x="14" y="12" width="7" height="9" rx="1" />
-                <rect x="3" y="16" width="7" height="5" rx="1" />
-              </svg>
-              <span>Dashboard</span>
-            </button>
           </div>
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
@@ -2987,7 +2969,7 @@ function App() {
           </div>
         </nav>
       </header>
-      <main className={`app-main ${currentView === "home" ? "home-main" : "app-main-wide"}`}>
+      <main className={`app-main ${showWorkspaceSidebar ? "home-main" : "app-main-wide"}`}>
         {error && (
           <div className="global-error" role="alert">
             <p>{error}</p>
@@ -3004,17 +2986,21 @@ function App() {
             </button>
           </div>
         )}
-        {currentView === "home" && <div className="sidebar-stack">
+        {showWorkspaceSidebar && <div className="sidebar-stack">
           <ProjectList
             projects={projects}
             statistics={statistics}
-            selectedId={selectedId}
+            selectedId={currentView === "home" ? selectedId : null}
             onSelect={handleSelectProject}
             onCreate={() => setIsModalOpen(true)}
-            onShowHome={() => { setSelectedId(null); setView("project") }}
-            homeActive={view !== "timeline" && !selectedProject}
+            onShowHome={() => { setCurrentView("home"); setSelectedId(null); setView("project") }}
+            homeActive={currentView === "home" && view !== "timeline" && !selectedProject}
             onShowTimeline={handleShowTimeline}
-            timelineActive={view === "timeline"}
+            timelineActive={currentView === "home" && view === "timeline"}
+            onShowToday={() => setCurrentView("today")}
+            todayActive={currentView === "today"}
+            onShowOutstanding={() => setCurrentView("outstanding")}
+            outstandingActive={currentView === "outstanding"}
           />
         </div>}
         <div className="content">

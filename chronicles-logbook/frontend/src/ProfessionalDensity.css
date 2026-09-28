@@ -36,6 +36,7 @@
 .workspace-sidebar-nav button:hover { background:var(--surface-soft); color:var(--text); }
 .workspace-sidebar-nav button.is-active { color:var(--blue); background:var(--blue-bg); }
 .workspace-sidebar-nav button span { width:13px; text-align:center; font-size:.95rem; }
+.workspace-sidebar-nav button svg { width:13px; height:16px; flex-shrink:0; }
 /* Two columns rather than one row: the summary carries four figures and a
    single flex row squeezes them past legibility in a narrow sidebar.
    The rule underneath is the break between "here's an overview" and

@@ -87,7 +87,7 @@ export const HELP_SECTIONS = [
         blocks: [
           {
             type: "p",
-            text: "The bar across the top of the app is how you move between views, and it's the same wherever you are in Chronicles.",
+            text: "The bar across the top opens Home, Dashboard, Mira, All Entries, All Tasks, Board, Calendar and Statistics. Home's sidebar has Projects, Activity, Today and Outstanding; it stays available while you switch between these views.",
           },
           {
             type: "dl",
@@ -608,7 +608,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "A project's own Statistics tab does the same charting for that one project's fields specifically, without needing to pick the project first.",
+            text: "To see a project's field totals and groupings, open Statistics from the top bar and choose the project under 'Look inside a project'. Project tabs are Entries, Schema, Tasks and Automation.",
           },
           {
             type: "p",

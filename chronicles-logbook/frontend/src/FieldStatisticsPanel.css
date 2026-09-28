@@ -6,7 +6,8 @@
 }
 
 .stats-field-select {
-  display: block;
+  display: grid;
+  gap: 8px;
   max-width: 28rem;
   margin: 1.25rem 0;
 }
