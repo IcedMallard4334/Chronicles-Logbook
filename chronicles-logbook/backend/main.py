@@ -14,6 +14,7 @@ from app.routers import (
     auth,
     automation,
     calendar,
+    dashboard,
     entries,
     invitations,
     projects,
@@ -118,6 +119,7 @@ app.include_router(ai.router)
 app.include_router(automation.rules_router)
 app.include_router(automation.recurrence_router)
 app.include_router(automation.reminders_router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")

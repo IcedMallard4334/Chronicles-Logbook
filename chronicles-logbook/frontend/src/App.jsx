@@ -17,6 +17,7 @@ import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
+import DashboardPage from "./DashboardPage"
 import OutstandingPage from "./OutstandingPage"
 import StatisticsPage from "./StatisticsPage"
 import ChronologicalTimeline from "./EntryTimeline"
@@ -2964,6 +2965,19 @@ function App() {
               </svg>
               <span>Statistics</span>
             </button>
+            <button
+              type="button"
+              className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
+              onClick={() => setCurrentView("dashboard")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+              </svg>
+              <span>Dashboard</span>
+            </button>
           </div>
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
@@ -3027,6 +3041,8 @@ function App() {
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
             ) : currentView === "statistics" ? (
               <StatisticsPage projects={projects} onNavigate={setCurrentView} />
+            ) : currentView === "dashboard" ? (
+              <DashboardPage projects={projects} />
             ) : view === "timeline" ? (
               <EntryTimeline projects={projects} />
             ) : selectedProject ? (

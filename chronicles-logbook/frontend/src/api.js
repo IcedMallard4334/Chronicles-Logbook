@@ -529,6 +529,27 @@ export async function fetchEntryLinks(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}/links`)
 }
 
+// ── Dashboard (US-3.9) ───────────────────────────────────────────────
+
+export async function fetchDashboard() {
+  return request("/dashboard")
+}
+
+/**
+ * Replace the whole panel layout.
+ *
+ * There is no separate add/remove/reorder endpoint — the caller always
+ * sends the full desired panel list, in the new order, which is what
+ * lets a drag or a delete be "compute the new array, PUT it" rather than
+ * a dance of matching endpoints.
+ */
+export async function updateDashboardPanels(panels) {
+  return request("/dashboard", {
+    method: "PUT",
+    body: JSON.stringify({ panels }),
+  })
+}
+
 // ── AI Assistant ──────────────────────────────────────────────────────
 
 export const fetchMiraConsent = () => request('/ai/consent')
