@@ -105,7 +105,7 @@ describe("import", () => {
 
     fireEvent.keyDown(document, { key: "Escape" })
 
-    expect(screen.queryByText("Import complete")).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("Import complete")).not.toBeInTheDocument())
     // If Escape only closed the parent dropdown without clearing summary/
     // error the way the Close button does, a later re-render would still
     // find "Import complete" in the DOM — it must actually be gone, not
