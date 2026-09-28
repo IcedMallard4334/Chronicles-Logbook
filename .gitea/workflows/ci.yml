@@ -18,10 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # Python and Node are pre-installed on the runner machine.
+      # This fails fast with a clear message if the wrong version is picked up.
+      - name: Check Python version
+        run: python --version | findstr "3.12"
 
       - name: Install dependencies
         run: |
@@ -74,16 +74,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
         run: npm ci
 
@@ -134,11 +124,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Download backend coverage table
         uses: actions/download-artifact@v3
         with:
@@ -169,11 +154,6 @@ jobs:
     runs-on: windows
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       - name: Download backend badge
         uses: actions/download-artifact@v3

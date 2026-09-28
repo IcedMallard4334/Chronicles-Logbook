@@ -75,10 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      # Node is pre-installed on the runner machine, so there is no
+      # actions/setup-node step (it needs admin rights on Windows host runners).
 
       - name: Install and build frontend
         env:
