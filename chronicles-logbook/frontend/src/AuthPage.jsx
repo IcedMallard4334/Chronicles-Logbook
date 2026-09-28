@@ -1,7 +1,9 @@
 import ChroniclesLogo from "./ChroniclesLogo"
-import { Link } from "react-router-dom"
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 
-import { getGoogleLoginUrl } from "./api"
+import { devLogin, fetchCurrentUser, getGoogleLoginUrl } from "./api"
+import { hasCompletedSetup } from "./preferences"
 import "./AuthPage.css"
 
 function GoogleIcon() {
@@ -69,6 +71,32 @@ export function AuthIntro() {
 }
 
 function AuthPage() {
+  const navigate = useNavigate()
+  const [devEmail, setDevEmail] = useState("")
+  const [devError, setDevError] = useState("")
+  const [devBusy, setDevBusy] = useState(false)
+
+  // The local-run option backend/.env.example describes: sign in as any email
+  // without the team's shared Google OAuth client, which only works on the
+  // machine of whoever administers it. Hidden entirely — in production builds
+  // the check compiles away — unless VITE_ENABLE_DEV_LOGIN is set locally.
+  const signInWithoutGoogle = async () => {
+    setDevBusy(true)
+    setDevError("")
+    try {
+      const auth = await devLogin(devEmail.trim())
+      window.localStorage.removeItem("chronicles_signed_out")
+      window.localStorage.setItem("chronicles_token", auth.access_token)
+      const user = await fetchCurrentUser()
+      window.localStorage.setItem("chronicles_user", JSON.stringify(user))
+      navigate(hasCompletedSetup(user.id) ? "/app" : "/setup", { replace: true })
+    } catch (caught) {
+      setDevError(caught instanceof Error ? caught.message : "Unable to sign in.")
+    } finally {
+      setDevBusy(false)
+    }
+  }
+
   return (
     <main className="auth-shell">
       <AuthIntro />
@@ -85,6 +113,34 @@ function AuthPage() {
             <GoogleIcon />
             <span>Continue with Google</span>
           </a>
+
+          {import.meta.env.VITE_ENABLE_DEV_LOGIN === "true" && (
+            <div className="auth-dev-login">
+              <p className="auth-dev-note">or, for local runs</p>
+              <label className="auth-dev-label">
+                Sign in as
+                <input
+                  type="email"
+                  placeholder="dev@chronicles.local"
+                  value={devEmail}
+                  onChange={(event) => setDevEmail(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="auth-dev-button"
+                onClick={signInWithoutGoogle}
+                disabled={devBusy}
+              >
+                {devBusy ? "Signing in…" : "Continue without Google"}
+              </button>
+              {devError && (
+                <p className="auth-message auth-error" role="alert">
+                  {devError}
+                </p>
+              )}
+            </div>
+          )}
 
           <p className="auth-signup-note">
             Don&rsquo;t have an account?{" "}

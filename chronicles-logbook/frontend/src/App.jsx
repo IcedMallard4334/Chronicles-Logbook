@@ -19,8 +19,10 @@ import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import DashboardPage from "./DashboardPage"
 import OutstandingPage from "./OutstandingPage"
+import StatisticsPage from "./StatisticsPage"
 import ChronologicalTimeline from "./EntryTimeline"
 import FieldStatisticsPanel from "./FieldStatisticsPanel"
+import FieldTimeline from "./FieldTimeline"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
 import { TaskPanel } from "./TaskPanel"
@@ -29,6 +31,7 @@ import Invitations from "./Invitations"
 import Reminders from "./Reminders"
 import AutomationPanel from "./AutomationPanel"
 import { ruleFillableFieldIds } from "./automationRules"
+import { formatDuration } from "./formatDuration"
 import AmbientBackground from "./AmbientBackground"
 import ViewTransition, { ViewLoader } from "./ViewTransition"
 import { useDialogFocus } from "./useDialogFocus"
@@ -45,7 +48,6 @@ import {
   deleteAccount,
   deleteProject,
   fetchEntries,
-  fetchFieldTimeline,
   fetchProjectMembers,
   fetchProjects,
   fetchRules,
@@ -59,15 +61,6 @@ import {
   updateProject,
   updateSchema,
 } from "./api"
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 import {
   CHECKLIST_LIMIT,
   FIELD_TYPE_META,
@@ -102,16 +95,6 @@ function currentUserId() {
   } catch {
     return null
   }
-}
-
-/** Render a duration held in minutes as a compact "3h 20m". */
-function formatDuration(minutes) {
-  if (!Number.isFinite(minutes) || minutes <= 0) return "0m"
-  const hours = Math.floor(minutes / 60)
-  const remainder = minutes % 60
-  if (hours === 0) return `${remainder}m`
-  if (remainder === 0) return `${hours}h`
-  return `${hours}h ${remainder}m`
 }
 
 // Signing out and deleting the account deliberately live only on the profile
@@ -704,131 +687,6 @@ function ProjectList({ projects, statistics, selectedId, onSelect, onCreate, onS
           )}
         </>
       )}
-    </aside>
-  )
-}
-
-function DashboardPanel({ projects, onCreate }) {
-  const activeProjects = projects.filter((p) => !p.archived)
-  const totalEntries = projects.reduce((sum, p) => sum + (p.entries?.length || 0), 0)
-  const recentEntries = projects
-    .flatMap((p) =>
-      (p.entries || []).map((entry) => ({
-        ...entry,
-        projectName: p.name,
-        projectId: p.id,
-      }))
-    )
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 4)
-
-  const stats = [
-    { label: "Active projects", value: activeProjects.length, icon: "layers" },
-    { label: "Entries logged", value: totalEntries, icon: "file-text" },
-    { label: "Tasks due", value: "—", icon: "check-circle" },
-    { label: "Day streak", value: "—", icon: "trending-up" },
-  ]
-
-  const icons = {
-    layers: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <polygon points="12 2 2 7 12 12 22 7 12 2" />
-        <polyline points="2 17 12 22 22 17" />
-        <polyline points="2 12 12 17 22 12" />
-      </svg>
-    ),
-    "file-text": (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-      </svg>
-    ),
-    "check-circle": (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-        <polyline points="22 4 12 14.01 9 11.01" />
-      </svg>
-    ),
-    "trending-up": (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-        <polyline points="17 6 23 6 23 12" />
-      </svg>
-    ),
-  }
-
-  const formatTimeAgo = (dateString) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now - date
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-    if (diffMins < 1) return "just now"
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString()
-  }
-
-  return (
-    <aside className="sidebar dashboard-panel" aria-label="Dashboard overview">
-      <div className="sidebar-head">
-        <h2>Overview</h2>
-        <button
-          type="button"
-          className="btn-icon"
-          onClick={onCreate}
-          aria-label="Create project"
-          title="Create project"
-        >
-          +
-        </button>
-      </div>
-
-      <div className="stats-grid">
-        {stats.map((stat) => (
-          <div key={stat.label} className="stat-card">
-            <div className="stat-icon">{icons[stat.icon]}</div>
-            <div className="stat-body">
-              <span className="stat-value">{stat.value}</span>
-              <span className="stat-label">{stat.label}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="dashboard-section">
-        <h3>Recent activity</h3>
-        {recentEntries.length === 0 ? (
-          <p className="dashboard-empty">No entries yet. Create a project and log your first entry.</p>
-        ) : (
-          <ul className="activity-list" role="list">
-            {recentEntries.map((entry) => (
-              <li key={`${entry.projectId}-${entry.id}`} className="activity-item">
-                <div className="activity-dot" />
-                <div className="activity-body">
-                  <span className="activity-title">{entry.projectName}</span>
-                  <span className="activity-meta">{formatTimeAgo(entry.created_at)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="dashboard-section">
-        <h3>Upcoming deadlines</h3>
-        <div className="deadline-item">
-          <div className="deadline-dot" />
-          <div className="deadline-body">
-            <span className="deadline-title">Tasks & deadlines</span>
-            <span className="deadline-meta">Coming soon</span>
-          </div>
-        </div>
-      </div>
     </aside>
   )
 }
@@ -2059,258 +1917,6 @@ function EntryTimeline({ projects }) {
   return <ChronologicalTimeline projects={projects} onShowFieldTrends={() => setMode("fields")} />
 }
 
-function FieldTimeline({ projects }) {
-  const [projectId, setProjectId] = useState("")
-  const [fieldId, setFieldId] = useState("")
-  const [start, setStart] = useState("")
-  const [end, setEnd] = useState("")
-  const [timeline, setTimeline] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.id === projectId) || null,
-    [projects, projectId],
-  )
-
-  // Removed fields remain chartable history. Their definitions are retained
-  // by the project precisely so older entry values still have a meaning.
-  const fields = useMemo(() => {
-    const seen = new Set()
-    return [...(selectedProject?.entry_schema || []), ...(selectedProject?.retired_schema || [])]
-      .filter((field) => {
-        if (seen.has(field.id)) return false
-        seen.add(field.id)
-        return true
-      })
-  }, [selectedProject])
-
-  const rangeError = start && end && start > end
-    ? "Start date must be on or before end date."
-    : null
-
-  useEffect(() => {
-    setFieldId("")
-    setTimeline(null)
-    setError(null)
-  }, [projectId])
-
-  const handleLoadTimeline = async (event) => {
-    event.preventDefault()
-
-    if (!projectId || !fieldId) {
-      setError("Please select a project and field.")
-      return
-    }
-
-    if (rangeError) {
-      setError(rangeError)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await fetchFieldTimeline(
-        projectId,
-        fieldId,
-        start ? `${start}T00:00:00` : null,
-        end ? `${end}T23:59:59` : null,
-      )
-      setTimeline(data)
-    } catch (err) {
-      setTimeline(null)
-      setError(formatError(err))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const selectedField = fields.find((field) => field.id === fieldId)
-
-  return (
-    <section className="timeline" aria-label="Field timeline">
-      <header className="timeline-header">
-        <h2>Field Timeline</h2>
-        <p>Choose a field and date range to visualise how its values change over time.</p>
-      </header>
-
-      <form className="timeline-filters" onSubmit={handleLoadTimeline}>
-        <label className="field-label">
-          Project
-          <select
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            aria-label="Select project"
-          >
-            <option value="">Select a project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field-label">
-          Field
-          <select
-            value={fieldId}
-            onChange={(event) => setFieldId(event.target.value)}
-            disabled={!projectId}
-            aria-label="Select field"
-          >
-            <option value="">Select a field</option>
-            {fields.map((field) => (
-              <option key={field.id} value={field.id}>
-                {field.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field-label">
-          Start date
-          <input
-            type="date"
-            value={start}
-            max={end || undefined}
-            onChange={(event) => setStart(event.target.value)}
-            aria-label="Start date"
-          />
-        </label>
-
-        <label className="field-label">
-          End date
-          <input
-            type="date"
-            value={end}
-            min={start || undefined}
-            onChange={(event) => setEnd(event.target.value)}
-            aria-label="End date"
-          />
-        </label>
-
-        <button
-          type="submit"
-          className="btn-primary timeline-submit"
-          disabled={loading || !projectId || !fieldId || Boolean(rangeError)}
-        >
-          {loading ? "Loading…" : "Generate timeline"}
-        </button>
-      </form>
-
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-
-      {!loading && !error && !timeline && (
-        <p className="hint">
-          Select a project, field, and optional date range, then generate the timeline.
-        </p>
-      )}
-
-      {timeline && (
-        <div className="timeline-results">
-          <div className="timeline-summary">
-            <h3>{timeline.field_name}</h3>
-            <p>
-              {timeline.points.length} data point
-              {timeline.points.length === 1 ? "" : "s"}
-              {selectedField?.type && (
-                <span className="timeline-field-type"> • {selectedField.type}</span>
-              )}
-            </p>
-          </div>
-
-          {timeline.points.length === 0 ? (
-            <p className="hint">No values found for this field in the selected range.</p>
-          ) : (
-            <>
-              {isNumericField({ type: timeline.field_type }) ? (
-                <div className="timeline-chart" aria-label={`${timeline.field_name} over time`}>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <LineChart
-                      data={timeline.points.map((point) => ({
-                        ...point,
-                        date: new Date(point.created_at).toLocaleDateString(),
-                        numericValue: Number(point.value),
-                      }))}
-                    margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                  >
-                    {/* Recharts' own defaults are hardcoded greys/blues that
-                        don't follow the app's theme or chosen accent — every
-                        colour here is read from the same custom properties
-                        the rest of the page uses, so the chart matches
-                        whichever theme and accent are active, light or dark. */}
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                    <XAxis dataKey="date" stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
-                    <YAxis stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--line)",
-                        borderRadius: "var(--radius-sm)",
-                        color: "var(--text)",
-                      }}
-                      labelStyle={{ color: "var(--muted)" }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="numericValue"
-                      name={timeline.field_name}
-                      stroke="var(--blue)"
-                      strokeWidth={2}
-                      dot={{ r: 4, fill: "var(--blue)" }}
-                      activeDot={{ r: 6, fill: "var(--blue)" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              ) : (
-                // A line chart needs a number to plot on its Y-axis — a
-                // text/date/choice/etc. value has nowhere honest to go on
-                // one, which is what used to render as an empty, confusing
-                // box. The table below already shows every value in order,
-                // so that's the real answer for a field like this.
-                <p className="hint timeline-not-chartable">
-                  {fieldTypeLabel(timeline.field_type)} fields aren&rsquo;t shown as a
-                  line chart — there&rsquo;s no number to plot. Every value is listed
-                  in order below instead.
-                </p>
-              )}
-
-            <div className="timeline-table-wrapper">
-              <table className="timeline-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Date</th>
-                    <th scope="col">Value</th>
-                    <th scope="col">Schema version</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeline.points.map((point) => (
-                    <tr key={point.entry_id}>
-                      <td>{new Date(point.created_at).toLocaleString()}</td>
-                      <td>{String(point.value)}</td>
-                      <td>{point.schema_version}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-        </div>
-      )}
-    </section>
-  )
-}
-
 function ProjectDetail({
   project,
   projects,
@@ -2780,7 +2386,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -3348,6 +2954,19 @@ function App() {
             </button>
             <button
               type="button"
+              data-nav="statistics"
+              className={`nav-item ${currentView === "statistics" ? "active" : ""}`}
+              onClick={() => setCurrentView("statistics")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              <span>Statistics</span>
+            </button>
+            <button
+              type="button"
               className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
               onClick={() => setCurrentView("dashboard")}
             >
@@ -3420,6 +3039,8 @@ function App() {
               <BoardView projects={projects} />
             ) : currentView === "outstanding" ? (
               <OutstandingPage projects={projects} onNavigate={setCurrentView} />
+            ) : currentView === "statistics" ? (
+              <StatisticsPage projects={projects} onNavigate={setCurrentView} />
             ) : currentView === "dashboard" ? (
               <DashboardPage projects={projects} />
             ) : view === "timeline" ? (

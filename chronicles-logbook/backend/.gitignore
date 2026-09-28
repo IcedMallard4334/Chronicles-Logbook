@@ -5,5 +5,9 @@ venv/
 .ruff_cache/
 __pycache__/
 *.pyc
+# Test coverage output (CI regenerates and uploads it as an artifact)
+.coverage
+coverage.xml
+htmlcov/
 # Local development databases
 *.db

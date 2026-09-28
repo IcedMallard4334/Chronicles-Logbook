@@ -235,6 +235,67 @@
   height: 22px;
 }
 
+/* The local-run alternative (VITE_ENABLE_DEV_LOGIN): same silhouette as the
+   Google button, but quieter, since it's a developer affordance. */
+.auth-dev-login {
+  margin-top: 18px;
+}
+
+.auth-dev-note {
+  color: var(--muted);
+  font-size: 0.83rem;
+  text-align: center;
+}
+
+.auth-dev-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.auth-dev-label input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.auth-dev-label input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.auth-dev-button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  padding: 10px 24px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+
+.auth-dev-button:hover:not(:disabled) {
+  border-color: var(--blue);
+  border-style: solid;
+  color: var(--blue);
+}
+
+.auth-dev-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .auth-provider-note {
   margin-top: 18px;
   color: var(--muted);

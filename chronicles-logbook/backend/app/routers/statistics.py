@@ -1,29 +1,59 @@
 """Aggregate statistics over a user's projects and entries."""
 
+import calendar
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.custom_statistics import (
+    StatisticError,
+    describe_expression,
+    display_expression,
+    evaluate_statistic,
+    validate_statistic,
+)
 from app.database import get_db
-from app.models import Entry, Project, User
+from app.models import Entry, Project, SavedStatistic, StatisticsLayout, User
 from app.routers.auth import get_current_user
 from app.schemas import (
+    CustomStatisticPreviewRequest,
+    CustomStatisticPreviewResponse,
     FieldStatistics,
     FieldStatisticsGroup,
     FieldStatisticsResponse,
     FieldTimelinePoint,
     FieldTimelineResponse,
     ProjectStatistics,
+    SavedStatisticCreate,
+    SavedStatisticResponse,
+    SavedStatisticUpdate,
+    StatisticsActivityResponse,
+    StatisticsActivityWeek,
+    StatisticsLayoutPanel,
     StatisticsResponse,
     StatisticsTotals,
 )
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
+
+# The Statistics page panels in the order a fresh account sees them. "trend"
+# is the field-over-time chart, which needs a project and a field picked
+# before it can say anything, so it starts hidden (US-3.7).
+DEFAULT_LAYOUT_PANELS: list[dict[str, Any]] = [
+    {"id": "cards", "visible": True},
+    {"id": "time", "visible": True},
+    {"id": "activity", "visible": True},
+    {"id": "custom", "visible": True},
+    {"id": "fields", "visible": True},
+    {"id": "trend", "visible": False},
+]
+
+LAYOUT_PANEL_IDS = frozenset(panel["id"] for panel in DEFAULT_LAYOUT_PANELS)
 
 
 def _as_date(value: Any) -> date:
@@ -169,6 +199,142 @@ async def read_statistics(
         projects=projects,
     )
 
+@router.get("/activity", response_model=StatisticsActivityResponse)
+async def read_statistics_activity(
+    weeks: int = Query(12, ge=1, le=52),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return the user's entries grouped by week for the last *weeks* weeks.
+
+    Days are counted in SQL exactly as ``read_statistics`` counts them and
+    folded into weeks in Python: per-day totals are what SQL is good at,
+    while week boundaries are calendar arithmetic that would otherwise need
+    dialect-specific date functions. Weeks with nothing logged are filled in
+    so a chart of the series has no gaps, and the window always ends with the
+    week containing today — ``weeks=1`` is the current week, not a sliding
+    seven days.
+
+    ``busiest_weekday`` covers the same window and is the weekday with the
+    most entries, so it agrees with the chart beside it.
+    """
+    today = datetime.now(timezone.utc).date()
+    window_start = today - timedelta(days=today.weekday(), weeks=weeks - 1)
+    window_start_at = datetime.combine(
+        window_start, datetime.min.time(), tzinfo=timezone.utc
+    )
+
+    rows = await db.execute(
+        select(
+            func.date(Entry.created_at).label("day"),
+            func.count(Entry.id).label("entries"),
+            func.coalesce(func.sum(Entry.time_spent), 0).label("time_spent"),
+        )
+        .join(Project, Entry.project_id == Project.id)
+        .where(Project.user_id == user.id, Entry.created_at >= window_start_at)
+        .group_by(func.date(Entry.created_at))
+    )
+
+    by_week: dict[date, dict[str, int]] = {}
+    weekday_entries = [0] * 7
+    for row in rows.all():
+        day = _as_date(row.day)
+        if day < window_start or day > today:
+            # The where-clause above compares timestamps, not days, so a row
+            # dated after today still reaches this loop; it belongs to no
+            # week being charted.
+            continue
+        week_start = day - timedelta(days=day.weekday())
+        bucket = by_week.setdefault(week_start, {"entries": 0, "time_spent": 0})
+        bucket["entries"] += row.entries
+        bucket["time_spent"] += int(row.time_spent or 0)
+        weekday_entries[day.weekday()] += row.entries
+
+    weeks_out: list[StatisticsActivityWeek] = []
+    for index in range(weeks):
+        week_start = window_start + timedelta(weeks=index)
+        bucket = by_week.get(week_start)
+        weeks_out.append(
+            StatisticsActivityWeek(
+                week_start=week_start,
+                entries=bucket["entries"] if bucket else 0,
+                time_spent=bucket["time_spent"] if bucket else 0,
+            )
+        )
+
+    busiest_weekday = None
+    if any(weekday_entries):
+        # Ties go to the earlier weekday: `index` finds the first count that
+        # equals the maximum.
+        busiest_weekday = calendar.day_name[weekday_entries.index(max(weekday_entries))]
+
+    return StatisticsActivityResponse(weeks=weeks_out, busiest_weekday=busiest_weekday)
+
+@router.get("/layout", response_model=list[StatisticsLayoutPanel])
+async def read_statistics_layout(
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return the caller's saved Statistics page layout.
+
+    Someone who has never customised the page has no row, and gets the
+    default arrangement rather than an empty page.
+    """
+    layout = await db.scalar(
+        select(StatisticsLayout).where(StatisticsLayout.user_id == user.id)
+    )
+
+    panels = layout.panels if layout is not None else DEFAULT_LAYOUT_PANELS
+    return [StatisticsLayoutPanel(**panel) for panel in panels]
+
+@router.put("/layout", response_model=list[StatisticsLayoutPanel])
+async def save_statistics_layout(
+    panels: list[dict[str, Any]],
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Save the caller's Statistics page layout: which panels, in which order.
+
+    The checks live here rather than in a request schema so a mistake earns a
+    plain-language 400 naming the panel, rather than a validation error about
+    types the caller never wrote.
+    """
+    seen: set[str] = set()
+    for panel in panels:
+        panel_id = panel.get("id")
+        if panel_id not in LAYOUT_PANEL_IDS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"'{panel_id}' is not a Statistics panel. The panels are: "
+                    f"{', '.join(sorted(LAYOUT_PANEL_IDS))}."
+                ),
+            )
+        if panel_id in seen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{panel_id}' appears more than once in the layout.",
+            )
+        if not isinstance(panel.get("visible"), bool):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{panel_id}' needs 'visible' set to true or false.",
+            )
+        seen.add(panel_id)
+
+    layout = await db.scalar(
+        select(StatisticsLayout).where(StatisticsLayout.user_id == user.id)
+    )
+
+    if layout is None:
+        db.add(StatisticsLayout(user_id=user.id, panels=panels))
+    else:
+        layout.panels = panels
+
+    await db.commit()
+
+    return [StatisticsLayoutPanel(**panel) for panel in panels]
+
 @router.get("/projects/{project_id}/fields", response_model=FieldStatisticsResponse)
 async def read_field_statistics(
     project_id: UUID,
@@ -296,7 +462,8 @@ async def read_field_statistics(
         schema_version=project.schema_version,
         fields=fields,
     )
-    
+
+
 @router.get(
     "/projects/{project_id}/fields/{field_id}/timeline",
     response_model=FieldTimelineResponse,
@@ -418,4 +585,224 @@ async def read_field_timeline(
         end=end,
         points=points,
     )
+
+
+# ── Saved statistics (US-3.8) ───────────────────────────────────────────
+
+
+async def _owned_project(project_id: UUID, user: User, db: AsyncSession) -> Project:
+    """The caller's own project, or a 404 that doesn't reveal whose it is."""
+    project = await db.scalar(
+        select(Project).where(Project.id == project_id, Project.user_id == user.id)
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+async def _project_entries(db: AsyncSession, project_id: UUID) -> list[Entry]:
+    result = await db.execute(select(Entry).where(Entry.project_id == project_id))
+    return result.scalars().all()
+
+
+def _statistic_response(
+    statistic: SavedStatistic, project: Project, entries: list[Entry]
+) -> SavedStatisticResponse:
+    """A saved statistic with its current value.
+
+    A schema change since the stat was saved can leave its formula reading a
+    field that no longer exists. The stat still belongs on the page — the
+    person should see it, with the reason it cannot produce a number, and
+    decide whether to edit or delete it — so the message becomes the note
+    rather than a failed request.
+    """
+    try:
+        result = evaluate_statistic(
+            statistic.expression, project.entry_schema, entries, project.name
+        )
+        value, entries_used, note = result.value, result.entries_used, result.note
+    except StatisticError as error:
+        value, entries_used, note = None, 0, str(error)
+
+    return SavedStatisticResponse(
+        id=statistic.id,
+        project_id=statistic.project_id,
+        project_name=project.name,
+        name=statistic.name,
+        expression=display_expression(statistic.expression, project.entry_schema),
+        description=describe_expression(statistic.expression, project.entry_schema),
+        value=value,
+        entries_used=entries_used,
+        note=note,
+        created_at=statistic.created_at,
+        updated_at=statistic.updated_at,
+    )
+
+
+@router.get("/custom", response_model=list[SavedStatisticResponse])
+async def list_custom_statistics(
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Return the caller's saved statistics, each with its current value."""
+    statistics = (
+        (
+            await db.execute(
+                select(SavedStatistic)
+                .join(Project, SavedStatistic.project_id == Project.id)
+                .where(SavedStatistic.user_id == user.id)
+                .order_by(SavedStatistic.created_at.desc(), SavedStatistic.name.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    if not statistics:
+        return []
+
+    # Entries are needed per project, so each project's are loaded once and
+    # shared by every stat that reads it, rather than once per stat. The
+    # join above guarantees the project row exists.
+    projects: dict[UUID, Project] = {}
+    entries_by_project: dict[UUID, list[Entry]] = {}
+    responses: list[SavedStatisticResponse] = []
+    for statistic in statistics:
+        if statistic.project_id not in projects:
+            projects[statistic.project_id] = await db.scalar(
+                select(Project).where(Project.id == statistic.project_id)
+            )
+            entries_by_project[statistic.project_id] = await _project_entries(
+                db, statistic.project_id
+            )
+        responses.append(
+            _statistic_response(
+                statistic, projects[statistic.project_id], entries_by_project[statistic.project_id]
+            )
+        )
+
+    return responses
+
+
+@router.post("/custom/preview", response_model=CustomStatisticPreviewResponse)
+async def preview_custom_statistic(
+    payload: CustomStatisticPreviewRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Work a formula out against a project's entries, without saving it."""
+    project = await _owned_project(payload.project_id, user, db)
+    entries = await _project_entries(db, project.id)
+
+    try:
+        result = evaluate_statistic(
+            payload.expression, project.entry_schema, entries, project.name
+        )
+    except StatisticError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return CustomStatisticPreviewResponse(
+        value=result.value,
+        entries_used=result.entries_used,
+        note=result.note,
+    )
+
+
+@router.post(
+    "/custom", response_model=SavedStatisticResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_custom_statistic(
+    payload: SavedStatisticCreate,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Save a named figure under the caller's account."""
+    project = await _owned_project(payload.project_id, user, db)
+
+    try:
+        expression = validate_statistic(
+            payload.expression, project.entry_schema, project.name
+        )
+    except StatisticError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    saved = SavedStatistic(
+        user_id=user.id,
+        project_id=project.id,
+        name=payload.name,
+        expression=expression,
+    )
+    db.add(saved)
+    await db.commit()
+    await db.refresh(saved)
+
+    entries = await _project_entries(db, project.id)
+    return _statistic_response(saved, project, entries)
+
+
+@router.put("/custom/{statistic_id}", response_model=SavedStatisticResponse)
+async def update_custom_statistic(
+    statistic_id: UUID,
+    payload: SavedStatisticUpdate,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Edit a saved statistic: its name, its formula, or its project.
+
+    The formula is only re-checked when it (or the project) changed —
+    renaming a stat must not strand someone whose schema moved on since the
+    formula was saved.
+    """
+    statistic = await db.scalar(
+        select(SavedStatistic).where(
+            SavedStatistic.id == statistic_id,
+            SavedStatistic.user_id == user.id,
+        )
+    )
+    if statistic is None:
+        raise HTTPException(status_code=404, detail="Statistic not found")
+
+    if payload.project_id is not None and payload.project_id != statistic.project_id:
+        project = await _owned_project(payload.project_id, user, db)
+        statistic.project_id = project.id
+    else:
+        project = await _owned_project(statistic.project_id, user, db)
+
+    if payload.name is not None:
+        statistic.name = payload.name
+
+    if payload.expression is not None:
+        try:
+            statistic.expression = validate_statistic(
+                payload.expression, project.entry_schema, project.name
+            )
+        except StatisticError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    await db.commit()
+    await db.refresh(statistic)
+
+    entries = await _project_entries(db, project.id)
+    return _statistic_response(statistic, project, entries)
+
+
+@router.delete("/custom/{statistic_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_custom_statistic(
+    statistic_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    # Scoped by user_id so someone else's statistic is indistinguishable from
+    # one that does not exist.
+    statistic = await db.scalar(
+        select(SavedStatistic).where(
+            SavedStatistic.id == statistic_id,
+            SavedStatistic.user_id == user.id,
+        )
+    )
+    if statistic is None:
+        raise HTTPException(status_code=404, detail="Statistic not found")
+
+    await db.delete(statistic)
+    await db.commit()
 

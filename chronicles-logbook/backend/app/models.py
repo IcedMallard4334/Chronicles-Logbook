@@ -443,6 +443,84 @@ class SavedFilter(Base):
     )
 
 
+class StatisticsLayout(Base):
+    """The panels one user has chosen to show on the Statistics page (US-3.7).
+
+    One row per user: a layout is a single saved arrangement rather than a
+    collection of things, so the user id is the primary key and saving again
+    overwrites it. The panels are stored as a JSON list in the order they
+    should render, so reordering is part of the saved value rather than a
+    position column that has to be kept consistent with the list.
+    """
+
+    __tablename__ = "statistics_layouts"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    # e.g. [{"id": "cards", "visible": true}, {"id": "trend", "visible": false}]
+    panels: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class SavedStatistic(Base):
+    """A figure the user has defined for themselves (US-3.8).
+
+    "Average of Hours in Lab practicals" is a question worth asking again
+    next week, so the formula is saved under a name and evaluated fresh each
+    time the Statistics page loads. The expression is stored canonicalised —
+    every field written by id, exactly as a computed field's expression is —
+    so renaming a field never silently breaks a saved stat. It belongs to
+    both a user and a project: the project supplies the entries and the
+    fields the formula reads, and deleting either takes the stat with it.
+    """
+
+    __tablename__ = "saved_statistics"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # e.g. "avg({f-hours})" — ids, not names, for the same reason as computed
+    # fields: a rename is a label change and must not break the formula.
+    expression: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
 class Dashboard(Base):
     """A user's own arrangement of saved statistics and views (US-3.9).
 

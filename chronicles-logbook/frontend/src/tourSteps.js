@@ -95,8 +95,11 @@ export const PAGE_TOURS = {
   },
   statistics: {
     id: "page-statistics",
-    title: "Numbers from your own fields",
-    body: "Time per project, entries over a week or a term, and any field you have defined totalled, grouped and plotted. Export the lot as a spreadsheet.",
+    // Anchored to the Statistics item in the top nav: the card arrives the
+    // first time somebody opens the page, and points at where they came from.
+    anchor: "[data-nav='statistics']",
+    title: "Your logbook in numbers",
+    body: "How your time splits between projects, how much you log each week, and the headline numbers behind your record. Customise shows, hides and reorders the panels — and remembers your arrangement.",
   },
   assistant: {
     id: "page-assistant",

@@ -749,6 +749,25 @@ class StatisticsResponse(BaseModel):
     projects: list[ProjectStatistics]
 
 
+class StatisticsActivityWeek(BaseModel):
+    # The Monday of the week this bucket covers; weeks run oldest first.
+    week_start: date
+    entries: int
+    time_spent: int
+
+
+class StatisticsActivityResponse(BaseModel):
+    # Every week in the window is present, including the quiet ones, so a
+    # chart of the series has no gaps that could be misread as missing data.
+    weeks: list[StatisticsActivityWeek] = Field(default_factory=list)
+    busiest_weekday: str | None = None
+
+
+class StatisticsLayoutPanel(BaseModel):
+    id: str
+    visible: bool
+
+
 class FieldStatisticsGroup(BaseModel):
     value: Any
     count: int
@@ -783,6 +802,70 @@ class FieldTimelineResponse(BaseModel):
     start: datetime | None = None
     end: datetime | None = None
     points: list[FieldTimelinePoint] = Field(default_factory=list)
+
+
+class SavedStatisticCreate(BaseModel):
+    project_id: UUID
+    name: str = Field(..., min_length=1, max_length=100)
+    # A formula over the project's fields, e.g. "avg({Hours})". The length
+    # cap matches the SavedStatistic column and the evaluator's own limit.
+    expression: str = Field(..., min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def clean_name(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("Statistic name cannot be blank.")
+        return self
+
+
+class SavedStatisticUpdate(BaseModel):
+    # Everything is optional: an edit may change the name alone, rework the
+    # formula, or point the stat at a different project.
+    project_id: UUID | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    expression: str | None = Field(default=None, min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def clean_name(self):
+        if self.name is not None:
+            self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("Statistic name cannot be blank.")
+        return self
+
+
+class CustomStatisticPreviewRequest(BaseModel):
+    project_id: UUID
+    expression: str = Field(..., min_length=1, max_length=500)
+
+
+class CustomStatisticPreviewResponse(BaseModel):
+    # value is None when the formula cannot produce a number yet — no
+    # matching entries, or a division by zero — with note saying why in a
+    # sentence rather than as an error.
+    value: float | int | None = None
+    entries_used: int = 0
+    note: str | None = None
+
+
+class SavedStatisticResponse(BaseModel):
+    id: UUID
+    project_id: UUID
+    project_name: str
+    name: str
+    # The formula with fields written by name: the id form is what is stored,
+    # the name form is what a person reads and edits.
+    expression: str
+    # "Average of Hours" for the shapes the builder produces; the formula
+    # itself for anything a person wrote by hand.
+    description: str
+    value: float | int | None = None
+    entries_used: int = 0
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
 
 class TimelineEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
