@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { fetchEntries, updateEntry } from "./api"
+import { humaniseValue } from "./fieldTypes"
 import "./BoardView.css"
 
 // Grouping by whether the work is still outstanding is offered for every
@@ -14,11 +15,54 @@ const STATUS_COLUMNS = [
 // not a drop target: there is no value that would put an entry back into it.
 const UNSORTED = "__unsorted__"
 
-const preview = (entry) =>
-  Object.values(entry.data || {})
-    .filter(Boolean)
-    .map((value) => (typeof value === "object" ? JSON.stringify(value) : String(value)))
-    .join(" · ") || "No note content"
+/**
+ * How far along a checklist is — the count rather than the items, in the
+ * same wording the entry list uses: a card has one line to spend.
+ */
+const checklistProgress = (value) => {
+  const items = Array.isArray(value) ? value : []
+  if (items.length === 0) return "—"
+  const done = items.filter((item) => item && item.completed).length
+  return `${done} of ${items.length} done`
+}
+
+/**
+ * What a card says about the entry it holds.
+ *
+ * Each value is read against the entry's own schema snapshot — the project's
+ * current schema may since have moved on — and written the way the rest of
+ * the app writes a value that has one line to fit in: tags as words, a
+ * checklist as its progress, links and project references as what they point
+ * at. A stored value's JSON form is never shown; stringifying every
+ * non-string value (which this used to do) put a checklist's raw shape on
+ * the card.
+ */
+const preview = (entry, project, projectNames) => {
+  const rowSchema = entry.schema_snapshot?.length
+    ? entry.schema_snapshot
+    : project?.entry_schema || []
+  const types = new Map(rowSchema.map((field) => [field.id, field.type]))
+
+  const values = Object.entries(entry.data || {})
+    .filter(
+      ([, value]) =>
+        value !== null &&
+        value !== undefined &&
+        value !== "" &&
+        !(Array.isArray(value) && value.length === 0),
+    )
+    .map(([id, value]) => {
+      const type = types.get(id)
+      if (type === "link") return "↳ linked entry"
+      if (type === "checklist") return checklistProgress(value)
+      if (type === "project_reference") {
+        return projectNames.get(value) || "A project you no longer have"
+      }
+      return humaniseValue(value)
+    })
+
+  return values.join(" · ") || "No note content"
+}
 
 function groupingsFor(project) {
   const dropdowns = (project?.entry_schema || []).filter((field) => field.type === "dropdown")
@@ -42,6 +86,10 @@ function moveToColumn(entry, grouping, key) {
 export default function BoardView({ projects }) {
   const [chosen, setChosen] = useState("")
   const project = projects.find((item) => item.id === chosen) || projects[0]
+  const projectNames = useMemo(
+    () => new Map(projects.map((item) => [item.id, item.name])),
+    [projects],
+  )
   const groupings = useMemo(() => groupingsFor(project), [project])
   const [groupBy, setGroupBy] = useState(STATUS_GROUP)
   const [entries, setEntries] = useState([])
@@ -210,7 +258,8 @@ export default function BoardView({ projects }) {
                           setOver(null)
                         }}
                       >
-                        <p className="board-card-preview">{preview(entry)}</p>
+                        {entry.title && <p className="board-card-title">{entry.title}</p>}
+                        <p className="board-card-preview">{preview(entry, project, projectNames)}</p>
                         <footer className="board-card-meta">
                           <time dateTime={entry.created_at}>
                             {new Date(entry.created_at).toLocaleDateString(undefined, {
