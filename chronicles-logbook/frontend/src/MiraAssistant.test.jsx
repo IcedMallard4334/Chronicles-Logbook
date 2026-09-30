@@ -48,6 +48,47 @@ describe("Mira assistant interfaces", () => {
     expect(screen.queryByRole("button", { name: "Dictate your message" })).not.toBeInTheDocument()
   })
 
+  it("renders Mira's markdown, showing its thinking while it streams", () => {
+    const state = conversation({
+      sending: true,
+      messages: [
+        { id: "u1", role: "user", content: "Hello" },
+        { id: "m1", role: "assistant", content: "A **logbook** records work.", thinking: "Weighing what to explain.", streaming: true },
+      ],
+    })
+    const { container } = render(<MiraAssistantPage conversation={state} />)
+    expect(container.querySelector(".mira-message-assistant strong")).toHaveTextContent("logbook")
+    expect(container).not.toHaveTextContent("**")
+    expect(screen.getByText("Weighing what to explain.")).toBeInTheDocument()
+    expect(container.querySelector(".mira-caret")).toBeInTheDocument()
+  })
+
+  it("lists earlier conversations and opens, starts and deletes them", () => {
+    const state = conversation({
+      conversations: [
+        { id: "c1", title: "Planning my week", updated_at: "2026-09-29T10:00:00Z" },
+        { id: "c2", title: "Research notes", updated_at: "2026-09-28T10:00:00Z" },
+      ],
+      activeConversationId: "c1",
+      onSelectConversation: vi.fn(),
+      onNewConversation: vi.fn(),
+      onDeleteConversation: vi.fn(),
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.queryByText("Research notes")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /History/ }))
+    fireEvent.click(screen.getByText("Research notes"))
+    expect(state.onSelectConversation).toHaveBeenCalledWith("c2")
+
+    fireEvent.click(screen.getByRole("button", { name: /History/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete conversation: Planning my week" }))
+    expect(state.onDeleteConversation).toHaveBeenCalledWith("c1")
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }))
+    expect(state.onNewConversation).toHaveBeenCalled()
+  })
+
   it("renders replies, loading state, errors, and retry", () => {
     const state = conversation({ messages: [{ id: "u1", role: "user", content: "Hello" }, { id: "m1", role: "assistant", content: "Hi, I’m Mira." }], sending: true, error: { message: "Mira could not reply just now.", retryMessage: "Hello again" } })
     render(<MiraAssistantPage conversation={state} />)
@@ -82,7 +123,7 @@ describe("Mira assistant interfaces", () => {
     expect(screen.getByText("Shared message")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Open full assistant"))
     expect(onOpenFull).toHaveBeenCalled()
-    fireEvent.click(screen.getByText("Clear conversation"))
+    fireEvent.click(screen.getByText("New conversation"))
     expect(state.onClear).toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Close Mira" }))
     expect(onToggle).toHaveBeenCalledTimes(2)

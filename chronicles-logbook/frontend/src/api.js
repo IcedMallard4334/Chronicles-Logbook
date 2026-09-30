@@ -580,6 +580,85 @@ export async function sendAIMessage(message) {
 }
 
 
+export async function fetchMiraConversations() {
+  return request("/ai/conversations")
+}
+
+export async function createMiraConversation() {
+  return request("/ai/conversations", { method: "POST" })
+}
+
+export async function fetchMiraConversation(id) {
+  return request(`/ai/conversations/${id}`)
+}
+
+export async function deleteMiraConversation(id) {
+  return request(`/ai/conversations/${id}`, { method: "DELETE" })
+}
+
+/**
+ * Sends a message and reads Mira's reply as it is written. `onEvent` gets each
+ * server-sent event (start, thought, delta, action, error, done) in order.
+ */
+export async function streamMiraReply(conversationId, message, onEvent, retried = false) {
+  const token = window.localStorage.getItem("chronicles_token")
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/ai/conversations/${conversationId}/stream`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message }),
+    })
+  } catch {
+    const error = new Error("Cannot reach the Chronicles API.")
+    error.offline = true
+    throw error
+  }
+
+  if (response.status === 401 && !retried && !window.localStorage.getItem("chronicles_signed_out")) {
+    await refreshSession()
+    return streamMiraReply(conversationId, message, onEvent, true)
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    const error = new Error(typeof body.detail === "string" ? body.detail : `Request failed with status ${response.status}`)
+    error.status = response.status
+    throw error
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  const flush = (chunk) => {
+    const parts = chunk.split("\n\n")
+    const rest = parts.pop()
+    for (const part of parts) {
+      const line = part.split("\n").find((candidate) => candidate.startsWith("data: "))
+      if (!line) continue
+      let event
+      try {
+        event = JSON.parse(line.slice(6))
+      } catch {
+        continue
+      }
+      onEvent(event)
+    }
+    return rest
+  }
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer = flush(buffer + decoder.decode(value, { stream: true }))
+  }
+  flush(`${buffer}\n\n`)
+}
+
+
 // ── Entry rules, recurrence and reminders (US-3.12) ─────────────────
 
 /**

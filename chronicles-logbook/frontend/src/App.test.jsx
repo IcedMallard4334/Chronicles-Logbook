@@ -6,6 +6,8 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  createMiraConversation: vi.fn(() => Promise.resolve({ id: "conv-1" })), fetchMiraConversations: vi.fn(() => Promise.resolve([])),
+  fetchMiraConversation: vi.fn(), deleteMiraConversation: vi.fn(), streamMiraReply: vi.fn(() => Promise.resolve()),
   fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchStatisticsActivity: vi.fn(), fetchStatisticsLayout: vi.fn(), saveStatisticsLayout: vi.fn(),
   // US-3.8: the My stats panel loads its own list when the page renders.
@@ -43,7 +45,7 @@ import {
   fetchRules,
   fetchStatistics,
   fetchTasks,
-  sendAIMessage,
+  streamMiraReply,
 } from "./api"
 
 const emptyStatistics = {
@@ -380,14 +382,14 @@ describe("Mira project proposals", () => {
   }
 
   it("shows a safe proposal and creates nothing before confirmation", async () => {
-    sendAIMessage.mockResolvedValue({ action: proposal })
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => { onEvent({ type: "action", action: proposal }); onEvent({ type: "done" }) })
     await proposeProject()
     expect(createProject).not.toHaveBeenCalled()
   })
 
   it("uses the existing authenticated project request once after confirmation", async () => {
     const created = { ...fieldNotes, id: "proj-new", name: "Research notes", description: "Weekly findings" }
-    sendAIMessage.mockResolvedValue({ action: proposal })
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => { onEvent({ type: "action", action: proposal }); onEvent({ type: "done" }) })
     createProject.mockResolvedValue(created)
     fetchProjects.mockResolvedValueOnce([fieldNotes]).mockResolvedValueOnce([fieldNotes, created])
     await proposeProject()
@@ -400,7 +402,7 @@ describe("Mira project proposals", () => {
   })
 
   it("cancels a proposal without creating a project", async () => {
-    sendAIMessage.mockResolvedValue({ action: proposal })
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => { onEvent({ type: "action", action: proposal }); onEvent({ type: "done" }) })
     await proposeProject()
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
     expect(createProject).not.toHaveBeenCalled()
@@ -408,7 +410,7 @@ describe("Mira project proposals", () => {
   })
 
   it("rejects a duplicate proposed project name before posting", async () => {
-    sendAIMessage.mockResolvedValue({ action: { ...proposal, payload: { name: "Field Notes" } } })
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => { onEvent({ type: "action", action: { ...proposal, payload: { name: "Field Notes" } } }); onEvent({ type: "done" }) })
     await proposeProject()
     fireEvent.click(screen.getByRole("button", { name: "Create project" }))
     expect(createProject).not.toHaveBeenCalled()

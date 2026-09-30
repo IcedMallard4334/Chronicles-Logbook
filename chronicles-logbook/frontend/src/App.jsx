@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom"
-import { sendAIMessage, signOut } from "./api"
+import { createMiraConversation, deleteMiraConversation, fetchMiraConversation, fetchMiraConversations, signOut, streamMiraReply } from "./api"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
   EntryDetailModal,
@@ -2405,6 +2405,8 @@ function App() {
   const [miraPendingAction, setMiraPendingAction] = useState(null)
   const [miraActionSaving, setMiraActionSaving] = useState(false)
   const [miraOpen, setMiraOpen] = useState(false)
+  const [miraConversationId, setMiraConversationId] = useState(null)
+  const [miraConversations, setMiraConversations] = useState([])
   const miraSequence = useRef(0)
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
@@ -2442,28 +2444,82 @@ function App() {
   const showPageHint =
     !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
 
+  const refreshMiraConversations = useCallback(async () => {
+    try {
+      setMiraConversations(await fetchMiraConversations())
+    } catch {
+      // History is a convenience; a failed refresh must not interrupt the chat.
+    }
+  }, [])
+
   const sendMiraMessage = useCallback(async (message) => {
     const trimmed = message.trim()
     if (!trimmed || miraSending) return
     const id = ++miraSequence.current
+    const replyId = `mira-${id}`
+    const upsertReply = (change) => setMiraMessages(previous => previous.some(item => item.id === replyId)
+      ? previous.map(item => item.id === replyId ? change(item) : item)
+      : [...previous, change({ id: replyId, role: "assistant", content: "", thinking: "", streaming: true })])
     setMiraMessages(previous => [...previous, { id: `user-${id}`, role: "user", content: trimmed }])
     setMiraSending(true)
     setMiraError(null)
     try {
-      const response = await sendAIMessage(trimmed)
-      if (response?.action) {
-        setMiraPendingAction(response.action)
-      } else {
-        const reply = response?.reply?.trim()
-        if (!reply) throw new Error("Mira did not return a reply.")
-        setMiraMessages(previous => [...previous, { id: `mira-${id}`, role: "assistant", content: reply }])
+      let conversationId = miraConversationId
+      if (!conversationId) {
+        conversationId = (await createMiraConversation()).id
+        setMiraConversationId(conversationId)
       }
+      let failure = null
+      await streamMiraReply(conversationId, trimmed, (event) => {
+        if (event.type === "thought") upsertReply(item => ({ ...item, thinking: `${item.thinking}${event.text}` }))
+        else if (event.type === "delta") upsertReply(item => ({ ...item, content: `${item.content}${event.text}` }))
+        else if (event.type === "action") {
+          setMiraPendingAction(event.action)
+          const name = event.action?.payload?.name || "a project"
+          upsertReply(item => ({ ...item, content: `I’ve drafted a project proposal for **${name}**. Review it below before anything is created.` }))
+        } else if (event.type === "error") failure = event.detail || "Mira could not reply just now. Please try again."
+      })
+      if (failure) throw new Error(failure)
+      upsertReply(item => ({ ...item, streaming: false }))
     } catch {
+      setMiraMessages(previous => previous.filter(item => item.id !== replyId))
       setMiraError({ message: "Mira could not reply just now. Please try again.", retryMessage: trimmed })
     } finally {
+      setMiraMessages(previous => previous.map(item => item.id === replyId ? { ...item, streaming: false } : item))
       setMiraSending(false)
+      refreshMiraConversations()
+    }
+  }, [miraSending, miraConversationId, refreshMiraConversations])
+
+  const startNewMiraConversation = useCallback(() => {
+    setMiraConversationId(null)
+    setMiraMessages([])
+    setMiraError(null)
+    setMiraPendingAction(null)
+  }, [])
+
+  const openMiraConversation = useCallback(async (conversationId) => {
+    if (miraSending) return
+    try {
+      const conversation = await fetchMiraConversation(conversationId)
+      setMiraConversationId(conversation.id)
+      setMiraMessages(conversation.messages.map(item => ({ id: item.id, role: item.role, content: item.content, thinking: item.thinking || "" })))
+      setMiraError(null)
+      setMiraPendingAction(null)
+    } catch {
+      setMiraError({ message: "That conversation could not be opened.", retryMessage: null })
     }
   }, [miraSending])
+
+  const removeMiraConversation = useCallback(async (conversationId) => {
+    try {
+      await deleteMiraConversation(conversationId)
+      if (conversationId === miraConversationId) startNewMiraConversation()
+      await refreshMiraConversations()
+    } catch {
+      setMiraError({ message: "That conversation could not be deleted.", retryMessage: null })
+    }
+  }, [miraConversationId, refreshMiraConversations, startNewMiraConversation])
 
   const loadProjects = useCallback(async () => {
     try {
@@ -2522,12 +2578,21 @@ function App() {
     onConfirmAction: handleMiraProjectConfirmation,
     onCancelAction: () => { setMiraPendingAction(null); setMiraError(null) },
     onOpenProject: openMiraProject,
-    onClear: () => { setMiraMessages([]); setMiraError(null); setMiraPendingAction(null) },
+    onClear: startNewMiraConversation,
+    conversations: miraConversations,
+    activeConversationId: miraConversationId,
+    onSelectConversation: openMiraConversation,
+    onNewConversation: startNewMiraConversation,
+    onDeleteConversation: removeMiraConversation,
   }
 
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
+
+  useEffect(() => {
+    if (miraOpen || currentView === "assistant") refreshMiraConversations()
+  }, [miraOpen, currentView, refreshMiraConversations])
 
 
   // Totals come from the server rather than being counted in the browser.
