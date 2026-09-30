@@ -244,3 +244,20 @@
     animation: none !important;
   }
 }
+
+/* Custom: built from --glow-1/2/3 and --glow-deep, which preferences.js derives
+   from the colour chosen under Profile > Your own colours. */
+.ambient-glow {
+  background:
+    radial-gradient(circle 42vw at 68% 4%, var(--glow-2, #c084fc) 0%, transparent 58%),
+    radial-gradient(circle 34vw at 14% 18%, var(--glow-3, #818cf8) 0%, transparent 56%),
+    radial-gradient(circle 58vw at 50% 100%, var(--glow-deep, #1e1b4b) 0%, transparent 72%),
+    linear-gradient(166deg, var(--glow-1, #7c3aed) 0%, color-mix(in srgb, var(--glow-1, #7c3aed) 55%, var(--glow-deep, #14082e)) 46%, var(--glow-deep, #14082e) 100%);
+  transform: scale(1.12);
+  animation: ambient-drift 48s ease-in-out infinite alternate;
+}
+.ambient-glow-folds { width: 100%; height: 100%; }
+.ambient-glow-folds polygon { fill: color-mix(in srgb, var(--glow-deep, #1e0c40) 70%, transparent); }
+.ambient-glow-folds polygon.is-light { fill: color-mix(in srgb, var(--glow-2, #c084fc) 30%, transparent); }
+.ambient-glow-folds polygon.is-deep { fill: color-mix(in srgb, var(--glow-deep, #110628) 85%, transparent); }
+.ambient-glow-folds polygon.is-edge { fill: color-mix(in srgb, var(--glow-3, #818cf8) 22%, transparent); }

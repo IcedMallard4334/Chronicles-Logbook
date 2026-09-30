@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ACCENTS, applyPreferences, readPreference, savePreferences } from "./preferences"
+import { ACCENTS, applyPreferences, clearAccentCustoms, readPreference, savePreferences } from "./preferences"
 import "./SetupPage.css"
 
 export default function SetupPage() {
@@ -12,7 +12,11 @@ export default function SetupPage() {
     startView: readPreference("start-view", "home"),
   }))
 
-  const choose = (key, value) => setPreferences(current => ({ ...current, [key]: value }))
+  const choose = (key, value) => {
+    // A preset replaces any colour of your own, so that what you click is what you see.
+    if (key === 'accent') clearAccentCustoms()
+    setPreferences(current => ({ ...current, [key]: value }))
+  }
 
   useEffect(() => {
     applyPreferences(preferences)

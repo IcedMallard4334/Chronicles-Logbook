@@ -3,7 +3,7 @@ import LogoIcon from "./ChroniclesLogo"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
-import { ACCENTS, applyPreferences, readCustomColors, saveCustomColors } from "./preferences"
+import { ACCENTS, applyPreferences, clearAccentCustoms, hasAccentCustoms, readCustomColors, saveCustomColors } from "./preferences"
 import AchievementsSection from "./AchievementsSection"
 import { pageReaderEnabled, readAloudSupported, setPageReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
@@ -107,10 +107,28 @@ export default function ProfilePage() {
   const [density, setDensity] = useDensity()
   const [pageReader, setPageReader] = useState(pageReaderEnabled)
   const [custom, setCustom] = useState(readCustomColors)
+  // Advanced opens by itself if any of its pieces is already in use.
+  const [colourMode, setColourMode] = useState(() => {
+    const saved = readCustomColors()
+    return saved.controls || saved.second || saved.glow || saved.background ? "advanced" : "basic"
+  })
   const changeCustom = (key, value) => {
     const next = { ...custom, [key]: value }
+    // The basic accent and the separate pieces are two ways of saying the same
+    // thing, so using one starts from a clean slate for the other.
+    if (key === "accent") Object.assign(next, { controls: null, second: null, glow: null })
     setCustom(next)
     saveCustomColors(next)
+  }
+  const resetCustom = () => {
+    const empty = { accent: null, controls: null, second: null, glow: null, background: null }
+    setCustom(empty)
+    saveCustomColors(empty)
+  }
+  // What the page is using right now, so a picker opens on the colour you can see.
+  const currentColour = (name, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
   }
   const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
   const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
@@ -199,6 +217,11 @@ export default function ProfilePage() {
   const updateAccent = (nextAccent) => {
     setAccent(nextAccent)
     window.localStorage.setItem("chronicles-accent", nextAccent)
+    // Choosing a preset replaces any colour of your own (a custom background stays).
+    if (hasAccentCustoms(custom)) {
+      clearAccentCustoms()
+      setCustom(readCustomColors())
+    }
     applyPreferences({ theme, accent: nextAccent, density })
   }
   const updateStartView = (nextStartView) => {
@@ -308,21 +331,46 @@ export default function ProfilePage() {
                 <div className="profile-row-text">
                   <span className="profile-row-label">Your own colours</span>
                   <span className="profile-row-value">
-                    Pick any colour for buttons and for the background. A custom background replaces Light and Dark until you reset it.
+                    {colourMode === "basic"
+                      ? "Pick one colour to replace the preset's: buttons, highlights, and the soft glow in the background all follow it."
+                      : "Set the pieces one at a time. A custom page background replaces Light and Dark until you reset it."}
                   </span>
                 </div>
-                <div className="colour-pickers">
-                  <label className="colour-picker">
-                    <span>Buttons</span>
-                    <input type="color" aria-label="Button colour" value={custom.button || "#6b5bff"} onChange={(event) => changeCustom("button", event.target.value)} />
-                  </label>
-                  <label className="colour-picker">
-                    <span>Background</span>
-                    <input type="color" aria-label="Background colour" value={custom.background || "#f5f6fa"} onChange={(event) => changeCustom("background", event.target.value)} />
-                  </label>
-                  <button type="button" className="btn-secondary" disabled={!custom.button && !custom.background} onClick={() => { setCustom({ button: null, background: null }); saveCustomColors({ button: null, background: null }) }}>
-                    Reset colours
-                  </button>
+                <div className="colour-controls">
+                  <div className="density-toggle" role="group" aria-label="Colour options">
+                    <button type="button" className={colourMode === "basic" ? "is-selected" : ""} aria-pressed={colourMode === "basic"} onClick={() => setColourMode("basic")}>Basic</button>
+                    <button type="button" className={colourMode === "advanced" ? "is-selected" : ""} aria-pressed={colourMode === "advanced"} onClick={() => setColourMode("advanced")}>Advanced</button>
+                  </div>
+                  <div className="colour-pickers">
+                    {colourMode === "basic" ? (
+                      <label className="colour-picker">
+                        <span>Your colour</span>
+                        <input type="color" aria-label="Custom accent colour" value={custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("accent", event.target.value)} />
+                      </label>
+                    ) : (
+                      <>
+                        <label className="colour-picker">
+                          <span>Buttons and highlights</span>
+                          <input type="color" aria-label="Buttons and highlights" value={custom.controls || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("controls", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Second colour</span>
+                          <input type="color" aria-label="Second colour" value={custom.second || currentColour("--mauve", "#7653c8")} onChange={(event) => changeCustom("second", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Page glow</span>
+                          <input type="color" aria-label="Page glow" value={custom.glow || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("glow", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Page background</span>
+                          <input type="color" aria-label="Page background" value={custom.background || currentColour("--bg", "#12141a")} onChange={(event) => changeCustom("background", event.target.value)} />
+                        </label>
+                      </>
+                    )}
+                    <button type="button" className="btn-secondary" disabled={!Object.values(custom).some(Boolean)} onClick={resetCustom}>
+                      Reset colours
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="profile-row">

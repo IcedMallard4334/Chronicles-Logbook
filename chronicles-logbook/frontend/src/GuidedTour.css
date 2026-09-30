@@ -101,15 +101,18 @@
 
 .tour-card-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 12px;
   margin-top: 16px;
 }
 
 .tour-card-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   margin-left: auto;
 }
@@ -133,6 +136,8 @@
 }
 
 .tour-card button {
+  /* A label never breaks across lines: a button is either whole or wrapped as a whole. */
+  white-space: nowrap;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;

@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest"
 
-import { applyCustomColors, applyPreferences, isLightColour, mixColours, readCustomColors, saveCustomColors } from "./preferences"
+import {
+  applyCustomColors, applyPreferences, clearAccentCustoms, hasAccentCustoms, isLightColour, mixColours,
+  readCustomColors, rotateHue, saveCustomColors, savePreferences,
+} from "./preferences"
 
 const root = document.documentElement
+const NONE = { accent: null, controls: null, second: null, glow: null, background: null }
 
 afterEach(() => {
   window.localStorage.clear()
-  applyCustomColors({ button: null, background: null })
+  applyCustomColors(NONE)
+  delete root.dataset.accent
 })
 
 describe("colour maths", () => {
@@ -23,25 +28,89 @@ describe("colour maths", () => {
     expect(isLightColour("#6b5bff")).toBe(false)
     expect(isLightColour("#ffe14d")).toBe(true)
   })
+
+  it("turns a hue round the colour wheel, keeping grey grey", () => {
+    expect(rotateHue("#ff0000", 120)).toBe("#00ff00")
+    expect(rotateHue("#ff0000", 240)).toBe("#0000ff")
+    expect(rotateHue("#ff0000", -60)).toBe("#ff00ff")
+    expect(rotateHue("#ff0000", 360)).toBe("#ff0000")
+    expect(rotateHue("#808080", 90)).toBe("#808080")
+    expect(rotateHue("#00ffff", 60)).toBe("#0000ff")
+    expect(rotateHue("#00ff00", 60)).toBe("#00ffff")
+  })
 })
 
-describe("custom colours", () => {
-  it("applies a button colour over the theme's accent", () => {
-    saveCustomColors({ button: "#ff5500", background: null })
+describe("basic: one colour replaces the preset", () => {
+  it("sets buttons, highlights, the second colour and the background glow together", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500" })
 
     expect(root.style.getPropertyValue("--blue")).toBe("#ff5500")
     expect(root.style.getPropertyValue("--focus")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--mauve")).toBe(rotateHue("#ff5500", 38))
+    expect(root.style.getPropertyValue("--blue-bg")).toContain("#ff5500")
+    expect(root.style.getPropertyValue("--mauve-bg")).toContain(rotateHue("#ff5500", 38))
+    expect(root.style.getPropertyValue("--glow-1")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--glow-2")).toBe(rotateHue("#ff5500", 32))
+    expect(root.dataset.customGlow).toBe("on")
     expect(root.dataset.customButton).toBe("dark")
-    expect(readCustomColors()).toEqual({ button: "#ff5500", background: null })
+    expect(readCustomColors().accent).toBe("#ff5500")
   })
 
-  it("flags a light button colour so its label can switch to dark text", () => {
-    saveCustomColors({ button: "#ffe14d", background: null })
+  it("leaves no trace of the previous colour when a new one is picked", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500" })
+    saveCustomColors({ ...NONE, accent: "#00aa66" })
+
+    for (const name of ["--blue", "--mauve", "--mauve-soft", "--blue-soft", "--glow-1", "--glow-2", "--glow-3", "--glow-deep"]) {
+      expect(root.style.getPropertyValue(name).toLowerCase()).not.toContain("ff5500")
+    }
+    expect(root.style.getPropertyValue("--blue")).toBe("#00aa66")
+  })
+
+  it("flags a light colour so button labels can switch to dark text", () => {
+    saveCustomColors({ ...NONE, accent: "#ffe14d" })
     expect(root.dataset.customButton).toBe("light")
   })
 
-  it("derives a readable palette from a dark background", () => {
-    saveCustomColors({ button: null, background: "#101820" })
+  it("does not touch the page background", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500" })
+    expect(root.style.getPropertyValue("--bg")).toBe("")
+    expect(root.dataset.customBackground).toBeUndefined()
+  })
+})
+
+describe("advanced: the pieces separately", () => {
+  it("controls, second colour and glow are independent", () => {
+    saveCustomColors({ ...NONE, controls: "#ff5500", second: "#00aaff", glow: "#22cc88" })
+
+    expect(root.style.getPropertyValue("--blue")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--mauve")).toBe("#00aaff")
+    expect(root.style.getPropertyValue("--glow-1")).toBe("#22cc88")
+  })
+
+  it("a second colour alone changes only the second colour", () => {
+    saveCustomColors({ ...NONE, second: "#00aaff" })
+
+    expect(root.style.getPropertyValue("--mauve")).toBe("#00aaff")
+    expect(root.style.getPropertyValue("--blue")).toBe("")
+    expect(root.dataset.customGlow).toBeUndefined()
+  })
+
+  it("controls alone derive their own second colour and glow", () => {
+    saveCustomColors({ ...NONE, controls: "#ff5500" })
+
+    expect(root.style.getPropertyValue("--mauve")).toBe(rotateHue("#ff5500", 38))
+    expect(root.style.getPropertyValue("--glow-1")).toBe("#ff5500")
+  })
+
+  it("an explicit glow beats the glow derived from the accent", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500", glow: "#2244ff" })
+
+    expect(root.style.getPropertyValue("--blue")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--glow-1")).toBe("#2244ff")
+  })
+
+  it("derives a readable palette from a dark page background", () => {
+    saveCustomColors({ ...NONE, background: "#101820" })
 
     expect(root.style.getPropertyValue("--bg")).toBe("#101820")
     expect(root.style.getPropertyValue("--text")).toBe("#f1f2f6")
@@ -50,36 +119,60 @@ describe("custom colours", () => {
     expect(root.style.getPropertyValue("--surface")).not.toBe("")
   })
 
-  it("derives dark text for a light background", () => {
-    saveCustomColors({ button: null, background: "#fff4e0" })
+  it("derives dark text for a light page background", () => {
+    saveCustomColors({ ...NONE, background: "#fff4e0" })
 
     expect(root.style.getPropertyValue("--text")).toBe("#1c1f26")
     expect(root.dataset.customBackground).toBe("light")
   })
+})
 
-  it("clears everything back to the theme when reset", () => {
-    saveCustomColors({ button: "#ff5500", background: "#101820" })
-    saveCustomColors({ button: null, background: null })
+describe("resetting and storing", () => {
+  it("clears everything back to the preset when reset", () => {
+    saveCustomColors({ accent: "#ff5500", controls: "#111111", second: "#222222", glow: "#333333", background: "#101820" })
+    saveCustomColors(NONE)
 
-    expect(root.style.getPropertyValue("--blue")).toBe("")
-    expect(root.style.getPropertyValue("--bg")).toBe("")
+    for (const name of ["--blue", "--mauve", "--glow-1", "--bg"]) expect(root.style.getPropertyValue(name)).toBe("")
+    expect(root.dataset.customGlow).toBeUndefined()
     expect(root.dataset.customButton).toBeUndefined()
-    expect(window.localStorage.getItem("chronicles-custom-button")).toBeNull()
+    expect(window.localStorage.getItem("chronicles-custom-accent")).toBeNull()
   })
 
   it("ignores stored values that are not colours", () => {
-    window.localStorage.setItem("chronicles-custom-button", "red; background: url(x)")
+    window.localStorage.setItem("chronicles-custom-accent", "red; background: url(x)")
     window.localStorage.setItem("chronicles-custom-background", "#12")
 
-    expect(readCustomColors()).toEqual({ button: null, background: null })
+    expect(readCustomColors()).toEqual(NONE)
   })
 
   it("is re-applied whenever the theme preferences are", () => {
-    window.localStorage.setItem("chronicles-custom-button", "#00aa66")
+    window.localStorage.setItem("chronicles-custom-accent", "#00aa66")
 
     applyPreferences({ theme: "dark", accent: "ocean", density: "compact" })
 
     expect(root.style.getPropertyValue("--blue")).toBe("#00aa66")
     expect(root.dataset.accent).toBe("ocean")
+  })
+
+  it("choosing a preset drops the accent customisations but keeps a custom background", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500", glow: "#2244ff", background: "#101820" })
+    expect(hasAccentCustoms(readCustomColors())).toBe(true)
+
+    clearAccentCustoms()
+
+    const after = readCustomColors()
+    expect(hasAccentCustoms(after)).toBe(false)
+    expect(after.background).toBe("#101820")
+    expect(root.style.getPropertyValue("--blue")).toBe("")
+    expect(root.style.getPropertyValue("--bg")).toBe("#101820")
+  })
+
+  it("saving the setup choices also hands the accent back to the preset", () => {
+    saveCustomColors({ ...NONE, accent: "#ff5500" })
+
+    savePreferences({ theme: "dark", accent: "rose", density: "comfortable", startView: "home" })
+
+    expect(root.style.getPropertyValue("--blue")).toBe("")
+    expect(root.dataset.accent).toBe("rose")
   })
 })
