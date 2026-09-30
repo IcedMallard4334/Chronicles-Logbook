@@ -30,6 +30,7 @@ import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
 import Streaks from "./Streaks"
+import EntryTaskGuide from "./EntryTaskGuide"
 import { ActivityIcon, BoardIcon, OutstandingIcon, TodayIcon } from "./NavIcons"
 import StatusEditor, { statusProblem } from "./StatusEditor"
 import StatusPicker from "./StatusPicker"
@@ -2078,6 +2079,7 @@ function ProjectDetail({
             role="tab"
             aria-selected={tab === "entries"}
             className={tab === "entries" ? "active" : ""}
+            title="Entries: a record of work you have already done"
             onClick={() => setTab("entries")}
           >
             Entries
@@ -2096,6 +2098,7 @@ function ProjectDetail({
             role="tab"
             aria-selected={tab === "tasks"}
             className={tab === "tasks" ? "active" : ""}
+            title="Tasks: things you still need to do"
             onClick={() => setTab("tasks")}
           >
             Tasks
@@ -2116,6 +2119,7 @@ function ProjectDetail({
           <>
             <div className="entries-toolbar">
               <h3>Past entries</h3>
+              <EntryTaskGuide />
               {!project.archived && (
                 <button
                   type="button"
@@ -2186,7 +2190,10 @@ function ProjectDetail({
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : tab === "tasks" ? (
-          <TaskPanel projectId={project.id} />
+          <TaskPanel
+            projectId={project.id}
+            onLogEntry={() => { setTab("entries"); setAddingEntry(true); setSavedNotice(null) }}
+          />
         ) : tab === "automation" ? (
           <AutomationPanel project={project} />
         ) : null}

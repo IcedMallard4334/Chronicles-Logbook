@@ -382,7 +382,8 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
 
 // ── Task Panel (main export) ─────────────────────────────────────────
 
-export function TaskPanel({ projectId }) {
+export function TaskPanel({ projectId, onLogEntry }) {
+  const [finished, setFinished] = useState(null)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -410,7 +411,10 @@ export function TaskPanel({ projectId }) {
   }, [loadTasks])
 
   const handleToggle = async (pid, taskId) => {
+    const before = tasks.find((task) => task.id === taskId)
     await toggleTask(pid, taskId)
+    // Finishing a task is the natural moment to record what was done, which is an entry.
+    setFinished(before && !before.completed ? before.title : null)
     loadTasks()
   }
 
@@ -453,6 +457,14 @@ export function TaskPanel({ projectId }) {
           </button>
         )}
       </div>
+
+      {finished && (
+        <div className="task-finished-note" role="status">
+          <span>Finished “{finished}”. Want a record of what you did? A task is a plan; an entry is the record.</span>
+          {onLogEntry && <button type="button" className="btn-secondary" onClick={() => { setFinished(null); onLogEntry() }}>Log an entry</button>}
+          <button type="button" className="btn-text" onClick={() => setFinished(null)}>Not now</button>
+        </div>
+      )}
 
       {showForm && !editingTask && (
         <TaskForm
