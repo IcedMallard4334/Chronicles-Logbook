@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from app.database import get_db
+from app.mira_context import build_context
 from app.models import MiraConsent, MiraConversation, MiraMessage, User
 from app.routers.auth import get_current_user
 from app.schemas import AIChatRequest, AIChatResponse, AIProjectActionProposal
@@ -21,7 +22,8 @@ from app.services.gemini_service import (
 )
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
-CONSENT_VERSION = "2026-09-14"
+# Bumped when what Mira can see or do grows, so that everyone is asked again.
+CONSENT_VERSION = "2026-09-30"
 
 LIMITED_MODE_REPLY = (
     "Mira is in limited mode. You can create projects from Home, record work in All Entries, "
@@ -128,6 +130,9 @@ class ConversationDetail(ConversationSummary):
 class StreamRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=2000)
+    # The person's own date, since the server runs on UTC and "tomorrow" should
+    # mean their tomorrow.
+    today: date | None = None
 
 
 async def _owned_conversation(conversation_id: UUID, user: User, db: AsyncSession) -> MiraConversation:
@@ -230,10 +235,14 @@ async def stream_reply(
 
     choice = await db.get(MiraConsent, user.id)
     consented = bool(choice and choice.accepted and choice.version == CONSENT_VERSION)
+    # Built before streaming starts, from this request's own session, and only
+    # when the person has allowed Mira to see their workspace.
+    context = await build_context(user, db, payload.today or datetime.now(timezone.utc).date()) if consented else ""
 
     async def events():
         reply_parts: list[str] = []
         thought_parts: list[str] = []
+        proposed: list[str] = []
         failed = False
         yield _sse({"type": "start", "conversation_id": str(conversation.id), "title": conversation.title})
         try:
@@ -241,16 +250,19 @@ async def stream_reply(
                 reply_parts.append(LIMITED_MODE_REPLY)
                 yield _sse({"type": "delta", "text": LIMITED_MODE_REPLY})
             else:
-                async for event in iterate_in_threadpool(iter(stream_response(message, history))):
+                async for event in iterate_in_threadpool(iter(stream_response(message, history, context))):
                     if event["type"] == "delta":
                         reply_parts.append(event["text"])
                     elif event["type"] == "thought":
                         thought_parts.append(event["text"])
                     elif event["type"] == "action":
-                        name = (event["action"].get("payload") or {}).get("name", "a project")
-                        note = f"I've drafted a project proposal for **{name}**. Review it below before anything is created."
-                        reply_parts.append(note)
+                        proposed.append(event["action"]["summary"])
                     yield _sse(event)
+                if proposed:
+                    # Kept in the saved conversation so a reopened chat still says what was proposed.
+                    reply_parts.append(
+                        "\n\n**Proposed for your approval:**\n" + "\n".join(f"- {line}" for line in proposed)
+                    )
         except GeminiNotConfiguredError:
             failed = True
             yield _sse({"type": "error", "detail": "The AI assistant is not configured."})

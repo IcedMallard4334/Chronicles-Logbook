@@ -24,7 +24,7 @@ async def consenting(authenticated_client):
 def fake_stream(monkeypatch):
     seen = {}
 
-    def fake(message, history=()):
+    def fake(message, history=(), context=""):
         seen["message"] = message
         seen["history"] = list(history)
         yield {"type": "thought", "text": "Considering the question."}
@@ -70,10 +70,13 @@ async def test_earlier_messages_are_passed_as_context(authenticated_client, cons
 
 
 async def test_a_proposed_project_is_streamed_as_an_action(authenticated_client, consenting, monkeypatch):
-    def fake(message, history=()):
+    def fake(message, history=(), context=""):
         yield {
             "type": "action",
-            "action": {"type": "create_project", "payload": {"name": "Research"}, "requires_confirmation": True},
+            "action": {
+                "type": "create_project", "payload": {"name": "Research"}, "requires_confirmation": True,
+                "destructive": False, "summary": "Create project Research",
+            },
         }
 
     monkeypatch.setattr(ai_router, "stream_response", fake)
@@ -107,7 +110,7 @@ async def test_without_consent_nothing_reaches_the_provider(authenticated_client
 async def test_a_provider_failure_is_reported_and_the_reply_is_not_saved(
     authenticated_client, consenting, monkeypatch
 ):
-    def failing(message, history=()):
+    def failing(message, history=(), context=""):
         yield {"type": "delta", "text": "Partial"}
         raise GeminiServiceError("down")
 
@@ -234,13 +237,17 @@ def test_a_streamed_function_call_becomes_a_proposal_from_fragments(monkeypatch)
 
     [event] = list(gemini_service.stream_response("Create a project"))
 
-    assert event["action"] == {"type": "create_project", "payload": {"name": "Sprint"}, "requires_confirmation": True}
+    assert event["action"]["type"] == "create_project"
+    assert event["action"]["payload"]["name"] == "Sprint"
+    assert event["action"]["requires_confirmation"] is True and event["action"]["destructive"] is False
+    assert "Sprint" in event["action"]["summary"]
 
 
-def test_an_unsupported_or_malformed_streamed_call_is_refused(monkeypatch):
+def test_an_unsupported_or_malformed_streamed_call_becomes_a_note_not_a_failure(monkeypatch):
     _fake_client(monkeypatch, [_event("step.start", step=SimpleNamespace(type="function_call", name="drop_db", arguments={}))])
-    with pytest.raises(GeminiServiceError, match="unsupported"):
-        list(gemini_service.stream_response("x"))
+    events = list(gemini_service.stream_response("x"))
+    assert [e["type"] for e in events] == ["delta"]
+    assert "couldn't prepare one action" in events[0]["text"] and "drop_db" in events[0]["text"]
 
     _fake_client(
         monkeypatch,
@@ -249,8 +256,8 @@ def test_an_unsupported_or_malformed_streamed_call_is_refused(monkeypatch):
             _event("step.delta", delta=SimpleNamespace(type="arguments_delta", arguments="{oops")),
         ],
     )
-    with pytest.raises(GeminiServiceError, match="invalid"):
-        list(gemini_service.stream_response("x"))
+    events = list(gemini_service.stream_response("x"))
+    assert [e["type"] for e in events] == ["delta"]
 
 
 def test_a_stream_error_event_and_provider_failures_are_wrapped(monkeypatch):
