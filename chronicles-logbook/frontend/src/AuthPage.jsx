@@ -70,6 +70,49 @@ export function AuthIntro() {
   )
 }
 
+const GET_STARTED_STEPS = [
+  { title: "Create a project", detail: "A project is one body of work — a course, a build, a habit. You choose the fields each entry records." },
+  { title: "Log entries as you go", detail: "An entry is a record of work you did (or still need to do). Add time spent, notes, tags and more." },
+  { title: "Track what's outstanding", detail: "Tasks are small checklist items. Entries marked “still to do” show up on Today and Outstanding." },
+  { title: "See the bigger picture", detail: "Statistics, the dashboard and Mira, your assistant, turn your entries into progress you can see." },
+]
+
+function GetStarted() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="auth-get-started">
+      <button
+        type="button"
+        className="auth-get-started-toggle"
+        aria-expanded={open}
+        aria-controls="auth-get-started-panel"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open ? "Hide the tour" : "New here? Get started"}
+      </button>
+      {open && (
+        <div id="auth-get-started-panel" className="auth-get-started-panel">
+          <p className="auth-get-started-lead">
+            Chronicles is a digital logbook: a place to record what you work on, so you can look back on it and learn from it.
+          </p>
+          <ol>
+            {GET_STARTED_STEPS.map((step) => (
+              <li key={step.title}>
+                <strong>{step.title}</strong>
+                <span>{step.detail}</span>
+              </li>
+            ))}
+          </ol>
+          <a className="google-auth-button" href={getGoogleLoginUrl()}>
+            <GoogleIcon />
+            <span>Sign in and start your first project</span>
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AuthPage() {
   const navigate = useNavigate()
   const [devEmail, setDevEmail] = useState("")
@@ -141,6 +184,8 @@ function AuthPage() {
               )}
             </div>
           )}
+
+          <GetStarted />
 
           <p className="auth-signup-note">
             Don&rsquo;t have an account?{" "}

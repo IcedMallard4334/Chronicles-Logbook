@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences } from "./preferences"
+import { pageReaderEnabled, readAloudSupported, setPageReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
@@ -102,6 +103,7 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const [theme, cycleTheme] = useTheme()
   const [density, setDensity] = useDensity()
+  const [pageReader, setPageReader] = useState(pageReaderEnabled)
   const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
   const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
   const [user, setUser] = useState(null)
@@ -292,6 +294,20 @@ export default function ProfilePage() {
                 <div className="density-toggle" role="group" aria-label="Workspace density">
                   <button type="button" className={density === "comfortable" ? "is-selected" : ""} onClick={() => setDensity("comfortable")}>Comfortable</button>
                   <button type="button" className={density === "compact" ? "is-selected" : ""} onClick={() => setDensity("compact")}>Compact</button>
+                </div>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Page reader</span>
+                  <span className="profile-row-value">
+                    {readAloudSupported()
+                      ? "Adds a Read this page button that speaks the page aloud, or just the text you've selected."
+                      : "Your browser doesn't support reading aloud."}
+                  </span>
+                </div>
+                <div className="density-toggle" role="group" aria-label="Page reader">
+                  <button type="button" className={pageReader ? "" : "is-selected"} aria-pressed={!pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(false); setPageReaderEnabled(false) }}>Off</button>
+                  <button type="button" className={pageReader ? "is-selected" : ""} aria-pressed={pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(true); setPageReaderEnabled(true) }}>On</button>
                 </div>
               </div>
             </section>

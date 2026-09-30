@@ -657,6 +657,7 @@ describe("filling in an entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })
@@ -702,6 +703,7 @@ describe("filling in an entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })
@@ -1052,6 +1054,7 @@ describe("filling in a rich entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })

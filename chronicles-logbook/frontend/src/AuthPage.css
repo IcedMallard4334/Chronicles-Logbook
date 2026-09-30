@@ -450,3 +450,38 @@
     animation: none;
   }
 }
+
+.auth-get-started { margin-top: 1rem; }
+.auth-get-started-toggle {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px dashed var(--accent, #6b5bff);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth-get-started-toggle:hover,
+.auth-get-started-toggle:focus-visible { background: color-mix(in srgb, var(--accent, #6b5bff) 10%, transparent); }
+.auth-get-started-panel { margin-top: 0.9rem; display: grid; gap: 0.9rem; text-align: left; }
+.auth-get-started-lead { margin: 0; }
+.auth-get-started-panel ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; counter-reset: step; }
+.auth-get-started-panel li { display: grid; gap: 0.15rem; padding-left: 2.2rem; position: relative; counter-increment: step; }
+.auth-get-started-panel li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--accent, #6b5bff);
+  color: #fff;
+}
+.auth-get-started-panel li span { opacity: 0.8; font-size: 0.92rem; }

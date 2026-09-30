@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { dictationSupported, startDictation } from "./speech"
 import "./MiraAssistant.css"
 
 const PROMPTS = [
@@ -29,6 +30,29 @@ function ProjectProposal({ action, saving, onConfirm, onCancel }) {
 function Conversation({ messages, sending, error, onSend, onClear, pendingAction, actionSaving, onConfirmAction, onCancelAction, onOpenProject, compact = false }) {
   const [draft, setDraft] = useState("")
   const feedRef = useRef(null)
+  const dictation = useRef(null)
+  const [listening, setListening] = useState(false)
+  const [interim, setInterim] = useState("")
+  const [voiceError, setVoiceError] = useState("")
+  const canDictate = dictationSupported()
+
+  useEffect(() => () => dictation.current?.stop(), [])
+
+  const toggleDictation = () => {
+    if (listening) { dictation.current?.stop(); return }
+    setVoiceError("")
+    try {
+      dictation.current = startDictation({
+        onFinal: (text) => text && setDraft((current) => `${current}${current && !/\s$/.test(current) ? " " : ""}${text}`.slice(0, 2000)),
+        onInterim: setInterim,
+        onError: setVoiceError,
+        onEnd: () => { setListening(false); dictation.current = null },
+      })
+      setListening(true)
+    } catch {
+      setVoiceError("Dictation could not start in this browser.")
+    }
+  }
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight
@@ -37,6 +61,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
   const send = async (value = draft) => {
     const message = value.trim()
     if (!message || sending) return
+    dictation.current?.stop()
     setDraft("")
     await onSend(message)
   }
@@ -68,7 +93,11 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
     <form className="mira-composer" onSubmit={(event) => { event.preventDefault(); send() }}>
       <label className="sr-only" htmlFor={compact ? "mira-compact-input" : "mira-full-input"}>Message Mira</label>
       <textarea id={compact ? "mira-compact-input" : "mira-full-input"} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} maxLength={2000} rows={compact ? 2 : 3} placeholder="What are you working on?" />
-      <div className="mira-composer-actions"><span><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span><button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
+      {listening && <p className="mira-dictation-status" role="status">Listening… {interim && <em>{interim}</em>}</p>}
+      {voiceError && <p className="mira-error" role="alert">{voiceError}</p>}
+      <div className="mira-composer-actions"><span><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
+        {canDictate && <button type="button" className={`mira-mic${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} title={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
+        <button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
       <p className="mira-footnote">Review Mira’s suggestions. Project creation always needs your confirmation. Chats clear when you refresh.</p>
     </form>
     {messages.length > 0 && <button type="button" className="mira-clear" onClick={onClear}>Clear conversation</button>}

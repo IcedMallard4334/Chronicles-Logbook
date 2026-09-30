@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
@@ -19,6 +19,33 @@ describe("Mira assistant interfaces", () => {
     fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Help me capture today's research" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     expect(state.onSend).toHaveBeenCalledWith("Help me capture today's research")
+  })
+
+  it("dictates into the message box when the browser supports speech recognition", () => {
+    let instance
+    window.webkitSpeechRecognition = class {
+      constructor() { instance = this }
+      start() {}
+      stop() { this.onend?.() }
+    }
+    try {
+      render(<MiraAssistantPage conversation={conversation()} />)
+      fireEvent.click(screen.getByRole("button", { name: "Dictate your message" }))
+      expect(screen.getByRole("button", { name: "Stop dictating" })).toHaveAttribute("aria-pressed", "true")
+      act(() => {
+        instance.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "plan my week" }], { isFinal: true })] })
+      })
+      expect(screen.getByLabelText("Message Mira").value).toBe("plan my week")
+      fireEvent.click(screen.getByRole("button", { name: "Stop dictating" }))
+      expect(screen.getByRole("button", { name: "Dictate your message" })).toBeInTheDocument()
+    } finally {
+      delete window.webkitSpeechRecognition
+    }
+  })
+
+  it("hides the microphone where dictation is unsupported", () => {
+    render(<MiraAssistantPage conversation={conversation()} />)
+    expect(screen.queryByRole("button", { name: "Dictate your message" })).not.toBeInTheDocument()
   })
 
   it("renders replies, loading state, errors, and retry", () => {
