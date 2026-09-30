@@ -132,6 +132,15 @@ class Project(Base):
         server_default="false",
     )
 
+    # The statuses entries move through, in order: [{"name": "In progress",
+    # "done": false}, ...]. Empty means the default "Still to do" / "Done" pair.
+    statuses: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
+    )
+
     # Stores a bare list of field-definition dicts, e.g.
     # [{"id": "...", "name": "Hours spent", "type": "number"}, ...]
     entry_schema: Mapped[list[dict[str, Any]]] = mapped_column(
@@ -335,6 +344,9 @@ class Entry(Base):
         server_default="false",
     )
 
+    # Which of the project's statuses the entry is in; ``todo`` follows from it.
+    status: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
 
@@ -355,6 +367,23 @@ class Entry(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
+
+
+@event.listens_for(Entry, "before_insert")
+def _give_new_entries_a_status(_mapper, connection, target) -> None:
+    """Every entry starts in its project's first status that matches its todo flag.
+
+    Done here, at the one place every entry is inserted from, so rules,
+    recurrence, import and the API can't each forget it.
+    """
+    if target.status is not None:
+        return
+    from sqlalchemy import select
+
+    from app.statuses import default_name, statuses_of
+
+    raw = connection.execute(select(Project.statuses).where(Project.id == target.project_id)).scalar()
+    target.status = default_name(statuses_of(raw), bool(target.todo))
 
 
 @event.listens_for(Session, "do_orm_execute")
@@ -389,6 +418,7 @@ class EntryRevision(Base):
     schema_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, nullable=False, default=list)
     time_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     todo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str | None] = mapped_column(String(60), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
     changed_by: Mapped[UUID | None] = mapped_column(

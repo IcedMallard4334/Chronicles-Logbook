@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { fetchEntries, updateEntry } from "./api"
 import { humaniseValue } from "./fieldTypes"
+import { isDoneStatus, projectStatuses, statusOf } from "./statuses"
 import "./BoardView.css"
 
 // Grouping by whether the work is still outstanding is offered for every
 // project, so a board is useful before anyone has defined a dropdown field.
 const STATUS_GROUP = "__status__"
-const STATUS_COLUMNS = [
-  { key: "todo", label: "Still to do" },
-  { key: "done", label: "Done" },
-]
 // Holds entries whose stored value is no longer one of the field's options,
 // which happens when a dropdown is edited after entries were written. It is
 // not a drop target: there is no value that would put an entry back into it.
@@ -69,15 +66,16 @@ function groupingsFor(project) {
   return [{ id: STATUS_GROUP, name: "Status" }, ...dropdowns]
 }
 
-function columnKeyOf(entry, grouping, columns) {
-  if (grouping.id === STATUS_GROUP) return entry.todo ? "todo" : "done"
+function columnKeyOf(entry, grouping, columns, project) {
+  if (grouping.id === STATUS_GROUP) return statusOf(entry, project)
   const value = entry.data?.[grouping.id]
   return columns.some((column) => column.key === value) ? value : UNSORTED
 }
 
 /** The smallest update that moves an entry into the given column. */
-function moveToColumn(entry, grouping, key) {
-  if (grouping.id === STATUS_GROUP) return { todo: key === "todo" }
+function moveToColumn(entry, grouping, key, project) {
+  // The status carries whether the work is finished; the server derives todo from it.
+  if (grouping.id === STATUS_GROUP) return { status: key, todo: !isDoneStatus(project, key) }
   // The whole map is sent because every field in a project's schema is
   // required, so a partial data object would be rejected as incomplete.
   return { data: { ...(entry.data || {}), [grouping.id]: key } }
@@ -132,17 +130,17 @@ export default function BoardView({ projects }) {
     if (!grouping) return []
     const defined =
       grouping.id === STATUS_GROUP
-        ? STATUS_COLUMNS
+        ? projectStatuses(project).map((status) => ({ key: status.name, label: status.name }))
         : (grouping.options || []).map((option) => ({ key: option, label: option }))
-    const stray = entries.some((entry) => columnKeyOf(entry, grouping, defined) === UNSORTED)
+    const stray = entries.some((entry) => columnKeyOf(entry, grouping, defined, project) === UNSORTED)
     return stray ? [...defined, { key: UNSORTED, label: "Unsorted", fixed: true }] : defined
-  }, [grouping, entries])
+  }, [grouping, entries, project])
 
   const move = async (entry, key) => {
     if (!grouping || key === UNSORTED) return
-    if (columnKeyOf(entry, grouping, columns) === key) return
+    if (columnKeyOf(entry, grouping, columns, project) === key) return
 
-    const patch = moveToColumn(entry, grouping, key)
+    const patch = moveToColumn(entry, grouping, key, project)
     const previous = entries
     // Applied straight away so the card lands where it was dropped, then put
     // back if the server refuses the change.
@@ -220,7 +218,7 @@ export default function BoardView({ projects }) {
           <div className="board-columns">
             {columns.map((column) => {
               const held = entries.filter(
-                (entry) => columnKeyOf(entry, grouping, columns) === column.key,
+                (entry) => columnKeyOf(entry, grouping, columns, project) === column.key,
               )
               return (
                 <section
@@ -272,7 +270,7 @@ export default function BoardView({ projects }) {
                           <label className="board-card-move">
                             Move to
                             <select
-                              value={columnKeyOf(entry, grouping, columns)}
+                              value={columnKeyOf(entry, grouping, columns, project)}
                               onChange={(event) => move(entry, event.target.value)}
                             >
                               {columns.map((option) => (

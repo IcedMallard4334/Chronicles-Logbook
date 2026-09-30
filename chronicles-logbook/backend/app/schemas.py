@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.computed import (
     MAX_EXPRESSION_LENGTH,
@@ -214,16 +214,45 @@ def _validate_schema_integrity(entry_schema: list[FieldDefinition]) -> None:
         field.expression = canonical
 
 
+class StatusDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=40)
+    # Whether an entry in this status counts as finished work.
+    done: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("A status needs a name.")
+        return value
+
+
+def _validate_statuses(statuses: list["StatusDefinition"]) -> None:
+    if not 2 <= len(statuses) <= 8:
+        raise ValueError("A project needs between 2 and 8 statuses.")
+    names = [status.name.casefold() for status in statuses]
+    if len(set(names)) != len(names):
+        raise ValueError("Status names must be different from each other.")
+    if not any(status.done for status in statuses) or all(status.done for status in statuses):
+        raise ValueError("Include at least one status that counts as done and one that does not.")
+
+
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
+    statuses: list[StatusDefinition] | None = None
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
         _validate_schema_integrity(self.entry_schema)
+        if self.statuses is not None:
+            _validate_statuses(self.statuses)
         return self
 
 
@@ -233,11 +262,14 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] | None = None
+    statuses: list[StatusDefinition] | None = None
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
         if self.entry_schema is not None:
             _validate_schema_integrity(self.entry_schema)
+        if self.statuses is not None:
+            _validate_statuses(self.statuses)
         return self
 
 
@@ -253,12 +285,21 @@ class ProjectResponse(BaseModel):
     # Definitions for fields that have been removed from the schema, so the
     # values kept under them can still be labelled (US-2.7).
     retired_schema: list[FieldDefinition] = Field(default_factory=list)
+    # The statuses entries move through; the default pair when never customised.
+    statuses: list[StatusDefinition] = Field(default_factory=list)
     total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
     # True when the caller reaches this project through a share rather than
     # owning it, so the UI can hide the actions only an owner may take.
     shared: bool = False
+
+    @field_validator("statuses", mode="before")
+    @classmethod
+    def default_statuses(cls, value):
+        from app.statuses import statuses_of
+
+        return statuses_of(value)
 
 
 # ── Sharing a project (US-2.20) ──────────────────────────────────────────────
@@ -377,6 +418,7 @@ class EntryCreate(BaseModel):
     todo: bool = False
     due_date: date | None = None
     due_time: time_of_day | None = None
+    status: str | None = Field(default=None, max_length=40)
 
     # Both fields are optional and omitted by ordinary online capture, where
     # the server assigns them. They exist for two callers that already know
@@ -423,6 +465,7 @@ class EntryUpdate(BaseModel):
     todo: bool | None = None
     due_date: date | None = None
     due_time: time_of_day | None = None
+    status: str | None = Field(default=None, max_length=40)
 
     # An entry keeps the exact shape it was recorded in by default — a
     # schema change does not reach back and touch entries that already
@@ -463,6 +506,7 @@ class EntryResponse(BaseModel):
     todo: bool = False
     due_date: date | None = None
     due_time: time_of_day | None = None
+    status: str | None = None
     # Who logged it. Null on entries written before a project could be shared,
     # so the UI has to render "unknown" as readably as a name.
     created_by: UUID | None = None
@@ -491,6 +535,7 @@ class EntryRevisionResponse(BaseModel):
     todo: bool = False
     due_date: date | None = None
     due_time: time_of_day | None = None
+    status: str | None = None
     changed_by: UUID | None = None
     changed_by_name: str | None = None
     changed_at: datetime
@@ -590,6 +635,7 @@ class FilterCriteria(BaseModel):
     # restore it the same way it restores a keyword or a project.
     tag: str | None = Field(default=None, max_length=MAX_TAG_LENGTH)
     todo: bool | None = None
+    status: str | None = Field(default=None, max_length=40)
     sort: Literal["newest", "oldest", "due_date", "relevance"] = "newest"
     # US-3.11: structured conditions over custom fields, combined with either
     # AND (every condition must hold) or OR (any one is enough). Capped so a
@@ -930,6 +976,7 @@ class TimelineEntryResponse(BaseModel):
     todo: bool = False
     due_date: date | None = None
     due_time: time_of_day | None = None
+    status: str | None = None
     created_by: UUID | None = None
     created_by_name: str | None = None
     created_at: datetime

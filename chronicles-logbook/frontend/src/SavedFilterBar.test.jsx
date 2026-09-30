@@ -165,6 +165,7 @@ describe("EntriesPage saved filters", () => {
         project_id: null,
         tag: null,
         todo: true,
+        status: null,
         sort: "due_date",
         conditions: [],
         match: "all",
@@ -183,6 +184,25 @@ describe("EntriesPage saved filters", () => {
         expect.objectContaining({ todo: false }),
       ),
     )
+  })
+
+  it("offers each project's custom statuses in the status filter and searches by the one chosen", async () => {
+    const withStatuses = [
+      { ...projects[0], statuses: [{ name: "Backlog", done: false }, { name: "Blocked", done: false }, { name: "Done", done: true }] },
+      projects[1],
+    ]
+    render(<EntriesPage projects={withStatuses} onCreate={vi.fn()} />)
+    await waitFor(() => expect(fetchEntriesGlobal).toHaveBeenCalled())
+
+    const select = screen.getByLabelText(/Status/)
+    expect([...select.options].map((option) => option.textContent)).toEqual(["Everything", "Still to do", "Already done", "Backlog", "Blocked"])
+
+    fireEvent.change(select, { target: { value: "status:Blocked" } })
+
+    await waitFor(() =>
+      expect(fetchEntriesGlobal).toHaveBeenLastCalledWith(expect.objectContaining({ status: "Blocked" })),
+    )
+    expect(fetchEntriesGlobal.mock.lastCall[0]).not.toHaveProperty("todo")
   })
 
   it("narrows the search to entries carrying a tag", async () => {

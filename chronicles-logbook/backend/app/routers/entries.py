@@ -30,6 +30,7 @@ async def search_entries(
     project_id: UUID | None = None,
     tag: str | None = None,
     todo: bool | None = None,
+    status: str | None = Query(None, max_length=40, description="Only entries in the status with this name."),
     start: datetime | None = None,
     end: datetime | None = None,
     conditions: str | None = Query(
@@ -113,6 +114,8 @@ async def search_entries(
         stmt = stmt.where(Entry.project_id == project_id)
     if todo is not None:
         stmt = stmt.where(Entry.todo == todo)
+    if status:
+        stmt = stmt.where(Entry.status == status)
 
     if start is not None:
         stmt = stmt.where(Entry.created_at >= start)
@@ -175,6 +178,7 @@ async def search_entries(
                 "todo": entry.todo,
                 "due_date": entry.due_date,
                 "due_time": entry.due_time,
+                "status": entry.status,
                 "created_by": entry.created_by,
                 "created_by_name": entry.created_by_name,
                 "created_at": entry.created_at,

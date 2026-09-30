@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import BoardView from "./BoardView"
@@ -139,7 +139,7 @@ describe("BoardView", () => {
     fireEvent.dragOver(done)
     fireEvent.drop(done)
 
-    await waitFor(() => expect(updateEntry).toHaveBeenCalledWith("p1", "e1", { todo: false }))
+    await waitFor(() => expect(updateEntry).toHaveBeenCalledWith("p1", "e1", { status: "Done", todo: false }))
     expect(await screen.findByRole("region", { name: "Done (1)" })).toBeInTheDocument()
   })
 
@@ -235,5 +235,63 @@ describe("BoardView", () => {
     render(<BoardView projects={projects} />)
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Entries are unavailable")
+  })
+})
+
+describe("BoardView with custom statuses", () => {
+  const custom = [
+    {
+      ...projects[0],
+      statuses: [
+        { name: "Backlog", done: false },
+        { name: "In progress", done: false },
+        { name: "Blocked", done: false },
+        { name: "Done", done: true },
+      ],
+    },
+    projects[1],
+  ]
+
+  it("gives each status its own column, placing entries by their status", async () => {
+    fetchEntries.mockResolvedValue([
+      entry("e1", { todo: true, status: "In progress" }),
+      entry("e2", { todo: true, status: "Blocked" }),
+      entry("e3", { todo: false, status: "Done" }),
+      entry("e4", { todo: true }),
+    ])
+
+    render(<BoardView projects={custom} />)
+
+    expect(await screen.findByRole("region", { name: "Backlog (1)" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "In progress (1)" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Blocked (1)" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Done (1)" })).toBeInTheDocument()
+  })
+
+  it("moves a card to a custom status, saving the status and what it means for todo", async () => {
+    fetchEntries.mockResolvedValue([entry("e1", { todo: true, status: "Backlog" })])
+    updateEntry.mockResolvedValue(entry("e1", { todo: true, status: "Blocked" }))
+    render(<BoardView projects={custom} />)
+    await screen.findByRole("region", { name: "Backlog (1)" })
+
+    fireEvent.dragStart(cardShowing("Note e1"))
+    const blocked = screen.getByRole("region", { name: "Blocked (0)" })
+    fireEvent.dragOver(blocked)
+    fireEvent.drop(blocked)
+
+    await waitFor(() => expect(updateEntry).toHaveBeenCalledWith("p1", "e1", { status: "Blocked", todo: true }))
+    expect(await screen.findByRole("region", { name: "Blocked (1)" })).toBeInTheDocument()
+  })
+
+  it("moving into a done status marks the entry finished", async () => {
+    fetchEntries.mockResolvedValue([entry("e1", { todo: true, status: "Blocked" })])
+    updateEntry.mockResolvedValue(entry("e1", { todo: false, status: "Done" }))
+    render(<BoardView projects={custom} />)
+    await screen.findByRole("region", { name: "Blocked (1)" })
+
+    const card = cardShowing("Note e1")
+    fireEvent.change(within(card).getByLabelText("Move to"), { target: { value: "Done" } })
+
+    await waitFor(() => expect(updateEntry).toHaveBeenCalledWith("p1", "e1", { status: "Done", todo: false }))
   })
 })

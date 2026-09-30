@@ -3,10 +3,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.automation import apply_entry_rules
+from app.statuses import default_name, is_done, names_of, reconcile, statuses_of
 from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import (
@@ -58,6 +59,7 @@ def _entry_state(entry: Entry) -> dict[str, Any]:
         "todo": bool(entry.todo),
         "due_date": entry.due_date.isoformat() if isinstance(entry.due_date, date) else entry.due_date,
         "due_time": entry.due_time.isoformat() if entry.due_time else None,
+        "status": entry.status,
         "schema_version": entry.schema_version,
     }
     for field_id, value in (entry.data or {}).items():
@@ -105,6 +107,7 @@ def _record_entry_revision(
         todo=entry.todo,
         due_date=entry.due_date,
         due_time=entry.due_time,
+        status=entry.status,
         changed_by=user_id,
     )
 
@@ -551,6 +554,7 @@ async def create_project(
         name=data.name,
         description=data.description,
         entry_schema=[field.model_dump(mode="json") for field in data.entry_schema],
+        statuses=[item.model_dump(mode="json") for item in data.statuses] if data.statuses else [],
         schema_version=1,
     )
     await _validate_reference_targets(project.entry_schema, user, db)
@@ -617,6 +621,30 @@ async def delete_project(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+async def _move_entries_off_removed_statuses(project: Project, db: AsyncSession) -> None:
+    """Entries sitting in a status that no longer exists move to the nearest kind.
+
+    "Nearest" means the first remaining status that agrees on done-ness, so
+    outstanding work stays outstanding and finished work stays finished.
+    """
+    statuses = statuses_of(project.statuses)
+    names = names_of(statuses)
+    for todo in (True, False):
+        await db.execute(
+            update(Entry)
+            .where(Entry.project_id == project.id, Entry.todo == todo, Entry.status.not_in(names))
+            .values(status=default_name(statuses, todo))
+        )
+    # Entries whose status is still valid but whose done-ness was redefined
+    # (a status switched between "done" and "not done") follow the new meaning.
+    for item in statuses:
+        await db.execute(
+            update(Entry)
+            .where(Entry.project_id == project.id, Entry.status == item["name"], Entry.todo == item["done"])
+            .values(todo=not item["done"])
+        )
+
+
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: UUID,
@@ -641,6 +669,9 @@ async def update_project(
         proposed = [field.model_dump(mode="json") for field in data.entry_schema]
         await _validate_reference_targets(proposed, user, db, self_id=project.id)
         await _replace_schema(project, proposed, user, db)
+    if data.statuses is not None:
+        project.statuses = [item.model_dump(mode="json") for item in data.statuses]
+        await _move_entries_off_removed_statuses(project, db)
 
     await db.commit()
     await db.refresh(project)
@@ -882,14 +913,26 @@ async def create_entry(
         self_id=data.id,
     )
 
+    statuses = statuses_of(project.statuses)
+    todo = data.todo or rules.mark_todo
+    if data.status is not None:
+        if data.status not in names_of(statuses):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unknown status '{data.status}'. Choose one of: {', '.join(names_of(statuses))}.",
+            )
+        # The status the author chose decides whether the entry is outstanding.
+        todo = not is_done(statuses, data.status)
+
     entry = Entry(
         project_id=project_id,
+        status=reconcile(statuses, data.status, todo),
         title=(data.title or "").strip() or None,
         data=apply_computed_fields(payload_data, project.entry_schema),
         schema_version=project.schema_version,
         schema_snapshot=[dict(field) for field in project.entry_schema],
         time_spent=data.time_spent,
-        todo=data.todo or rules.mark_todo,
+        todo=todo,
         # A due date the author chose always beats one a rule suggests.
         due_date=data.due_date or rules.due_date,
         due_time=data.due_time if (data.due_date or rules.due_date) else None,
@@ -1159,8 +1202,18 @@ async def update_entry(
 
     # Same treatment for the outstanding-work fields: clearing a due date is
     # an explicit null, and ticking an outstanding entry off is todo=false.
-    if "todo" in payload.model_fields_set and payload.todo is not None:
+    statuses = statuses_of(project.statuses)
+    if "status" in payload.model_fields_set and payload.status is not None:
+        if payload.status not in names_of(statuses):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unknown status '{payload.status}'. Choose one of: {', '.join(names_of(statuses))}.",
+            )
+        entry.status = payload.status
+        entry.todo = not is_done(statuses, payload.status)
+    elif "todo" in payload.model_fields_set and payload.todo is not None:
         entry.todo = payload.todo
+        entry.status = reconcile(statuses, entry.status, entry.todo)
     if "due_date" in payload.model_fields_set:
         entry.due_date = payload.due_date
     if "due_time" in payload.model_fields_set:
@@ -1234,6 +1287,7 @@ async def revert_entry(
     entry.todo = target.todo
     entry.due_date = target.due_date
     entry.due_time = target.due_time
+    entry.status = reconcile(statuses_of(project.statuses), target.status, entry.todo)
     entry.deleted_at = None
 
     summary = (

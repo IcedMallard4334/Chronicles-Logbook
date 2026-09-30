@@ -41,6 +41,9 @@ _ADDED_COLUMNS = (
     ("entries", "due_date", "DATE"),
     ("entries", "due_time", "TIME"),
     ("dashboards", "columns", "INTEGER NOT NULL DEFAULT 3"),
+    ("projects", "statuses", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("entries", "status", "VARCHAR(60)"),
+    ("entry_revisions", "status", "VARCHAR(60)"),
     ("entry_revisions", "due_time", "TIME"),
     ("entries", "time_spent", "INTEGER"),
     ("entries", "retired_data", "JSONB NOT NULL DEFAULT '{}'::jsonb"),
@@ -111,6 +114,10 @@ async def lifespan(app: FastAPI):
                 text("CREATE INDEX IF NOT EXISTS ix_entries_deleted_at ON entries(deleted_at)")
             )
             await conn.execute(text(_BACKFILL_ENTRY_HISTORY))
+            # Entries from before statuses existed start in the default pair.
+            await conn.execute(
+                text("UPDATE entries SET status = CASE WHEN todo THEN 'Still to do' ELSE 'Done' END WHERE status IS NULL")
+            )
             # v1 rows written before versions recorded an action.
             await conn.execute(
                 text("UPDATE entry_revisions SET action = 'created' WHERE revision = 1 AND action = 'edited'")

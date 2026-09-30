@@ -8,6 +8,7 @@ import {
   fetchStatistics,
   fetchFieldTimeline,
 } from "./api"
+import { projectStatuses, statusOf } from "./statuses"
 import "./DashboardPage.css"
 
 function newPanelId() {
@@ -188,7 +189,7 @@ function BoardPanelBody({ config, projects }) {
   const isStatus = grouping === "__status__"
   const field = isStatus ? null : (project.entry_schema || []).find((item) => item.id === grouping)
   const columns = isStatus
-    ? [{ key: "todo", label: "Still to do" }, { key: "done", label: "Done" }]
+    ? projectStatuses(project).map((status) => ({ key: status.name, label: status.name }))
     : (field?.options || []).map((option) => ({ key: option, label: option }))
 
   return (
@@ -198,7 +199,7 @@ function BoardPanelBody({ config, projects }) {
           <span>{column.label}</span>
           <strong>
             {entries.filter((entry) => {
-              const value = isStatus ? (entry.todo ? "todo" : "done") : entry.data?.[grouping]
+              const value = isStatus ? statusOf(entry, project) : entry.data?.[grouping]
               return value === column.key
             }).length}
           </strong>

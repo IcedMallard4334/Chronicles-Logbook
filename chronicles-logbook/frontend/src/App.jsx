@@ -31,6 +31,10 @@ import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
 import Streaks from "./Streaks"
+import StatusEditor, { statusProblem } from "./StatusEditor"
+import StatusPicker from "./StatusPicker"
+import { hasCustomStatuses, projectStatuses } from "./statuses"
+import "./StatusEditor.css"
 import AutomationPanel from "./AutomationPanel"
 import { ruleFillableFieldIds } from "./automationRules"
 import { formatDuration } from "./formatDuration"
@@ -466,6 +470,7 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
 function EditProjectModal({ isOpen, onClose, project, onSave }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [statuses, setStatuses] = useState(() => projectStatuses(null).map((item) => ({ ...item })))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -473,6 +478,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     if (isOpen && project) {
       setName(project.name || "")
       setDescription(project.description || "")
+      setStatuses(projectStatuses(project).map((item) => ({ ...item })))
       setError(null)
     }
   }, [isOpen, project])
@@ -493,10 +499,19 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
       setError("Project name can't be empty.")
       return
     }
+    const problem = statusProblem(statuses)
+    if (problem) {
+      setError(problem)
+      return
+    }
     setIsSaving(true)
     setError(null)
     try {
-      await onSave({ name: trimmed, description: description.trim() || null })
+      await onSave({
+        name: trimmed,
+        description: description.trim() || null,
+        statuses: statuses.map((item) => ({ name: item.name.trim(), done: item.done })),
+      })
       onClose()
     } catch (err) {
       setError(formatError(err))
@@ -538,6 +553,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
               rows={3}
             />
           </label>
+          <StatusEditor statuses={statuses} onChange={setStatuses} />
           {error && <p className="error" role="alert">{error}</p>}
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={handleCancel}>
@@ -1370,6 +1386,9 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
   const [todo, setTodo] = useState(false)
+  const customStatuses = hasCustomStatuses(project)
+  const finishedStatus = () => projectStatuses(project).find((item) => item.done)?.name
+  const [status, setStatus] = useState(finishedStatus)
   const [dueDate, setDueDate] = useState("")
   const [dueTime, setDueTime] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -1497,6 +1516,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
+        ...(customStatuses ? { status } : {}),
         // Sent as null rather than "" so the server reads it as "no deadline"
         // instead of rejecting an empty date.
         due_date: dueDate || null,
@@ -1513,6 +1533,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       setHoursSpent("")
       setMinutesSpent("")
       setTodo(false)
+      setStatus(finishedStatus())
       setDueDate("")
       setDueTime("")
     } catch (err) {
@@ -1590,6 +1611,17 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       {/* Logging something that has not happened yet: it is planned work, so it
           belongs in the outstanding view rather than the record of what was done. */}
       <div className="form-grid entry-outstanding">
+        {customStatuses ? (
+          <StatusPicker
+            project={project}
+            value={status}
+            onChange={(name, done) => {
+              setStatus(name)
+              setTodo(!done)
+              if (done) { setDueDate(""); setDueTime("") }
+            }}
+          />
+        ) : (
         <div className="checkbox-with-tip">
           <label className="field-label checkbox-label">
             <input
@@ -1604,6 +1636,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           </label>
           <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
         </div>
+        )}
         {todo && (
           <>
             <label className="field-label due-date-field">

@@ -232,6 +232,7 @@ export async function fetchEntriesGlobal({
   projectId,
   tag,
   todo,
+  status,
   start,
   end,
   sort,
@@ -249,6 +250,7 @@ export async function fetchEntriesGlobal({
   // Compared against undefined so `todo: false` still narrows the search to
   // completed work rather than being dropped as falsy.
   if (todo !== undefined) params.append("todo", todo)
+  if (status) params.append("status", status)
   if (sort) params.append("sort", sort)
   // US-3.11: structured filters over a project's custom fields. Sent as
   // JSON, same as the server expects — a GET request has no body to carry a
@@ -264,7 +266,7 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null, todo, due_date, due_time, id, created_at, title } = hasNestedData
+  const { data, time_spent = null, todo, status, due_date, due_time, id, created_at, title } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
 
@@ -274,6 +276,7 @@ export async function createEntry(projectId, payload) {
   // Outstanding-work fields (US-2.15) are omitted unless the entry is being
   // logged as something still to do, so the server default of "done" holds.
   if (todo !== undefined) body.todo = todo
+  if (status) body.status = status
   if (due_date !== undefined) body.due_date = due_date
   if (due_time !== undefined) body.due_time = due_time
 
@@ -321,7 +324,7 @@ export async function fetchEntryMigrationPreview(projectId, entryId) {
 export async function updateEntry(
   projectId,
   entryId,
-  { title, data, time_spent, todo, due_date, due_time, migrateToCurrentSchema, note }
+  { title, data, time_spent, todo, status, due_date, due_time, migrateToCurrentSchema, note }
 ) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
@@ -330,6 +333,7 @@ export async function updateEntry(
   if (data !== undefined) body.data = data
   if (time_spent !== undefined) body.time_spent = time_spent
   if (todo !== undefined) body.todo = todo
+  if (status) body.status = status
   if (due_date !== undefined) body.due_date = due_date
   if (due_time !== undefined) body.due_time = due_time
   // An entry keeps the exact shape it was recorded in by default; this is

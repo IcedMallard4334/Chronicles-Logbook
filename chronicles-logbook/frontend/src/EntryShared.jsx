@@ -7,6 +7,8 @@ import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComput
 import { useDialogFocus } from "./useDialogFocus"
 import RecurrenceControl from "./RecurrenceControl"
 import { TrashButton } from "./TrashIcon"
+import StatusPicker from "./StatusPicker"
+import { hasCustomStatuses, statusOf } from "./statuses"
 
 // Kept separate from App.jsx (which has its own copy, same as ProfilePage.jsx
 // does) so this file has no import edge back into App.jsx — EntryDetailModal
@@ -584,6 +586,8 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const [hoursSpent, setHoursSpent] = useState(entry.time_spent ? String(Math.floor(entry.time_spent / 60)) : "")
   const [minutesSpent, setMinutesSpent] = useState(entry.time_spent ? String(entry.time_spent % 60) : "")
   const [todo, setTodo] = useState(entry.todo || false)
+  const customStatuses = hasCustomStatuses(project)
+  const [status, setStatus] = useState(() => statusOf(entry, project))
   const [dueDate, setDueDate] = useState(entry.due_date || "")
   const [dueTime, setDueTime] = useState((entry.due_time || "").slice(0, 5))
   const [isSaving, setIsSaving] = useState(false)
@@ -699,6 +703,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
+        ...(customStatuses ? { status } : {}),
         due_date: dueDate || null,
         due_time: dueDate && dueTime ? dueTime : null,
         migrateToCurrentSchema: migrateChosen,
@@ -806,7 +811,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               </div>
               <div className="entry-detail-field">
                 <dt>Status</dt>
-                <dd>{entry.todo ? `Still to do${entry.due_date ? ` · due ${entry.due_date}${entry.due_time ? ` at ${entry.due_time.slice(0, 5)}` : ""}` : ""}` : "Done"}</dd>
+                <dd>{customStatuses ? `${statusOf(entry, project)}${entry.todo && entry.due_date ? ` · due ${entry.due_date}${entry.due_time ? ` at ${entry.due_time.slice(0, 5)}` : ""}` : ""}` : entry.todo ? `Still to do${entry.due_date ? ` · due ${entry.due_date}${entry.due_time ? ` at ${entry.due_time.slice(0, 5)}` : ""}` : ""}` : "Done"}</dd>
               </div>
             </dl>
             {backlinks.length > 0 && (
@@ -931,7 +936,18 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               </label>
             </div>
             <div className="form-grid entry-outstanding">
-              <div className="checkbox-with-tip">
+              {customStatuses && (
+                <StatusPicker
+                  project={project}
+                  value={status}
+                  onChange={(name, done) => {
+                    setStatus(name)
+                    setTodo(!done)
+                    if (done) setDueDate("")
+                  }}
+                />
+              )}
+              <div className="checkbox-with-tip" hidden={customStatuses}>
                 <label className="field-label checkbox-label">
                   <input
                     type="checkbox"
