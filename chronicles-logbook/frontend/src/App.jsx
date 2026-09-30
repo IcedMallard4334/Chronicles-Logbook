@@ -31,6 +31,7 @@ import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
 import Streaks from "./Streaks"
+import AchievementCelebration from "./AchievementCelebration"
 import EntryTaskGuide from "./EntryTaskGuide"
 import { ActivityIcon, BoardIcon, OutstandingIcon, TodayIcon } from "./NavIcons"
 import StatusEditor, { statusProblem } from "./StatusEditor"
@@ -3286,6 +3287,7 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
+      <AchievementCelebration />
       <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
       {showWelcome && (
         <WelcomeTour tour={WELCOME_TOUR} onFinish={() => setWelcomeTick((tick) => tick + 1)} />

@@ -14,6 +14,9 @@ import {
   fetchEntryMigrationPreview,
   fetchFieldTimeline,
   fetchProjects,
+  fetchAchievements,
+  markAchievementsSeen,
+  recordStreakActivity,
   fetchStatistics,
   fetchTasks,
   getGoogleLoginUrl,
@@ -98,6 +101,24 @@ describe("api", () => {
     const pings = fetch.mock.calls.filter(([url]) => url.includes("/streaks/activity"))
     expect(pings).toHaveLength(1)
     expect(JSON.parse(pings[0][1].body).kind).toBe("interaction")
+  })
+
+  it("announces every save so badges can be checked, but not badge or streak traffic itself", async () => {
+    fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    const heard = []
+    const listen = () => heard.push("saved")
+    window.addEventListener("chronicles-activity", listen)
+
+    await createProject({ name: "A" })
+    await createProject({ name: "B" })
+    expect(heard).toEqual(["saved", "saved"])
+
+    await markAchievementsSeen(["first_project"])
+    await fetchAchievements()
+    await recordStreakActivity("login")
+    await fetchProjects()
+    expect(heard).toHaveLength(2)
+    window.removeEventListener("chronicles-activity", listen)
   })
 
   it("creates a project", async () => {

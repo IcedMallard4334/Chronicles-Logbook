@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences, readCustomColors, saveCustomColors } from "./preferences"
+import AchievementsSection from "./AchievementsSection"
 import { pageReaderEnabled, readAloudSupported, setPageReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
@@ -339,6 +340,8 @@ export default function ProfilePage() {
                 </div>
               </div>
             </section>
+
+            <AchievementsSection />
 
             <section className="profile-section">
               <h2>Workspace settings</h2>

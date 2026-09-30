@@ -100,13 +100,16 @@ async function request(path, options = {}, retried = false) {
 // ── Daily streaks ────────────────────────────────────────────────────
 
 export const STREAKS_CHANGED = "chronicles-streaks-changed"
+// Fired after every successful save, so anything that reacts to activity (badges) can.
+export const ACTIVITY_EVENT = "chronicles-activity"
 let interactionDay = null
 
 // Anything that saves something counts as interacting with the app; reading,
 // deleting, signing in and talking to Mira do not.
 function noteInteraction(path, method = "GET") {
   if (!["POST", "PUT", "PATCH"].includes(String(method).toUpperCase())) return
-  if (/^\/(streaks|auth|ai)(\/|\?|$)/.test(path)) return
+  if (/^\/(streaks|auth|ai|achievements)(\/|\?|$)/.test(path)) return
+  window.dispatchEvent(new Event(ACTIVITY_EVENT))
   const day = localDateString()
   if (interactionDay === day) return
   interactionDay = day
@@ -125,6 +128,14 @@ export async function recordStreakActivity(kind) {
   })
   window.dispatchEvent(new CustomEvent(STREAKS_CHANGED, { detail: streaks }))
   return streaks
+}
+
+export async function fetchAchievements() {
+  return request("/achievements")
+}
+
+export async function markAchievementsSeen(keys) {
+  return request("/achievements/seen", { method: "POST", body: JSON.stringify({ keys }) })
 }
 
 export async function fetchStreaks() {

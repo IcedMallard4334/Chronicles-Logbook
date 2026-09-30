@@ -11,6 +11,7 @@ vi.mock("./api", async (importOriginal) => {
     ...original,
     fetchCurrentUser: vi.fn(),
     deleteAccount: vi.fn(),
+    fetchAchievements: vi.fn(() => Promise.resolve({ badges: [], earned: 0, total: 0, by_tier: { bronze: { earned: 0, total: 0 }, silver: { earned: 0, total: 0 }, gold: { earned: 0, total: 0 }, legendary: { earned: 0, total: 0 } }, by_category: {} })),
   }
 })
 
