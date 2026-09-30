@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -229,7 +229,8 @@ async def stream_reply(
     history = [(m.role, m.content) for m in earlier]
     if not earlier:
         conversation.title = message[:60] + ("…" if len(message) > 60 else "")
-    db.add(MiraMessage(conversation_id=conversation.id, role="user", content=message))
+    user_message = MiraMessage(conversation_id=conversation.id, role="user", content=message)
+    db.add(user_message)
     conversation.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
@@ -272,9 +273,15 @@ async def stream_reply(
         finally:
             text = "".join(reply_parts).strip()
             if text and not failed:
+                # Strictly after the question: a coarse clock could otherwise give both the
+                # same timestamp and let the reply sort in front of what it answers.
+                asked = user_message.created_at
+                if asked.tzinfo is None:
+                    asked = asked.replace(tzinfo=timezone.utc)
                 saved = MiraMessage(
                     conversation_id=conversation.id,
                     role="assistant",
+                    created_at=max(datetime.now(timezone.utc), asked + timedelta(microseconds=1)),
                     content=text,
                     thinking="".join(thought_parts).strip() or None,
                 )

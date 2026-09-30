@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
 from app.database import Base, async_engine
 from app.routers import (
+    achievements,
     activities,
     ai,
     auth,
@@ -164,6 +165,7 @@ app.include_router(automation.recurrence_router)
 app.include_router(automation.reminders_router)
 app.include_router(dashboard.router)
 app.include_router(streaks.router)
+app.include_router(achievements.router)
 
 
 @app.get("/health")

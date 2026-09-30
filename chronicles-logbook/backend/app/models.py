@@ -74,6 +74,18 @@ class UserActivityDay(Base):
     kind: Mapped[str] = mapped_column(String(12), primary_key=True)
 
 
+class UserAchievement(Base):
+    """A badge someone has earned, kept so that it stays earned."""
+
+    __tablename__ = "user_achievements"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # False until the celebration for it has been shown.
+    seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
 class User(Base):
     __tablename__ = "users"
 
