@@ -584,6 +584,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const [minutesSpent, setMinutesSpent] = useState(entry.time_spent ? String(entry.time_spent % 60) : "")
   const [todo, setTodo] = useState(entry.todo || false)
   const [dueDate, setDueDate] = useState(entry.due_date || "")
+  const [dueTime, setDueTime] = useState((entry.due_time || "").slice(0, 5))
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -698,6 +699,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
         due_date: dueDate || null,
+        due_time: dueDate && dueTime ? dueTime : null,
         migrateToCurrentSchema: migrateChosen,
         note: note.trim() || undefined,
       })
@@ -803,7 +805,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               </div>
               <div className="entry-detail-field">
                 <dt>Status</dt>
-                <dd>{entry.todo ? `Still to do${entry.due_date ? ` · due ${entry.due_date}` : ""}` : "Done"}</dd>
+                <dd>{entry.todo ? `Still to do${entry.due_date ? ` · due ${entry.due_date}${entry.due_time ? ` at ${entry.due_time.slice(0, 5)}` : ""}` : ""}` : "Done"}</dd>
               </div>
             </dl>
             {backlinks.length > 0 && (
@@ -941,10 +943,16 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
               </div>
               {todo && (
-                <label className="field-label due-date-field">
-                  Due date
-                  <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-                </label>
+                <>
+                  <label className="field-label due-date-field">
+                    Due date
+                    <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                  </label>
+                  <label className="field-label due-date-field">
+                    Time of day (optional)
+                    <input type="time" value={dueTime} disabled={!dueDate} onChange={(event) => setDueTime(event.target.value)} />
+                  </label>
+                </>
               )}
             </div>
             <label className="field-label">

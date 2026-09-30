@@ -75,6 +75,22 @@ GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
     OAUTH_REDIRECT_URI.replace("/auth/google/callback", "/auth/google/calendar/callback"),
 )
 
+if COOKIE_SECURE:
+    import logging as _logging
+
+    for _name, _value in (
+        ("FRONTEND_URL", FRONTEND_URL),
+        ("OAUTH_REDIRECT_URI", OAUTH_REDIRECT_URI),
+        ("GOOGLE_CALENDAR_REDIRECT_URI", GOOGLE_CALENDAR_REDIRECT_URI),
+    ):
+        if "localhost" in _value or "127.0.0.1" in _value:
+            _logging.getLogger("uvicorn.error").warning(
+                "%s points at localhost (%s) while COOKIE_SECURE is on; "
+                "Google sign-in and Calendar connect will send users to localhost. "
+                "Set it in the deployment's Application Settings.",
+                _name, _value,
+            )
+
 # Gemini AI assistant. The API key is supplied through the local .env file
 # or through Azure Application Settings in production.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")

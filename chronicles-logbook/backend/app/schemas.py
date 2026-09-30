@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timezone
+from datetime import time as time_of_day
 from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -375,6 +376,7 @@ class EntryCreate(BaseModel):
     # deadline, so it can be surfaced in the outstanding-work view.
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
 
     # Both fields are optional and omitted by ordinary online capture, where
     # the server assigns them. They exist for two callers that already know
@@ -420,6 +422,7 @@ class EntryUpdate(BaseModel):
     time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
+    due_time: time_of_day | None = None
 
     # An entry keeps the exact shape it was recorded in by default — a
     # schema change does not reach back and touch entries that already
@@ -459,6 +462,7 @@ class EntryResponse(BaseModel):
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
     # Who logged it. Null on entries written before a project could be shared,
     # so the UI has to render "unknown" as readably as a name.
     created_by: UUID | None = None
@@ -486,6 +490,7 @@ class EntryRevisionResponse(BaseModel):
     time_spent: int | None = None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
     changed_by: UUID | None = None
     changed_by_name: str | None = None
     changed_at: datetime
@@ -919,6 +924,7 @@ class TimelineEntryResponse(BaseModel):
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
     created_by: UUID | None = None
     created_by_name: str | None = None
     created_at: datetime

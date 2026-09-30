@@ -57,6 +57,7 @@ def _entry_state(entry: Entry) -> dict[str, Any]:
         "time_spent": entry.time_spent,
         "todo": bool(entry.todo),
         "due_date": entry.due_date.isoformat() if isinstance(entry.due_date, date) else entry.due_date,
+        "due_time": entry.due_time.isoformat() if entry.due_time else None,
         "schema_version": entry.schema_version,
     }
     for field_id, value in (entry.data or {}).items():
@@ -103,6 +104,7 @@ def _record_entry_revision(
         time_spent=entry.time_spent,
         todo=entry.todo,
         due_date=entry.due_date,
+        due_time=entry.due_time,
         changed_by=user_id,
     )
 
@@ -890,6 +892,7 @@ async def create_entry(
         todo=data.todo or rules.mark_todo,
         # A due date the author chose always beats one a rule suggests.
         due_date=data.due_date or rules.due_date,
+        due_time=data.due_time if (data.due_date or rules.due_date) else None,
         created_by=user.id,
     )
 
@@ -1160,6 +1163,10 @@ async def update_entry(
         entry.todo = payload.todo
     if "due_date" in payload.model_fields_set:
         entry.due_date = payload.due_date
+    if "due_time" in payload.model_fields_set:
+        entry.due_time = payload.due_time
+    if entry.due_date is None:
+        entry.due_time = None
 
     # A save that changes nothing adds no version, unless it explains itself.
     if _entry_state(entry) != previous or (payload.note or "").strip():
@@ -1226,6 +1233,7 @@ async def revert_entry(
     entry.time_spent = target.time_spent
     entry.todo = target.todo
     entry.due_date = target.due_date
+    entry.due_time = target.due_time
     entry.deleted_at = None
 
     summary = (

@@ -1366,6 +1366,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
   const [minutesSpent, setMinutesSpent] = useState("")
   const [todo, setTodo] = useState(false)
   const [dueDate, setDueDate] = useState("")
+  const [dueTime, setDueTime] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   // US-3.12: the project's rules, so a field a rule can fill may be left
@@ -1434,6 +1435,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
     setMinutesSpent("")
     setTodo(false)
     setDueDate("")
+    setDueTime("")
     setError(null)
   }, [project.id])
 
@@ -1493,6 +1495,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         // Sent as null rather than "" so the server reads it as "no deadline"
         // instead of rejecting an empty date.
         due_date: dueDate || null,
+        due_time: dueDate && dueTime ? dueTime : null,
       })
       const applied = created?.applied_rules || []
       if (applied.length > 0) {
@@ -1506,6 +1509,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       setMinutesSpent("")
       setTodo(false)
       setDueDate("")
+      setDueTime("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1588,7 +1592,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
               checked={todo}
               onChange={(e) => {
                 setTodo(e.target.checked)
-                if (!e.target.checked) setDueDate("")
+                if (!e.target.checked) { setDueDate(""); setDueTime("") }
               }}
             />
             This is still to do
@@ -1596,14 +1600,25 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
         </div>
         {todo && (
-          <label className="field-label due-date-field">
-            Due date
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </label>
+          <>
+            <label className="field-label due-date-field">
+              Due date
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </label>
+            <label className="field-label due-date-field">
+              Time of day (optional)
+              <input
+                type="time"
+                value={dueTime}
+                disabled={!dueDate}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </label>
+          </>
         )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
@@ -2717,6 +2732,7 @@ function App() {
           timeSpent: payload.time_spent ?? null,
           todo: payload.todo ?? false,
           dueDate: payload.due_date ?? null,
+          dueTime: payload.due_time ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original

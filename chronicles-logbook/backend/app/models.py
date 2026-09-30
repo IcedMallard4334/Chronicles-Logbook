@@ -1,10 +1,12 @@
 from datetime import date, datetime, timezone
+from datetime import time as time_of_day
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Boolean,
     Date,
+    Time,
     DateTime,
     ForeignKey,
     Integer,
@@ -288,6 +290,7 @@ class Entry(Base):
     )
 
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -341,6 +344,7 @@ class EntryRevision(Base):
     time_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     todo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
     changed_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

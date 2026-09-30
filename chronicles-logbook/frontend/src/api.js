@@ -228,7 +228,7 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null, todo, due_date, id, created_at, title } = hasNestedData
+  const { data, time_spent = null, todo, due_date, due_time, id, created_at, title } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
 
@@ -239,6 +239,7 @@ export async function createEntry(projectId, payload) {
   // logged as something still to do, so the server default of "done" holds.
   if (todo !== undefined) body.todo = todo
   if (due_date !== undefined) body.due_date = due_date
+  if (due_time !== undefined) body.due_time = due_time
 
   // Sent only by offline sync and import, which already know the entry's
   // identity and when it was captured. Ordinary online capture omits both and
@@ -284,7 +285,7 @@ export async function fetchEntryMigrationPreview(projectId, entryId) {
 export async function updateEntry(
   projectId,
   entryId,
-  { title, data, time_spent, todo, due_date, migrateToCurrentSchema, note }
+  { title, data, time_spent, todo, due_date, due_time, migrateToCurrentSchema, note }
 ) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
@@ -294,6 +295,7 @@ export async function updateEntry(
   if (time_spent !== undefined) body.time_spent = time_spent
   if (todo !== undefined) body.todo = todo
   if (due_date !== undefined) body.due_date = due_date
+  if (due_time !== undefined) body.due_time = due_time
   // An entry keeps the exact shape it was recorded in by default; this is
   // the explicit, per-entry opt-in to bring it up to the project's current
   // schema as part of this same save.

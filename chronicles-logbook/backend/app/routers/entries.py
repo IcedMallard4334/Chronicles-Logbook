@@ -174,6 +174,7 @@ async def search_entries(
                 "time_spent": entry.time_spent,
                 "todo": entry.todo,
                 "due_date": entry.due_date,
+                "due_time": entry.due_time,
                 "created_by": entry.created_by,
                 "created_by_name": entry.created_by_name,
                 "created_at": entry.created_at,

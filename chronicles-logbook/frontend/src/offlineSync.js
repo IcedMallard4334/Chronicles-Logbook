@@ -96,6 +96,7 @@ export function createSyncEngine({
             // fall back to a completed entry with no deadline.
             todo: record.todo ?? false,
             due_date: record.dueDate ?? null,
+            due_time: record.dueTime ?? null,
             created_at: record.capturedAt,
           })
 

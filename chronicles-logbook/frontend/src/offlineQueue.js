@@ -107,7 +107,7 @@ export function createOfflineQueue(adapter = indexedDbAdapter) {
    * `capturedAt` is recorded here rather than at sync time so a delayed sync
    * still lands the entry on the day the work actually happened.
    */
-  async function enqueue({ userId, projectId, data, timeSpent = null, todo = false, dueDate = null, id }) {
+  async function enqueue({ userId, projectId, data, timeSpent = null, todo = false, dueDate = null, dueTime = null, id }) {
     const record = {
       id: id || newEntryId(),
       userId,
@@ -118,6 +118,7 @@ export function createOfflineQueue(adapter = indexedDbAdapter) {
       // in the outstanding-work view once it syncs.
       todo,
       dueDate,
+      dueTime,
       capturedAt: new Date().toISOString(),
       queuedAt: Date.now(),
       status: PENDING,

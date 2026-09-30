@@ -74,10 +74,22 @@ describe("draining the queue", () => {
       time_spent: 30,
       todo: false,
       due_date: null,
+      due_time: null,
       created_at: record.capturedAt,
     })
     expect(result.accepted).toBe(1)
     expect(await queue.pending(USER)).toHaveLength(0)
+  })
+
+  it("carries a to-do's time of day through the queue", async () => {
+    await capture({ todo: true, dueDate: "2026-10-01", dueTime: "14:30" })
+
+    await engine.drain(USER)
+
+    expect(createEntry).toHaveBeenCalledWith(
+      "proj-1",
+      expect.objectContaining({ due_date: "2026-10-01", due_time: "14:30" }),
+    )
   })
 
   it("keeps outstanding work outstanding across the queue", async () => {

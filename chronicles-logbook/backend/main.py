@@ -38,6 +38,8 @@ _DEFAULT_ORIGINS = [
 _ADDED_COLUMNS = (
     ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
     ("entries", "due_date", "DATE"),
+    ("entries", "due_time", "TIME"),
+    ("entry_revisions", "due_time", "TIME"),
     ("entries", "time_spent", "INTEGER"),
     ("entries", "retired_data", "JSONB NOT NULL DEFAULT '{}'::jsonb"),
     ("entries", "schema_version", "INTEGER NOT NULL DEFAULT 1"),
