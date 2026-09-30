@@ -486,6 +486,8 @@ describe("entry rules in a project (US-3.12)", () => {
       created_at: "2026-09-27T08:00:00Z", applied_rules: [{ id: "rule-1", name: "Default kind" }],
     })
     await openBugLog()
+    const addEntry = await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    if (!addEntry.disabled && addEntry.getAttribute("aria-label") === "Add a new entry") fireEvent.click(addEntry)
 
     const kind = await screen.findByRole("combobox", { name: /Kind/ })
     await waitFor(() => expect(kind).not.toBeRequired())

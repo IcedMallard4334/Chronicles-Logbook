@@ -1968,6 +1968,8 @@ function ProjectDetail({
 }) {
   const [tab, setTab] = useState("entries")
   const [leaving, setLeaving] = useState(false)
+  const [addingEntry, setAddingEntry] = useState(false)
+  const [savedNotice, setSavedNotice] = useState(null)
   const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
@@ -2066,12 +2068,48 @@ function ProjectDetail({
       <div className="detail-body">
         {tab === "entries" ? (
           <>
+            <div className="entries-toolbar">
+              <h3>Past entries</h3>
+              {!project.archived && (
+                <button
+                  type="button"
+                  className="entry-add-toggle"
+                  aria-expanded={addingEntry || (project.entries || []).length === 0}
+                  aria-controls="new-entry-form"
+                  aria-label={addingEntry ? "Close the new entry form" : "Add a new entry"}
+                  title={addingEntry ? "Close" : "Add a new entry"}
+                  onClick={() => { setSavedNotice(null); setAddingEntry((open) => !open) }}
+                  disabled={(project.entries || []).length === 0}
+                >
+                  {addingEntry ? "×" : "+"}
+                </button>
+              )}
+            </div>
+            {savedNotice && <p className="rule-applied-notice" role="status">{savedNotice}</p>}
             {project.archived ? (
               <div className="hint-card" role="status">
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
-            ) : (
-              <EntryForm project={project} projects={projects} entries={project.entries || []} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
+            ) : (addingEntry || (project.entries || []).length === 0) && (
+              <div id="new-entry-form">
+                <EntryForm
+                  project={project}
+                  projects={projects}
+                  entries={project.entries || []}
+                  onCreated={async (payload) => {
+                    const result = await onEntryCreated(payload)
+                    const applied = result?.applied_rules || []
+                    setSavedNotice(
+                      applied.length > 0
+                        ? `Saved. ${applied.length === 1 ? "Rule" : "Rules"} applied: ${applied.map((rule) => rule.name).join(", ")}.`
+                        : "Entry saved."
+                    )
+                    setAddingEntry(false)
+                    return result
+                  }}
+                  onOpenProject={onOpenProject}
+                />
+              </div>
             )}
             <EntryList
               entries={project.entries || []}

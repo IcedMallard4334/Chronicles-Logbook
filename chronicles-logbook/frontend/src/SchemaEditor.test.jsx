@@ -944,12 +944,41 @@ describe("filling in a rich entry", () => {
     expect(screen.getByText("1/10 tags")).toBeInTheDocument()
   })
 
+  it("shows past entries first, and opens the new-entry form from a small + button", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-notes": "Earlier note" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+
+    expect(await screen.findByText("Earlier note")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Past entries" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "New entry" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a new entry" }))
+    expect(await screen.findByRole("heading", { name: "New entry" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close the new entry form" }))
+    expect(screen.queryByRole("heading", { name: "New entry" })).not.toBeInTheDocument()
+  })
+
+  it("opens the form straight away in a project with no entries yet", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([])
+    await openProject()
+
+    expect(await screen.findByRole("heading", { name: "New entry" })).toBeInTheDocument()
+  })
+
   it("offers the tags earlier entries already carry", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
     fetchEntries.mockResolvedValue([
       { id: "e1", data: { "f-tags": ["prototype"] }, created_at: "2026-09-12T10:00:00Z" },
     ])
     await openProject()
+    await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    const addEntry = screen.queryByRole("button", { name: "Add a new entry" })
+    if (addEntry && !addEntry.disabled) fireEvent.click(addEntry)
     await screen.findByRole("heading", { name: "New entry" })
 
     const suggested = [...document.querySelectorAll("datalist option")].map(
@@ -1071,6 +1100,9 @@ describe("filling in a rich entry", () => {
       { id: "e1", data: { "f-notes": "Bought the tent" }, created_at: "2026-09-12T10:00:00Z" },
     ])
     await openProject()
+    await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    const addEntry = screen.queryByRole("button", { name: "Add a new entry" })
+    if (addEntry && !addEntry.disabled) fireEvent.click(addEntry)
     await screen.findByRole("heading", { name: "New entry" })
 
     const select = await screen.findByLabelText("Follows on from")
@@ -1097,6 +1129,8 @@ describe("filling in a rich entry", () => {
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Pitched the tent" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
+    // Saving closes the form; reopening it must offer the entry just saved.
+    fireEvent.click(await screen.findByRole("button", { name: "Add a new entry" }))
     const select = screen.getByLabelText("Follows on from")
     await waitFor(() =>
       expect(within(select).getByRole("option", { name: /Pitched the tent/ })).toBeInTheDocument()
