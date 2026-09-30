@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { HELP_SECTIONS } from "./helpContent"
+import { HELP_ARTICLE_INDEX, HELP_SECTIONS } from "./helpContent"
 
 const BLOCK_TYPES = new Set(["p", "ul", "ol", "dl"])
 
@@ -72,5 +72,25 @@ describe("helpContent", () => {
         expect(article.keywords.length).toBeGreaterThan(0)
       }
     }
+  })
+})
+
+describe("helpContent: newer features", () => {
+  it("covers the newer features so they can be found by searching", () => {
+    const section = HELP_SECTIONS.find((item) => item.id === "newer-features")
+    expect(section.articles.map((article) => article.id)).toEqual([
+      "badges-and-streaks", "custom-statuses", "home-dashboard", "activities-page", "entry-or-task", "voice-and-colours",
+    ])
+    const findBy = (word) => HELP_ARTICLE_INDEX.filter((article) => article.keywords.includes(word)).map((article) => article.id)
+    expect(findBy("confetti")).toEqual(["badges-and-streaks"])
+    expect(findBy("kanban")).toEqual(["custom-statuses"])
+    expect(findBy("revert")).toContain("entry-history")
+  })
+
+  it("no longer says entry history is read-only", () => {
+    const history = HELP_ARTICLE_INDEX.find((article) => article.id === "entry-history")
+    const text = history.blocks.map((block) => block.text).join(" ")
+    expect(text).toContain("Revert to this version")
+    expect(text).not.toContain("read-only")
   })
 })

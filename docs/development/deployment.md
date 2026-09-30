@@ -140,7 +140,7 @@ that has actually broken, so it is worth being precise about.
 
 On startup the API calls `Base.metadata.create_all()`, which creates any
 **table** that does not yet exist — so a brand-new model (for example
-`project_members`, `mira_consents`) needs no manual step. It then runs every
+`project_members`, `mira_consents`, `mira_conversations`, `user_achievements`) needs no manual step. It then runs every
 statement in `_ADDED_COLUMNS` in `main.py` as
 `ALTER TABLE … ADD COLUMN IF NOT EXISTS …`.
 

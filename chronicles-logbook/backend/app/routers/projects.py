@@ -7,7 +7,6 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.automation import apply_entry_rules
-from app.statuses import default_name, is_done, names_of, reconcile, statuses_of
 from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import (
@@ -47,6 +46,7 @@ from app.schemas import (
     SchemaChangeRequest,
     SchemaChangeResult,
 )
+from app.statuses import default_name, is_done, names_of, reconcile, statuses_of
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 

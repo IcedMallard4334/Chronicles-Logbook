@@ -351,7 +351,8 @@
 
 .auth-error {
   background: rgba(220, 38, 38, 0.08);
-  color: var(--error);
+  /* Pulled towards the text colour so the red stays readable on both themes. */
+  color: color-mix(in srgb, var(--error) 65%, var(--text));
 }
 
 .auth-success {

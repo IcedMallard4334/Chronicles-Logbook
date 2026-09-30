@@ -1,5 +1,5 @@
-.confetti-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; }
-.achievement-backdrop { z-index: 999; }
+.confetti-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 20002; }
+.achievement-backdrop { z-index: 20001; }
 .achievement-card { max-width: 420px; text-align: center; }
 .achievement-card h2 { margin: 0.4rem 0 0.1rem; }
 .achievement-kicker { margin: 0; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue); }
@@ -46,3 +46,9 @@
 
 @media (max-width: 760px) { .achievement-summary { grid-template-columns: 1fr; justify-items: center; } .achievement-breakdown { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .badge-tile, .achievement-bar-fill { transition: none; } }
+
+/* Unearned badges sit back from the page in both themes. */
+:root { --badge-locked: #cfd4de; }
+:root[data-theme="dark"] { --badge-locked: #3a4050; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --badge-locked: #3a4050; } }
+:root[data-custom-background="dark"] { --badge-locked: #3a4050; }

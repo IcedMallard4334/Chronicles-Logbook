@@ -309,6 +309,73 @@ answer. `match=all` conditions don't affect the first term (everything that
 survives already satisfied all of them), so ranking among an AND'd result set
 falls straight through to the keyword and recency terms.
 
+## Status and time of day
+
+Two optional fields were added to every entry.
+
+| Field | Meaning |
+|---|---|
+| `status` | Which of the project's [statuses](projects.md#statuses) the entry is in. On create or update it must be one of them (`422` naming the valid choices otherwise). An entry always has one: if you don't send it, a new entry starts in the project's first status that matches `todo`. |
+| `due_time` | A time of day, `HH:MM` or `HH:MM:SS`, for the deadline. Only meaningful with a `due_date`: without one it is dropped, and clearing the date clears the time. |
+
+`status` and `todo` never disagree. **Sending `status` decides `todo`**: a status marked
+finished makes the entry done, any other makes it outstanding. Sending only `todo`
+keeps the current status if it already fits, and otherwise moves the entry to the
+first status of the right kind. Sending both means `status` wins.
+
+`status` and `due_time` are returned on every entry, on search results and on each
+history version. Searching can filter by status:
+
+```
+GET /entries?status=Blocked
+```
+
+Only entries in a status with exactly that name are returned, across all the
+caller's projects.
+
+## History, revert and deleted entries
+
+Every change to an entry is kept as a **version** and nothing is ever overwritten.
+
+### `GET /projects/{project_id}/entries/{entry_id}/history`
+
+Versions newest first, to any reader of the project. Version 1 is the entry as first
+saved (including entries saved before history existed, whose first edit records their
+original state). Each version has:
+
+| Field | Meaning |
+|---|---|
+| `revision` | Version number. |
+| `action` | `created`, `edited`, `reverted` or `deleted`. |
+| `changed_fields` | Keys that changed: `title`, `time_spent`, `todo`, `status`, `due_date`, `due_time`, `schema_version` or `data.<field id>`. |
+| `previous_values` | What those keys held before. |
+| `note` | The author's reason, if any. |
+| `reverted_to` | For a revert, the version it restored. |
+| `changed_by`, `changed_by_name`, `changed_at` | Who and when. |
+| the entry's values | Title, data, time spent, status, due date and time, schema snapshot as they stood. |
+
+The history of a deleted entry is still readable; its last version has `action: deleted`.
+
+### `POST /projects/{project_id}/entries/{entry_id}/revert`
+
+```json
+{ "revision": 2, "note": "Wrong figure entered" }
+```
+
+Makes the entry match an earlier version **by adding a new version**, so the state
+being replaced is itself kept and can be reverted to. `note` is optional (up to 500
+characters). If the entry was deleted, reverting to a version from before the deletion
+restores it. Reverting to the version the entry is already at, or to the "deleted"
+version itself, is `422`; an unknown revision is `404`. Only the entry's author or the
+project's owner may revert, and not in an archived project.
+
+### `GET /projects/{project_id}/entries/deleted`
+
+Entries deleted from the project, most recently deleted first, so they can be
+restored. `DELETE /projects/{project_id}/entries/{entry_id}` is a *soft* delete: it
+stamps `deleted_at` and records a final version rather than removing the row.
+Creating an entry with the id of a deleted one is `409` (restore it instead).
+
 AI Declaration: The preceding document was reviewed and edited with: Qoder, Claude Opus 5; the
 Structured search over custom fields / Relevance ranking section was added with Claude Code,
 Claude Sonnet 5, for code + docs. The `title` field, the entries-stay-frozen-by-default

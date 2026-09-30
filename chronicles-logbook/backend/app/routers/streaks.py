@@ -75,7 +75,7 @@ async def _streaks(user: User, today: date, db: AsyncSession) -> StreaksResponse
 
 @router.get("", response_model=StreaksResponse)
 async def read_streaks(
-    today: date = Query(..., description="The caller's local date, YYYY-MM-DD"),
+    today: date = Query(..., description="The caller's local date, YYYY-MM-DD"),  # noqa: B008
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):

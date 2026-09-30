@@ -57,7 +57,7 @@ async def client():
 
 ### Test Files
 
-26 files, 586 tests. Sprint 1–2 core:
+33 files, 696 tests. Sprint 1–2 core:
 
 | File | Coverage |
 |---|---|
@@ -89,6 +89,20 @@ Sprint 3 additions:
 | `test_automation.py` | Entry rules (conditions, actions), recurrence, reminders — 1,030 lines, the largest suite in the project |
 | `test_dashboard.py` | Customisable dashboard panels (US-3.9) |
 | `test_custom_statistics.py` | Per-project field statistics/grouping |
+
+Added after the Sprint 3 review:
+
+| File | Coverage |
+|---|---|
+| `test_entry_history.py` | Baseline version 1, per-version changed fields, revert, restoring deleted entries |
+| `test_statuses.py` | Custom statuses: rules, project validation, entry create/update, removal and redefinition, search by status, history |
+| `test_streaks.py` | Streak counting rules and endpoints; no back-filling; isolation |
+| `test_activities_edit.py` | Editing scheduled activities, validation, ownership |
+| `test_mira_conversations.py` | Saved conversations, SSE streaming, ordering, consent gating, the Gemini stream wrapper |
+| `test_mira_tools.py` | Mira's 26 functions, argument validation, several actions per reply, the workspace snapshot, consent versioning |
+| `test_achievements.py` | The badge catalogue, earning, celebration tracking, quiet catch-up, summaries |
+| `test_dashboard.py` (extended) | Grid width, panel sizes and their limits |
+| `test_entries.py` (extended) | Due time, unknown-field and length limits |
 
 ### Writing New Tests
 
@@ -125,7 +139,7 @@ npm run test -- --run   # Single run
 
 ### Test Files
 
-44 files, 529 tests. Core:
+58 files, 684 tests. Core:
 
 | File | Coverage |
 |---|---|
@@ -156,9 +170,27 @@ Sprint 3 additions:
 | `FieldStatisticsPanel.test.jsx` | Per-project field statistics |
 | `DataTransfer.test.jsx` | Account export/import |
 
+Added after the Sprint 3 review:
+
+| File | Coverage |
+|---|---|
+| `EntryHistory.test.jsx` | Versions, reverting, "as it stood on" a date |
+| `speech.test.js`, `PageReader.test.jsx` | Dictation (supported/unsupported, interim and final text, friendly errors), speech chunking, the opt-in page reader |
+| `OfflineStatus.test.jsx` (extended) | Offline refresh warning, the field flagged in the review panel, date picker |
+| `Streaks.test.jsx` | Both streak counters and live updates |
+| `MiraMarkdown.test.jsx`, `MiraAssistant.test.jsx`, `miraActions.test.js` | Markdown rendering without HTML injection, history, streaming, proposal cards, every action handler, name resolution, batching and failure |
+| `TrashIcon.test.jsx`, `NavIcons.test.jsx` | The delete control and navigation icons |
+| `ActivitiesPage.test.jsx`, `DayActivityDialog.test.jsx` | Adding, editing and deleting activities; managing entries and projects from the day view |
+| `preferences.test.js` | Custom colour maths and application, reset, invalid stored values |
+| `DashboardPage.test.jsx` (extended) | Grid width, resizing, pointer drag and drop |
+| `StatusEditor.test.jsx`, `BoardView.test.jsx` (extended) | Status rules, editor, picker, board columns and moves |
+| `HomeWorkspace.test.jsx` | The welcome and the embedded dashboard |
+| `EntryTaskGuide.test.jsx`, `TaskPanel.test.jsx` (extended) | The entry-or-task guide and the finish-a-task nudge |
+| `Achievements.test.jsx` | Badge art, confetti, the profile section and the celebration queue |
+
 Other suites exist alongside these (BoardView, Invitations, GuidedTour,
 HelpPage, ViewTransition and more) for the rest of the app surface;
-`npx vitest run` runs all 44.
+`npx vitest run` runs all 58.
 
 ### Writing New Tests
 
@@ -215,8 +247,8 @@ comfortably on their own, without needing to average up:
 
 | Codebase | Statement coverage | Tests | Measured |
 |---|---|---|---|
-| Backend (pytest + coverage.py) | **94%** | 586, across 24 test files | 28 September 2026 |
-| Frontend (Vitest + @vitest/coverage-v8) | **78.5%** (82.2% of lines) | 529, across 44 test files | 28 September 2026 |
+| Backend (pytest + coverage.py) | **95%** | 696, across 33 test files | 30 September 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **81.4%** (84.9% of lines) | 684, across 58 test files | 30 September 2026 |
 
 Reproduce these numbers directly rather than trusting the badge:
 

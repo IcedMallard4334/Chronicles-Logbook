@@ -37,7 +37,10 @@ async def lifespan(app: FastAPI):
 | `statistics` | `/statistics` | Workspace-wide totals, streaks, field timeline, per-project field statistics |
 | `calendar` | `/calendar` | Google Calendar event reads, local calendar "activities" |
 | `activities` | `/calendar/activities` | Private, local-only calendar day items (never written to Google) |
-| `ai` | `/ai` | Mira consent (`GET`/`PUT /ai/consent`) and chat (`POST /ai/chat`) |
+| `ai` | `/ai` | Mira: consent (versioned), saved conversations, streamed replies with proposed actions, and the legacy single-shot chat |
+| `streaks` | `/streaks` | The login and activity streaks |
+| `achievements` | `/achievements` | Badges with progress, and marking their celebrations as shown |
+| `dashboard` | `/dashboard` | The grid dashboard: panels, their sizes and the grid width |
 | `saved_filters` | `/saved-filters` | Named, reusable Entries-page search combinations |
 | `transfer` | `/export`, `/import` | Full-account JSON export/import |
 
@@ -58,7 +61,11 @@ router reads as a sequence of decisions rather than an implementation.
 | `app/schema_migration.py` | Works out and applies what a schema edit does to existing entries |
 | `app/automation.py` | Sprint 3: matches an entry against a project's rules and applies their actions |
 | `app/custom_statistics.py` | Sprint 3: per-project field aggregation/grouping behind the Statistics page |
-| `app/services/gemini_service.py` | Wraps the Google Gemini API for Mira; the one file to change to swap AI providers |
+| `app/services/gemini_service.py` | Wraps the Google Gemini API for Mira, including streaming and function calling; the one file to change to swap AI providers |
+| `app/mira_tools.py` | The closed list of functions Mira may propose, their argument validation, and the plain-language summary of each |
+| `app/mira_context.py` | Builds the small workspace snapshot Mira is shown (names, ids, a few titles; never full entries) |
+| `app/statuses.py` | Per-project entry statuses: defaults, and keeping `status` and `todo` in agreement |
+| `app/achievements.py` | The badge catalogue, the figures they watch (counted from stored work) and awarding |
 
 ### `app/computed.py`
 
