@@ -18,7 +18,6 @@ import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
 import ActivitiesPage from "./ActivitiesPage"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
-import DashboardPage from "./DashboardPage"
 import OutstandingPage from "./OutstandingPage"
 import StatisticsPage from "./StatisticsPage"
 import ChronologicalTimeline from "./EntryTimeline"
@@ -614,7 +613,8 @@ function ProjectList({
       </div>
       <nav className="workspace-sidebar-nav" aria-label="Workspace views">
         <button type="button" className={homeActive ? "is-active" : ""} aria-current={homeActive ? "page" : undefined} onClick={onShowHome}>
-          <span aria-hidden="true">⌂</span> Projects
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>
+          Dashboard
         </button>
         <button type="button" className={timelineActive ? "is-active" : ""} aria-current={timelineActive ? "page" : undefined} onClick={onShowTimeline}>
           <span aria-hidden="true">◷</span> Activity
@@ -3061,19 +3061,6 @@ function App() {
               </svg>
               <span>Home</span>
             </button>
-            <button
-              type="button"
-              className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
-              onClick={() => setCurrentView("dashboard")}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="9" rx="1" />
-                <rect x="14" y="3" width="7" height="5" rx="1" />
-                <rect x="14" y="12" width="7" height="9" rx="1" />
-                <rect x="3" y="16" width="7" height="5" rx="1" />
-              </svg>
-              <span>Dashboard</span>
-            </button>
             <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
               <span>Mira</span>
@@ -3220,7 +3207,7 @@ function App() {
             ) : currentView === "statistics" ? (
               <StatisticsPage projects={projects} onNavigate={setCurrentView} />
             ) : currentView === "dashboard" ? (
-              <DashboardPage projects={projects} />
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} />
             ) : view === "timeline" ? (
               <EntryTimeline projects={projects} />
             ) : selectedProject ? (
@@ -3243,7 +3230,7 @@ function App() {
                 hintsSuppressed={showWelcome || showPageHint}
               />
             ) : projects.length > 0 ? (
-              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} />
             ) : (
               <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
             )}

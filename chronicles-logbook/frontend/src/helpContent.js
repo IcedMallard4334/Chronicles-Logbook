@@ -87,7 +87,7 @@ export const HELP_SECTIONS = [
         blocks: [
           {
             type: "p",
-            text: "The bar across the top opens Home, Dashboard, Mira, All Entries, All Tasks, Board, Calendar and Statistics. Home's sidebar has Projects, Activity, Today and Outstanding; it stays available while you switch between these views.",
+            text: "The bar across the top opens Home, Mira, All Entries, All Tasks, Board, Calendar and Statistics. Home is your dashboard; its sidebar has Dashboard, Activity, Activities, Today and Outstanding, and it stays available while you switch between these views.",
           },
           {
             type: "dl",

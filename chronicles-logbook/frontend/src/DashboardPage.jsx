@@ -361,7 +361,7 @@ function AddPanelForm({ projects, savedFilters, columns, onAdd, onCancel }) {
 
 // ---- The page itself ----
 
-export default function DashboardPage({ projects }) {
+export default function DashboardPage({ projects, embedded = false }) {
   const [panels, setPanels] = useState(null)
   const [savedFilters, setSavedFilters] = useState([])
   const [error, setError] = useState(null)
@@ -487,11 +487,11 @@ export default function DashboardPage({ projects }) {
   }
 
   return (
-    <section className="dashboard-page workspace-page" aria-labelledby="dashboard-title">
+    <section className={`dashboard-page workspace-page${embedded ? " is-embedded" : ""}`} aria-labelledby="dashboard-title">
       <header className="workspace-heading">
         <div>
           <span className="workspace-eyebrow">ONE VIEW OF WHAT MATTERS</span>
-          <h1 id="dashboard-title">My dashboard</h1>
+          {embedded ? <h2 id="dashboard-title">My dashboard</h2> : <h1 id="dashboard-title">My dashboard</h1>}
           <p>Arrange the statistics and views that matter to you.</p>
         </div>
         <div className="dashboard-header-actions">
