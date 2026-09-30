@@ -176,6 +176,9 @@ describe("App workspace", () => {
     const sidebar = screen.getByRole("navigation", { name: "Workspace views" })
     expect(within(sidebar).getByRole("button", { name: "Dashboard" })).toBeInTheDocument()
     expect(within(sidebar).queryByRole("button", { name: "Projects" })).not.toBeInTheDocument()
+    // One Activity entry: scheduled activities live inside it, not beside it.
+    expect(within(sidebar).getByRole("button", { name: "Activity" })).toBeInTheDocument()
+    expect(within(sidebar).queryByRole("button", { name: "Activities" })).not.toBeInTheDocument()
 
     const topBar = document.querySelector(".nav-pill-center")
     expect(within(topBar).queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument()

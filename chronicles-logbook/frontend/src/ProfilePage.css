@@ -147,3 +147,9 @@
 
 .colour-controls { display: grid; gap: 0.75rem; justify-items: end; }
 .colour-pickers { max-width: 34rem; justify-content: flex-end; }
+
+.screen-reader-help { margin-top: 0.5rem; font-size: 0.82rem; }
+.screen-reader-help summary { cursor: pointer; color: var(--blue); font-weight: 600; }
+.screen-reader-help ul { margin: 0.4rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.25rem; }
+.screen-reader-help kbd { padding: 0.05rem 0.35rem; border: 1px solid var(--line); border-radius: 0.3rem; background: var(--surface-soft); font: inherit; font-size: 0.78rem; }
+.colour-picker > span { white-space: nowrap; }

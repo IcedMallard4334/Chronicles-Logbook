@@ -7,7 +7,7 @@ import AuthPage from './AuthPage.jsx'
 import ChroniclesLogo from './ChroniclesLogo.jsx'
 import { ViewLoader } from './ViewTransition.jsx'
 import { applyPreferences, readPreference } from './preferences'
-import PageReader from './PageReader'
+import ScreenReaderGate from './ScreenReaderGate'
 import './ProfessionalDensity.css'
 import './WorkspacePolish.css'
 
@@ -124,7 +124,7 @@ function ProtectedHelpRoute() {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <PageReader />
+      <ScreenReaderGate />
       <Suspense fallback={<ViewLoader label="Turning the page…" delay={0} fullScreen />}>
         <Routes>
           <Route element={<SessionGate />}>

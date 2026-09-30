@@ -98,12 +98,14 @@ That is 11 bronze, 13 silver, 6 gold and 4 legendary.
 
 ## On the Profile page
 
-The **Achievements** section has three parts:
+The **Achievements** section shows how you are doing: **a progress ring** of badges earned
+out of the total, and **two bar charts** for progress by rarity (bars coloured bronze, silver,
+gold and a legendary gradient) and by area. **View all badges** opens the badges page.
 
-1. **A progress ring** of badges earned out of the total.
-2. **Two bar charts**: progress by rarity (bars coloured bronze, silver, gold and a
-   legendary gradient) and by area.
-3. **Every badge**, grouped by area, with *All / Earned / To earn* filters. An earned
+## The badges page
+
+At `/achievements` (from the button, or *See all my badges* in a celebration). It repeats
+the summary, then shows **every badge**, grouped by area, with *All / Earned / To earn* filters. An earned
    badge is coloured by its tier; one still to earn is grey with a **ring showing how
    far along it is** and a `progress/target` count.
 

@@ -79,18 +79,20 @@ view switch, not from the diagram's Sprint 1/2 shell):
 | File | Responsibility |
 |---|---|
 | `HomeWorkspace.jsx` | Home: the welcome plus the embedded dashboard |
-| `ActivitiesPage.jsx`, `ActivityForm.jsx` | Scheduled activities: list, add, edit, delete |
+| `ActivityHub.jsx`, `ActivitiesPage.jsx`, `ActivityForm.jsx` | The Activity page: a *Logged* tab (the entry timeline) and a *Scheduled* tab (activities to add, edit, delete) |
 | `DayActivityDialog.jsx` | The Calendar's day view, with management of activities, entries and projects |
 | `EntryHistory.jsx`, `DeletedEntries.jsx`, `entryVersions.js` | Versions, reverting, "as it stood on" a date, restoring deleted entries |
 | `StatusEditor.jsx`, `StatusPicker.jsx`, `statuses.js` | Defining, choosing and filtering by entry statuses |
 | `MiraAssistant.jsx`, `MiraMarkdown.jsx` | Mira's panel: streaming, Markdown, history, proposal cards |
 | `miraActions.js` | Runs confirmed Mira proposals through the ordinary API (26 handlers) |
-| `speech.js`, `PageReader.jsx` | Voice dictation and the opt-in page reader |
+| `speech.js` | Dictation (alternatives, vocabulary, spoken punctuation, pause-based punctuation) and speaking |
+| `ScreenReader.jsx`, `readerDescribe.js` | The opt-in screen reader: announces focus, dialogs, live regions and pages, keyboard navigation; and how an element is named and described |
 | `Streaks.jsx` | The two streak counters in the top bar |
-| `AchievementsSection.jsx`, `AchievementCelebration.jsx`, `BadgeArt.jsx`, `Confetti.jsx` | Badges on the profile, the celebration dialog, badge art and confetti |
+| `AchievementsSection.jsx`, `AchievementsPage.jsx`, `AchievementParts.jsx` | The profile summary, the page of every badge, and the shared ring, bars and detail card |
+| `AchievementCelebration.jsx`, `BadgeArt.jsx`, `Confetti.jsx` | The celebration dialog, badge art and confetti |
 | `TrashIcon.jsx`, `NavIcons.jsx` | The animated delete control and the navigation icons |
 | `EntryTaskGuide.jsx` | The "Entry or task?" explainer |
-| `preferences.js` | Theme, accent and the custom button and background colours |
+| `preferences.js` | Theme, accent, and custom colours (basic, or advanced: controls, second colour, page glow, page background) |
 
 ## Routing
 
