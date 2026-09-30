@@ -1,5 +1,6 @@
 """Saved Mira conversations and streamed replies."""
 
+import asyncio
 import json
 from types import SimpleNamespace
 
@@ -125,6 +126,7 @@ async def test_a_provider_failure_is_reported_and_the_reply_is_not_saved(
 
 async def test_conversations_are_listed_newest_first_and_can_be_deleted(authenticated_client):
     first = await new_conversation(authenticated_client)
+    await asyncio.sleep(0.05)  # distinct timestamps: the list is ordered by last activity
     second = await new_conversation(authenticated_client)
 
     listed = (await authenticated_client.get("/ai/conversations")).json()

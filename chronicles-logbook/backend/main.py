@@ -20,6 +20,7 @@ from app.routers import (
     projects,
     saved_filters,
     statistics,
+    streaks,
     tasks,
     transfer,
 )
@@ -154,6 +155,7 @@ app.include_router(automation.rules_router)
 app.include_router(automation.recurrence_router)
 app.include_router(automation.reminders_router)
 app.include_router(dashboard.router)
+app.include_router(streaks.router)
 
 
 @app.get("/health")

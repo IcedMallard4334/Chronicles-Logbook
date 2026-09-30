@@ -29,6 +29,7 @@ import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
+import Streaks from "./Streaks"
 import AutomationPanel from "./AutomationPanel"
 import { ruleFillableFieldIds } from "./automationRules"
 import { formatDuration } from "./formatDuration"
@@ -3067,6 +3068,7 @@ function App() {
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
             <Invitations onChanged={loadProjects} />
+            <Streaks />
             <Reminders onOpenProject={handleSelectProject} onOccurrencesCreated={loadEntries} />
             <AuthActions />
           </div>

@@ -88,11 +88,47 @@ async function request(path, options = {}, retried = false) {
     throw error
   }
 
+  noteInteraction(path, options.method)
+
   if (response.status === 204) {
     return null
   }
 
   return response.json()
+}
+
+// ── Daily streaks ────────────────────────────────────────────────────
+
+export const STREAKS_CHANGED = "chronicles-streaks-changed"
+let interactionDay = null
+
+// Anything that saves something counts as interacting with the app; reading,
+// deleting, signing in and talking to Mira do not.
+function noteInteraction(path, method = "GET") {
+  if (!["POST", "PUT", "PATCH"].includes(String(method).toUpperCase())) return
+  if (/^\/(streaks|auth|ai)(\/|\?|$)/.test(path)) return
+  const day = localDateString()
+  if (interactionDay === day) return
+  interactionDay = day
+  // Deferred so the saved request has fully returned before the ping is sent.
+  setTimeout(() => {
+    recordStreakActivity("interaction").catch(() => {
+      interactionDay = null
+    })
+  }, 0)
+}
+
+export async function recordStreakActivity(kind) {
+  const streaks = await request("/streaks/activity", {
+    method: "POST",
+    body: JSON.stringify({ kind, day: localDateString() }),
+  })
+  window.dispatchEvent(new CustomEvent(STREAKS_CHANGED, { detail: streaks }))
+  return streaks
+}
+
+export async function fetchStreaks() {
+  return request(`/streaks?today=${localDateString()}`)
 }
 
 export async function fetchProjects() {

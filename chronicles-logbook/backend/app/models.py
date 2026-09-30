@@ -62,6 +62,18 @@ class MiraMessage(Base):
     )
 
 
+class UserActivityDay(Base):
+    """A day on which a user logged in or did something in Chronicles (streaks)."""
+
+    __tablename__ = "user_activity_days"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12), primary_key=True)
+
+
 class User(Base):
     __tablename__ = "users"
 

@@ -85,6 +85,21 @@ describe("api", () => {
     await expect(streamMiraReply("gone", "Hello", () => {})).rejects.toThrow("Conversation not found.")
   })
 
+  it("counts a save as today's interaction, once, but not reads or Mira", async () => {
+    fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: "1" }) })
+
+    await fetchProjects()
+    await sendAIMessage("hello")
+    expect(fetch.mock.calls.some(([url]) => url.includes("/streaks/activity"))).toBe(false)
+
+    await createProject({ name: "Notes" })
+    await createProject({ name: "More notes" })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const pings = fetch.mock.calls.filter(([url]) => url.includes("/streaks/activity"))
+    expect(pings).toHaveLength(1)
+    expect(JSON.parse(pings[0][1].body).kind).toBe("interaction")
+  })
+
   it("creates a project", async () => {
     const project = { id: "1", name: "Notes" }
     fetch.mockResolvedValueOnce({
