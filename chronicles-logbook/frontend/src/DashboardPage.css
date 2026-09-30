@@ -42,15 +42,18 @@
 .dashboard-columns { display:grid; gap:4px; font-size:.72rem; color:var(--muted); }
 .dashboard-columns select, .dashboard-add-panel-size select, .dashboard-panel-controls select { padding:5px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); color:var(--text); font-size:.78rem; }
 .dashboard-panel-grid { grid-auto-rows:150px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
-.dashboard-panel { min-width:0; min-height:0; overflow:hidden; cursor:grab; transition:box-shadow .15s ease, opacity .15s ease; }
+.dashboard-panel { min-width:0; min-height:0; overflow:hidden; transition:box-shadow .15s ease, opacity .15s ease; }
 .dashboard-panel .dashboard-panel-body { flex:1; min-height:0; overflow:auto; }
-.dashboard-panel.is-dragging { opacity:.45; cursor:grabbing; }
+.dashboard-panel.is-dragging { opacity:.45; }
+body:has(.dashboard-panel.is-dragging) { cursor:grabbing; user-select:none; }
 .dashboard-panel.is-drop-target { outline:2px dashed var(--blue); outline-offset:2px; }
-.dashboard-panel-grip { display:inline-grid; place-items:center; color:var(--muted); cursor:grab; user-select:none; }
+.dashboard-panel-grip { display:inline-grid; place-items:center; width:26px; height:26px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); color:var(--muted); cursor:grab; user-select:none; touch-action:none; }
+.dashboard-panel-grip:active { cursor:grabbing; }
+.dashboard-panel-grip:hover:not(:disabled) { border-color:var(--blue); }
 .dashboard-panel-controls { flex-wrap:wrap; justify-content:flex-end; align-items:center; }
 .dashboard-add-panel-size { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media (max-width: 720px) {
   .dashboard-panel-grid { grid-template-columns:1fr !important; grid-auto-rows:minmax(150px, auto); }
-  .dashboard-panel { grid-column:auto !important; grid-row:auto !important; cursor:default; }
+  .dashboard-panel { grid-column:auto !important; grid-row:auto !important; }
 }
 @media (prefers-reduced-motion: reduce) { .dashboard-panel { transition:none; } }

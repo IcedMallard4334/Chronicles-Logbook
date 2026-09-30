@@ -184,30 +184,59 @@ describe("DashboardPage grid", () => {
     expect([...width.options].map((option) => option.value)).toEqual(["1", "2"])
   })
 
-  it("rearranges panels by dragging one onto another", async () => {
+  function pointerAt(panel) {
+    // jsdom has no layout, so "what is under the pointer" is stubbed.
+    document.elementFromPoint = vi.fn(() => panel.querySelector(".dashboard-panel-body"))
+  }
+
+  it("rearranges panels by dragging the grip of one onto another, with a mouse or a finger", async () => {
     const { container } = load()
     await screen.findAllByRole("button", { name: "Remove panel" })
     const [a, b] = container.querySelectorAll(".dashboard-panel")
-    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" }
+    const grip = b.querySelector(".dashboard-panel-grip")
 
-    fireEvent.dragStart(b, { dataTransfer })
-    fireEvent.dragOver(a, { dataTransfer })
-    fireEvent.drop(a, { dataTransfer })
+    fireEvent.pointerDown(grip, { pointerId: 1, pointerType: "touch" })
+    expect(b).toHaveClass("is-dragging")
+    pointerAt(a)
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 10 })
+    expect(a).toHaveClass("is-drop-target")
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 10 })
 
     await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
     expect(updateDashboardPanels.mock.calls[0][0].map((panel) => panel.id)).toEqual(["panel-2", "panel-1"])
   })
 
-  it("does nothing when a panel is dropped on itself", async () => {
+  it("does nothing when a panel is dropped on itself or outside every panel", async () => {
     const { container } = load()
     await screen.findAllByRole("button", { name: "Remove panel" })
     const [a] = container.querySelectorAll(".dashboard-panel")
-    const dataTransfer = { setData: vi.fn() }
+    const grip = a.querySelector(".dashboard-panel-grip")
 
-    fireEvent.dragStart(a, { dataTransfer })
-    fireEvent.drop(a, { dataTransfer })
+    fireEvent.pointerDown(grip, { pointerId: 1 })
+    pointerAt(a)
+    fireEvent.pointerUp(window, { clientX: 1, clientY: 1 })
+
+    fireEvent.pointerDown(grip, { pointerId: 1 })
+    document.elementFromPoint = vi.fn(() => null)
+    fireEvent.pointerMove(window, { clientX: 1, clientY: 1 })
+    fireEvent.pointerUp(window, { clientX: 1, clientY: 1 })
 
     expect(updateDashboardPanels).not.toHaveBeenCalled()
+    expect(a).not.toHaveClass("is-dragging")
+  })
+
+  it("abandons a drag that the browser cancels", async () => {
+    const { container } = load()
+    await screen.findAllByRole("button", { name: "Remove panel" })
+    const [a, b] = container.querySelectorAll(".dashboard-panel")
+
+    fireEvent.pointerDown(b.querySelector(".dashboard-panel-grip"), { pointerId: 1 })
+    pointerAt(a)
+    fireEvent.pointerMove(window, { clientX: 5, clientY: 5 })
+    fireEvent.pointerCancel(window)
+
+    expect(updateDashboardPanels).not.toHaveBeenCalled()
+    expect(b).not.toHaveClass("is-dragging")
   })
 
   it("lets a new panel be given its size when it is added", async () => {

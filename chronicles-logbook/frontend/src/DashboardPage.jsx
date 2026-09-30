@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   fetchDashboard,
   updateDashboardPanels,
@@ -418,11 +418,48 @@ export default function DashboardPage({ projects }) {
     persist(panels.map((panel) => ({ ...panel, w: Math.min(panel.w || 1, count) })), count)
   }
 
-  const handleDrop = (targetId) => {
-    const sourceId = dragId
+  // Dragging is done with pointer events on the grip, so the same code serves a
+  // mouse, a finger and a pen. `touch-action: none` on the grip (see the CSS)
+  // stops the browser scrolling instead while a finger is on it.
+  const overIdRef = useRef(null)
+  overIdRef.current = overId
+
+  const startDrag = (event, panelId) => {
+    if (saving) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setDragId(panelId)
+  }
+
+  useEffect(() => {
+    if (!dragId) return undefined
+    const panelUnder = (x, y) => document.elementFromPoint?.(x, y)?.closest?.("[data-panel-id]")?.dataset.panelId || null
+    const move = (event) => {
+      setOverId(panelUnder(event.clientX, event.clientY))
+      // Near the top or bottom of the window, scroll so a long dashboard can be reached mid-drag.
+      if (event.clientY < 60) window.scrollBy?.(0, -14)
+      else if (event.clientY > window.innerHeight - 60) window.scrollBy?.(0, 14)
+    }
+    const finish = (event) => {
+      const target = event.type === "pointerup" ? panelUnder(event.clientX, event.clientY) || overIdRef.current : null
+      handleDrop(dragId, target)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", finish)
+    window.addEventListener("pointercancel", finish)
+    return () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", finish)
+      window.removeEventListener("pointercancel", finish)
+    }
+    // handleDrop reads the current panels; re-binding per drag is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragId, panels])
+
+  const handleDrop = (sourceId, targetId) => {
     setDragId(null)
     setOverId(null)
-    if (!sourceId || sourceId === targetId) return
+    if (!sourceId || !targetId || sourceId === targetId) return
     const from = panels.findIndex((panel) => panel.id === sourceId)
     const to = panels.findIndex((panel) => panel.id === targetId)
     if (from < 0 || to < 0) return
@@ -502,24 +539,8 @@ export default function DashboardPage({ projects }) {
               <li
                 className={`dashboard-panel${dragId === panel.id ? " is-dragging" : ""}${overId === panel.id && dragId !== panel.id ? " is-drop-target" : ""}`}
                 key={panel.id}
+                data-panel-id={panel.id}
                 style={{ gridColumn: `span ${Math.min(panel.w || 1, columns)}`, gridRow: `span ${panel.h || 2}` }}
-                draggable={!saving}
-                onDragStart={(event) => {
-                  setDragId(panel.id)
-                  event.dataTransfer.effectAllowed = "move"
-                  event.dataTransfer.setData("text/plain", panel.id)
-                }}
-                onDragOver={(event) => {
-                  if (!dragId) return
-                  event.preventDefault()
-                  event.dataTransfer.dropEffect = "move"
-                  if (overId !== panel.id) setOverId(panel.id)
-                }}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  handleDrop(panel.id)
-                }}
-                onDragEnd={() => { setDragId(null); setOverId(null) }}
               >
                 <header className="dashboard-panel-header">
                   <span>
@@ -527,7 +548,16 @@ export default function DashboardPage({ projects }) {
                     <strong>{defaultTitleFor(panel, { projects, savedFilters })}</strong>
                   </span>
                   <div className="dashboard-panel-controls">
-                    <span className="dashboard-panel-grip" aria-hidden="true" title="Drag to rearrange">⠿</span>
+                    <button
+                      type="button"
+                      className="dashboard-panel-grip"
+                      aria-label="Drag to rearrange panel"
+                      title="Drag to rearrange"
+                      disabled={saving}
+                      onPointerDown={(event) => startDrag(event, panel.id)}
+                    >
+                      ⠿
+                    </button>
                     <select
                       aria-label="Panel width"
                       value={Math.min(panel.w || 1, columns)}
