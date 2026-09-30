@@ -15,6 +15,7 @@ import {
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
+import ActivitiesPage from "./ActivitiesPage"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import DashboardPage from "./DashboardPage"
@@ -555,7 +556,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
 function ProjectList({
   projects, statistics, selectedId, onSelect, onCreate,
   onShowHome, homeActive, onShowTimeline, timelineActive,
-  onShowToday, todayActive, onShowOutstanding, outstandingActive,
+  onShowToday, todayActive, onShowOutstanding, outstandingActive, onShowActivities, activitiesActive,
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -609,6 +610,10 @@ function ProjectList({
         <button type="button" className={outstandingActive ? "is-active" : ""} aria-current={outstandingActive ? "page" : undefined} onClick={onShowOutstanding}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /><path d="M4 4l2.5 2.5" /></svg>
           Outstanding
+        </button>
+        <button type="button" className={activitiesActive ? "is-active" : ""} aria-current={activitiesActive ? "page" : undefined} onClick={onShowActivities}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4" /></svg>
+          Activities
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -2410,7 +2415,7 @@ function App() {
   const miraActionSavingRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics", "activities"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -2428,7 +2433,7 @@ function App() {
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
 
-  const showWorkspaceSidebar = ["home", "today", "outstanding"].includes(currentView)
+  const showWorkspaceSidebar = ["home", "today", "outstanding", "activities"].includes(currentView)
 
   // US-3.23: a one-time welcome tour, then a single coach mark the first
   // time each page is opened. Both read seenTours() fresh on every render
@@ -3106,6 +3111,8 @@ function App() {
             todayActive={currentView === "today"}
             onShowOutstanding={() => setCurrentView("outstanding")}
             outstandingActive={currentView === "outstanding"}
+            onShowActivities={() => setCurrentView("activities")}
+            activitiesActive={currentView === "activities"}
           />
         </div>}
         <div className="content">
@@ -3117,7 +3124,16 @@ function App() {
             {loading ? (
               <ViewLoader label="Opening your logbook…" delay={0} />
             ) : currentView === "calendar" ? (
-              <CalendarView projects={projects} />
+              <CalendarView
+                projects={projects}
+                userId={userId}
+                onEditProject={(id) => { setSelectedId(id); setIsEditModalOpen(true) }}
+                renderProjectDelete={(project, done) => (
+                  <DeleteProjectControl project={project} onDeleted={(id) => { handleDeleteProject(id); done() }} />
+                )}
+              />
+            ) : currentView === "activities" ? (
+              <ActivitiesPage />
             ) : currentView === "today" ? (
               <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
             ) : currentView === "assistant" ? (

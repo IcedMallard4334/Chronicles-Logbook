@@ -64,6 +64,18 @@ async def create_activity(payload: ActivityCreate, user: Annotated[User, Depends
     return activity
 
 
+@router.put("/{activity_id}", response_model=ActivityResponse)
+async def update_activity(activity_id: UUID, payload: ActivityCreate, user: Annotated[User, Depends(get_current_user)], db: Annotated[AsyncSession, Depends(get_db)]):
+    activity = await db.scalar(select(CalendarActivity).where(CalendarActivity.id == activity_id, CalendarActivity.user_id == user.id))
+    if activity is None:
+        raise HTTPException(404, "Activity not found.")
+    for field, value in payload.model_dump().items():
+        setattr(activity, field, value)
+    await db.commit()
+    await db.refresh(activity)
+    return activity
+
+
 @router.delete("/{activity_id}", status_code=204)
 async def delete_activity(activity_id: UUID, user: Annotated[User, Depends(get_current_user)], db: Annotated[AsyncSession, Depends(get_db)]):
     activity = await db.scalar(select(CalendarActivity).where(CalendarActivity.id == activity_id, CalendarActivity.user_id == user.id))

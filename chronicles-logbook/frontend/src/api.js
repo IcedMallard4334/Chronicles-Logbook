@@ -572,6 +572,9 @@ export function fetchCalendarActivities({start, end}) {
 export function createCalendarActivity(payload) {
   return request("/calendar/activities", {method: "POST", body: JSON.stringify(payload)})
 }
+export function updateCalendarActivity(id, payload) {
+  return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "PUT", body: JSON.stringify(payload)})
+}
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
 }
