@@ -68,6 +68,24 @@ describe("ProfilePage", () => {
     expect(await screen.findByText("Workspace")).toBeInTheDocument()
   })
 
+  it("lets people pick their own button and background colours, and reset them", async () => {
+    renderPage()
+    await screen.findByText("Ethan Student")
+
+    fireEvent.change(screen.getByLabelText("Button colour"), { target: { value: "#ff5500" } })
+    fireEvent.change(screen.getByLabelText("Background colour"), { target: { value: "#101820" } })
+
+    expect(document.documentElement.style.getPropertyValue("--blue")).toBe("#ff5500")
+    expect(document.documentElement.style.getPropertyValue("--bg")).toBe("#101820")
+    expect(window.localStorage.getItem("chronicles-custom-button")).toBe("#ff5500")
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset colours" }))
+
+    expect(document.documentElement.style.getPropertyValue("--blue")).toBe("")
+    expect(window.localStorage.getItem("chronicles-custom-background")).toBeNull()
+    expect(screen.getByRole("button", { name: "Reset colours" })).toBeDisabled()
+  })
+
   it("cycles through light, dark, and system themes", async () => {
     renderPage()
 
