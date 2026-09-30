@@ -725,7 +725,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "Mira cannot read your saved projects, entries, tasks or calendar on its own, and it never creates anything without asking — a proposed project is shown as a card you must explicitly confirm or cancel before it's created. Conversation history lives only in your browser session and clears on refresh; that does not mean a provider you've consented to deletes what was already sent to it.",
+            text: "Mira can do what you can do by hand: create projects, change their fields and statuses, log entries, add and finish tasks, schedule activities, set due dates and repeats, create rules, share a project and open pages. She sees a small snapshot of your workspace (project and field names, open task titles, the first words of recent entries and your next two weeks of activities). Nothing she proposes happens until you confirm the card, and deleting always asks; you can switch on “Run simple changes straight away” to skip the card for changes that only add or edit. Conversations are saved to your account, reopen from History, and can be deleted; that does not mean a provider you've consented to deletes what was already sent to it.",
           },
         ],
       },

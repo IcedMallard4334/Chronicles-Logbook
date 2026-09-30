@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
@@ -129,20 +129,51 @@ describe("Mira assistant interfaces", () => {
     expect(onToggle).toHaveBeenCalledTimes(2)
   })
 
-  it("shows a project proposal and waits for confirmation", () => {
+  it("lists what Mira proposes and waits for confirmation", () => {
     const state = conversation({
-      pendingAction: { type: "create_project", payload: { name: "Research notes", description: "Weekly findings" }, requires_confirmation: true },
-      onConfirmAction: vi.fn(),
-      onCancelAction: vi.fn(),
-      onOpenProject: vi.fn(),
-      actionSaving: false,
+      pendingActions: [
+        { type: "create_project", summary: "Create project “Research notes” with 2 fields", destructive: false },
+        { type: "create_task", summary: "Add the task “Outline” to “Research notes”", destructive: false },
+      ],
+      onRunActions: vi.fn(),
+      onCancelActions: vi.fn(),
+      actionsRunning: false,
     })
     render(<MiraAssistantPage conversation={state} />)
-    expect(screen.getByRole("region", { name: "Proposed project" })).toBeInTheDocument()
-    expect(screen.getByText("Mira has not created anything yet. Review this project before confirming.")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-    expect(state.onCancelAction).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole("button", { name: "Create project" }))
-    expect(state.onConfirmAction).toHaveBeenCalledTimes(1)
+
+    const card = screen.getByRole("region", { name: "Proposed actions" })
+    expect(within(card).getByText("Mira would like to do 2 things")).toBeInTheDocument()
+    expect(within(card).getByText("Create project “Research notes” with 2 fields")).toBeInTheDocument()
+    expect(within(card).getByText("Nothing has changed yet. Review this before confirming.")).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel" }))
+    expect(state.onCancelActions).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(card).getByRole("button", { name: "Do all 2" }))
+    expect(state.onRunActions).toHaveBeenCalledTimes(1)
+  })
+
+  it("says plainly when an action can't be undone, and disables the buttons while working", () => {
+    const state = conversation({
+      pendingActions: [{ type: "delete_task", summary: "Delete a task", destructive: true }],
+      onRunActions: vi.fn(),
+      onCancelActions: vi.fn(),
+      actionsRunning: true,
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.getByText(/this can’t be undone/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Working…" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+  })
+
+  it("offers action-oriented starting points, and an opt-in to run simple changes straight away", () => {
+    const state = conversation({ autoRun: false, onToggleAutoRun: vi.fn() })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.getByText("Set up a project")).toBeInTheDocument()
+    expect(screen.getByText("Schedule something")).toBeInTheDocument()
+    const toggle = screen.getByLabelText(/Run simple changes straight away/)
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    expect(state.onToggleAutoRun).toHaveBeenCalledWith(true)
   })
 })

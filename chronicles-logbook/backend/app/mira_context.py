@@ -80,7 +80,7 @@ async def build_context(user: User, db: AsyncSession, today: date) -> str:
     )
     lines += ["", "OPEN TASKS (id | project | title | due):"]
     lines += [
-        f"- {t.id} | {names[t.project_id]} | {t.title} | {t.due_date.isoformat() if t.due_date else 'no due date'}"
+        f"- {t.project_id}/{t.id} | {names[t.project_id]} | {t.title} | {t.due_date.isoformat() if t.due_date else 'no due date'}"
         for t in tasks
     ] or ["(none)"]
 
@@ -98,7 +98,7 @@ async def build_context(user: User, db: AsyncSession, today: date) -> str:
     )
     lines += ["", "RECENT ENTRIES (id | project | status | text):"]
     lines += [
-        f'- {e.id} | {names[e.project_id]} | {e.status or ("still to do" if e.todo else "done")} | "{_preview(e)}"'
+        f'- {e.project_id}/{e.id} | {names[e.project_id]} | {e.status or ("still to do" if e.todo else "done")} | "{_preview(e)}"'
         for e in entries
     ] or ["(none)"]
 

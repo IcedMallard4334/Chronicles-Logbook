@@ -4,6 +4,12 @@ import { dictationSupported, startDictation } from "./speech"
 import { TrashButton } from "./TrashIcon"
 import "./MiraAssistant.css"
 
+const ACTION_PROMPTS = [
+  { title: "Set up a project", detail: "Name, fields and statuses in one go.", prompt: "Create a project called Weekly Planning with fields for Focus (text) and Hours (number), and add a task to review it on Friday." },
+  { title: "Add a task with a due date", detail: "Tasks, reminders and deadlines.", prompt: "Add a task called Send the report to my newest project, due next Monday." },
+  { title: "Schedule something", detail: "Put it on your calendar.", prompt: "Schedule a planning session tomorrow from 09:00 to 10:00." },
+]
+
 const PROMPTS = [
   { title: "Write a clearer update", detail: "Turn rough notes into a useful log entry.", prompt: "Help me write a clear project update. Ask me what I worked on, what I learned, and what comes next." },
   { title: "Plan a focused session", detail: "Give your next work session a direction.", prompt: "Help me plan a focused work session." },
@@ -14,17 +20,20 @@ function MiraMark() {
   return <span className="mira-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17V7l8 8 8-8v10" /><path d="M12 3v3M10.5 4.5h3" /></svg></span>
 }
 
-function ProjectProposal({ action, saving, onConfirm, onCancel }) {
-  if (!action || action.type !== "create_project") return null
-  const { name, description } = action.payload
-  return <section className="mira-project-proposal" aria-label="Proposed project">
-    <span className="mira-message-label">Project proposal</span>
-    <strong>{name}</strong>
-    {description && <p>{description}</p>}
-    <p className="mira-proposal-note">Mira has not created anything yet. Review this project before confirming.</p>
+function ActionProposals({ actions, running, onRun, onCancel }) {
+  if (!actions?.length) return null
+  const count = actions.length
+  return <section className="mira-project-proposal mira-actions" aria-label="Proposed actions">
+    <span className="mira-message-label">{count === 1 ? "Mira would like to" : `Mira would like to do ${count} things`}</span>
+    <ol className="mira-action-list">
+      {actions.map((action, index) => <li key={index} className={action.destructive ? "is-destructive" : undefined}>
+        {action.summary}{action.destructive && <em> — this can’t be undone</em>}
+      </li>)}
+    </ol>
+    <p className="mira-proposal-note">Nothing has changed yet. Review this before confirming.</p>
     <div className="mira-proposal-actions">
-      <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>Cancel</button>
-      <button type="button" className="btn-primary" onClick={onConfirm} disabled={saving}>{saving ? "Creating…" : "Create project"}</button>
+      <button type="button" className="btn-secondary" onClick={onCancel} disabled={running}>Cancel</button>
+      <button type="button" className="btn-primary" onClick={onRun} disabled={running}>{running ? "Working…" : count === 1 ? "Do it" : `Do all ${count}`}</button>
     </div>
   </section>
 }
@@ -46,7 +55,7 @@ function ConversationHistory({ conversations = [], activeId, onSelect, onNew, on
   </div>
 }
 
-function Conversation({ messages, sending, error, onSend, onClear, pendingAction, actionSaving, onConfirmAction, onCancelAction, onOpenProject, conversations, activeConversationId, onSelectConversation, onNewConversation, onDeleteConversation, compact = false }) {
+function Conversation({ messages, sending, error, onSend, onClear, pendingActions, actionsRunning, onRunActions, onCancelActions, autoRun, onToggleAutoRun, onOpenProject, conversations, activeConversationId, onSelectConversation, onNewConversation, onDeleteConversation, compact = false }) {
   const [draft, setDraft] = useState("")
   const feedRef = useRef(null)
   const dictation = useRef(null)
@@ -101,7 +110,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
       {!messages.length && !sending && <div className="mira-welcome">
         <div><h2>Make room for your next idea.</h2><p>Bring a rough idea, a work update, or a plan. Let’s give it a clear next step.</p></div>
         <div className="mira-prompts" aria-label="Suggested prompts">
-          {PROMPTS.map(({ title, detail, prompt }, index) => <button type="button" key={title} onClick={() => { setDraft(prompt); document.getElementById(compact ? "mira-compact-input" : "mira-full-input")?.focus() }}><span className="mira-prompt-number" aria-hidden="true">0{index + 1}</span><strong>{title}</strong><span>{detail}</span><span className="mira-prompt-arrow" aria-hidden="true">↗</span></button>)}
+          {[...ACTION_PROMPTS, ...PROMPTS].map(({ title, detail, prompt }, index) => <button type="button" key={title} onClick={() => { setDraft(prompt); document.getElementById(compact ? "mira-compact-input" : "mira-full-input")?.focus() }}><span className="mira-prompt-number" aria-hidden="true">0{index + 1}</span><strong>{title}</strong><span>{detail}</span><span className="mira-prompt-arrow" aria-hidden="true">↗</span></button>)}
         </div>
       </div>}
       {messages.map(message => <article className={`mira-message mira-message-${message.role}`} key={message.id}>
@@ -113,7 +122,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
         </>}
         {message.projectId && <button type="button" className="mira-open-project" onClick={() => onOpenProject(message.projectId)}>Open project →</button>}
       </article>)}
-      <ProjectProposal action={pendingAction} saving={actionSaving} onConfirm={onConfirmAction} onCancel={onCancelAction} />
+      <ActionProposals actions={pendingActions} running={actionsRunning} onRun={onRunActions} onCancel={onCancelActions} />
       {waiting && !streaming?.thinking && <div className="mira-typing" role="status"><MiraMark /> <span>Mira is thinking<span className="mira-dots">…</span></span></div>}
       {error && <div className="mira-error" role="alert"><span>{error.message}</span>{error.retryMessage && <button type="button" onClick={() => onSend(error.retryMessage)}>Retry</button>}</div>}
     </div>
@@ -125,6 +134,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
       <div className="mira-composer-actions"><span><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
         {canDictate && <button type="button" className={`mira-mic${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} title={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
         <button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
+      {onToggleAutoRun && <label className="mira-autorun"><input type="checkbox" checked={Boolean(autoRun)} onChange={(event) => onToggleAutoRun(event.target.checked)} />Run simple changes straight away (deleting always asks)</label>}
       <p className="mira-footnote">Review Mira’s suggestions. Project creation always needs your confirmation. Conversations are saved to your account; delete any from History.</p>
     </form>
     {messages.length > 0 && <button type="button" className="mira-clear" onClick={onClear}>New conversation</button>}

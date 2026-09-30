@@ -655,7 +655,7 @@ export async function streamMiraReply(conversationId, message, onEvent, retried 
         Accept: "text/event-stream",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, today: localDateString() }),
     })
   } catch {
     const error = new Error("Cannot reach the Chronicles API.")

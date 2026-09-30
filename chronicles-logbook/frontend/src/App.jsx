@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { createMiraConversation, deleteMiraConversation, fetchMiraConversation, fetchMiraConversations, signOut, streamMiraReply } from "./api"
+import { describeOutcome, pageToView, runActions } from "./miraActions"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
   EntryDetailModal,
@@ -2507,13 +2508,15 @@ function App() {
   const [miraMessages, setMiraMessages] = useState([])
   const [miraSending, setMiraSending] = useState(false)
   const [miraError, setMiraError] = useState(null)
-  const [miraPendingAction, setMiraPendingAction] = useState(null)
-  const [miraActionSaving, setMiraActionSaving] = useState(false)
+  const [miraActions, setMiraActions] = useState([])
+  const [miraActionsRunning, setMiraActionsRunning] = useState(false)
+  const [miraAutoRun, setMiraAutoRun] = useState(() => window.localStorage.getItem("chronicles-mira-auto-run") === "on")
+  const appNavigate = useNavigate()
   const [miraOpen, setMiraOpen] = useState(false)
   const [miraConversationId, setMiraConversationId] = useState(null)
   const [miraConversations, setMiraConversations] = useState([])
   const miraSequence = useRef(0)
-  const miraActionSavingRef = useRef(false)
+  const miraRunningRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics", "activities"]
@@ -2557,6 +2560,34 @@ function App() {
     }
   }, [])
 
+  // Runs what Mira proposed, now that it has been confirmed (or is safe to run
+  // straight away), and reports in the chat how it went.
+  const runMiraActions = useCallback(async (actions) => {
+    if (miraRunningRef.current || !actions.length) return
+    miraRunningRef.current = true
+    setMiraActionsRunning(true)
+    setMiraError(null)
+    try {
+      const outcome = await runActions(actions, {
+        navigate: (page) => {
+          const target = pageToView(page)
+          if (target) setCurrentView(target)
+          else appNavigate(`/${page}`)
+        },
+      })
+      setMiraMessages(previous => [...previous, { id: `mira-outcome-${Date.now()}`, role: "assistant", content: describeOutcome(outcome) }])
+      setMiraActions([])
+      try {
+        setProjects(await fetchProjects())
+      } catch {
+        // The chat already says what happened; the list catches up on the next load.
+      }
+    } finally {
+      miraRunningRef.current = false
+      setMiraActionsRunning(false)
+    }
+  }, [appNavigate])
+
   const sendMiraMessage = useCallback(async (message) => {
     const trimmed = message.trim()
     if (!trimmed || miraSending) return
@@ -2575,17 +2606,23 @@ function App() {
         setMiraConversationId(conversationId)
       }
       let failure = null
+      const proposed = []
       await streamMiraReply(conversationId, trimmed, (event) => {
         if (event.type === "thought") upsertReply(item => ({ ...item, thinking: `${item.thinking}${event.text}` }))
         else if (event.type === "delta") upsertReply(item => ({ ...item, content: `${item.content}${event.text}` }))
         else if (event.type === "action") {
-          setMiraPendingAction(event.action)
-          const name = event.action?.payload?.name || "a project"
-          upsertReply(item => ({ ...item, content: `I’ve drafted a project proposal for **${name}**. Review it below before anything is created.` }))
+          proposed.push(event.action)
+          setMiraActions(previous => [...previous, event.action])
         } else if (event.type === "error") failure = event.detail || "Mira could not reply just now. Please try again."
       })
       if (failure) throw new Error(failure)
+      if (proposed.length) {
+        const list = proposed.map(action => `- ${action.summary}`).join("\n")
+        upsertReply(item => ({ ...item, content: `${item.content}\n\n**Proposed for your approval:**\n${list}` }))
+      }
       upsertReply(item => ({ ...item, streaming: false }))
+      // Quick path: when the person has opted in, anything that only adds or changes runs at once.
+      if (proposed.length && miraAutoRun && !proposed.some(action => action.destructive)) runMiraActions(proposed)
     } catch {
       setMiraMessages(previous => previous.filter(item => item.id !== replyId))
       setMiraError({ message: "Mira could not reply just now. Please try again.", retryMessage: trimmed })
@@ -2594,13 +2631,13 @@ function App() {
       setMiraSending(false)
       refreshMiraConversations()
     }
-  }, [miraSending, miraConversationId, refreshMiraConversations])
+  }, [miraSending, miraConversationId, refreshMiraConversations, miraAutoRun, runMiraActions])
 
   const startNewMiraConversation = useCallback(() => {
     setMiraConversationId(null)
     setMiraMessages([])
     setMiraError(null)
-    setMiraPendingAction(null)
+    setMiraActions([])
   }, [])
 
   const openMiraConversation = useCallback(async (conversationId) => {
@@ -2610,7 +2647,7 @@ function App() {
       setMiraConversationId(conversation.id)
       setMiraMessages(conversation.messages.map(item => ({ id: item.id, role: item.role, content: item.content, thinking: item.thinking || "" })))
       setMiraError(null)
-      setMiraPendingAction(null)
+      setMiraActions([])
     } catch {
       setMiraError({ message: "That conversation could not be opened.", retryMessage: null })
     }
@@ -2637,36 +2674,6 @@ function App() {
     }
   }, [])
 
-  const handleMiraProjectConfirmation = useCallback(async () => {
-    const action = miraPendingAction
-    const name = action?.type === "create_project" ? action.payload?.name?.trim() : ""
-    const description = action?.payload?.description?.trim() || null
-    if (!name) {
-      setMiraError({ message: "This project proposal is invalid. Please ask Mira again.", retryMessage: null })
-      return
-    }
-    if (projects.some(project => project.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      setMiraError({ message: "A project with this name already exists. Choose a different name or cancel this proposal.", retryMessage: null })
-      return
-    }
-    if (miraActionSavingRef.current) return
-    miraActionSavingRef.current = true
-    setMiraActionSaving(true)
-    setMiraError(null)
-    try {
-      const project = await createProject({ name, description, entry_schema: [] })
-      const refreshed = await fetchProjects()
-      setProjects(refreshed)
-      setMiraPendingAction(null)
-      setMiraMessages(previous => [...previous, { id: `mira-created-${project.id}`, role: "assistant", content: `Created “${project.name}”. You can open it whenever you are ready.`, projectId: project.id }])
-    } catch (err) {
-      setMiraError({ message: formatError(err), retryMessage: null })
-    } finally {
-      miraActionSavingRef.current = false
-      setMiraActionSaving(false)
-    }
-  }, [miraPendingAction, projects])
-
   const openMiraProject = useCallback((projectId) => {
     setView("project")
     setSelectedId(projectId)
@@ -2677,11 +2684,16 @@ function App() {
     messages: miraMessages,
     sending: miraSending,
     error: miraError,
-    pendingAction: miraPendingAction,
-    actionSaving: miraActionSaving,
+    pendingActions: miraActions,
+    actionsRunning: miraActionsRunning,
+    autoRun: miraAutoRun,
+    onToggleAutoRun: (on) => {
+      setMiraAutoRun(on)
+      window.localStorage.setItem("chronicles-mira-auto-run", on ? "on" : "off")
+    },
     onSend: sendMiraMessage,
-    onConfirmAction: handleMiraProjectConfirmation,
-    onCancelAction: () => { setMiraPendingAction(null); setMiraError(null) },
+    onRunActions: () => runMiraActions(miraActions),
+    onCancelActions: () => { setMiraActions([]); setMiraError(null) },
     onOpenProject: openMiraProject,
     onClear: startNewMiraConversation,
     conversations: miraConversations,

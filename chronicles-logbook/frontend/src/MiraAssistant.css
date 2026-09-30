@@ -53,3 +53,8 @@
 .mira-history-item:hover { background: var(--surface-soft); }
 .mira-page { grid-template-rows: auto auto auto minmax(260px, 1fr) auto auto; }
 .mira-panel { grid-template-rows: auto auto minmax(120px, 1fr) auto auto; }
+
+.mira-action-list { margin: 0.4rem 0 0.2rem; padding-left: 1.2rem; display: grid; gap: 0.25rem; }
+.mira-action-list .is-destructive { color: var(--error, #d93025); font-weight: 600; }
+.mira-autorun { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0; color: var(--muted); font-size: 0.78rem; }
+.mira-prompts { max-height: 40vh; overflow-y: auto; }
