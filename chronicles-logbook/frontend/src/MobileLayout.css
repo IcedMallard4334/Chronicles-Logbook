@@ -1,0 +1,145 @@
+/* --------------------------------------------------
+   SMALL SCREENS
+   Loaded after every other stylesheet so these win at equal specificity.
+   -------------------------------------------------- */
+
+/* The projects toggle only exists for the bottom panel. */
+.sidebar-projects-toggle { display: none !important; }
+
+@media (max-width: 720px) {
+  /* ── Top bar: smaller everything, so it is a bar and not a block ── */
+  .app-shell { padding-inline: 8px; padding-bottom: 92px; }
+  .app-shell .topbar { padding-top: 6px; }
+  .app-shell .nav-pill { padding: 6px 8px; gap: 4px; border-radius: 18px; }
+  .app-shell .nav-pill-left .brand-name { font-size: 0.92rem; }
+  .app-shell .nav-pill-right { gap: 4px; }
+  .app-shell .nav-pill-center .nav-item { min-height: 40px; padding: 5px 2px; gap: 2px; border-radius: 10px; }
+  .app-shell .nav-pill-center .nav-item svg { width: 15px; height: 15px; }
+  .app-shell .nav-pill-center .nav-item span { font-size: 0.56rem; }
+  .app-shell .nav-pill .user-avatar,
+  .app-shell .nav-pill .user-menu-trigger { width: 32px; height: 32px; font-size: 0.8rem; }
+  .streaks { gap: 3px; }
+  .streak { padding: 0.15rem 0.4rem; font-size: 0.72rem; gap: 0.15rem; }
+  .invites-bell { width: 30px; height: 30px; }
+  .app-shell .offline-pill { padding: 3px 8px; font-size: 0.68rem; }
+
+  /* ── Notifications: a sheet under the bar, never wider than the screen ── */
+  .invites-panel {
+    position: fixed;
+    top: 124px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100svh - 220px);
+    overflow-y: auto;
+    border-radius: 16px;
+  }
+  .invites-head { padding: 12px 14px 8px; }
+  .reminders-item, .invites-item { padding: 8px 14px; }
+
+  /* ── Search shortcut: a phone has no Ctrl K ── */
+  .command-trigger { display: none !important; }
+
+  /* ── The side panel becomes a bottom panel ── */
+  .app-shell > .home-main {
+    display: block;
+    margin: 0;
+  }
+  .app-shell > .home-main .sidebar-stack {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    height: auto;
+    max-height: 78svh;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+  .app-shell > .home-main .workspace-sidebar {
+    display: flex;
+    flex-direction: column;
+    max-height: 78svh;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.22);
+  }
+  .workspace-sidebar > .workspace-sidebar-brand,
+  .workspace-sidebar > .workspace-sidebar-stats { display: none !important; }
+
+  .workspace-sidebar > .workspace-sidebar-nav {
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
+    padding: 0;
+    border: 0;
+  }
+  .workspace-sidebar-nav button,
+  .workspace-sidebar-nav .sidebar-projects-toggle {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: 46px;
+    padding: 4px 2px;
+    font-size: 0.6rem;
+    line-height: 1.1;
+    text-align: center;
+    border-radius: 10px;
+  }
+  .workspace-sidebar-nav button svg { width: 18px; height: 18px; }
+  .workspace-sidebar-nav .sidebar-projects-toggle { display: flex !important; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.6rem; font-weight: 600; }
+  .workspace-sidebar-nav .sidebar-projects-toggle.is-active { color: var(--blue); background: var(--blue-bg); }
+
+  /* The project sheet: hidden until asked for, then opens above the bar. */
+  .workspace-sidebar > *:not(.workspace-sidebar-nav) { order: 1; }
+  .workspace-sidebar:not(.is-projects-open) > *:not(.workspace-sidebar-nav) { display: none; }
+  .workspace-sidebar.is-projects-open > .sidebar-head { margin: 0; padding: 8px 6px 6px; }
+  .workspace-sidebar.is-projects-open .project-list,
+  .home-main .workspace-sidebar .project-list { max-height: 34svh; overflow-y: auto; }
+  .workspace-sidebar.is-projects-open .archived-list { max-height: 14svh; }
+
+  /* ── The Mira button rides above the bar instead of under it ── */
+  .app-shell:has(.home-main > .sidebar-stack) .mira-launcher { bottom: 80px; right: 12px; }
+  .mira-launcher { right: 12px; bottom: 16px; }
+  .mira-launch-button { padding: 6px 12px 6px 6px; font-size: 0.82rem; }
+  .mira-launch-button .mira-mark { width: 26px; height: 26px; }
+  .mira-panel { bottom: 50px; }
+  /* Not while the project sheet is open: it would sit on top of the list. */
+  .app-shell:has(.is-projects-open) .mira-launcher { display: none; }
+
+  /* ── Seven destinations sit in one row rather than two ragged ones ── */
+  .app-shell .nav-pill .nav-pill-center { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; }
+  .app-shell .nav-pill-center .nav-item { min-height: 42px; padding: 4px 0; }
+  .app-shell .nav-pill-center .nav-item span { font-size: 0.5rem; letter-spacing: 0; overflow-wrap: anywhere; }
+
+  /* ── Page content: a little less padding and type ── */
+  .workspace-heading { gap: 10px; }
+  .workspace-heading h1 { font-size: 1.3rem; }
+  .workspace-heading p { font-size: 0.82rem; }
+  .app-shell .home-hub-header { padding: 14px; gap: 10px; flex-wrap: wrap; }
+  .home-hub-welcome-mark { flex-basis: 36px; width: 36px; height: 36px; font-size: 1.2rem; }
+  .home-hub-welcome-copy h1 { font-size: 1.4rem; }
+  .home-hub-welcome-copy p:last-child { font-size: 0.82rem; line-height: 1.4; }
+  .home-hub-summary { font-size: 0.78rem; gap: 12px; }
+  .home-hub-summary strong { font-size: 1.05rem; }
+  .app-shell .dashboard-page .workspace-heading { padding: 12px 14px; }
+  .dashboard-page .workspace-heading h2 { font-size: 1.05rem; }
+  .btn-primary, .btn-secondary { padding: 8px 14px; font-size: 0.85rem; }
+  .app-shell .workspace-page, .app-shell .project-detail { padding-inline: 12px; }
+
+  /* ── Mira's composer ── */
+  .mira-composer-actions { gap: 8px; flex-wrap: wrap; }
+  .mira-composer-hint { flex: 1 1 100%; order: 3; }
+}
+
+@media (max-width: 420px) {
+  .app-shell .nav-pill-center .nav-item span { font-size: 0.48rem; }
+  .app-shell .nav-pill-left .brand-name { display: none; }
+}

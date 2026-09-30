@@ -139,7 +139,7 @@ npm run test -- --run   # Single run
 
 ### Test Files
 
-61 files, 767 tests. Core:
+61 files, 770 tests. Core:
 
 | File | Coverage |
 |---|---|
@@ -251,7 +251,7 @@ comfortably on their own, without needing to average up:
 | Codebase | Statement coverage | Tests | Measured |
 |---|---|---|---|
 | Backend (pytest + coverage.py) | **95%** | 696, across 33 test files | 30 September 2026 |
-| Frontend (Vitest + @vitest/coverage-v8) | **82.6%** (86.0% of lines) | 767, across 61 test files | 1 October 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **82.7%** (86.0% of lines) | 770, across 61 test files | 1 October 2026 |
 
 Reproduce these numbers directly rather than trusting the badge:
 

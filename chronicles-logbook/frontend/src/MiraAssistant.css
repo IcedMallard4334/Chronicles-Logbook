@@ -58,3 +58,15 @@
 .mira-action-list .is-destructive { color: var(--error, #d93025); font-weight: 600; }
 .mira-autorun { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0; color: var(--muted); font-size: 0.78rem; }
 .mira-prompts { max-height: 40vh; overflow-y: auto; }
+
+.mira-composer-actions { justify-content: flex-start; gap: 12px; }
+.mira-composer-actions .btn-primary { margin-left: auto; }
+.mira-composer-hint { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mira-mic {
+  flex: 0 0 auto;
+  background: var(--blue-bg, rgba(107, 91, 255, 0.12));
+  border-color: var(--blue, #6b5bff);
+  color: var(--blue, #6b5bff);
+}
+.mira-mic:hover, .mira-mic:focus-visible { background: var(--blue, #6b5bff); color: #fff; }
+.mira-mic.is-listening { background: #d93025; border-color: #d93025; color: #fff; }

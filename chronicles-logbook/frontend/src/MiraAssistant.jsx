@@ -132,8 +132,9 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
       <textarea id={compact ? "mira-compact-input" : "mira-full-input"} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} maxLength={2000} rows={compact ? 2 : 3} placeholder="What are you working on?" />
       {listening && <p className="mira-dictation-status" role="status">Listening… {interim && <em>{interim}</em>}</p>}
       {voiceError && <p className="mira-error" role="alert">{voiceError}</p>}
-      <div className="mira-composer-actions"><span><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
+      <div className="mira-composer-actions">
         {canDictate && <button type="button" className={`mira-mic${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} title={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
+        <span className="mira-composer-hint"><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
         <button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
       {onToggleAutoRun && <label className="mira-autorun"><input type="checkbox" checked={Boolean(autoRun)} onChange={(event) => onToggleAutoRun(event.target.checked)} />Run simple changes straight away (deleting always asks)</label>}
       <p className="mira-footnote">Review Mira’s suggestions. Project creation always needs your confirmation. Conversations are saved to your account; delete any from History.</p>

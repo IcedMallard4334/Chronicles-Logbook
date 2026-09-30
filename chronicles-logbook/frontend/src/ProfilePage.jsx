@@ -328,6 +328,15 @@ export default function ProfilePage() {
                   <button type="button" className={density === "compact" ? "is-selected" : ""} onClick={() => setDensity("compact")}>Compact</button>
                 </div>
               </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Accent colour</span>
+                  <span className="profile-row-value">Choose the colour used for controls and focus states.</span>
+                </div>
+                <select className="profile-select" value={accent} onChange={(event) => updateAccent(event.target.value)} aria-label="Accent colour">
+                  {ACCENTS.map(option => <option key={option.id} value={option.id}>{option.name}{option.recommended ? " — Recommended" : ""}</option>)}
+                </select>
+              </div>
               <div className="profile-row profile-colours">
                 <div className="profile-row-text">
                   <span className="profile-row-label">Your own colours</span>
@@ -417,15 +426,6 @@ export default function ProfilePage() {
 
             <section className="profile-section">
               <h2>Workspace settings</h2>
-              <div className="profile-row">
-                <div className="profile-row-text">
-                  <span className="profile-row-label">Accent colour</span>
-                  <span className="profile-row-value">Choose the colour used for controls and focus states.</span>
-                </div>
-                <select className="profile-select" value={accent} onChange={(event) => updateAccent(event.target.value)} aria-label="Accent colour">
-                  {ACCENTS.map(option => <option key={option.id} value={option.id}>{option.name}{option.recommended ? " — Recommended" : ""}</option>)}
-                </select>
-              </div>
               <div className="profile-row">
                 <div className="profile-row-text">
                   <span className="profile-row-label">Default opening page</span>
