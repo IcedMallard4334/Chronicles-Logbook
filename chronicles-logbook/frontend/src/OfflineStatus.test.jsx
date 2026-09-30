@@ -243,3 +243,68 @@ describe("the review panel", () => {
     ).toBeInTheDocument()
   })
 })
+
+describe("pointing at the field that needs attention", () => {
+  const dated = {
+    id: "proj-1",
+    name: "Field Notes",
+    entry_schema: [
+      { id: "note", name: "Note", type: "text" },
+      { id: "visited", name: "Visited on", type: "date" },
+    ],
+  }
+
+  async function open(reason, data) {
+    const record = await queue.enqueue({ userId: USER, projectId: dated.id, data })
+    await queue.markRejected(record.id, reason)
+    render(<OfflineStatus userId={USER} projects={[dated]} queue={queue} engine={engine} />)
+    fireEvent.click(await screen.findByText("1 needs attention"))
+    return screen.findByRole("dialog")
+  }
+
+  it("flags a missing required field in the review list, even though it has no value", async () => {
+    const dialog = await open("Missing required field: Visited on", { note: "Sensor rig" })
+
+    const flagged = within(dialog).getByText("Visited on").closest("div")
+    expect(flagged).toHaveClass("is-problem")
+    expect(within(flagged).getByText("Missing")).toBeInTheDocument()
+    expect(within(flagged).getByText(/needs attention/)).toBeInTheDocument()
+    expect(within(within(dialog).getByText("Note").closest("div")).queryByText(/needs attention/)).toBeNull()
+  })
+
+  it("edits a date with a date picker and marks only the offending field", async () => {
+    const dialog = await open("Field 'Visited on' must be a date string", { note: "Sensor rig", visited: "tomorrow" })
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }))
+
+    const date = within(dialog).getByLabelText(/Visited on/)
+    expect(date).toHaveAttribute("type", "date")
+    expect(date).toHaveAttribute("aria-invalid", "true")
+    expect(within(dialog).getByLabelText(/Note/)).not.toHaveAttribute("aria-invalid")
+    expect(within(dialog).getByText("Field 'Visited on' must be a date string", { selector: ".offline-field-reason" })).toBeInTheDocument()
+  })
+})
+
+describe("the offline refresh warning", () => {
+  it("tells people not to refresh while offline, and guards the tab while entries are waiting", async () => {
+    await queueEntry()
+    render(<OfflineStatus userId={USER} projects={[project]} queue={queue} engine={engine} />)
+    setOnline(false)
+    fireEvent(window, new Event("offline"))
+
+    expect(await screen.findByText(/don’t refresh or close this page/)).toBeInTheDocument()
+
+    const event = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it("shows no warning, and doesn't block leaving, when online with nothing waiting", async () => {
+    const { container } = render(<OfflineStatus userId={USER} projects={[project]} queue={queue} engine={engine} />)
+    await waitFor(() => expect(container).toBeEmptyDOMElement())
+
+    const event = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+})

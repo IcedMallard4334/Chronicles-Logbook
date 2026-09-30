@@ -179,3 +179,27 @@
   font-size: 0.78rem;
   cursor: pointer;
 }
+
+.offline-refresh-warning {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 70;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border: 1px solid #b45309;
+  border-radius: 0.75rem;
+  background: #fef3c7;
+  color: #78350f;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.offline-values .is-problem dt,
+.offline-values .is-problem dd { color: var(--error, #d93025); }
+.offline-field-flag { font-weight: 700; }
+.field-label.is-problem input,
+.field-label.is-problem select { border-color: var(--error, #d93025); outline: 2px solid color-mix(in srgb, var(--error, #d93025) 30%, transparent); }
+.offline-field-reason { color: var(--error, #d93025); font-size: 0.78rem; font-weight: 600; }
