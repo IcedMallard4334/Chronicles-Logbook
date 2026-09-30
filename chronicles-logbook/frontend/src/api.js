@@ -599,10 +599,10 @@ export async function fetchDashboard() {
  * lets a drag or a delete be "compute the new array, PUT it" rather than
  * a dance of matching endpoints.
  */
-export async function updateDashboardPanels(panels) {
+export async function updateDashboardPanels(panels, columns) {
   return request("/dashboard", {
     method: "PUT",
-    body: JSON.stringify({ panels }),
+    body: JSON.stringify(columns === undefined ? { panels } : { panels, columns }),
   })
 }
 

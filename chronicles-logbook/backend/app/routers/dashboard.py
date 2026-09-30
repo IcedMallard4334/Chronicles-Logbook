@@ -48,7 +48,12 @@ async def update_dashboard(
     fails to resolve on read rather than exposing anything.
     """
     dashboard = await _get_or_create(user, db)
-    dashboard.panels = [panel.model_dump(mode="json") for panel in payload.panels]
+    if payload.columns is not None:
+        dashboard.columns = payload.columns
+    # A panel can't be wider than the grid it sits in, whatever the client sent.
+    dashboard.panels = [
+        {**panel.model_dump(mode="json"), "w": min(panel.w, dashboard.columns)} for panel in payload.panels
+    ]
     await db.commit()
     await db.refresh(dashboard)
     return dashboard

@@ -55,7 +55,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage projects={projects} />)
 
-    await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("4", { selector: "strong" })).toBeInTheDocument())
     expect(screen.getByText("Entries")).toBeInTheDocument()
   })
 
@@ -128,5 +128,98 @@ describe("DashboardPage", () => {
 
     await waitFor(() => expect(screen.getByText("Still to do")).toBeInTheDocument())
     expect(fetchEntries).toHaveBeenCalledWith("p1")
+  })
+})
+
+describe("DashboardPage grid", () => {
+  const second = { id: "panel-2", type: "statistic", title: null, config: { view: "project_breakdown" }, w: 1, h: 2 }
+  const first = { ...statisticPanel, w: 2, h: 1 }
+
+  function load(panels = [first, second], columns = 3) {
+    fetchDashboard.mockResolvedValue({ panels, columns, updated_at: "2026-09-24T00:00:00Z" })
+    updateDashboardPanels.mockImplementation(async (next, cols) => ({ panels: next, columns: cols ?? columns, updated_at: "2026-09-24T00:01:00Z" }))
+    return render(<DashboardPage projects={projects} />)
+  }
+
+  it("lays panels out on a grid of the chosen width, each spanning the room it was given", async () => {
+    const { container } = load()
+    await screen.findAllByRole("button", { name: "Remove panel" })
+
+    const grid = container.querySelector(".dashboard-panel-grid")
+    expect(grid.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))")
+    const [a, b] = container.querySelectorAll(".dashboard-panel")
+    expect([a.style.gridColumn, a.style.gridRow]).toEqual(["span 2", "span 1"])
+    expect([b.style.gridColumn, b.style.gridRow]).toEqual(["span 1", "span 2"])
+  })
+
+  it("changes how many blocks wide the grid is, and narrows panels that no longer fit", async () => {
+    load([{ ...first, w: 3 }, second], 4)
+    await screen.findAllByRole("button", { name: "Remove panel" })
+
+    fireEvent.change(screen.getByLabelText("Blocks across"), { target: { value: "2" } })
+
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
+    const [saved, columns] = updateDashboardPanels.mock.calls[0]
+    expect(columns).toBe(2)
+    expect(saved.map((panel) => panel.w)).toEqual([2, 1])
+  })
+
+  it("resizes a single panel's width and height", async () => {
+    load()
+    const widths = await screen.findAllByLabelText("Panel width")
+
+    fireEvent.change(widths[1], { target: { value: "3" } })
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
+    expect(updateDashboardPanels.mock.calls[0][0].map((panel) => panel.w)).toEqual([2, 3])
+
+    fireEvent.change((await screen.findAllByLabelText("Panel height"))[0], { target: { value: "4" } })
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(2))
+    expect(updateDashboardPanels.mock.calls[1][0].map((panel) => panel.h)).toEqual([4, 2])
+  })
+
+  it("only offers widths that fit the grid", async () => {
+    load([first, second], 2)
+    const [width] = await screen.findAllByLabelText("Panel width")
+
+    expect([...width.options].map((option) => option.value)).toEqual(["1", "2"])
+  })
+
+  it("rearranges panels by dragging one onto another", async () => {
+    const { container } = load()
+    await screen.findAllByRole("button", { name: "Remove panel" })
+    const [a, b] = container.querySelectorAll(".dashboard-panel")
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" }
+
+    fireEvent.dragStart(b, { dataTransfer })
+    fireEvent.dragOver(a, { dataTransfer })
+    fireEvent.drop(a, { dataTransfer })
+
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
+    expect(updateDashboardPanels.mock.calls[0][0].map((panel) => panel.id)).toEqual(["panel-2", "panel-1"])
+  })
+
+  it("does nothing when a panel is dropped on itself", async () => {
+    const { container } = load()
+    await screen.findAllByRole("button", { name: "Remove panel" })
+    const [a] = container.querySelectorAll(".dashboard-panel")
+    const dataTransfer = { setData: vi.fn() }
+
+    fireEvent.dragStart(a, { dataTransfer })
+    fireEvent.drop(a, { dataTransfer })
+
+    expect(updateDashboardPanels).not.toHaveBeenCalled()
+  })
+
+  it("lets a new panel be given its size when it is added", async () => {
+    load([])
+    await screen.findByText(/Your dashboard is empty/)
+    fireEvent.click(screen.getByRole("button", { name: "+ Add panel" }))
+
+    fireEvent.change(screen.getByLabelText("Width"), { target: { value: "3" } })
+    fireEvent.change(screen.getByLabelText("Height"), { target: { value: "3" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add panel" }))
+
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
+    expect(updateDashboardPanels.mock.calls[0][0][0]).toMatchObject({ w: 3, h: 3 })
   })
 })

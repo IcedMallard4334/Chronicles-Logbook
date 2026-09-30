@@ -35,3 +35,22 @@
 .dashboard-add-panel label { display:grid; gap:5px; font-size:.78rem; color:var(--muted); }
 .dashboard-add-panel select { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--text); font-size:.85rem; }
 .dashboard-add-panel-actions { display:flex; justify-content:flex-end; gap:8px; }
+
+/* Grid: the number of columns is the user's choice (inline style); a panel spans
+   as many columns and rows as it was given. */
+.dashboard-header-actions { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+.dashboard-columns { display:grid; gap:4px; font-size:.72rem; color:var(--muted); }
+.dashboard-columns select, .dashboard-add-panel-size select, .dashboard-panel-controls select { padding:5px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); color:var(--text); font-size:.78rem; }
+.dashboard-panel-grid { grid-auto-rows:150px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.dashboard-panel { min-width:0; min-height:0; overflow:hidden; cursor:grab; transition:box-shadow .15s ease, opacity .15s ease; }
+.dashboard-panel .dashboard-panel-body { flex:1; min-height:0; overflow:auto; }
+.dashboard-panel.is-dragging { opacity:.45; cursor:grabbing; }
+.dashboard-panel.is-drop-target { outline:2px dashed var(--blue); outline-offset:2px; }
+.dashboard-panel-grip { display:inline-grid; place-items:center; color:var(--muted); cursor:grab; user-select:none; }
+.dashboard-panel-controls { flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+.dashboard-add-panel-size { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width: 720px) {
+  .dashboard-panel-grid { grid-template-columns:1fr !important; grid-auto-rows:minmax(150px, auto); }
+  .dashboard-panel { grid-column:auto !important; grid-row:auto !important; cursor:default; }
+}
+@media (prefers-reduced-motion: reduce) { .dashboard-panel { transition:none; } }

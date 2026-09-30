@@ -40,6 +40,7 @@ _ADDED_COLUMNS = (
     ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
     ("entries", "due_date", "DATE"),
     ("entries", "due_time", "TIME"),
+    ("dashboards", "columns", "INTEGER NOT NULL DEFAULT 3"),
     ("entry_revisions", "due_time", "TIME"),
     ("entries", "time_spent", "INTEGER"),
     ("entries", "retired_data", "JSONB NOT NULL DEFAULT '{}'::jsonb"),

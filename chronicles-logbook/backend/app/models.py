@@ -626,13 +626,17 @@ class Dashboard(Base):
     )
 
     # [{"id": "...", "type": "saved_filter" | "board" | "statistic",
-    #   "title": "...", "config": {...}}, ...], in display order.
+    #   "title": "...", "config": {...}, "w": 1, "h": 2}, ...], in display
+    # order. w and h are how many grid columns and rows the panel spans.
     panels: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONType,
         nullable=False,
         server_default="[]",
         default=list,
     )
+
+    # How many blocks wide the dashboard grid is.
+    columns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="3", default=3)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

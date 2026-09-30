@@ -671,6 +671,9 @@ class DashboardPanel(BaseModel):
     type: Literal["saved_filter", "board", "statistic"]
     title: str | None = Field(default=None, max_length=100)
     config: dict[str, Any]
+    # Grid cells the panel covers: columns across, rows down.
+    w: int = Field(default=1, ge=1, le=6)
+    h: int = Field(default=2, ge=1, le=4)
 
     @model_validator(mode="after")
     def validate_config(self):
@@ -685,12 +688,14 @@ class DashboardPanel(BaseModel):
 
 class DashboardUpdate(BaseModel):
     panels: list[DashboardPanel]
+    columns: int | None = Field(default=None, ge=2, le=6)
 
 
 class DashboardResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     panels: list[DashboardPanel]
+    columns: int = 3
     updated_at: datetime
 
 
