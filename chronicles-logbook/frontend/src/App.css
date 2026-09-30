@@ -3608,3 +3608,7 @@ button.log-link-chip:hover {
 .entry-add-toggle:hover:not(:disabled), .entry-add-toggle:focus-visible { filter: brightness(1.1); }
 .entry-add-toggle:disabled { opacity: 0.4; cursor: default; }
 :root[data-custom-button="light"] .entry-add-toggle { color: #111; }
+
+.detail-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem; margin-top: 0.75rem; }
+.share-dialog { max-width: 560px; width: min(560px, calc(100vw - 2rem)); }
+.share-dialog .share-panel { margin: 0.5rem 0 1rem; }

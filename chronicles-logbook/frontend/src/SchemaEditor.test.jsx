@@ -946,6 +946,42 @@ describe("filling in a rich entry", () => {
     expect(screen.getByText("1/10 tags")).toBeInTheDocument()
   })
 
+  it("puts sharing, archiving and deleting at the top of the project, with sharing in a dialog", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-notes": "Earlier note" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+    await screen.findByText("Earlier note")
+
+    const actions = screen.getByRole("group", { name: "Project actions" })
+    const header = actions.closest("header")
+    expect(header).not.toBeNull()
+    expect(within(actions).getByRole("button", { name: "Share this project" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Archive project" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Delete project" })).toBeInTheDocument()
+    // They sit above the entries, and nothing is left at the bottom of the page.
+    expect(actions.compareDocumentPosition(screen.getByText("Earlier note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector(".detail-footer")).toBeNull()
+    expect(screen.queryByLabelText("Invite by email")).not.toBeInTheDocument()
+
+    fireEvent.click(within(actions).getByRole("button", { name: "Share this project" }))
+    const dialog = await screen.findByRole("dialog", { name: /Share/ })
+    expect(within(dialog).getByLabelText("Invite by email")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(screen.queryByRole("dialog", { name: /Share/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the owner-only actions away from someone a project is shared with", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES], shared: true }, otherProject])
+    fetchEntries.mockResolvedValue([])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    expect(screen.queryByRole("group", { name: "Project actions" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Leave project" })).toBeInTheDocument()
+  })
+
   it("shows past entries first, and opens the new-entry form from a small + button", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
     fetchEntries.mockResolvedValue([

@@ -30,6 +30,7 @@ import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
 import Streaks from "./Streaks"
+import { ActivityIcon, BoardIcon, OutstandingIcon, TodayIcon } from "./NavIcons"
 import StatusEditor, { statusProblem } from "./StatusEditor"
 import StatusPicker from "./StatusPicker"
 import { hasCustomStatuses, projectStatuses } from "./statuses"
@@ -617,14 +618,14 @@ function ProjectList({
           Dashboard
         </button>
         <button type="button" className={timelineActive ? "is-active" : ""} aria-current={timelineActive ? "page" : undefined} onClick={onShowTimeline}>
-          <span aria-hidden="true">◷</span> Activity
+          <ActivityIcon /> Activity
         </button>
         <button type="button" className={todayActive ? "is-active" : ""} aria-current={todayActive ? "page" : undefined} onClick={onShowToday}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          <TodayIcon />
           Today
         </button>
         <button type="button" className={outstandingActive ? "is-active" : ""} aria-current={outstandingActive ? "page" : undefined} onClick={onShowOutstanding}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /><path d="M4 4l2.5 2.5" /></svg>
+          <OutstandingIcon />
           Outstanding
         </button>
         <button type="button" className={activitiesActive ? "is-active" : ""} aria-current={activitiesActive ? "page" : undefined} onClick={onShowActivities}>
@@ -2003,6 +2004,7 @@ function ProjectDetail({
   const [leaving, setLeaving] = useState(false)
   const [addingEntry, setAddingEntry] = useState(false)
   const [savedNotice, setSavedNotice] = useState(null)
+  const [sharing, setSharing] = useState(false)
   const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
@@ -2058,6 +2060,17 @@ function ProjectDetail({
               {project.entry_schema?.length === 1 ? "field" : "fields"} · Schema
             </button>
           </p>
+          {!project.shared && (
+            <div className="detail-actions" role="group" aria-label="Project actions">
+              <button type="button" className="btn-secondary detail-share-btn" onClick={() => setSharing(true)}>
+                Share this project
+              </button>
+              <button type="button" className="btn-secondary detail-archive-btn" onClick={onToggleArchive}>
+                {project.archived ? "Unarchive project" : "Archive project"}
+              </button>
+              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
+            </div>
+          )}
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
           <button
@@ -2178,8 +2191,9 @@ function ProjectDetail({
           <AutomationPanel project={project} />
         ) : null}
       </div>
-      <footer className="detail-footer">
-        {project.shared ? (
+      {sharing && <ShareProjectDialog projectId={project.id} projectName={project.name} onClose={() => setSharing(false)} />}
+      {project.shared && <footer className="detail-footer">
+        {(
           <div className="detail-shared-note">
             <p>
               Shared with you. You can add entries and correct your own; changing
@@ -2194,22 +2208,8 @@ function ProjectDetail({
               {leaving ? "Leaving…" : "Leave project"}
             </button>
           </div>
-        ) : (
-          <>
-            <ShareProjectPanel projectId={project.id} />
-            <div className="detail-footer-actions">
-              <button
-                type="button"
-                className="btn-secondary detail-archive-btn"
-                onClick={onToggleArchive}
-              >
-                {project.archived ? "Unarchive project" : "Archive project"}
-              </button>
-              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
-            </div>
-          </>
         )}
-      </footer>
+      </footer>}
       {showProjectHint && (
         <PageHint
           hint={projectTour}
@@ -2298,6 +2298,29 @@ function DeleteProjectControl({ project, onDeleted }) {
           {error}
         </p>
       )}
+    </div>
+  )
+}
+
+function ShareProjectDialog({ projectId, projectName, onClose }) {
+  const dialogRef = useDialogFocus(true, onClose)
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        ref={dialogRef}
+        className="modal-card share-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-dialog-title"
+        tabIndex={-1}
+      >
+        <h2 id="share-dialog-title">Share {projectName}</h2>
+        <ShareProjectPanel projectId={projectId} />
+        <div className="modal-actions">
+          <button type="button" className="btn-secondary" onClick={onClose}>Done</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -3094,11 +3117,7 @@ function App() {
               className={`nav-item ${currentView === "board" ? "active" : ""}`}
               onClick={() => setCurrentView("board")}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="4" width="5" height="16" rx="1" />
-                <rect x="10" y="4" width="5" height="11" rx="1" />
-                <rect x="17" y="4" width="4" height="7" rx="1" />
-              </svg>
+              <BoardIcon />
               <span>Board</span>
             </button>
             <button
