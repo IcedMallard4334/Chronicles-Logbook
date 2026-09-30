@@ -79,6 +79,7 @@ import {
 } from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
+import { TrashButton } from "./TrashIcon"
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -1004,9 +1005,7 @@ function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChang
             A link needs somewhere to point — create another project first.
           </p>
         ))}
-      <button type="button" className="btn-text-danger" onClick={() => onRemove(index)}>
-        Remove field
-      </button>
+      <TrashButton label="Remove field" onClick={() => onRemove(index)} />
     </div>
   )
 }
@@ -2171,17 +2170,16 @@ function DeleteProjectControl({ project, onDeleted }) {
 
   if (!confirming) {
     return (
-      <button
-        type="button"
-        className="btn-danger detail-delete-btn"
+      <TrashButton
+        className="detail-delete-btn"
+        label="Delete project"
+        text="Delete project"
         onClick={() => {
           setConfirming(true)
           setTyped("")
           setError("")
         }}
-      >
-        Delete project
-      </button>
+      />
     )
   }
 

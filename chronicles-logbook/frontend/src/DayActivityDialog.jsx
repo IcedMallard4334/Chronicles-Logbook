@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { createCalendarActivity, deleteCalendarActivity } from "./api"
 import { dateKey } from "./calendarDates"
 import "./DayActivityDialog.css"
+import { TrashButton } from "./TrashIcon"
 
 export default function DayActivityDialog({date, events, entries, activities, loading, activityError, onClose, onSaved, onDeleted}) {
   const dialog = useRef(null)
@@ -58,8 +59,8 @@ export default function DayActivityDialog({date, events, entries, activities, lo
         <div className="day-form-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={()=>{setAdding(false);setError("")}}>Cancel</button><button className="btn-primary" disabled={saving}>{saving?"Saving…":"Save activity"}</button></div>
       </form>}
       {!loading && !agenda.length && <div className="day-empty"><h3>A clear day.</h3><p>Add an activity, or connect another Google account to see more of your schedule.</p></div>}
-      <ol className="day-agenda">{agenda.map(item=><li key={item.key} className={`day-agenda-item day-${item.kind}`}><time>{item.when}</time><div><span className="day-item-source">{item.label}</span>{item.link?.startsWith("https://")?<a href={item.link} target="_blank" rel="noopener noreferrer">{item.title} ↗</a>:<strong>{item.title}</strong>}{item.description&&<p>{item.description}</p>}{item.id&&<button type="button" className="day-delete" onClick={()=>setDeleteId(item.id)}>Delete activity</button>}</div></li>)}</ol>
-      {deleteId && <div className="day-delete-confirm" role="alert"><p>Delete this Chronicles activity?</p><button type="button" disabled={deleting} onClick={()=>setDeleteId(null)}>Keep activity</button><button type="button" disabled={deleting} onClick={remove}>{deleting?"Deleting…":"Delete activity"}</button></div>}
+      <ol className="day-agenda">{agenda.map(item=><li key={item.key} className={`day-agenda-item day-${item.kind}`}><time>{item.when}</time><div><span className="day-item-source">{item.label}</span>{item.link?.startsWith("https://")?<a href={item.link} target="_blank" rel="noopener noreferrer">{item.title} ↗</a>:<strong>{item.title}</strong>}{item.description&&<p>{item.description}</p>}{item.id&&<TrashButton className="day-delete" label="Delete activity" text="Delete activity" onClick={()=>setDeleteId(item.id)} />}</div></li>)}</ol>
+      {deleteId && <div className="day-delete-confirm" role="alert"><p>Delete this Chronicles activity?</p><button type="button" disabled={deleting} onClick={()=>setDeleteId(null)}>Keep activity</button><TrashButton label="Delete activity" text={deleting?"Deleting…":"Delete activity"} className="btn-trash-solid" disabled={deleting} onClick={remove} /></div>}
     </div>
   </dialog>
 }

@@ -21,15 +21,22 @@
 }
 .btn-trash:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-trash .trash-icon { overflow: visible; }
-.btn-trash .trash-lid {
+.trash-lid {
   transform-box: fill-box;
   transform-origin: 100% 100%;
   transition: transform 0.22s ease;
 }
-.btn-trash:hover:not(:disabled) .trash-lid,
-.btn-trash:focus-visible .trash-lid {
+button:hover:not(:disabled) .trash-lid,
+button:focus-visible .trash-lid {
   transform: translate(2px, -3px) rotate(18deg);
 }
+.btn-trash-solid,
+.btn-trash-solid:hover:not(:disabled) {
+  background: var(--error, #d93025);
+  border-color: var(--error, #d93025);
+  color: #fff;
+}
+.btn-trash-inline { display: inline-flex; align-items: center; gap: 0.4rem; }
 @media (prefers-reduced-motion: reduce) {
-  .btn-trash .trash-lid { transition: none; }
+  .trash-lid { transition: none; }
 }

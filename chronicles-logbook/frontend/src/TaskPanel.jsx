@@ -6,6 +6,7 @@ import {
   toggleTask,
   updateTask,
 } from "./api"
+import { TrashButton } from "./TrashIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -172,14 +173,10 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
                   <span className={`task-checklist-text ${item.completed ? "completed" : ""}`}>
                     {item.text}
                   </span>
-                  <button
-                    type="button"
-                    className="btn-text-danger"
+                  <TrashButton
+                    label="Remove checklist item"
                     onClick={() => handleRemoveChecklistItem(item.id)}
-                    aria-label="Remove checklist item"
-                  >
-                    Remove
-                  </button>
+                  />
                 </li>
               ))}
             </ul>
@@ -373,15 +370,11 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         >
           Edit
         </button>
-        <button
-          type="button"
-          className="btn-text-danger"
+        <TrashButton
+          label="Delete task"
           onClick={handleDelete}
           disabled={isDeleting}
-          aria-label="Delete task"
-        >
-          {isDeleting ? "…" : "Delete"}
-        </button>
+        />
       </div>
     </li>
   )

@@ -9,6 +9,7 @@ import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
 import "./ProfilePage.css"
+import { TrashIcon } from "./TrashIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -372,8 +373,8 @@ export default function ProfilePage() {
                   <span className="profile-row-label">Delete account</span>
                   <span className="profile-row-value">Permanently delete your account and all data.</span>
                 </div>
-                <button type="button" className="delete-account-confirm" onClick={openDeleteModal}>
-                  Delete account
+                <button type="button" className="delete-account-confirm btn-trash-inline" onClick={openDeleteModal}>
+                  <TrashIcon /> Delete account
                 </button>
               </div>
             </section>

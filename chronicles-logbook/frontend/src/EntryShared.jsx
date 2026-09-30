@@ -6,6 +6,7 @@ import EntryHistory from "./EntryHistory"
 import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
 import RecurrenceControl from "./RecurrenceControl"
+import { TrashButton } from "./TrashIcon"
 
 // Kept separate from App.jsx (which has its own copy, same as ProfilePage.jsx
 // does) so this file has no import edge back into App.jsx — EntryDetailModal
@@ -847,15 +848,17 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                     >
                       Cancel
                     </button>
-                    <button type="button" className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
-                      {isDeleting ? "Deleting…" : "Yes, delete"}
-                    </button>
+                    <TrashButton
+                      label="Yes, delete"
+                      text={isDeleting ? "Deleting…" : "Yes, delete"}
+                      className="btn-trash-solid"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                    />
                   </>
                 ) : (
                   <>
-                    <button type="button" className="btn-secondary" onClick={() => setConfirmingDelete(true)}>
-                      Delete
-                    </button>
+                    <TrashButton label="Delete" text="Delete" onClick={() => setConfirmingDelete(true)} />
                     <button type="button" className="btn-primary" onClick={() => setMode("edit")}>
                       Edit
                     </button>

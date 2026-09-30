@@ -24,6 +24,7 @@ import {
 import { entryPreview } from "./EntryShared"
 import { StructuredSearch } from "./StructuredSearch"
 import "./AutomationPanel.css"
+import { TrashButton } from "./TrashIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -155,9 +156,7 @@ function ActionEditor({ action, schema, index, onChange, onRemove, canRemove }) 
       </label>
       {detail}
       {canRemove && (
-        <button type="button" className="btn-text-danger" onClick={onRemove} aria-label={`Remove action ${index + 1}`}>
-          Remove
-        </button>
+        <TrashButton label={`Remove action ${index + 1}`} onClick={onRemove} />
       )}
     </div>
   )
@@ -381,9 +380,7 @@ export default function AutomationPanel({ project }) {
                     <>
                       <span>Delete this rule?</span>
                       <button type="button" className="btn-text" onClick={() => setConfirmDeleteId(null)}>Keep</button>
-                      <button type="button" className="btn-danger" disabled={busyId === rule.id} onClick={() => removeRule(rule)}>
-                        Delete
-                      </button>
+                      <TrashButton label="Delete" text="Delete" className="btn-trash-solid" disabled={busyId === rule.id} onClick={() => removeRule(rule)} />
                     </>
                   ) : (
                     <>
@@ -391,9 +388,7 @@ export default function AutomationPanel({ project }) {
                         {rule.enabled ? "Turn off" : "Turn on"}
                       </button>
                       <button type="button" className="btn-text" onClick={() => setEditing(rule)}>Edit</button>
-                      <button type="button" className="btn-text-danger" onClick={() => setConfirmDeleteId(rule.id)}>
-                        Delete
-                      </button>
+                      <TrashButton label="Delete" onClick={() => setConfirmDeleteId(rule.id)} />
                     </>
                   )}
                 </div>
