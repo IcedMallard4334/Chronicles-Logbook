@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 
-import { deleteEntry, fetchEntryHistory, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
+import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
+import EntryHistory from "./EntryHistory"
 import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
 import RecurrenceControl from "./RecurrenceControl"
@@ -587,9 +588,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState(null)
-  const [history, setHistory] = useState(null)
-  const [historyError, setHistoryError] = useState(null)
-  const [historyLoading, setHistoryLoading] = useState(false)
+  const [note, setNote] = useState("")
 
   const dialogRef = useDialogFocus(true, onClose)
 
@@ -700,10 +699,12 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         todo,
         due_date: dueDate || null,
         migrateToCurrentSchema: migrateChosen,
+        note: note.trim() || undefined,
       })
       onSaved?.(saved)
       setMode("view")
       setMigrateChosen(false)
+      setNote("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -729,19 +730,8 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
     setMigrateChosen(false)
     setTitle(entry.title || "")
     setData(entry.data || {})
+    setNote("")
     setError(null)
-  }
-
-  const loadHistory = async () => {
-    setHistoryLoading(true)
-    setHistoryError(null)
-    try {
-      setHistory(await fetchEntryHistory(project.id, entry.id))
-    } catch (err) {
-      setHistoryError(formatError(err))
-    } finally {
-      setHistoryLoading(false)
-    }
   }
 
   // Rendered through a portal, straight onto <body>: EntryDetailModal opens
@@ -827,34 +817,13 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               </p>
             )}
             <RetiredValues retiredData={entry.retired_data || {}} retiredSchema={project.retired_schema || []} />
-            <section className="entry-history" aria-labelledby="entry-history-heading">
-              <div className="entry-history-heading">
-                <h3 id="entry-history-heading">History</h3>
-                <button type="button" className="btn-text" onClick={loadHistory} disabled={historyLoading}>
-                  {historyLoading ? "Loading…" : history ? "Refresh" : "View history"}
-                </button>
-              </div>
-              {historyError && <p className="error" role="alert">{historyError}</p>}
-              {history?.length === 0 && <p className="hint">No saved revisions yet.</p>}
-              {history?.map((revision) => (
-                <details key={revision.id} className="entry-history-revision">
-                  <summary>
-                    Revision {revision.revision} · {new Date(revision.changed_at).toLocaleString()}
-                    {revision.changed_by_name ? ` · ${revision.changed_by_name}` : ""}
-                  </summary>
-                  <dl className="entry-detail-fields">
-                    {revision.schema_snapshot.map((field) => (
-                      <div key={field.id} className="entry-detail-field">
-                        <dt>{field.name}</dt>
-                        <dd>{formatEntryValue(field, revision.data?.[field.id], projectNames)}</dd>
-                      </div>
-                    ))}
-                    <div className="entry-detail-field"><dt>Time spent</dt><dd>{revision.time_spent != null ? `${revision.time_spent} min` : "—"}</dd></div>
-                    <div className="entry-detail-field"><dt>Status</dt><dd>{revision.todo ? "Still to do" : "Done"}</dd></div>
-                  </dl>
-                </details>
-              ))}
-            </section>
+            <EntryHistory
+              projectId={project.id}
+              entryId={entry.id}
+              canRevert={canManage && !project.archived}
+              formatValue={(field, value) => formatEntryValue(field, value, projectNames)}
+              onReverted={(saved) => onSaved?.(saved)}
+            />
             <RecurrenceControl
               projectId={project.id}
               entry={entry}
@@ -866,7 +835,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 {confirmingDelete ? (
                   <>
                     <span className="entry-detail-confirm-text">
-                      Delete this entry? This can&rsquo;t be undone.
+                      Delete this entry? It stays in its history, and you can restore it from Deleted entries.
                     </span>
                     <button
                       type="button"
@@ -978,6 +947,16 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 </label>
               )}
             </div>
+            <label className="field-label">
+              Reason for change (optional)
+              <input
+                type="text"
+                maxLength={500}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="e.g. Corrected the hours"
+              />
+            </label>
             <div className="actions">
               <button type="button" className="btn-text" onClick={cancelEdit} disabled={isSaving}>
                 Cancel

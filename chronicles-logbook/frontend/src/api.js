@@ -261,6 +261,19 @@ export async function fetchEntryHistory(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}/history`)
 }
 
+// Makes an earlier version current again by adding a new one (US-3.10);
+// reverting a deleted entry restores it.
+export async function revertEntry(projectId, entryId, { revision, note }) {
+  return request(`/projects/${projectId}/entries/${entryId}/revert`, {
+    method: "POST",
+    body: JSON.stringify(note ? { revision, note } : { revision }),
+  })
+}
+
+export async function fetchDeletedEntries(projectId) {
+  return request(`/projects/${projectId}/entries/deleted`)
+}
+
 // What bringing this one entry up to the project's current schema would
 // produce, without saving it — feeds the "update to current schema" choice
 // in the entry detail view so it can show real values before committing.
@@ -271,7 +284,7 @@ export async function fetchEntryMigrationPreview(projectId, entryId) {
 export async function updateEntry(
   projectId,
   entryId,
-  { title, data, time_spent, todo, due_date, migrateToCurrentSchema }
+  { title, data, time_spent, todo, due_date, migrateToCurrentSchema, note }
 ) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
@@ -285,6 +298,8 @@ export async function updateEntry(
   // the explicit, per-entry opt-in to bring it up to the project's current
   // schema as part of this same save.
   if (migrateToCurrentSchema) body.migrate_to_current_schema = true
+  // Why it was corrected — kept on the new version, not the entry (US-3.10).
+  if (note) body.note = note
 
   return request(`/projects/${projectId}/entries/${entryId}`, {
     method: "PUT",

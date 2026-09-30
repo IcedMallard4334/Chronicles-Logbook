@@ -1,10 +1,10 @@
+from datetime import date, datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
 
 from app.automation import apply_entry_rules
 from app.computed import apply_computed_fields
@@ -33,6 +33,7 @@ from app.schemas import (
     EntryCreate,
     EntryMigrationPreview,
     EntryResponse,
+    EntryRevertRequest,
     EntryRevisionResponse,
     EntryUpdate,
     ProjectCreate,
@@ -49,11 +50,51 @@ from app.schemas import (
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
-def _record_entry_revision(entry: Entry, user_id: UUID, revision: int) -> EntryRevision:
-    """Copy the saved state into the entry's append-only audit trail."""
+def _entry_state(entry: Entry) -> dict[str, Any]:
+    """The values a version compares, flattened so each can be diffed on its own."""
+    state: dict[str, Any] = {
+        "title": entry.title,
+        "time_spent": entry.time_spent,
+        "todo": bool(entry.todo),
+        "due_date": entry.due_date.isoformat() if isinstance(entry.due_date, date) else entry.due_date,
+        "schema_version": entry.schema_version,
+    }
+    for field_id, value in (entry.data or {}).items():
+        state[f"data.{field_id}"] = value
+    return state
+
+
+def _record_entry_revision(
+    entry: Entry,
+    user_id: UUID | None,
+    revision: int,
+    *,
+    action: str | None = None,
+    note: str | None = None,
+    previous: dict[str, Any] | None = None,
+    reverted_to: int | None = None,
+    changed_at: datetime | None = None,
+) -> EntryRevision:
+    """Copy the saved state into the entry's append-only audit trail.
+
+    ``previous`` is the entry's state before this change (see _entry_state);
+    when given, the version records which values changed and what they were.
+    """
+    current = _entry_state(entry)
+    changed = (
+        [key for key in dict.fromkeys([*previous, *current]) if previous.get(key) != current.get(key)]
+        if previous is not None
+        else []
+    )
     return EntryRevision(
         entry_id=entry.id,
         revision=revision,
+        action=action or ("created" if revision == 1 else "edited"),
+        note=(note or "").strip() or None,
+        changed_fields=changed,
+        previous_values={key: previous.get(key) for key in changed} if previous is not None else {},
+        reverted_to=reverted_to,
+        changed_at=changed_at or datetime.now(timezone.utc),
         title=entry.title,
         data=dict(entry.data or {}),
         retired_data=dict(entry.retired_data or {}),
@@ -64,6 +105,31 @@ def _record_entry_revision(entry: Entry, user_id: UUID, revision: int) -> EntryR
         due_date=entry.due_date,
         changed_by=user_id,
     )
+
+
+async def _ensure_history(entry: Entry, db: AsyncSession) -> int:
+    """Return the entry's latest version number, first recording a baseline if it has none.
+
+    Entries saved before history existed, or through a path that didn't record
+    it, would otherwise lose what they said on their first correction. Call
+    this *before* changing the entry, so the baseline is the original.
+    """
+    latest = await db.scalar(
+        select(func.max(EntryRevision.revision)).where(EntryRevision.entry_id == entry.id)
+    )
+    if latest is not None:
+        return latest
+    db.add(
+        _record_entry_revision(
+            entry,
+            entry.created_by,
+            revision=1,
+            action="created",
+            changed_at=entry.updated_at or entry.created_at,
+        )
+    )
+    await db.flush()
+    return 1
 
 # Field types the caller need not fill in: a computed field is derived by the
 # server (US-2.5), and a reference may legitimately be left blank (US-2.4) so
@@ -769,7 +835,7 @@ async def create_entry(
     project = await _get_readable_project(project_id, user, db)
 
     if data.id is not None:
-        existing = await db.get(Entry, data.id)
+        existing = await db.get(Entry, data.id, execution_options={"include_deleted": True})
         if existing is not None:
             # The id is only ever compared against the project the caller was
             # just authorised for, so a collision with another user's entry
@@ -778,6 +844,11 @@ async def create_entry(
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="An entry with this id already exists.",
+                )
+            if existing.deleted_at is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This entry was deleted. Restore it from the project's deleted entries.",
                 )
             response.status_code = status.HTTP_200_OK
             return existing
@@ -831,7 +902,7 @@ async def create_entry(
 
     db.add(entry)
     await db.flush()
-    db.add(_record_entry_revision(entry, user.id, revision=1))
+    db.add(_record_entry_revision(entry, user.id, revision=1, changed_at=entry.created_at))
     await db.commit()
     await db.refresh(entry)
 
@@ -858,13 +929,34 @@ async def list_entries(
     return result.scalars().all()
 
 
+@router.get("/{project_id}/entries/deleted", response_model=list[EntryResponse])
+async def list_deleted_entries(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Entries deleted from this project, most recent first, so they can be restored."""
+    await _get_readable_project(project_id, user, db)
+    result = await db.execute(
+        select(Entry)
+        .where(Entry.project_id == project_id, Entry.deleted_at.is_not(None))
+        .order_by(Entry.deleted_at.desc(), Entry.id.desc())
+        .execution_options(include_deleted=True)
+    )
+    return result.scalars().all()
+
+
 async def _get_project_entry(
     entry_id: UUID,
     project_id: UUID,
     db: AsyncSession,
+    *,
+    include_deleted: bool = False,
 ) -> Entry:
     """Resolve an entry within a project the caller has already been authorised for."""
-    entry = await db.get(Entry, entry_id)
+    entry = await db.get(
+        Entry, entry_id, execution_options={"include_deleted": include_deleted}
+    )
 
     if entry is None or entry.project_id != project_id:
         raise HTTPException(
@@ -897,9 +989,15 @@ async def get_entry_history(
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """Return immutable entry revisions, newest first, to project readers."""
+    """Return immutable entry revisions, newest first, to project readers.
+
+    Includes deleted entries, whose last version is the deletion itself.
+    """
     await _get_readable_project(project_id, user, db)
-    await _get_project_entry(entry_id, project_id, db)
+    entry = await _get_project_entry(entry_id, project_id, db, include_deleted=True)
+    if await db.scalar(select(EntryRevision.id).where(EntryRevision.entry_id == entry_id).limit(1)) is None:
+        await _ensure_history(entry, db)
+        await db.commit()
     result = await db.execute(
         select(EntryRevision)
         .where(EntryRevision.entry_id == entry_id)
@@ -958,6 +1056,8 @@ async def _get_writable_entry(
     project: Project,
     user: User,
     db: AsyncSession,
+    *,
+    include_deleted: bool = False,
 ) -> Entry:
     """An entry the caller may correct or remove.
 
@@ -966,7 +1066,7 @@ async def _get_writable_entry(
     has to ask the owner to do it, and a contributor who can rewrite everyone
     else's entries is no longer a contributor to somebody's record.
     """
-    entry = await _get_project_entry(entry_id, project.id, db)
+    entry = await _get_project_entry(entry_id, project.id, db, include_deleted=include_deleted)
 
     if project.user_id != user.id and entry.created_by != user.id:
         raise HTTPException(
@@ -1009,6 +1109,9 @@ async def update_entry(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot edit entries in an archived project.",
         )
+
+    latest_revision = await _ensure_history(entry, db)
+    previous = _entry_state(entry)
 
     if "title" in payload.model_fields_set:
         entry.title = (payload.title or "").strip() or None
@@ -1058,13 +1161,92 @@ async def update_entry(
     if "due_date" in payload.model_fields_set:
         entry.due_date = payload.due_date
 
-    latest_revision = await db.scalar(
-        select(func.max(EntryRevision.revision)).where(EntryRevision.entry_id == entry.id)
-    )
-    db.add(_record_entry_revision(entry, user.id, revision=(latest_revision or 0) + 1))
+    # A save that changes nothing adds no version, unless it explains itself.
+    if _entry_state(entry) != previous or (payload.note or "").strip():
+        db.add(
+            _record_entry_revision(
+                entry, user.id, revision=latest_revision + 1, note=payload.note, previous=previous
+            )
+        )
     await db.commit()
     await db.refresh(entry)
 
+    return entry
+
+
+@router.post("/{project_id}/entries/{entry_id}/revert", response_model=EntryResponse)
+async def revert_entry(
+    project_id: UUID,
+    entry_id: UUID,
+    payload: EntryRevertRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Make an earlier version current again (US-3.10).
+
+    Nothing is removed: the revert is a new version whose values match the
+    chosen one. Reverting a deleted entry restores it.
+    """
+    project = await _get_readable_project(project_id, user, db)
+    entry = await _get_writable_entry(entry_id, project, user, db, include_deleted=True)
+
+    if project.archived:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot edit entries in an archived project.",
+        )
+
+    latest_revision = await _ensure_history(entry, db)
+    target = await db.scalar(
+        select(EntryRevision).where(
+            EntryRevision.entry_id == entry.id, EntryRevision.revision == payload.revision
+        )
+    )
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found.")
+    if target.action == "deleted":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That version is the deletion itself. Choose a version from before it.",
+        )
+
+    was_deleted = entry.deleted_at is not None
+    if target.revision == latest_revision and not was_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That is already the current version.",
+        )
+
+    previous = _entry_state(entry)
+    entry.title = target.title
+    entry.data = dict(target.data or {})
+    entry.retired_data = dict(target.retired_data or {})
+    entry.schema_version = target.schema_version
+    entry.schema_snapshot = [dict(field) for field in (target.schema_snapshot or [])]
+    entry.time_spent = target.time_spent
+    entry.todo = target.todo
+    entry.due_date = target.due_date
+    entry.deleted_at = None
+
+    summary = (
+        f"Restored and reverted to v{target.revision}."
+        if was_deleted
+        else f"Reverted to v{target.revision}."
+    )
+    reason = (payload.note or "").strip()
+    db.add(
+        _record_entry_revision(
+            entry,
+            user.id,
+            revision=latest_revision + 1,
+            action="reverted",
+            note=f"{summary} {reason}" if reason else summary,
+            previous=previous,
+            reverted_to=target.revision,
+        )
+    )
+    await db.commit()
+    await db.refresh(entry)
     return entry
 
 
@@ -1098,15 +1280,27 @@ async def _clear_broken_links(
         .where(Project.user_id == user.id)
     )
     for candidate in result.scalars().all():
-        changed = False
-        for field_id, value in list(candidate.data.items()):
-            if _is_link_to(value, deleted_entry_id):
-                candidate.data[field_id] = None
-                changed = True
-        if changed:
-            # SQLAlchemy doesn't detect in-place JSON mutations, so we
-            # explicitly flag the column as dirty.
-            flag_modified(candidate, "data")
+        if candidate.id == deleted_entry_id:
+            continue
+        cleared = {
+            field_id: None
+            for field_id, value in (candidate.data or {}).items()
+            if _is_link_to(value, deleted_entry_id)
+        }
+        if cleared:
+            latest = await _ensure_history(candidate, db)
+            previous = _entry_state(candidate)
+            # A new dict, not an in-place change, so SQLAlchemy sees it.
+            candidate.data = {**candidate.data, **cleared}
+            db.add(
+                _record_entry_revision(
+                    candidate,
+                    user.id,
+                    revision=latest + 1,
+                    note="Link to a deleted entry was cleared.",
+                    previous=previous,
+                )
+            )
 
 
 @router.delete(
@@ -1116,6 +1310,7 @@ async def _clear_broken_links(
 async def delete_entry(
     project_id: UUID,
     entry_id: UUID,
+    note: str | None = Query(None, max_length=500),
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
@@ -1133,7 +1328,20 @@ async def delete_entry(
     # before deleting, so we don't leave broken references behind.
     await _clear_broken_links(entry_id, user, db)
 
-    await db.delete(entry)
+    # A tombstone, not a hard delete (US-3.10): the last version keeps what the
+    # entry said, and reverting to an earlier one restores it.
+    latest_revision = await _ensure_history(entry, db)
+    entry.deleted_at = datetime.now(timezone.utc)
+    db.add(
+        _record_entry_revision(
+            entry,
+            user.id,
+            revision=latest_revision + 1,
+            action="deleted",
+            note=note,
+            previous=_entry_state(entry),
+        )
+    )
     await db.commit()
 
 

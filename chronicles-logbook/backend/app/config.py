@@ -68,9 +68,11 @@ DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 
+# Derived from OAUTH_REDIRECT_URI when unset, so a deployment that only
+# configures the sign-in callback doesn't send Calendar consent to localhost.
 GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
     "GOOGLE_CALENDAR_REDIRECT_URI",
-    "http://localhost:8000/auth/google/calendar/callback",
+    OAUTH_REDIRECT_URI.replace("/auth/google/callback", "/auth/google/calendar/callback"),
 )
 
 # Gemini AI assistant. The API key is supplied through the local .env file

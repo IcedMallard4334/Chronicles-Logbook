@@ -24,7 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Entry, Project, User
 from app.routers.auth import get_current_user
-from app.routers.projects import _get_user_project, _validate_entry_data
+from app.routers.projects import (
+    _get_user_project,
+    _record_entry_revision,
+    _validate_entry_data,
+)
 from app.schemas import (
     EXPORT_VERSION,
     ExportDocument,
@@ -214,6 +218,7 @@ async def import_logbook(
         )
 
     summary = ImportSummary()
+    imported: list[Entry] = []
 
     for exported in document.projects:
         project, created = await _resolve_project(exported, user, db)
@@ -236,10 +241,13 @@ async def import_logbook(
                 )
                 continue
 
-            existing = await db.get(Entry, exported_entry.id)
+            # A deleted entry still owns its id, so it's looked up too.
+            existing = await db.get(
+                Entry, exported_entry.id, execution_options={"include_deleted": True}
+            )
 
             if existing is not None:
-                if existing.project_id == project.id:
+                if existing.project_id == project.id and existing.deleted_at is None:
                     # Already restored by an earlier import of this file.
                     summary.entries_skipped += 1
                     continue
@@ -249,17 +257,26 @@ async def import_logbook(
             else:
                 entry_id = exported_entry.id
 
-            db.add(
-                Entry(
-                    id=entry_id,
-                    project_id=project.id,
-                    data=exported_entry.data,
-                    retired_data=exported_entry.retired_data,
-                    time_spent=exported_entry.time_spent,
-                    created_at=exported_entry.created_at,
-                )
+            entry = Entry(
+                id=entry_id,
+                project_id=project.id,
+                data=exported_entry.data,
+                retired_data=exported_entry.retired_data,
+                time_spent=exported_entry.time_spent,
+                created_at=exported_entry.created_at,
             )
+            db.add(entry)
+            imported.append(entry)
             summary.entries_created += 1
 
+    # Flushed first so column defaults (schema version, todo) are in place
+    # before each first version copies them.
+    await db.flush()
+    for entry in imported:
+        db.add(
+            _record_entry_revision(
+                entry, user.id, revision=1, note="Imported from a backup file.", changed_at=entry.created_at
+            )
+        )
     await db.commit()
     return summary

@@ -2724,6 +2724,99 @@ button.log-link-chip:hover {
   margin: 14px 0 0;
 }
 
+.entry-history-asof {
+  margin-top: 12px;
+  max-width: 220px;
+}
+
+.entry-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry-history-summary {
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.entry-history-changes,
+.entry-history-note {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.entry-history-note {
+  font-style: italic;
+}
+
+.entry-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.entry-history-snapshot,
+.entry-history-confirm {
+  margin-top: 12px;
+  border: 1px solid var(--warning-soft);
+  background: var(--warning-bg);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.entry-history-banner {
+  margin: 0;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.entry-history-snapshot-title {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.entry-history-confirm p {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+}
+
+.deleted-entries {
+  margin-top: 20px;
+}
+
+.deleted-entries summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.deleted-entries ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.deleted-entries li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.deleted-entries li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* --------------------------------------------------
    DELETE ACCOUNT MODAL
    -------------------------------------------------- */

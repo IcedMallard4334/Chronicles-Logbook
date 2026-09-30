@@ -429,6 +429,19 @@ class EntryUpdate(BaseModel):
     # schema has changed" in the API docs.
     migrate_to_current_schema: bool = False
 
+    # Why the entry is being corrected (US-3.10). Kept on the new version
+    # only; it is not part of the entry itself.
+    note: str | None = Field(default=None, max_length=500)
+
+
+class EntryRevertRequest(BaseModel):
+    """Bring an entry back to an earlier version by adding a new one (US-3.10)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: int = Field(ge=1)
+    note: str | None = Field(default=None, max_length=500)
+
 
 class EntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -452,6 +465,8 @@ class EntryResponse(BaseModel):
     created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Set only on entries listed from the deleted view (US-3.10).
+    deleted_at: datetime | None = None
     # Rules that fired when this entry was captured (US-3.12). Only filled in
     # on the response to the request that created the entry; empty elsewhere.
     applied_rules: list["AppliedRule"] = Field(default_factory=list)
@@ -474,6 +489,11 @@ class EntryRevisionResponse(BaseModel):
     changed_by: UUID | None = None
     changed_by_name: str | None = None
     changed_at: datetime
+    action: str = "edited"
+    note: str | None = None
+    changed_fields: list[str] = Field(default_factory=list)
+    previous_values: dict[str, Any] = Field(default_factory=dict)
+    reverted_to: int | None = None
 
 
 # ── Tasks ────────────────────────────────────────────────────────────

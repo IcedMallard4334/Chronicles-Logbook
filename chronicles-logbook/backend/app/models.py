@@ -9,9 +9,11 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, with_loader_criteria
 
 from app.database import Base, JSONType
 
@@ -298,6 +300,27 @@ class Entry(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # Deleting an entry only stamps this (US-3.10): the row and its history
+    # stay, so the deletion is itself a version and can be reverted. Every ORM
+    # SELECT hides stamped rows — see _hide_deleted_entries below.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_deleted_entries(state) -> None:
+    """Keep soft-deleted entries out of every query unless asked for.
+
+    Applied globally rather than at each of the many places entries are read,
+    so a count, a join or a new endpoint can't forget it. Pass
+    ``execution_options={"include_deleted": True}`` to see them.
+    """
+    if state.is_select and not state.execution_options.get("include_deleted", False):
+        state.statement = state.statement.options(
+            with_loader_criteria(Entry, lambda cls: cls.deleted_at.is_(None), include_aliases=True)
+        )
+
 
 class EntryRevision(Base):
     """An immutable snapshot of an entry after it is created or edited."""
@@ -324,6 +347,15 @@ class EntryRevision(Base):
     changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # What this version did (created / edited / deleted / reverted) and why.
+    # A "deleted" version is a tombstone: it keeps the entry's last values.
+    action: Mapped[str] = mapped_column(String(20), nullable=False, default="edited")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which values differ from the version before, and what they used to be,
+    # keyed as "title", "time_spent", "todo", "due_date" or "data.<field id>".
+    changed_fields: Mapped[list[str]] = mapped_column(JSONType, nullable=False, default=list)
+    previous_values: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    reverted_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     editor = relationship("User", lazy="selectin", foreign_keys=[changed_by])
 

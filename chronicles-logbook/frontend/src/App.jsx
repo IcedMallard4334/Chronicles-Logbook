@@ -24,6 +24,7 @@ import ChronologicalTimeline from "./EntryTimeline"
 import FieldTimeline from "./FieldTimeline"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
+import DeletedEntries from "./DeletedEntries"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
@@ -1937,6 +1938,7 @@ function ProjectDetail({
   onEntryCreated,
   onEntryUpdated,
   onEntryDeleted,
+  onEntryRestored,
   onEditProject,
   onToggleArchive,
   onDeleteProject,
@@ -2062,6 +2064,12 @@ function ProjectDetail({
               onOpenProject={onOpenProject}
               onEntryUpdated={onEntryUpdated}
               onEntryDeleted={onEntryDeleted}
+            />
+            <DeletedEntries
+              project={project}
+              liveCount={(project.entries || []).length}
+              userId={userId}
+              onRestored={onEntryRestored}
             />
           </>
         ) : tab === "schema" ? (
@@ -2739,6 +2747,22 @@ function App() {
     )
   }
 
+  // A restored entry (US-3.10) goes back where its capture time puts it.
+  const handleEntryRestored = (restored) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === restored.project_id
+          ? {
+              ...project,
+              entries: [...(project.entries || []).filter((entry) => entry.id !== restored.id), restored].sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at)
+              ),
+            }
+          : project
+      )
+    )
+  }
+
   const handleEntryDeleted = (entryId) => {
     setProjects((prev) =>
       prev.map((project) =>
@@ -3042,6 +3066,7 @@ function App() {
                 onEntryCreated={handleEntryCreated}
                 onEntryUpdated={handleEntryUpdated}
                 onEntryDeleted={handleEntryDeleted}
+                onEntryRestored={handleEntryRestored}
                 onEditProject={() => setIsEditModalOpen(true)}
                 onToggleArchive={handleToggleArchive}
                 onDeleteProject={handleDeleteProject}

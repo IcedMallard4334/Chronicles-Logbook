@@ -109,6 +109,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 | `SMTP_USER` | No | SMTP username |
 | `SMTP_PASSWORD` | No | SMTP password |
 | `FRONTEND_URL` | No | Frontend base URL for OAuth redirects |
+| `GOOGLE_CALENDAR_REDIRECT_URI` | No | `https://BACKEND_HOST/auth/google/calendar/callback`; defaults to `OAUTH_REDIRECT_URI` with `/calendar` inserted. Must be registered in the Google OAuth client |
 
 ## Frontend Deployment
 
