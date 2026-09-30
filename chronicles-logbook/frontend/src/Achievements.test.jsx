@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
 }))
 
 import AchievementCelebration from "./AchievementCelebration"
+import AchievementsPage from "./AchievementsPage"
 import AchievementsSection from "./AchievementsSection"
 import BadgeArt, { TIER_LABELS } from "./BadgeArt"
 import Confetti, { makePieces, prefersReducedMotion } from "./Confetti"
@@ -129,14 +130,45 @@ describe("Confetti", () => {
   })
 })
 
-describe("AchievementsSection", () => {
+describe("AchievementsSection (on the profile)", () => {
+  it("shows how you are doing, with a way to see every badge", async () => {
+    fetchAchievements.mockResolvedValue(summary(BADGES))
+    render(<MemoryRouter><AchievementsSection /></MemoryRouter>)
+
+    expect(await screen.findByRole("img", { name: "1 of 3 badges earned" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Bronze: 1 of 2" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View all badges" })).toHaveAttribute("href", "/achievements")
+    // The full collection lives on its own page, not here.
+    expect(screen.queryByRole("button", { name: /First Chapter/ })).not.toBeInTheDocument()
+  })
+
+  it("reports when the badges can't be loaded", async () => {
+    fetchAchievements.mockRejectedValue(new Error("down"))
+    render(<MemoryRouter><AchievementsSection /></MemoryRouter>)
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your badges.")
+  })
+})
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={["/achievements"]}>
+      <Routes>
+        <Route path="/achievements" element={<AchievementsPage />} />
+        <Route path="/profile" element={<p>Profile page</p>} />
+      </Routes>
+    </MemoryRouter>
+  )
+}
+
+describe("AchievementsPage", () => {
   it("summarises progress and lists every badge, earned or not", async () => {
     fetchAchievements.mockResolvedValue(summary(BADGES))
-    render(<AchievementsSection />)
+    renderPage()
 
     expect(await screen.findByRole("img", { name: "1 of 3 badges earned" })).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Bronze: 1 of 2" })).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Projects: 1 of 2" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Your badges" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "First Chapter, Bronze, earned" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Bookshelf, Silver, 2 of 5" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Creature of Habit, Bronze, 4 of 10" })).toBeInTheDocument()
@@ -144,7 +176,7 @@ describe("AchievementsSection", () => {
 
   it("opens a badge to explain it and how to earn it, with its progress", async () => {
     fetchAchievements.mockResolvedValue(summary(BADGES))
-    render(<AchievementsSection />)
+    renderPage()
 
     fireEvent.click(await screen.findByRole("button", { name: "Creature of Habit, Bronze, 4 of 10" }))
 
@@ -158,7 +190,7 @@ describe("AchievementsSection", () => {
 
   it("says when an earned badge was earned", async () => {
     fetchAchievements.mockResolvedValue(summary(BADGES))
-    render(<AchievementsSection />)
+    renderPage()
 
     fireEvent.click(await screen.findByRole("button", { name: "First Chapter, Bronze, earned" }))
 
@@ -169,7 +201,7 @@ describe("AchievementsSection", () => {
 
   it("filters to earned badges or those still to earn", async () => {
     fetchAchievements.mockResolvedValue(summary(BADGES))
-    render(<AchievementsSection />)
+    renderPage()
     await screen.findByRole("button", { name: "First Chapter, Bronze, earned" })
 
     fireEvent.click(screen.getByRole("button", { name: "Earned" }))
@@ -184,7 +216,7 @@ describe("AchievementsSection", () => {
 
   it("encourages when a filter has nothing in it", async () => {
     fetchAchievements.mockResolvedValue(summary([badge({ earned: false, earned_at: null, progress: 0 })]))
-    render(<AchievementsSection />)
+    renderPage()
     await screen.findByRole("button", { name: /First Chapter/ })
 
     fireEvent.click(screen.getByRole("button", { name: "Earned" }))
@@ -194,20 +226,20 @@ describe("AchievementsSection", () => {
 
   it("reports when the badges can't be loaded", async () => {
     fetchAchievements.mockRejectedValue(new Error("down"))
-    render(<AchievementsSection />)
+    renderPage()
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your badges.")
   })
+})
 
-  it("scrolls into view when sent here from a celebration", async () => {
-    window.location.hash = "#achievements"
-    const scroll = vi.fn()
-    Element.prototype.scrollIntoView = scroll
+describe("AchievementsPage navigation", () => {
+  it("goes back to the profile", async () => {
     fetchAchievements.mockResolvedValue(summary(BADGES))
+    renderPage()
+    await screen.findByRole("heading", { name: "Your badges" })
 
-    render(<AchievementsSection />)
+    fireEvent.click(screen.getByRole("button", { name: /Back to profile/ }))
 
-    await waitFor(() => expect(scroll).toHaveBeenCalled())
-    window.location.hash = ""
+    expect(screen.getByText("Profile page")).toBeInTheDocument()
   })
 })
 
@@ -269,7 +301,7 @@ describe("AchievementCelebration", () => {
     fireEvent.click(await screen.findByRole("button", { name: "See all my badges" }, { timeout: 3000 }))
 
     expect(markAchievementsSeen).toHaveBeenCalledWith(["first_project"])
-    expect(screen.getByTestId("where")).toHaveTextContent("/profile#achievements")
+    expect(screen.getByTestId("where")).toHaveTextContent("/achievements")
   })
 
   it("stays quiet when nothing is new, and when the check fails", async () => {

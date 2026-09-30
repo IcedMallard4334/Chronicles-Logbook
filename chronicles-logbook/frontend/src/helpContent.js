@@ -879,7 +879,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "See them all on your Profile under Achievements: a ring of how many you have, bars by rarity and by area, and every badge to click. Clicking a badge tells you what it celebrates, how to earn it and how far along you are. Badges you've earned stay earned, even if you later delete the work behind them.",
+            text: "Your Profile shows how you are doing under Achievements: a ring of how many you have, and bars by rarity and by area. Press View all badges to see every badge on its own page, and click one to see what it celebrates, how to earn it and how far along you are. Badges you've earned stay earned, even if you later delete the work behind them.",
           },
           {
             type: "p",
@@ -920,7 +920,7 @@ export const HELP_SECTIONS = [
         blocks: [
           {
             type: "p",
-            text: "Activities are things you plan, saved in Chronicles only (your Google Calendar is never changed). Add them from a day in the Calendar or from the Activities page, which lists everything upcoming and earlier to edit or delete. In a day's view you can also open, edit or delete that day's entries and manage the projects they belong to.",
+            text: "Activities are things you plan, saved in Chronicles only (your Google Calendar is never changed). Add them from a day in the Calendar, or open Activity in the sidebar and choose the Scheduled tab, which lists everything upcoming and earlier to edit or delete. The Logged tab next to it is your entries. In a day's view you can also open, edit or delete that day's entries and manage the projects they belong to.",
           },
         ],
       },
@@ -938,15 +938,15 @@ export const HELP_SECTIONS = [
       {
         id: "voice-and-colours",
         title: "Voice, reading aloud and your own colours",
-        keywords: ["voice", "dictation", "microphone", "speech", "read aloud", "page reader", "accessibility", "colour", "color", "theme", "background", "wheel"],
+        keywords: ["voice", "dictation", "microphone", "speech", "read aloud", "screen reader", "blind", "visually impaired", "accessibility", "colour", "color", "theme", "background", "wheel"],
         blocks: [
           {
             type: "p",
-            text: "The microphone in Mira's message box dictates what you say (in browsers that support it, such as Chrome and Edge). In Profile you can turn on the page reader, which adds a Read this page button that speaks the page or just the text you've selected.",
+            text: "The microphone in Mira's message box dictates what you say (in browsers that support it, such as Chrome and Edge). It puts in commas and full stops from your pauses, understands \u201ccomma\u201d, \u201cfull stop\u201d, \u201cquestion mark\u201d and \u201cnew line\u201d, and knows Mira's name. In Profile you can turn on the screen reader, which reads each control as you reach it, announces dialogs and alerts, echoes your typing and lets you move around with Alt+Shift+arrow keys (Alt+Shift+? lists them all).",
           },
           {
             type: "p",
-            text: "Profile also has colour pickers for your buttons and your background. A custom background replaces Light and Dark until you press Reset colours.",
+            text: "Profile also lets you choose your own colours. Basic replaces the preset with one colour: buttons, highlights and the soft glow in the background all follow it. Advanced sets the buttons, a second colour, the page glow and the page background separately; a custom page background replaces Light and Dark until you press Reset colours.",
           },
         ],
       },

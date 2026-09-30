@@ -139,7 +139,7 @@ npm run test -- --run   # Single run
 
 ### Test Files
 
-58 files, 684 tests. Core:
+61 files, 767 tests. Core:
 
 | File | Coverage |
 |---|---|
@@ -175,13 +175,16 @@ Added after the Sprint 3 review:
 | File | Coverage |
 |---|---|
 | `EntryHistory.test.jsx` | Versions, reverting, "as it stood on" a date |
-| `speech.test.js`, `PageReader.test.jsx` | Dictation (supported/unsupported, interim and final text, friendly errors), speech chunking, the opt-in page reader |
+| `speech.test.js` | Dictation: alternatives and vocabulary, "mirror" versus Mira, spoken punctuation, punctuation from pauses, capitals; speaking and settings |
+| `ScreenReader.test.jsx`, `readerDescribe.test.js` | The screen reader: what is said for each kind of element, focus, dialogs, keyboard navigation, live regions, typing echo, speed; names, roles, states and values |
+| `ActivityHub.test.jsx` | The Logged and Scheduled tabs |
+| `ScreenReaderGate.test.jsx` | The screen reader loads only once switched on |
 | `OfflineStatus.test.jsx` (extended) | Offline refresh warning, the field flagged in the review panel, date picker |
 | `Streaks.test.jsx` | Both streak counters and live updates |
 | `MiraMarkdown.test.jsx`, `MiraAssistant.test.jsx`, `miraActions.test.js` | Markdown rendering without HTML injection, history, streaming, proposal cards, every action handler, name resolution, batching and failure |
 | `TrashIcon.test.jsx`, `NavIcons.test.jsx` | The delete control and navigation icons |
 | `ActivitiesPage.test.jsx`, `DayActivityDialog.test.jsx` | Adding, editing and deleting activities; managing entries and projects from the day view |
-| `preferences.test.js` | Custom colour maths and application, reset, invalid stored values |
+| `preferences.test.js` | Colour maths (mixing, hue rotation); basic and advanced custom colours; no trace of a previous colour; reset; presets clearing them |
 | `DashboardPage.test.jsx` (extended) | Grid width, resizing, pointer drag and drop |
 | `StatusEditor.test.jsx`, `BoardView.test.jsx` (extended) | Status rules, editor, picker, board columns and moves |
 | `HomeWorkspace.test.jsx` | The welcome and the embedded dashboard |
@@ -190,7 +193,7 @@ Added after the Sprint 3 review:
 
 Other suites exist alongside these (BoardView, Invitations, GuidedTour,
 HelpPage, ViewTransition and more) for the rest of the app surface;
-`npx vitest run` runs all 58.
+`npx vitest run` runs all 61.
 
 ### Writing New Tests
 
@@ -248,7 +251,7 @@ comfortably on their own, without needing to average up:
 | Codebase | Statement coverage | Tests | Measured |
 |---|---|---|---|
 | Backend (pytest + coverage.py) | **95%** | 696, across 33 test files | 30 September 2026 |
-| Frontend (Vitest + @vitest/coverage-v8) | **81.4%** (84.9% of lines) | 684, across 58 test files | 30 September 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **82.6%** (86.0% of lines) | 767, across 61 test files | 1 October 2026 |
 
 Reproduce these numbers directly rather than trusting the badge:
 

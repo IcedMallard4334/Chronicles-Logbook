@@ -35,8 +35,10 @@ describe("Mira assistant interfaces", () => {
       act(() => {
         instance.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "plan my week" }], { isFinal: true })] })
       })
-      expect(screen.getByLabelText("Message Mira").value).toBe("plan my week")
+      expect(screen.getByLabelText("Message Mira").value).toBe("Plan my week")
       fireEvent.click(screen.getByRole("button", { name: "Stop dictating" }))
+      // Stopping closes the last sentence.
+      expect(screen.getByLabelText("Message Mira").value).toBe("Plan my week.")
       expect(screen.getByRole("button", { name: "Dictate your message" })).toBeInTheDocument()
     } finally {
       delete window.webkitSpeechRecognition

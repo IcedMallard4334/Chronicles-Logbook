@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import MiraMarkdown from "./MiraMarkdown"
-import { dictationSupported, startDictation } from "./speech"
+import { appendDictation, dictationSupported, startDictation } from "./speech"
 import { TrashButton } from "./TrashIcon"
 import "./MiraAssistant.css"
 
@@ -71,7 +71,8 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
     setVoiceError("")
     try {
       dictation.current = startDictation({
-        onFinal: (text) => text && setDraft((current) => `${current}${current && !/\s$/.test(current) ? " " : ""}${text}`.slice(0, 2000)),
+        initialText: draft,
+        onFinal: (chunk) => chunk && setDraft((current) => appendDictation(current, chunk, 2000)),
         onInterim: setInterim,
         onError: setVoiceError,
         onEnd: () => { setListening(false); dictation.current = null },

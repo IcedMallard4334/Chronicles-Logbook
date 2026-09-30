@@ -33,6 +33,7 @@
 .setup-choice span { margin-top: 4px; color: var(--muted); font-size: .72rem; line-height: 1.35; }
 .accent-choice i { display: block; width: 26px; height: 8px; margin-bottom: 9px; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--mauve)); }
 .accent-choice em { display: inline-block; margin-left: 5px; color: var(--blue); font-size: .62rem; font-style: normal; }
+.accent-chronicles i { background: linear-gradient(90deg, #5b5ce2, #7653c8); }
 .accent-ocean i { background: linear-gradient(90deg, #1686c8, #1aa98d); }.accent-forest i { background: linear-gradient(90deg, #27855a, #637c5b); }.accent-rose i { background: linear-gradient(90deg, #b34b7d, #7356bc); }
 .setup-options { grid-template-columns: 1fr 1fr; align-items: end; }.setup-options > div { grid-column: 1 / -1; }
 .setup-options label { display: grid; gap: 7px; color: var(--muted); font-size: .76rem; font-weight: 700; }

@@ -30,17 +30,17 @@ import "./AmbientBackground.css"
  * without preferences having to know a background exists.
  */
 function useAccent() {
-  const [accent, setAccent] = useState(
-    () => document.documentElement.dataset.accent || "chronicles"
-  )
+  const read = () =>
+    document.documentElement.dataset.customGlow === "on"
+      ? "custom"
+      : document.documentElement.dataset.accent || "chronicles"
+  const [accent, setAccent] = useState(read)
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setAccent(document.documentElement.dataset.accent || "chronicles")
-    })
+    const observer = new MutationObserver(() => setAccent(read()))
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-accent", "data-theme"],
+      attributeFilter: ["data-accent", "data-theme", "data-custom-glow"],
     })
     return () => observer.disconnect()
   }, [])
@@ -140,7 +140,27 @@ function ChroniclesScene() {
   )
 }
 
+/**
+ * Your own colour: the same folded planes as the default scene, but drawn from
+ * the glow colour you chose (and two neighbours of it), so the soft light in the
+ * background is yours rather than a preset's.
+ */
+function CustomScene() {
+  return (
+    <>
+      <div className="ambient-glow" />
+      <svg className="ambient-glow-folds" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+        <polygon points="0,0 620,0 300,900 0,760" />
+        <polygon className="is-light" points="520,0 1080,0 760,900 320,900" />
+        <polygon className="is-deep" points="960,0 1440,0 1440,900 780,900" />
+        <polygon className="is-edge" points="0,620 720,300 1440,700 1440,900 0,900" />
+      </svg>
+    </>
+  )
+}
+
 const SCENES = {
+    custom: CustomScene,
   chronicles: ChroniclesScene,
   ocean: OceanScene,
   forest: ForestScene,

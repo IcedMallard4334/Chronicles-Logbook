@@ -3,9 +3,9 @@ import LogoIcon from "./ChroniclesLogo"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
-import { ACCENTS, applyPreferences, readCustomColors, saveCustomColors } from "./preferences"
+import { ACCENTS, applyPreferences, clearAccentCustoms, hasAccentCustoms, readCustomColors, saveCustomColors } from "./preferences"
 import AchievementsSection from "./AchievementsSection"
-import { pageReaderEnabled, readAloudSupported, setPageReaderEnabled } from "./speech"
+import { readAloudSupported, readerRate, screenReaderEnabled, setReaderRate, setScreenReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
@@ -105,12 +105,31 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const [theme, cycleTheme] = useTheme()
   const [density, setDensity] = useDensity()
-  const [pageReader, setPageReader] = useState(pageReaderEnabled)
+  const [screenReader, setScreenReader] = useState(screenReaderEnabled)
+  const [speed, setSpeed] = useState(readerRate)
   const [custom, setCustom] = useState(readCustomColors)
+  // Advanced opens by itself if any of its pieces is already in use.
+  const [colourMode, setColourMode] = useState(() => {
+    const saved = readCustomColors()
+    return saved.controls || saved.second || saved.glow || saved.background ? "advanced" : "basic"
+  })
   const changeCustom = (key, value) => {
     const next = { ...custom, [key]: value }
+    // The basic accent and the separate pieces are two ways of saying the same
+    // thing, so using one starts from a clean slate for the other.
+    if (key === "accent") Object.assign(next, { controls: null, second: null, glow: null })
     setCustom(next)
     saveCustomColors(next)
+  }
+  const resetCustom = () => {
+    const empty = { accent: null, controls: null, second: null, glow: null, background: null }
+    setCustom(empty)
+    saveCustomColors(empty)
+  }
+  // What the page is using right now, so a picker opens on the colour you can see.
+  const currentColour = (name, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
   }
   const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
   const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
@@ -199,6 +218,11 @@ export default function ProfilePage() {
   const updateAccent = (nextAccent) => {
     setAccent(nextAccent)
     window.localStorage.setItem("chronicles-accent", nextAccent)
+    // Choosing a preset replaces any colour of your own (a custom background stays).
+    if (hasAccentCustoms(custom)) {
+      clearAccentCustoms()
+      setCustom(readCustomColors())
+    }
     applyPreferences({ theme, accent: nextAccent, density })
   }
   const updateStartView = (nextStartView) => {
@@ -308,35 +332,83 @@ export default function ProfilePage() {
                 <div className="profile-row-text">
                   <span className="profile-row-label">Your own colours</span>
                   <span className="profile-row-value">
-                    Pick any colour for buttons and for the background. A custom background replaces Light and Dark until you reset it.
+                    {colourMode === "basic"
+                      ? "Pick one colour to replace the preset's: buttons, highlights, and the soft glow in the background all follow it."
+                      : "Set the pieces one at a time. A custom page background replaces Light and Dark until you reset it."}
                   </span>
                 </div>
-                <div className="colour-pickers">
-                  <label className="colour-picker">
-                    <span>Buttons</span>
-                    <input type="color" aria-label="Button colour" value={custom.button || "#6b5bff"} onChange={(event) => changeCustom("button", event.target.value)} />
-                  </label>
-                  <label className="colour-picker">
-                    <span>Background</span>
-                    <input type="color" aria-label="Background colour" value={custom.background || "#f5f6fa"} onChange={(event) => changeCustom("background", event.target.value)} />
-                  </label>
-                  <button type="button" className="btn-secondary" disabled={!custom.button && !custom.background} onClick={() => { setCustom({ button: null, background: null }); saveCustomColors({ button: null, background: null }) }}>
-                    Reset colours
-                  </button>
+                <div className="colour-controls">
+                  <div className="density-toggle" role="group" aria-label="Colour options">
+                    <button type="button" className={colourMode === "basic" ? "is-selected" : ""} aria-pressed={colourMode === "basic"} onClick={() => setColourMode("basic")}>Basic</button>
+                    <button type="button" className={colourMode === "advanced" ? "is-selected" : ""} aria-pressed={colourMode === "advanced"} onClick={() => setColourMode("advanced")}>Advanced</button>
+                  </div>
+                  <div className="colour-pickers">
+                    {colourMode === "basic" ? (
+                      <label className="colour-picker">
+                        <span>Your colour</span>
+                        <input type="color" aria-label="Custom accent colour" value={custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("accent", event.target.value)} />
+                      </label>
+                    ) : (
+                      <>
+                        <label className="colour-picker">
+                          <span>Buttons and highlights</span>
+                          <input type="color" aria-label="Buttons and highlights" value={custom.controls || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("controls", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Second colour</span>
+                          <input type="color" aria-label="Second colour" value={custom.second || currentColour("--mauve", "#7653c8")} onChange={(event) => changeCustom("second", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Page glow</span>
+                          <input type="color" aria-label="Page glow" value={custom.glow || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("glow", event.target.value)} />
+                        </label>
+                        <label className="colour-picker">
+                          <span>Page background</span>
+                          <input type="color" aria-label="Page background" value={custom.background || currentColour("--bg", "#12141a")} onChange={(event) => changeCustom("background", event.target.value)} />
+                        </label>
+                      </>
+                    )}
+                    <button type="button" className="btn-secondary" disabled={!Object.values(custom).some(Boolean)} onClick={resetCustom}>
+                      Reset colours
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="profile-row">
+              <div className="profile-row profile-screen-reader">
                 <div className="profile-row-text">
-                  <span className="profile-row-label">Page reader</span>
+                  <span className="profile-row-label">Screen reader</span>
                   <span className="profile-row-value">
                     {readAloudSupported()
-                      ? "Adds a Read this page button that speaks the page aloud, or just the text you've selected."
-                      : "Your browser doesn't support reading aloud."}
+                      ? "Speaks each control as you reach it, announces dialogs, alerts and new pages, echoes what you type, and lets you move around the page from the keyboard."
+                      : "Your browser doesn't support speech."}
                   </span>
+                  {readAloudSupported() && (
+                    <details className="screen-reader-help">
+                      <summary>Keyboard shortcuts</summary>
+                      <ul>
+                        <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd>: move between controls; each is read as you arrive</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> / <kbd>↑</kbd>: next / previous item on the page</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> / <kbd>J</kbd>: next / previous heading</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>: read on from where you are</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>: read the page title</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>+</kbd> / <kbd>-</kbd>: faster / slower</li>
+                        <li><kbd>Esc</kbd> or <kbd>Ctrl</kbd>: stop speaking</li>
+                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>?</kbd>: hear these again</li>
+                      </ul>
+                    </details>
+                  )}
                 </div>
-                <div className="density-toggle" role="group" aria-label="Page reader">
-                  <button type="button" className={pageReader ? "" : "is-selected"} aria-pressed={!pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(false); setPageReaderEnabled(false) }}>Off</button>
-                  <button type="button" className={pageReader ? "is-selected" : ""} aria-pressed={pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(true); setPageReaderEnabled(true) }}>On</button>
+                <div className="colour-controls">
+                  <div className="density-toggle" role="group" aria-label="Screen reader">
+                    <button type="button" className={screenReader ? "" : "is-selected"} aria-pressed={!screenReader} disabled={!readAloudSupported()} onClick={() => { setScreenReader(false); setScreenReaderEnabled(false) }}>Off</button>
+                    <button type="button" className={screenReader ? "is-selected" : ""} aria-pressed={screenReader} disabled={!readAloudSupported()} onClick={() => { setScreenReader(true); setScreenReaderEnabled(true) }}>On</button>
+                  </div>
+                  <label className="colour-picker">
+                    <span>Speaking speed</span>
+                    <select className="profile-select" aria-label="Speaking speed" value={speed} disabled={!readAloudSupported()} onChange={(event) => setSpeed(setReaderRate(event.target.value))}>
+                      {[0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2].map((value) => <option key={value} value={value}>{value === 1 ? "Normal" : `${value}×`}</option>)}
+                    </select>
+                  </label>
                 </div>
               </div>
             </section>

@@ -6,8 +6,8 @@ is tested. They were delivered in four stages of five, then two larger pieces
 (Mira acting on the app, and achievements). Longer write-ups are linked where they
 exist.
 
-Current test totals after this work: **696 backend tests at 95% coverage**, **684
-frontend tests at 81% statement coverage**, Lighthouse on the landing page **98
+Current test totals after this work: **696 backend tests at 95% coverage**, **767
+frontend tests at 83% statement coverage**, Lighthouse on the landing page **98
 performance, 100 accessibility, 96 best practices, 100 SEO**. See
 [Testing](../development/testing.md).
 
@@ -16,7 +16,7 @@ performance, 100 accessibility, 96 best practices, 100 SEO**. See
 | # | Change | Where | How it is checked |
 |---|---|---|---|
 | 1 | **Entry history keeps the original, and any version can be restored.** The first state of an entry is version 1 (including entries saved before history existed); every version records which values changed and what they were; *Revert to this version* adds a new version matching the old one, so nothing is lost; deleted entries keep a final "deleted" version and can be restored from **Deleted entries**. | `routers/projects.py`, `EntryHistory.jsx`, `DeletedEntries.jsx`, migration `014` | `test_entry_history.py`, `EntryHistory.test.jsx` |
-| 2 | **Voice dictation for Mira and a page reader.** A microphone button dictates into Mira's message box; Profile has an opt-in *Read this page* control that speaks the page, or only the selected text. Both use the browser's own speech features. | `speech.js`, `PageReader.jsx`, `MiraAssistant.jsx` | `speech.test.js`, `PageReader.test.jsx` |
+| 2 | **Voice dictation for Mira, and a screen reader.** A microphone button dictates into Mira's message box, with punctuation and Mira's name handled (see [Dictation](#dictation-and-the-screen-reader) below). Profile has an opt-in **screen reader** that speaks what you land on and lets you move around by keyboard. Both use the browser's own speech features. | `speech.js`, `ScreenReader.jsx`, `readerDescribe.js` | `speech.test.js`, `ScreenReader.test.jsx`, `readerDescribe.test.js` |
 | 3 | **Google Calendar no longer falls back to localhost.** The Calendar redirect is derived from the sign-in redirect when not set, and the backend warns at startup if a live deployment still points any URL at localhost. | `config.py` | [Deployment](../development/deployment.md) |
 | 4 | **A "Get started" tour on the landing page.** Four plain steps explaining projects, entries, tasks and insight, for people who haven't signed in yet. | `AuthPage.jsx` | `AuthPage.test.jsx` |
 | 5 | **A time of day for to-do entries.** Optional, alongside the due date, in the new-entry and edit forms, through offline capture and sync, in history and revert, and on Outstanding. | `Entry.due_time`, migration `015` | `test_entries.py`, `offlineSync.test.js` |
@@ -36,8 +36,8 @@ performance, 100 accessibility, 96 best practices, 100 SEO**. See
 | # | Change | Where | How it is checked |
 |---|---|---|---|
 | 11 | **Edit and delete from the Calendar.** The day view edits and deletes activities; opens any entry to edit or delete it; offers *Edit project* and *Delete project* for projects you own. | `DayActivityDialog.jsx`, `CalendarView.jsx` | `DayActivityDialog.test.jsx` |
-| 12 | **An Activities page** lists everything scheduled (upcoming and earlier) to add, edit and delete, sharing data with the Calendar. `PUT /calendar/activities/{id}` is new. | `ActivitiesPage.jsx`, `routers/activities.py` | `test_activities_edit.py`, `ActivitiesPage.test.jsx`; [API](../api/dashboard-and-activities.md) |
-| 13 | **Pick your own colours.** Profile has a colour picker for buttons and another for the background; a custom background derives readable surfaces and text, and *Reset* returns to the theme. | `preferences.js`, `ProfilePage.jsx` | `preferences.test.js` |
+| 12 | **Scheduled activities live in Activity.** The sidebar's single **Activity** entry has two tabs: *Logged* (your entries, as before) and *Scheduled* (everything planned, upcoming and earlier, to add, edit and delete, shared with the Calendar). There is no separate Activities item. `PUT /calendar/activities/{id}` is new. | `ActivityHub.jsx`, `ActivitiesPage.jsx`, `routers/activities.py` | `test_activities_edit.py`, `ActivityHub.test.jsx`, `ActivitiesPage.test.jsx`; [API](../api/dashboard-and-activities.md) |
+| 13 | **Pick your own colours**, *Basic* or *Advanced* (see [Colours](#colours) below). | `preferences.js`, `ProfilePage.jsx`, `AmbientBackground.jsx` | `preferences.test.js`, `ProfilePage.test.jsx`, `AmbientBackground.test.jsx` |
 | 14 | **Past entries first.** A project opens on its entries, with a small **+** that opens the form (open by default in an empty project); saving collapses it with a confirmation line. | `App.jsx` | `SchemaEditor.test.jsx` |
 | 15 | **A grid dashboard.** Choose how many blocks across (2 to 6); each panel spans a chosen width and height; drag the grip with a mouse, finger or pen (up/down buttons remain). | `DashboardPage.jsx`, `Dashboard.columns`, migration `018` | `test_dashboard.py`, `DashboardPage.test.jsx` |
 
@@ -59,6 +59,70 @@ performance, 100 accessibility, 96 best practices, 100 SEO**. See
   fast path; a minimal workspace snapshot; re-consent.
 - **[Achievements](achievements.md)**: 34 badges in seven areas, confetti
   celebrations, and a profile showcase with rings, bars and a detail card per badge.
+
+## Refinements after first use
+
+Using the result turned up seven things to improve; each is now done.
+
+### Dictation and the screen reader
+
+**Dictation** ("Mira" was typed as "mirror", and nothing was punctuated). The browser turns
+speech into words but not into writing, so `speech.js` adds what a person would:
+
+- It asks the recogniser for up to five readings of each phrase and prefers the one
+  containing a word we expect (**Mira**, **Chronicles**).
+- It corrects the ways Mira is misheard (*meera*, *myra*, *mirah*...). *Mirror* is also a real
+  word, so it is read as Mira only when she is plainly being spoken to ("hey mirror", "mirror,
+  add a task").
+- **Spoken punctuation** works: *comma*, *full stop*, *question mark*, *exclamation mark*,
+  *colon*, *semicolon*, *new line*, *new paragraph* (and *period* at the very end of a phrase).
+- **Punctuation from pauses.** Each phrase waits for the next to decide its ending: a short
+  pause gives a comma (and a lower-case next word), a long one a full stop and a capital, a
+  phrase that opens like a question gets a question mark, and stopping dictation closes the
+  last sentence. "I" and proper names keep their capitals.
+
+**Screen reader** (replaces the earlier "page reader", which only read the page out). It is for
+people who can't see the screen, and works like one:
+
+- Every control is read as you reach it: its name, what it is and its state and value
+  (*"Hours, edit text, 3"*, *"Bold, button, pressed"*, *"Entries, tab, selected, 1 of 4"*).
+  Passwords are never read.
+- Dialogs are announced when you enter them; alerts interrupt and status messages wait their
+  turn; a change of page is announced; typing is echoed.
+- It is usable from the keyboard: **Alt+Shift+↓/↑** next and previous item, **Alt+Shift+H/J**
+  next and previous heading, **Alt+Shift+R** read on, **Alt+Shift+T** page title,
+  **Alt+Shift+plus/minus** speed, **Esc** or **Ctrl** stop, **Alt+Shift+?** help. A visible
+  outline follows the reading position for sighted helpers.
+- Turn it on and set the speaking speed under **Profile > Screen reader**. It uses the
+  browser's voice, so nothing is installed and nothing leaves the device. A full screen reader
+  (NVDA, JAWS, VoiceOver) does more for someone who depends on one daily, and the page's own
+  markup is left alone so those keep working.
+
+### Colours
+
+A preset accent such as Rose is a whole look: the colour of buttons and highlights, a second
+colour they blend into, and a soft glow in the background scene. A custom colour now
+**replaces all three together** instead of being laid over the preset (which had left the
+preset's second colour showing through).
+
+| Mode | What you set | What follows |
+|---|---|---|
+| **Basic** | One accent colour | Buttons and highlights, a second colour derived from it (a neighbour on the colour wheel), and the background glow. |
+| **Advanced** | Buttons and highlights, a second colour, the page glow, and the page background, each separately | Anything left alone is derived from what you did set. A custom page background replaces Light and Dark until reset. |
+
+Choosing a preset accent (here or in first-time setup) clears the accent customisations, so what
+you click is what you see; a custom page background is kept. The background scene for a custom
+glow is drawn from three neighbouring hues of your colour (`AmbientBackground.jsx`).
+
+### Smaller fixes
+
+- **Setup:** the "Chronicles" swatch used the live accent instead of its own blue and purple, so it
+  changed colour with whatever you clicked. It now has fixed colours like the other swatches.
+- **Tour:** on the last step the buttons wrapped their labels ("Got / it"). Labels no longer break
+  and the footer wraps as a whole.
+- **Badges:** the Profile keeps the summary (ring and bars) near the top with a **View all
+  badges** button; the badges themselves, filters and detail cards are on their own page at
+  `/achievements`.
 
 ## Two fixes found while verifying
 

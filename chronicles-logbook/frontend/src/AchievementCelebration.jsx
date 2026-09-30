@@ -99,7 +99,7 @@ export default function AchievementCelebration() {
               className="btn-secondary"
               onClick={() => {
                 dismiss()
-                navigate("/profile#achievements")
+                navigate("/achievements")
               }}
             >
               See all my badges

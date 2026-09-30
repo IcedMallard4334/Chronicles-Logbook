@@ -69,22 +69,67 @@ describe("ProfilePage", () => {
     expect(await screen.findByText("Workspace")).toBeInTheDocument()
   })
 
-  it("lets people pick their own button and background colours, and reset them", async () => {
+  it("lets people replace the preset with one colour of their own, then reset it", async () => {
     renderPage()
     await screen.findByText("Ethan Student")
+    const root = document.documentElement
 
-    fireEvent.change(screen.getByLabelText("Button colour"), { target: { value: "#ff5500" } })
-    fireEvent.change(screen.getByLabelText("Background colour"), { target: { value: "#101820" } })
+    fireEvent.change(screen.getByLabelText("Custom accent colour"), { target: { value: "#ff5500" } })
 
-    expect(document.documentElement.style.getPropertyValue("--blue")).toBe("#ff5500")
-    expect(document.documentElement.style.getPropertyValue("--bg")).toBe("#101820")
-    expect(window.localStorage.getItem("chronicles-custom-button")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--blue")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--mauve")).not.toBe("")
+    expect(root.dataset.customGlow).toBe("on")
+    expect(window.localStorage.getItem("chronicles-custom-accent")).toBe("#ff5500")
 
     fireEvent.click(screen.getByRole("button", { name: "Reset colours" }))
 
-    expect(document.documentElement.style.getPropertyValue("--blue")).toBe("")
-    expect(window.localStorage.getItem("chronicles-custom-background")).toBeNull()
+    expect(root.style.getPropertyValue("--blue")).toBe("")
+    expect(root.dataset.customGlow).toBeUndefined()
+    expect(window.localStorage.getItem("chronicles-custom-accent")).toBeNull()
     expect(screen.getByRole("button", { name: "Reset colours" })).toBeDisabled()
+  })
+
+  it("offers the pieces separately under Advanced, including the page background", async () => {
+    renderPage()
+    await screen.findByText("Ethan Student")
+    expect(screen.queryByLabelText("Page glow")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }))
+    fireEvent.change(screen.getByLabelText("Buttons and highlights"), { target: { value: "#ff5500" } })
+    fireEvent.change(screen.getByLabelText("Second colour"), { target: { value: "#00aaff" } })
+    fireEvent.change(screen.getByLabelText("Page glow"), { target: { value: "#22cc88" } })
+    fireEvent.change(screen.getByLabelText("Page background"), { target: { value: "#101820" } })
+
+    const root = document.documentElement
+    expect(root.style.getPropertyValue("--blue")).toBe("#ff5500")
+    expect(root.style.getPropertyValue("--mauve")).toBe("#00aaff")
+    expect(root.style.getPropertyValue("--glow-1")).toBe("#22cc88")
+    expect(root.style.getPropertyValue("--bg")).toBe("#101820")
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset colours" }))
+    expect(root.style.getPropertyValue("--bg")).toBe("")
+  })
+
+  it("opens on Advanced when a piece is already in use", async () => {
+    window.localStorage.setItem("chronicles-custom-glow", "#22cc88")
+    renderPage()
+    await screen.findByText("Ethan Student")
+
+    expect(screen.getByLabelText("Page glow")).toHaveValue("#22cc88")
+    expect(screen.getByRole("button", { name: "Advanced" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("choosing a preset accent replaces a custom one but keeps a custom page background", async () => {
+    window.localStorage.setItem("chronicles-custom-accent", "#ff5500")
+    window.localStorage.setItem("chronicles-custom-background", "#101820")
+    renderPage()
+    await screen.findByText("Ethan Student")
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Accent colour" }), { target: { value: "rose" } })
+
+    expect(window.localStorage.getItem("chronicles-custom-accent")).toBeNull()
+    expect(window.localStorage.getItem("chronicles-custom-background")).toBe("#101820")
+    expect(document.documentElement.style.getPropertyValue("--blue")).toBe("")
   })
 
   it("cycles through light, dark, and system themes", async () => {

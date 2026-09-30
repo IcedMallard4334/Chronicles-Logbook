@@ -16,7 +16,7 @@ import {
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
-import ActivitiesPage from "./ActivitiesPage"
+import ActivityHub from "./ActivityHub"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
 import OutstandingPage from "./OutstandingPage"
@@ -575,7 +575,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
 function ProjectList({
   projects, statistics, selectedId, onSelect, onCreate,
   onShowHome, homeActive, onShowTimeline, timelineActive,
-  onShowToday, todayActive, onShowOutstanding, outstandingActive, onShowActivities, activitiesActive,
+  onShowToday, todayActive, onShowOutstanding, outstandingActive,
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -630,10 +630,6 @@ function ProjectList({
         <button type="button" className={outstandingActive ? "is-active" : ""} aria-current={outstandingActive ? "page" : undefined} onClick={onShowOutstanding}>
           <OutstandingIcon />
           Outstanding
-        </button>
-        <button type="button" className={activitiesActive ? "is-active" : ""} aria-current={activitiesActive ? "page" : undefined} onClick={onShowActivities}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4" /></svg>
-          Activities
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -3203,13 +3199,11 @@ function App() {
             onShowHome={() => { setCurrentView("home"); setSelectedId(null); setView("project") }}
             homeActive={currentView === "home" && view !== "timeline" && !selectedProject}
             onShowTimeline={handleShowTimeline}
-            timelineActive={currentView === "home" && view === "timeline"}
+            timelineActive={(currentView === "home" && view === "timeline") || currentView === "activities"}
             onShowToday={() => setCurrentView("today")}
             todayActive={currentView === "today"}
             onShowOutstanding={() => setCurrentView("outstanding")}
             outstandingActive={currentView === "outstanding"}
-            onShowActivities={() => setCurrentView("activities")}
-            activitiesActive={currentView === "activities"}
           />
         </div>}
         <div className="content">
@@ -3230,7 +3224,7 @@ function App() {
                 )}
               />
             ) : currentView === "activities" ? (
-              <ActivitiesPage />
+              <ActivityHub logged={<EntryTimeline projects={projects} />} initialTab="scheduled" />
             ) : currentView === "today" ? (
               <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
             ) : currentView === "assistant" ? (
@@ -3248,7 +3242,7 @@ function App() {
             ) : currentView === "dashboard" ? (
               <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} />
             ) : view === "timeline" ? (
-              <EntryTimeline projects={projects} />
+              <ActivityHub logged={<EntryTimeline projects={projects} />} />
             ) : selectedProject ? (
               <ProjectDetail
                 key={selectedProject.id}

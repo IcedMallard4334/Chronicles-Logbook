@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import AmbientBackground from "./AmbientBackground"
 
 afterEach(() => {
+  delete document.documentElement.dataset.customGlow
   delete document.documentElement.dataset.accent
   delete document.documentElement.dataset.theme
 })
@@ -79,5 +80,21 @@ describe("AmbientBackground", () => {
     // catches the arrangement collapsing to one repeated petal by accident.
     const positions = new Set([...petals].map((petal) => petal.style.left))
     expect(positions.size).toBeGreaterThan(1)
+  })
+
+  it("draws the background glow from the person's own colour when they have chosen one", async () => {
+    document.documentElement.dataset.accent = "rose"
+    const { container } = render(<AmbientBackground />)
+    expect(container.querySelector(".ambient-rose")).toBeInTheDocument()
+
+    document.documentElement.dataset.customGlow = "on"
+
+    await waitFor(() => expect(container.querySelector(".ambient-custom")).toBeInTheDocument())
+    expect(container.querySelector(".ambient-glow")).toBeInTheDocument()
+    expect(container.querySelector(".ambient-glow-folds")).toBeInTheDocument()
+    expect(container.querySelector(".ambient-bloom")).not.toBeInTheDocument()
+
+    delete document.documentElement.dataset.customGlow
+    await waitFor(() => expect(container.querySelector(".ambient-rose")).toBeInTheDocument())
   })
 })

@@ -52,3 +52,11 @@
 :root[data-theme="dark"] { --badge-locked: #3a4050; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --badge-locked: #3a4050; } }
 :root[data-custom-background="dark"] { --badge-locked: #3a4050; }
+
+.achievements-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.achievements-heading h2 { margin: 0; }
+.achievements-link { text-decoration: none; }
+.achievements-page { max-width: 1040px; margin: 0 auto; padding: 1.5rem clamp(1rem, 4vw, 2rem) 4rem; position: relative; z-index: 1; }
+.achievements-page-header { display: grid; gap: 0.5rem; justify-items: start; margin-bottom: 1.5rem; }
+.achievements-page-header h1 { margin: 0.5rem 0 0; }
+.achievements-page-header p { margin: 0; color: var(--muted); }
