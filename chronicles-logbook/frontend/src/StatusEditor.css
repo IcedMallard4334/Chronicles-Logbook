@@ -1,0 +1,7 @@
+.status-editor { margin: 0.75rem 0; padding: 0.75rem; border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 0.75rem; }
+.status-editor legend { padding: 0 0.4rem; font-weight: 700; }
+.status-editor ul { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.4rem; }
+.status-editor li { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.status-editor li input[type="text"] { flex: 1; min-width: 8rem; }
+.status-done { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; }
+.status-editor-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }

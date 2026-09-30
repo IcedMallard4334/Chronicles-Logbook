@@ -1,31 +1,34 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { expect, it, vi } from "vitest"
+
+vi.mock("./DashboardPage", () => ({
+  default: ({ embedded }) => <div data-testid="dashboard" data-embedded={String(embedded)}>My dashboard panels</div>,
+}))
+
 import HomeWorkspace from "./HomeWorkspace"
 
 const projects = [
-  {id:"first", name:"Field Notes", archived:false},
-  {id:"second", name:"Research", archived:false},
-  {id:"archive", name:"Completed work", archived:true},
+  { id: "first", name: "Field Notes", archived: false },
+  { id: "second", name: "Research", archived: false },
+  { id: "archive", name: "Completed work", archived: true },
 ]
 
-it("shows a workspace welcome and one clear continuation", () => {
-  render(<HomeWorkspace projects={projects} onCreateProject={vi.fn()} onToday={vi.fn()} onNavigate={vi.fn()} />)
-  expect(screen.getByRole("heading", {name:"Welcome back"})).toBeInTheDocument()
+it("keeps the welcome and project counts, with the dashboard underneath it", () => {
+  render(<HomeWorkspace projects={projects} onCreateProject={vi.fn()} />)
+
+  expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument()
   expect(screen.getByText((_, element) => element?.textContent === "2 active projects")).toBeInTheDocument()
   expect(screen.getByText((_, element) => element?.textContent === "1 archived")).toBeInTheDocument()
-  expect(screen.getByRole("heading", {name:"Field Notes"})).toBeInTheDocument()
+  const dashboard = screen.getByTestId("dashboard")
+  expect(dashboard).toHaveTextContent("My dashboard panels")
+  expect(dashboard).toHaveAttribute("data-embedded", "true")
 })
 
-it("connects the welcome shortcuts to their intended actions", () => {
-  const create = vi.fn(), today = vi.fn(), navigate = vi.fn(), openProject = vi.fn()
-  render(<HomeWorkspace projects={projects} onCreateProject={create} onToday={today} onNavigate={navigate} onOpenProject={openProject} />)
-  fireEvent.click(screen.getByRole("button", {name:/New project/}))
-  fireEvent.click(screen.getByRole("button", {name:/Open Today/}))
-  fireEvent.click(screen.getByRole("button", {name:"View entries"}))
-  fireEvent.click(screen.getByRole("button", {name:/Open project/}))
+it("still lets someone start a project from the welcome", () => {
+  const create = vi.fn()
+  render(<HomeWorkspace projects={projects} onCreateProject={create} />)
+
+  fireEvent.click(screen.getByRole("button", { name: /New project/ }))
+
   expect(create).toHaveBeenCalledOnce()
-  expect(today).toHaveBeenCalledOnce()
-  expect(navigate).toHaveBeenNthCalledWith(1, "entries")
-  expect(openProject).toHaveBeenCalledWith("first")
-  expect(screen.getByRole("heading", {name:"A clearer way to capture your work"})).toBeInTheDocument()
 })

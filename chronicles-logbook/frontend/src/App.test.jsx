@@ -5,7 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
-  fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  fetchTasks: vi.fn(), createEntry: vi.fn(), createTask: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  // The Home page is the dashboard now, so it loads its panels.
+  fetchDashboard: vi.fn(() => Promise.resolve({ panels: [], columns: 3, updated_at: "2026-09-24T00:00:00Z" })), updateDashboardPanels: vi.fn(), fetchSavedFilters: vi.fn(() => Promise.resolve([])),
+  fetchAchievements: vi.fn(() => Promise.resolve({ badges: [], earned: 0, total: 0, by_tier: {}, by_category: {} })), markAchievementsSeen: vi.fn(() => Promise.resolve()), ACTIVITY_EVENT: "chronicles-activity",
+  fetchStreaks: vi.fn(() => Promise.resolve(null)), recordStreakActivity: vi.fn(() => Promise.resolve(null)), STREAKS_CHANGED: "chronicles-streaks-changed",
+  createMiraConversation: vi.fn(() => Promise.resolve({ id: "conv-1" })), fetchMiraConversations: vi.fn(() => Promise.resolve([])),
+  fetchMiraConversation: vi.fn(), deleteMiraConversation: vi.fn(), streamMiraReply: vi.fn(() => Promise.resolve()),
   fetchStatistics: vi.fn(), fetchFieldStatistics: vi.fn(), fetchFieldTimeline: vi.fn(),
   fetchStatisticsActivity: vi.fn(), fetchStatisticsLayout: vi.fn(), saveStatisticsLayout: vi.fn(),
   // US-3.8: the My stats panel loads its own list when the page renders.
@@ -35,15 +41,17 @@ import App from "./App"
 import {
   createEntry,
   createProject,
+  createTask,
   fetchEntries,
   fetchEntriesGlobal,
   fetchFieldTimeline,
   fetchFieldStatistics,
+  fetchProject,
   fetchProjects,
   fetchRules,
   fetchStatistics,
   fetchTasks,
-  sendAIMessage,
+  streamMiraReply,
 } from "./api"
 
 const emptyStatistics = {
@@ -161,6 +169,23 @@ describe("workspace summary", () => {
 })
 
 describe("App workspace", () => {
+  it("puts the dashboard on the home page, in the sidebar rather than the top bar", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    await screen.findByRole("listbox", { name: "Projects" })
+
+    const sidebar = screen.getByRole("navigation", { name: "Workspace views" })
+    expect(within(sidebar).getByRole("button", { name: "Dashboard" })).toBeInTheDocument()
+    expect(within(sidebar).queryByRole("button", { name: "Projects" })).not.toBeInTheDocument()
+
+    const topBar = document.querySelector(".nav-pill-center")
+    expect(within(topBar).queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument()
+    expect(within(topBar).getAllByRole("button")).toHaveLength(7)
+
+    // Welcome first, then the dashboard itself, on the same page.
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "My dashboard" })).toBeInTheDocument()
+  })
+
   it("shows the current workspace project navigator", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
@@ -368,51 +393,108 @@ describe("guided tour (US-3.23)", () => {
   })
 })
 
-describe("Mira project proposals", () => {
-  const proposal = { type: "create_project", payload: { name: "Research notes", description: "Weekly findings" }, requires_confirmation: true }
+describe("Mira proposals", () => {
+  const action = (type, payload, summary, destructive = false) => ({ type, payload, summary, destructive, requires_confirmation: true })
+  const createProposal = action("create_project", { name: "Research notes", description: "Weekly findings", fields: [{ name: "Hours", type: "number" }] }, "Create project “Research notes” with 1 field")
 
-  async function proposeProject() {
+  const replyWith = (...actions) =>
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      actions.forEach((proposal) => onEvent({ type: "action", action: proposal }))
+      onEvent({ type: "done" })
+    })
+
+  async function ask(text = "Do the thing") {
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
-    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Create research notes" } })
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: text } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
-    return screen.findByRole("region", { name: "Proposed project" })
   }
 
-  it("shows a safe proposal and creates nothing before confirmation", async () => {
-    sendAIMessage.mockResolvedValue({ action: proposal })
-    await proposeProject()
+  it("shows what Mira proposes and changes nothing before confirmation", async () => {
+    replyWith(createProposal)
+    await ask()
+
+    const card = await screen.findByRole("region", { name: "Proposed actions" })
+    expect(within(card).getByText("Create project “Research notes” with 1 field")).toBeInTheDocument()
     expect(createProject).not.toHaveBeenCalled()
   })
 
-  it("uses the existing authenticated project request once after confirmation", async () => {
-    const created = { ...fieldNotes, id: "proj-new", name: "Research notes", description: "Weekly findings" }
-    sendAIMessage.mockResolvedValue({ action: proposal })
+  it("runs several confirmed actions in order, each seeing what the one before created", async () => {
+    const created = { ...fieldNotes, id: "proj-new", name: "Research notes", entry_schema: [] }
+    replyWith(createProposal, action("create_task", { project: "Research notes", title: "Outline", due_date: "2026-10-05" }, "Add the task “Outline” to “Research notes”, due 2026-10-05"))
     createProject.mockResolvedValue(created)
-    fetchProjects.mockResolvedValueOnce([fieldNotes]).mockResolvedValueOnce([fieldNotes, created])
-    await proposeProject()
-    const confirm = screen.getByRole("button", { name: "Create project" })
-    fireEvent.click(confirm)
-    fireEvent.click(confirm)
-    await waitFor(() => expect(createProject).toHaveBeenCalledTimes(1))
-    expect(createProject).toHaveBeenCalledWith({ name: "Research notes", description: "Weekly findings", entry_schema: [] })
-    expect(await screen.findByText(/Created “Research notes”/)).toBeInTheDocument()
+    createTask.mockResolvedValue({ id: "t1" })
+    fetchProject.mockResolvedValue(created)
+    fetchProjects.mockResolvedValue([fieldNotes])
+    await ask()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Do all 2" }))
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(1))
+    expect(createProject).toHaveBeenCalledTimes(1)
+    const [sent] = createProject.mock.calls[0]
+    expect(sent).toMatchObject({ name: "Research notes", description: "Weekly findings" })
+    expect(sent.entry_schema).toEqual([expect.objectContaining({ name: "Hours", type: "number", id: expect.any(String) })])
+    expect(createTask).toHaveBeenCalledWith("proj-new", expect.objectContaining({ title: "Outline", due_date: "2026-10-05" }))
+    expect(await screen.findByText(/✓ Created project “Research notes”/)).toBeInTheDocument()
+    expect(screen.getByText(/✓ Added the task “Outline” to “Research notes”/)).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Proposed actions" })).not.toBeInTheDocument()
   })
 
-  it("cancels a proposal without creating a project", async () => {
-    sendAIMessage.mockResolvedValue({ action: proposal })
-    await proposeProject()
+  it("does nothing when a proposal is cancelled", async () => {
+    replyWith(createProposal)
+    await ask()
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
+
+    expect(createProject).not.toHaveBeenCalled()
+    expect(screen.queryByRole("region", { name: "Proposed actions" })).not.toBeInTheDocument()
+  })
+
+  it("reports a duplicate project name instead of creating it", async () => {
+    replyWith(action("create_project", { name: "Field Notes" }, "Create project “Field Notes”"))
+    fetchProjects.mockResolvedValue([fieldNotes])
+    await ask()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Do it" }))
+
+    expect(await screen.findByText(/A project called “Field Notes” already exists/)).toBeInTheDocument()
+    expect(createProject).not.toHaveBeenCalled()
+  })
+
+  it("stops at the first action that fails and says how many were left undone", async () => {
+    replyWith(
+      action("create_task", { project: "No such project", title: "A" }, "Add the task “A”"),
+      action("create_task", { project: "Field Notes", title: "B" }, "Add the task “B”"),
+    )
+    fetchProjects.mockResolvedValue([fieldNotes])
+    await ask()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Do all 2" }))
+
+    expect(await screen.findByText(/I couldn't find a project called “No such project”/)).toBeInTheDocument()
+    expect(screen.getByText(/1 more action was not run/)).toBeInTheDocument()
+    expect(createTask).not.toHaveBeenCalled()
+  })
+
+  it("runs simple changes at once when the person has opted in, but never a deletion", async () => {
+    fetchProjects.mockResolvedValue([fieldNotes])
+    createTask.mockResolvedValue({ id: "t1" })
+    fetchProject.mockResolvedValue(fieldNotes)
+    replyWith(action("create_task", { project: "Field Notes", title: "Quick one" }, "Add the task “Quick one”"))
+    await ask()
+    await screen.findByRole("region", { name: "Proposed actions" })
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-    expect(createProject).not.toHaveBeenCalled()
-    expect(screen.queryByRole("region", { name: "Proposed project" })).not.toBeInTheDocument()
-  })
 
-  it("rejects a duplicate proposed project name before posting", async () => {
-    sendAIMessage.mockResolvedValue({ action: { ...proposal, payload: { name: "Field Notes" } } })
-    await proposeProject()
-    fireEvent.click(screen.getByRole("button", { name: "Create project" }))
-    expect(createProject).not.toHaveBeenCalled()
-    expect(await screen.findByRole("alert")).toHaveTextContent("already exists")
+    fireEvent.click(screen.getByLabelText(/Run simple changes straight away/))
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "again" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/✓ Added the task “Quick one” to “Field Notes”/)).toBeInTheDocument()
+
+    replyWith(action("delete_task", { task: "proj-1/t1" }, "Delete a task", true))
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "delete it" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(await screen.findByRole("region", { name: "Proposed actions" })).toHaveTextContent("Delete a task")
   })
 })
 
@@ -483,6 +565,8 @@ describe("entry rules in a project (US-3.12)", () => {
       created_at: "2026-09-27T08:00:00Z", applied_rules: [{ id: "rule-1", name: "Default kind" }],
     })
     await openBugLog()
+    const addEntry = await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    if (!addEntry.disabled && addEntry.getAttribute("aria-label") === "Add a new entry") fireEvent.click(addEntry)
 
     const kind = await screen.findByRole("combobox", { name: /Kind/ })
     await waitFor(() => expect(kind).not.toBeRequired())

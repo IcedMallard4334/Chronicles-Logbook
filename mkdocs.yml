@@ -88,7 +88,14 @@ nav:
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
     - Export and import: api/transfer.md
+    - Mira: api/mira.md
+    - Streaks and achievements: api/progress.md
+    - Dashboard and activities: api/dashboard-and-activities.md
     - External Services & Integrations: api/external-services.md
+  - Features:
+    - Post-review improvements: features/whats-new.md
+    - Mira actions and consent: features/mira-actions.md
+    - Achievements: features/achievements.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md

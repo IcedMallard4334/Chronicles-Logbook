@@ -7,7 +7,7 @@ different questions and are aimed at two different audiences.
 
 Everything under **API Reference** below — Authentication, Projects, Schema and
 field types, Entries, Tasks, Rules/recurrence/reminders, Statistics, Sharing,
-and Export/import — documents **our own backend API**, hand-written in FastAPI,
+Export/import, Mira, Streaks and achievements, and Dashboard and activities — documents **our own backend API**, hand-written in FastAPI,
 deployed and reachable over the public internet. This is the API a grader,
 another developer, or a script can call directly.
 

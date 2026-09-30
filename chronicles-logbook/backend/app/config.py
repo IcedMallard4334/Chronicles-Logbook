@@ -68,10 +68,28 @@ DATABASE_SSL = os.environ.get("DATABASE_SSL", "false").lower() == "true"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 
+# Derived from OAUTH_REDIRECT_URI when unset, so a deployment that only
+# configures the sign-in callback doesn't send Calendar consent to localhost.
 GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
     "GOOGLE_CALENDAR_REDIRECT_URI",
-    "http://localhost:8000/auth/google/calendar/callback",
+    OAUTH_REDIRECT_URI.replace("/auth/google/callback", "/auth/google/calendar/callback"),
 )
+
+if COOKIE_SECURE:
+    import logging as _logging
+
+    for _name, _value in (
+        ("FRONTEND_URL", FRONTEND_URL),
+        ("OAUTH_REDIRECT_URI", OAUTH_REDIRECT_URI),
+        ("GOOGLE_CALENDAR_REDIRECT_URI", GOOGLE_CALENDAR_REDIRECT_URI),
+    ):
+        if "localhost" in _value or "127.0.0.1" in _value:
+            _logging.getLogger("uvicorn.error").warning(
+                "%s points at localhost (%s) while COOKIE_SECURE is on; "
+                "Google sign-in and Calendar connect will send users to localhost. "
+                "Set it in the deployment's Application Settings.",
+                _name, _value,
+            )
 
 # Gemini AI assistant. The API key is supplied through the local .env file
 # or through Azure Application Settings in production.

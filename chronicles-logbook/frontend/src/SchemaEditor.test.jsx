@@ -6,6 +6,12 @@ vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
   fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  // The Home page is the dashboard now, so it loads its panels.
+  fetchDashboard: vi.fn(() => Promise.resolve({ panels: [], columns: 3, updated_at: "2026-09-24T00:00:00Z" })), updateDashboardPanels: vi.fn(), fetchSavedFilters: vi.fn(() => Promise.resolve([])),
+  fetchAchievements: vi.fn(() => Promise.resolve({ badges: [], earned: 0, total: 0, by_tier: {}, by_category: {} })), markAchievementsSeen: vi.fn(() => Promise.resolve()), ACTIVITY_EVENT: "chronicles-activity",
+  fetchStreaks: vi.fn(() => Promise.resolve(null)), recordStreakActivity: vi.fn(() => Promise.resolve(null)), STREAKS_CHANGED: "chronicles-streaks-changed",
+  createMiraConversation: vi.fn(() => Promise.resolve({ id: "conv-1" })), fetchMiraConversations: vi.fn(() => Promise.resolve([])),
+  fetchMiraConversation: vi.fn(), deleteMiraConversation: vi.fn(), streamMiraReply: vi.fn(() => Promise.resolve()),
   fetchStatistics: vi.fn(), previewSchemaChange: vi.fn(), updateSchema: vi.fn(),
   fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
   // US-3.12: no rules, nothing repeating, nothing to be reminded of.
@@ -657,6 +663,7 @@ describe("filling in an entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })
@@ -702,6 +709,7 @@ describe("filling in an entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })
@@ -939,12 +947,77 @@ describe("filling in a rich entry", () => {
     expect(screen.getByText("1/10 tags")).toBeInTheDocument()
   })
 
+  it("puts sharing, archiving and deleting at the top of the project, with sharing in a dialog", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-notes": "Earlier note" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+    await screen.findByText("Earlier note")
+
+    const actions = screen.getByRole("group", { name: "Project actions" })
+    const header = actions.closest("header")
+    expect(header).not.toBeNull()
+    expect(within(actions).getByRole("button", { name: "Share this project" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Archive project" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Delete project" })).toBeInTheDocument()
+    // They sit above the entries, and nothing is left at the bottom of the page.
+    expect(actions.compareDocumentPosition(screen.getByText("Earlier note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector(".detail-footer")).toBeNull()
+    expect(screen.queryByLabelText("Invite by email")).not.toBeInTheDocument()
+
+    fireEvent.click(within(actions).getByRole("button", { name: "Share this project" }))
+    const dialog = await screen.findByRole("dialog", { name: /Share/ })
+    expect(within(dialog).getByLabelText("Invite by email")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(screen.queryByRole("dialog", { name: /Share/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the owner-only actions away from someone a project is shared with", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES], shared: true }, otherProject])
+    fetchEntries.mockResolvedValue([])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    expect(screen.queryByRole("group", { name: "Project actions" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Leave project" })).toBeInTheDocument()
+  })
+
+  it("shows past entries first, and opens the new-entry form from a small + button", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([
+      { id: "e1", data: { "f-notes": "Earlier note" }, created_at: "2026-09-12T10:00:00Z" },
+    ])
+    await openProject()
+
+    expect(await screen.findByText("Earlier note")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Past entries" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "New entry" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a new entry" }))
+    expect(await screen.findByRole("heading", { name: "New entry" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close the new entry form" }))
+    expect(screen.queryByRole("heading", { name: "New entry" })).not.toBeInTheDocument()
+  })
+
+  it("opens the form straight away in a project with no entries yet", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES] }, otherProject])
+    fetchEntries.mockResolvedValue([])
+    await openProject()
+
+    expect(await screen.findByRole("heading", { name: "New entry" })).toBeInTheDocument()
+  })
+
   it("offers the tags earlier entries already carry", async () => {
     fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [TAGS] }, otherProject])
     fetchEntries.mockResolvedValue([
       { id: "e1", data: { "f-tags": ["prototype"] }, created_at: "2026-09-12T10:00:00Z" },
     ])
     await openProject()
+    await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    const addEntry = screen.queryByRole("button", { name: "Add a new entry" })
+    if (addEntry && !addEntry.disabled) fireEvent.click(addEntry)
     await screen.findByRole("heading", { name: "New entry" })
 
     const suggested = [...document.querySelectorAll("datalist option")].map(
@@ -1052,6 +1125,7 @@ describe("filling in a rich entry", () => {
         time_spent: null,
         todo: false,
         due_date: null,
+        due_time: null,
       })
     )
   })
@@ -1065,6 +1139,9 @@ describe("filling in a rich entry", () => {
       { id: "e1", data: { "f-notes": "Bought the tent" }, created_at: "2026-09-12T10:00:00Z" },
     ])
     await openProject()
+    await screen.findByRole("button", { name: /Add a new entry|Close the new entry form/ })
+    const addEntry = screen.queryByRole("button", { name: "Add a new entry" })
+    if (addEntry && !addEntry.disabled) fireEvent.click(addEntry)
     await screen.findByRole("heading", { name: "New entry" })
 
     const select = await screen.findByLabelText("Follows on from")
@@ -1091,6 +1168,8 @@ describe("filling in a rich entry", () => {
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Pitched the tent" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
+    // Saving closes the form; reopening it must offer the entry just saved.
+    fireEvent.click(await screen.findByRole("button", { name: "Add a new entry" }))
     const select = screen.getByLabelText("Follows on from")
     await waitFor(() =>
       expect(within(select).getByRole("option", { name: /Pitched the tent/ })).toBeInTheDocument()

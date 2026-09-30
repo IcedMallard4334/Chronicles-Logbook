@@ -3,11 +3,14 @@ import LogoIcon from "./ChroniclesLogo"
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
-import { ACCENTS, applyPreferences } from "./preferences"
+import { ACCENTS, applyPreferences, readCustomColors, saveCustomColors } from "./preferences"
+import AchievementsSection from "./AchievementsSection"
+import { pageReaderEnabled, readAloudSupported, setPageReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
 import "./ProfilePage.css"
+import { TrashIcon } from "./TrashIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -102,6 +105,13 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const [theme, cycleTheme] = useTheme()
   const [density, setDensity] = useDensity()
+  const [pageReader, setPageReader] = useState(pageReaderEnabled)
+  const [custom, setCustom] = useState(readCustomColors)
+  const changeCustom = (key, value) => {
+    const next = { ...custom, [key]: value }
+    setCustom(next)
+    saveCustomColors(next)
+  }
   const [accent, setAccent] = useState(() => window.localStorage.getItem("chronicles-accent") || "chronicles")
   const [startView, setStartView] = useState(() => window.localStorage.getItem("chronicles-start-view") || "home")
   const [user, setUser] = useState(null)
@@ -294,7 +304,44 @@ export default function ProfilePage() {
                   <button type="button" className={density === "compact" ? "is-selected" : ""} onClick={() => setDensity("compact")}>Compact</button>
                 </div>
               </div>
+              <div className="profile-row profile-colours">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Your own colours</span>
+                  <span className="profile-row-value">
+                    Pick any colour for buttons and for the background. A custom background replaces Light and Dark until you reset it.
+                  </span>
+                </div>
+                <div className="colour-pickers">
+                  <label className="colour-picker">
+                    <span>Buttons</span>
+                    <input type="color" aria-label="Button colour" value={custom.button || "#6b5bff"} onChange={(event) => changeCustom("button", event.target.value)} />
+                  </label>
+                  <label className="colour-picker">
+                    <span>Background</span>
+                    <input type="color" aria-label="Background colour" value={custom.background || "#f5f6fa"} onChange={(event) => changeCustom("background", event.target.value)} />
+                  </label>
+                  <button type="button" className="btn-secondary" disabled={!custom.button && !custom.background} onClick={() => { setCustom({ button: null, background: null }); saveCustomColors({ button: null, background: null }) }}>
+                    Reset colours
+                  </button>
+                </div>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
+                  <span className="profile-row-label">Page reader</span>
+                  <span className="profile-row-value">
+                    {readAloudSupported()
+                      ? "Adds a Read this page button that speaks the page aloud, or just the text you've selected."
+                      : "Your browser doesn't support reading aloud."}
+                  </span>
+                </div>
+                <div className="density-toggle" role="group" aria-label="Page reader">
+                  <button type="button" className={pageReader ? "" : "is-selected"} aria-pressed={!pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(false); setPageReaderEnabled(false) }}>Off</button>
+                  <button type="button" className={pageReader ? "is-selected" : ""} aria-pressed={pageReader} disabled={!readAloudSupported()} onClick={() => { setPageReader(true); setPageReaderEnabled(true) }}>On</button>
+                </div>
+              </div>
             </section>
+
+            <AchievementsSection />
 
             <section className="profile-section">
               <h2>Workspace settings</h2>
@@ -356,8 +403,8 @@ export default function ProfilePage() {
                   <span className="profile-row-label">Delete account</span>
                   <span className="profile-row-value">Permanently delete your account and all data.</span>
                 </div>
-                <button type="button" className="delete-account-confirm" onClick={openDeleteModal}>
-                  Delete account
+                <button type="button" className="delete-account-confirm btn-trash-inline" onClick={openDeleteModal}>
+                  <TrashIcon /> Delete account
                 </button>
               </div>
             </section>

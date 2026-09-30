@@ -1,0 +1,21 @@
+.page-reader {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  display: flex;
+  gap: 0.5rem;
+}
+.page-reader-button {
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.4));
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+.page-reader-button:hover,
+.page-reader-button:focus-visible { border-color: var(--accent, #6b5bff); }

@@ -185,7 +185,7 @@ export default function OutstandingPage({ projects, onNavigate }) {
                     </div>
                     <span className="outstanding-due">
                       {entry.due_date ? (
-                        <time dateTime={entry.due_date}>{dueLabel(entry, today)}</time>
+                        <time dateTime={entry.due_time ? `${entry.due_date}T${entry.due_time}` : entry.due_date}>{dueLabel(entry, today)}{entry.due_time ? ` · ${entry.due_time.slice(0, 5)}` : ""}</time>
                       ) : (
                         dueLabel(entry, today)
                       )}

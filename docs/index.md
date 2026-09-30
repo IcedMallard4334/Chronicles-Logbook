@@ -29,7 +29,8 @@ The schema is **user-defined**, not hardcoded. Entries, statistics, filters, and
 - **Board and Calendar views** — entries grouped by a Choice field with drag-and-drop; a month calendar combining entries, deadlines and (optionally) Google Calendar
 - **Command palette** — `Ctrl`/`Cmd`+`K` quick navigation across pages, commands and projects
 - **In-app help manual and guided tour** — a searchable manual plus a one-time welcome tour and per-page coach marks
-- **Mira** — a Google Gemini-backed AI assistant for turning notes into entries and proposing projects, consent-gated and otherwise fully optional
+- **Mira** — a Google Gemini-backed assistant that can do what you can do by hand (projects, schemas, tasks, reminders, activities and more), always with your confirmation, consent-gated and otherwise fully optional
+- **Progress** — daily login and activity streaks, and 34 achievement badges with confetti celebrations, shown on your profile
 
 **Sprint 3**
 

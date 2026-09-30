@@ -29,6 +29,7 @@ import { useDialogFocus } from "./useDialogFocus"
 import { SkeletonRows } from "./ViewTransition"
 
 import "./StatisticsPage.css"
+import { TrashButton } from "./TrashIcon"
 
 /** The panels the Customise drawer can show, hide and reorder. */
 const PANEL_LABELS = {
@@ -715,9 +716,7 @@ function SavedStatCard({ statistic, onEdit, onDeleted }) {
           <button type="button" className="btn-text" onClick={onEdit}>
             Edit
           </button>
-          <button type="button" className="btn-text" onClick={remove} disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
+          <TrashButton label="Delete" onClick={remove} disabled={deleting} />
         </span>
       </div>
       <strong className="saved-stat-value">

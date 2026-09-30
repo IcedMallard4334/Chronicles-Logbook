@@ -141,7 +141,7 @@ describe("EntryDetailModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "View history" }))
 
     await waitFor(() => expect(fetchEntryHistory).toHaveBeenCalledWith("p1", "e1"))
-    expect(await screen.findByText(/Revision 2/)).toHaveTextContent("Sam")
+    expect((await screen.findByText("v2")).closest(".entry-history-summary")).toHaveTextContent("Sam")
   })
 
   it("saves an ordinary edit against the entry's own shape, not the current schema", async () => {
@@ -208,7 +208,7 @@ describe("EntryDetailModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     expect(deleteEntry).not.toHaveBeenCalled()
-    expect(screen.getByText(/can.t be undone/)).toBeInTheDocument()
+    expect(screen.getByText(/restore it from Deleted entries/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Yes, delete" }))
 

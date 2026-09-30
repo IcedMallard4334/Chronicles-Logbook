@@ -1,8 +1,50 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { offlineQueue as defaultQueue } from "./offlineQueue"
 import { syncEngine as defaultEngine } from "./offlineSync"
+import { EntryFieldInput } from "./EntryShared"
 import { useDialogFocus } from "./useDialogFocus"
 import "./offlineStatus.css"
+
+/**
+ * Which field a server refusal is about, read from its message ("Missing
+ * required field: Hours", "Field 'Due' must be a date string"), so the review
+ * panel can point at that field instead of leaving the person to work it out.
+ */
+export function problemFieldId(message, schema) {
+  const text = String(message || "")
+  if (!text) return null
+  const match = schema.find(
+    (field) => text.includes(`Missing required field: ${field.name}`) || text.includes(`Field '${field.name}'`)
+  )
+  return match ? match.id : null
+}
+
+function ReviewField({ field, value, onChange, problem, reason }) {
+  const describedBy = problem ? `offline-problem-${field.id}` : undefined
+  let control
+  if (field.type === "date") {
+    // The browser's own date picker, so nobody has to type a date format.
+    control = <input type="date" value={value ?? ""} aria-invalid={problem || undefined} aria-describedby={describedBy} autoFocus={problem} onChange={(event) => onChange(field.id, event.target.value)} />
+  } else if (field.type === "dropdown") {
+    control = (
+      <select value={value ?? ""} aria-invalid={problem || undefined} aria-describedby={describedBy} autoFocus={problem} onChange={(event) => onChange(field.id, event.target.value)}>
+        <option value="">Select…</option>
+        {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    )
+  } else if (["tags", "checklist", "link", "computed", "project_reference"].includes(field.type)) {
+    return <EntryFieldInput field={field} value={value} projects={[]} onChange={onChange} />
+  } else {
+    control = <input type={field.type === "number" ? "number" : "text"} value={value ?? ""} aria-invalid={problem || undefined} aria-describedby={describedBy} autoFocus={problem} onChange={(event) => onChange(field.id, event.target.value)} />
+  }
+  return (
+    <label className={`field-label ${problem ? "is-problem" : ""}`}>
+      {field.name}
+      {control}
+      {problem && <span id={`offline-problem-${field.id}`} className="offline-field-reason">{reason}</span>}
+    </label>
+  )
+}
 
 /**
  * Connection state, how much work is waiting to sync, and what the server
@@ -99,6 +141,20 @@ export default function OfflineStatus({
   }
 
   const hasWork = counts.pending > 0 || counts.rejected > 0
+
+  // Offline, a refresh reloads the page from a network that isn't there and
+  // the app may not come back; unsynced entries make that worth a second thought.
+  useEffect(() => {
+    if (isOnline && !hasWork) return undefined
+    if (isOnline && counts.pending === 0) return undefined
+    const warn = (event) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [isOnline, hasWork, counts.pending])
+
   if (isOnline && !hasWork) return null
 
   // The pending count is shown while offline too. Being told only "Offline"
@@ -123,6 +179,13 @@ export default function OfflineStatus({
         <span className="offline-dot" aria-hidden="true" />
         <span>{label}</span>
       </button>
+
+      {!isOnline && (
+        <p className="offline-refresh-warning" role="status">
+          You&rsquo;re offline. Please don&rsquo;t refresh or close this page &mdash; your entries are saved on this
+          device and will sync when you&rsquo;re back online.
+        </p>
+      )}
 
       {isOpen && (
         <div
@@ -184,19 +247,16 @@ export default function OfflineStatus({
                               </p>
                             ) : (
                               schema.map((field) => (
-                                <label key={field.id} className="field-label">
-                                  {field.name}
-                                  <input
-                                    type={field.type === "number" ? "number" : "text"}
-                                    value={draft[field.id] ?? ""}
-                                    onChange={(event) =>
-                                      setDraft((previous) => ({
-                                        ...previous,
-                                        [field.id]: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </label>
+                                <ReviewField
+                                  key={field.id}
+                                  field={field}
+                                  value={draft[field.id]}
+                                  problem={field.id === problemFieldId(record.error, schema)}
+                                  reason={record.error}
+                                  onChange={(fieldId, value) =>
+                                    setDraft((previous) => ({ ...previous, [fieldId]: value }))
+                                  }
+                                />
                               ))
                             )}
                             <div className="offline-actions">
@@ -240,12 +300,24 @@ export default function OfflineStatus({
                         ) : (
                           <>
                             <dl className="offline-values">
-                              {Object.entries(record.data).map(([fieldId, value]) => {
-                                const field = schema.find((item) => item.id === fieldId)
+                              {[
+                                ...schema
+                                  .filter((field) => field.id in record.data || field.id === problemFieldId(record.error, schema))
+                                  .map((field) => [field.id, field]),
+                                ...Object.keys(record.data)
+                                  .filter((fieldId) => !schema.some((item) => item.id === fieldId))
+                                  .map((fieldId) => [fieldId, null]),
+                              ].map(([fieldId, field]) => {
+                                const value = record.data[fieldId]
+                                const isProblem = field && field.id === problemFieldId(record.error, schema)
+                                const empty = value === undefined || value === null || value === ""
                                 return (
-                                  <div key={fieldId}>
+                                  <div key={fieldId} className={isProblem ? "is-problem" : undefined}>
                                     <dt>{field?.name || fieldId}</dt>
-                                    <dd>{String(value)}</dd>
+                                    <dd>
+                                      {empty ? <em>Missing</em> : String(value)}
+                                      {isProblem && <strong className="offline-field-flag"> · needs attention</strong>}
+                                    </dd>
                                   </div>
                                 )
                               })}

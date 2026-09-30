@@ -1,0 +1,15 @@
+.streaks { display: flex; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.35));
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.6;
+  cursor: help;
+}
+.streak.is-alive { opacity: 0.9; }
+.streak.is-done { opacity: 1; border-color: var(--blue, #6b5bff); background: color-mix(in srgb, var(--blue, #6b5bff) 12%, transparent); }

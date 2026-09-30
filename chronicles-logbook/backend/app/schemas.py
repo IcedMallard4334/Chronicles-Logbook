@@ -1,10 +1,11 @@
 import uuid
 from datetime import date, datetime, timezone
+from datetime import time as time_of_day
 from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.computed import (
     MAX_EXPRESSION_LENGTH,
@@ -213,16 +214,45 @@ def _validate_schema_integrity(entry_schema: list[FieldDefinition]) -> None:
         field.expression = canonical
 
 
+class StatusDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=40)
+    # Whether an entry in this status counts as finished work.
+    done: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("A status needs a name.")
+        return value
+
+
+def _validate_statuses(statuses: list["StatusDefinition"]) -> None:
+    if not 2 <= len(statuses) <= 8:
+        raise ValueError("A project needs between 2 and 8 statuses.")
+    names = [status.name.casefold() for status in statuses]
+    if len(set(names)) != len(names):
+        raise ValueError("Status names must be different from each other.")
+    if not any(status.done for status in statuses) or all(status.done for status in statuses):
+        raise ValueError("Include at least one status that counts as done and one that does not.")
+
+
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
+    statuses: list[StatusDefinition] | None = None
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
         _validate_schema_integrity(self.entry_schema)
+        if self.statuses is not None:
+            _validate_statuses(self.statuses)
         return self
 
 
@@ -232,11 +262,14 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] | None = None
+    statuses: list[StatusDefinition] | None = None
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
         if self.entry_schema is not None:
             _validate_schema_integrity(self.entry_schema)
+        if self.statuses is not None:
+            _validate_statuses(self.statuses)
         return self
 
 
@@ -252,12 +285,21 @@ class ProjectResponse(BaseModel):
     # Definitions for fields that have been removed from the schema, so the
     # values kept under them can still be labelled (US-2.7).
     retired_schema: list[FieldDefinition] = Field(default_factory=list)
+    # The statuses entries move through; the default pair when never customised.
+    statuses: list[StatusDefinition] = Field(default_factory=list)
     total_time_spent: int = 0
     created_at: datetime
     updated_at: datetime
     # True when the caller reaches this project through a share rather than
     # owning it, so the UI can hide the actions only an owner may take.
     shared: bool = False
+
+    @field_validator("statuses", mode="before")
+    @classmethod
+    def default_statuses(cls, value):
+        from app.statuses import statuses_of
+
+        return statuses_of(value)
 
 
 # ── Sharing a project (US-2.20) ──────────────────────────────────────────────
@@ -375,6 +417,8 @@ class EntryCreate(BaseModel):
     # deadline, so it can be surfaced in the outstanding-work view.
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
+    status: str | None = Field(default=None, max_length=40)
 
     # Both fields are optional and omitted by ordinary online capture, where
     # the server assigns them. They exist for two callers that already know
@@ -420,6 +464,8 @@ class EntryUpdate(BaseModel):
     time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
+    due_time: time_of_day | None = None
+    status: str | None = Field(default=None, max_length=40)
 
     # An entry keeps the exact shape it was recorded in by default — a
     # schema change does not reach back and touch entries that already
@@ -428,6 +474,19 @@ class EntryUpdate(BaseModel):
     # schema as part of this same save. See "Editing an entry after the
     # schema has changed" in the API docs.
     migrate_to_current_schema: bool = False
+
+    # Why the entry is being corrected (US-3.10). Kept on the new version
+    # only; it is not part of the entry itself.
+    note: str | None = Field(default=None, max_length=500)
+
+
+class EntryRevertRequest(BaseModel):
+    """Bring an entry back to an earlier version by adding a new one (US-3.10)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: int = Field(ge=1)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class EntryResponse(BaseModel):
@@ -446,12 +505,16 @@ class EntryResponse(BaseModel):
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
+    status: str | None = None
     # Who logged it. Null on entries written before a project could be shared,
     # so the UI has to render "unknown" as readably as a name.
     created_by: UUID | None = None
     created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Set only on entries listed from the deleted view (US-3.10).
+    deleted_at: datetime | None = None
     # Rules that fired when this entry was captured (US-3.12). Only filled in
     # on the response to the request that created the entry; empty elsewhere.
     applied_rules: list["AppliedRule"] = Field(default_factory=list)
@@ -471,9 +534,16 @@ class EntryRevisionResponse(BaseModel):
     time_spent: int | None = None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
+    status: str | None = None
     changed_by: UUID | None = None
     changed_by_name: str | None = None
     changed_at: datetime
+    action: str = "edited"
+    note: str | None = None
+    changed_fields: list[str] = Field(default_factory=list)
+    previous_values: dict[str, Any] = Field(default_factory=dict)
+    reverted_to: int | None = None
 
 
 # ── Tasks ────────────────────────────────────────────────────────────
@@ -565,6 +635,7 @@ class FilterCriteria(BaseModel):
     # restore it the same way it restores a keyword or a project.
     tag: str | None = Field(default=None, max_length=MAX_TAG_LENGTH)
     todo: bool | None = None
+    status: str | None = Field(default=None, max_length=40)
     sort: Literal["newest", "oldest", "due_date", "relevance"] = "newest"
     # US-3.11: structured conditions over custom fields, combined with either
     # AND (every condition must hold) or OR (any one is enough). Capped so a
@@ -646,6 +717,9 @@ class DashboardPanel(BaseModel):
     type: Literal["saved_filter", "board", "statistic"]
     title: str | None = Field(default=None, max_length=100)
     config: dict[str, Any]
+    # Grid cells the panel covers: columns across, rows down.
+    w: int = Field(default=1, ge=1, le=6)
+    h: int = Field(default=2, ge=1, le=4)
 
     @model_validator(mode="after")
     def validate_config(self):
@@ -660,12 +734,14 @@ class DashboardPanel(BaseModel):
 
 class DashboardUpdate(BaseModel):
     panels: list[DashboardPanel]
+    columns: int | None = Field(default=None, ge=2, le=6)
 
 
 class DashboardResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     panels: list[DashboardPanel]
+    columns: int = 3
     updated_at: datetime
 
 
@@ -899,6 +975,8 @@ class TimelineEntryResponse(BaseModel):
     time_spent: int | None
     todo: bool = False
     due_date: date | None = None
+    due_time: time_of_day | None = None
+    status: str | None = None
     created_by: UUID | None = None
     created_by_name: str | None = None
     created_at: datetime

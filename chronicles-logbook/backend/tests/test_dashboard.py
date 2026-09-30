@@ -96,3 +96,52 @@ async def test_each_user_has_their_own_dashboard(authenticated_client, second_au
     second_response = await second_authenticated_client.get("/dashboard")
     assert second_response.status_code == 200
     assert second_response.json()["panels"] == []
+
+
+# ── the grid: how wide it is and how much room each panel takes ──────
+
+
+def _panel(identifier, **over):
+    return {"id": identifier, "type": "statistic", "config": {"view": "overview"}, **over}
+
+
+async def test_a_new_dashboard_is_three_blocks_wide_and_panels_default_to_one_by_two(authenticated_client):
+    assert (await authenticated_client.get("/dashboard")).json()["columns"] == 3
+
+    response = await authenticated_client.put("/dashboard", json={"panels": [_panel("p1")]})
+
+    assert (response.json()["panels"][0]["w"], response.json()["panels"][0]["h"]) == (1, 2)
+
+
+async def test_panel_sizes_and_the_grid_width_are_saved_and_read_back(authenticated_client):
+    panels = [_panel("wide", w=3, h=1), _panel("tall", w=1, h=4)]
+
+    await authenticated_client.put("/dashboard", json={"panels": panels, "columns": 4})
+    read = (await authenticated_client.get("/dashboard")).json()
+
+    assert read["columns"] == 4
+    assert [(p["id"], p["w"], p["h"]) for p in read["panels"]] == [("wide", 3, 1), ("tall", 1, 4)]
+
+
+async def test_leaving_columns_out_keeps_the_width_already_chosen(authenticated_client):
+    await authenticated_client.put("/dashboard", json={"panels": [], "columns": 5})
+    await authenticated_client.put("/dashboard", json={"panels": [_panel("p1")]})
+
+    assert (await authenticated_client.get("/dashboard")).json()["columns"] == 5
+
+
+async def test_a_panel_cannot_be_wider_than_the_grid(authenticated_client):
+    response = await authenticated_client.put(
+        "/dashboard", json={"panels": [_panel("p1", w=5)], "columns": 2}
+    )
+
+    assert response.json()["panels"][0]["w"] == 2
+
+
+async def test_sizes_and_widths_outside_the_allowed_range_are_rejected(authenticated_client):
+    for bad in ({"w": 0}, {"w": 7}, {"h": 0}, {"h": 5}):
+        response = await authenticated_client.put("/dashboard", json={"panels": [_panel("p1", **bad)]})
+        assert response.status_code == 422, bad
+    for columns in (1, 7):
+        response = await authenticated_client.put("/dashboard", json={"panels": [], "columns": columns})
+        assert response.status_code == 422, columns

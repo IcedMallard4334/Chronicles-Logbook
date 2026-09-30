@@ -219,6 +219,38 @@ idempotent creation, schema revalidation on update, and error codes.
 
 ---
 
+## Statuses
+
+Every project tracks entries through an ordered list of **statuses**. Each is
+`{ "name": "In progress", "done": false }`; `done` says whether an entry in that
+status counts as finished work. A project that has never customised them has the
+original pair, `Still to do` and `Done`, and responses always include the list.
+
+```json
+"statuses": [
+  { "name": "Backlog", "done": false },
+  { "name": "In progress", "done": false },
+  { "name": "Blocked", "done": false },
+  { "name": "Done", "done": true }
+]
+```
+
+Send `statuses` on `POST /projects` or `PUT /projects/{id}` (owner only). The list must
+have **2 to 8** statuses with distinct names (compared ignoring case, up to 40
+characters each), at least one finished and at least one not; otherwise `422`.
+
+Changing the list updates entries with it, so nothing is left in a status that no
+longer exists:
+
+- An entry in a **removed** (or renamed) status moves to the first remaining status of
+  the same kind, so outstanding work stays outstanding and finished work stays
+  finished.
+- An entry whose status is kept but whose meaning changed (switched between finished
+  and not) has its `todo` flag updated to match.
+
+The Board shows one column per status, and entries can be filtered by status; see
+[Entries](entries.md#status-and-time-of-day).
+
 ## Field types
 
 The `entry_schema` supports the following field types:

@@ -73,6 +73,24 @@ describe("AuthPage", () => {
     expect(screen.getByText("Don’t have an account?")).toBeInTheDocument()
   })
 
+  it("explains what the app is for behind a Get started button", () => {
+    renderPage()
+
+    const toggle = screen.getByRole("button", { name: "New here? Get started" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Create a project")).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByText("Create a project")).toBeInTheDocument()
+    expect(screen.getByText("Log entries as you go")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /start your first project/i })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/auth/google/login"
+    )
+  })
+
   it("hides the without-Google option outside local runs", () => {
     // Stubbed rather than left to the ambient .env, so the test says the same
     // thing on a developer machine (which may set VITE_ENABLE_DEV_LOGIN) as in

@@ -225,6 +225,29 @@ checks can't create the same day's entry twice.
 | `statistics_layouts` | `user_id` (PK, FK → users, cascade), `panels` (JSONB) | One row per user: which Statistics-page panels they've arranged, and where (US-3.7) |
 | `saved_statistics` | `id` (PK), `user_id`, `project_id`, `name`, `expression` (VARCHAR 500) | A figure the user defines for themselves — the same computed-field expression grammar as a schema's Calculation fields, evaluated over a project's entries instead of one entry (US-3.8) |
 
+### Tables and columns added after Sprint 3's review
+
+| Table or column | Purpose |
+|---|---|
+| `entries.status`, `projects.statuses`, `entry_revisions.status` | Custom statuses. `status` names one of the project's statuses (default pair *Still to do* / *Done*); `todo` is derived from it. New entries get a status from a `before_insert` hook in `models.py`, so every creation path (API, rules, recurrence, import) is covered. |
+| `entries.due_time`, `entry_revisions.due_time` | Optional time of day for a deadline. |
+| `entries.deleted_at` | Soft deletion: a timestamp instead of removing the row, so a deletion is a version that can be reverted. A global query filter hides deleted entries unless asked for. |
+| `entry_revisions.action`, `note`, `changed_fields`, `previous_values`, `reverted_to` | What each version did, why, which values changed and what they were. |
+| `dashboards.columns` | How many blocks wide the dashboard grid is (default 3). Each panel's own size (`w`, `h`) lives inside the `panels` JSON. |
+| `mira_conversations` | `id`, `user_id`, `title`, `created_at`, `updated_at`: a saved chat with Mira. |
+| `mira_messages` | `conversation_id`, `role` (`user` or `assistant`), `content`, `thinking`, `created_at`. The reply is stamped strictly after its question so ordering is stable. |
+| `user_activity_days` | `(user_id, day, kind)` primary key, `kind` = `login` or `interaction`: the days behind the two streaks. |
+| `user_achievements` | `(user_id, key)` primary key, `earned_at`, `seen`: badges earned and whether the celebration has been shown. A hidden `__initialised__` row marks the first check so existing accounts are awarded quietly. |
+
+```mermaid
+erDiagram
+    users ||--o{ mira_conversations : has
+    mira_conversations ||--o{ mira_messages : contains
+    users ||--o{ user_activity_days : logs
+    users ||--o{ user_achievements : earns
+    users ||--o| dashboards : arranges
+```
+
 ## JSONB schema format
 
 The `entry_schema` column in `projects` stores the user-defined field definitions:
@@ -296,6 +319,14 @@ re-run:
 | `002_calendar_token_timestamps.sql` | Calendar token timestamps |
 | `003_login_sessions.sql` | Login session tracking |
 | `004_retired_schema_fields.sql` | `projects.retired_schema`, `entries.retired_data` |
+| `005` to `013` | Schema versioning, sharing, authorship, invitations, entry titles and the Sprint 3 tables |
+| `014_entry_history.sql` | Soft deletion, version actions/notes/changed fields, baseline versions |
+| `015_entry_due_time.sql` | `due_time` on entries and versions |
+| `016_mira_conversations.sql` | `mira_conversations`, `mira_messages` |
+| `017_activity_streaks.sql` | `user_activity_days` |
+| `018_dashboard_grid.sql` | `dashboards.columns` |
+| `019_entry_statuses.sql` | `projects.statuses`, `entries.status`, `entry_revisions.status`, backfill |
+| `020_achievements.sql` | `user_achievements` |
 
 !!! note
     Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent` or `entries.retired_data`, do require a migration or `ALTER TABLE` in production.

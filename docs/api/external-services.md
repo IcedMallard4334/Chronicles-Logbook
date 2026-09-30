@@ -125,10 +125,12 @@ logbook.
 
 ## 3. Google Gemini API — Mira, the AI assistant
 
-**Why we need it.** Mira is a thinking partner for turning a rough note into
-a clear entry, planning a session, or shaping an idea into a project proposal
-— a conversational feature that needs a language model, which is not
-something to build in-house. Gemini was chosen for cost (a free tier
+**Why we need it.** Mira is an assistant that can both talk things through
+and *do things in Chronicles for you* (create projects, add tasks, change
+schemas, set reminders; see [Mira: actions, context and
+consent](../features/mira-actions.md)) — a conversational feature that needs a
+language model with function calling, which is not something to build
+in-house. Gemini was chosen for cost (a free tier
 sufficient for a class project) and a straightforward Python SDK.
 
 **URL called:** the Gemini API is called through Google's official
@@ -139,27 +141,39 @@ by hand. **Model:** configurable via `GEMINI_MODEL`, defaulting to
 `gemini-3.5-flash-lite`.
 
 **Consent-gated, unlike the other two.** Before any message reaches Gemini,
-the user is asked to accept or decline (`GET`/`PUT /ai/consent`). Declining
-keeps Mira available in a **local-only mode** that never calls Gemini at all
-— `POST /ai/chat` short-circuits and returns a canned, locally-generated
-reply instead of contacting Google. This is the one integration whose use is
+the user is asked to accept or decline (`GET`/`PUT /ai/consent`). The notice is
+versioned (currently `2026-09-30`) and a choice made against an older version
+no longer counts, so people are asked again whenever Mira's reach grows.
+Declining keeps Mira available in a **local-only mode** that never calls
+Gemini at all — the chat endpoints short-circuit and return a canned,
+locally-generated reply instead of contacting Google, and the workspace
+snapshot below is not even built. This is the one integration whose use is
 opt-in per user, because it's the one that sends free-text content (whatever
 the user types) to a third party.
 
-**What we send Gemini:** the text the user typed into the Mira chat box,
-plus a fixed system prompt (`SYSTEM_INSTRUCTION` in `gemini_service.py`)
-telling it what it is and what it must not claim — notably, that it cannot
-see the user's actual projects, entries, tasks or calendar, and must say so
-rather than pretend otherwise. **What we get back:** either a text reply, or
-a proposed `create_project` function call — a *suggestion only*. Calling that
-function never creates anything; the proposal is shown to the user as a card
-they must explicitly confirm in the UI, and only then does it become a real
-`POST /projects` call against our own API.
+**What we send Gemini:** the text the user typed into the Mira chat box and
+the earlier messages of that conversation; a fixed system prompt
+(`MIRA_INSTRUCTION` in `gemini_service.py`) saying what Mira is, how to act and
+to treat the workspace text as data rather than instructions; the list of 26
+functions she may call; and, for users who accepted the current notice, a **small
+workspace snapshot** (`app/mira_context.py`): today's date, project names with
+their field names and statuses, open task titles, the first 50 characters of the
+20 most recent entries and the next 14 days of scheduled activities. Full entries,
+other field values, Google Calendar data and account details are never sent.
+**What we get back:** a streamed text reply and/or **function calls**, which are
+validated server-side against a closed list and returned as *proposals only*.
+Calling a function never changes anything: the proposal is shown as a card the
+user must confirm in the UI (deletions always), and only then does the browser run
+it through our own authenticated API. The streaming endpoint uses the SDK's
+server-sent-event stream and, where the model allows it, thought summaries.
 
-**Error handling:** a missing API key raises `503 Service Unavailable`
-(`GeminiNotConfiguredError`); a failed or malformed response from Gemini
-raises `502 Bad Gateway` (`GeminiServiceError`) rather than crashing the
-request or returning a raw provider error to the client.
+**Error handling:** on the single-shot endpoint a missing API key raises `503
+Service Unavailable` (`GeminiNotConfiguredError`) and a failed or malformed
+response raises `502 Bad Gateway` (`GeminiServiceError`); on the streaming
+endpoint the same conditions arrive as an `error` event, since the `200` has
+already been sent. Either way the client never receives a raw provider error. A
+function call the model makes that can't be made into a safe proposal is reported
+as a short note in the reply and the rest of the answer still goes through.
 
 **Configuration:** `GEMINI_API_KEY` / `GEMINI_MODEL` (backend environment).
 
@@ -171,11 +185,13 @@ since they were never calling out to it anyway.
 **Cost / outsourcing:** billed per token by Google, currently within the free
 tier for our traffic. This is the one integration that could be swapped for
 a different LLM provider (OpenAI, Anthropic, a self-hosted model) with
-comparatively little work — it's isolated behind one ~110-line service
+comparatively little work — it's isolated behind one service
 module (`gemini_service.py`) with a small, well-defined interface
-(`generate_response(message) -> GeminiResponse`), so switching providers
-means rewriting that one file, not touching routers, the frontend, or the
-rest of the backend.
+(`generate_response(message)` for one-shot and `stream_response(message, history,
+context)` for streaming, which yields plain `thought`/`delta`/`action` events),
+so switching providers means rewriting that one file, not touching routers, the
+frontend, or the rest of the backend. The function catalogue and its validation
+(`app/mira_tools.py`) are provider-independent.
 
 ---
 

@@ -130,3 +130,17 @@
     width: 100%;
   }
 }
+
+.colour-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.colour-picker { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; }
+.colour-picker input[type="color"] {
+  width: 3rem;
+  height: 2.4rem;
+  padding: 0.15rem;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.4));
+  border-radius: 0.6rem;
+  background: var(--surface, transparent);
+  cursor: pointer;
+}
+:root[data-custom-button="light"] .btn-primary,
+:root[data-custom-button="light"] .google-auth-button { color: #111; }

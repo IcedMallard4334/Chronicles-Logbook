@@ -372,6 +372,7 @@ def _occurrence_from(source: Entry, occurs_on: date, created_by: UUID | None) ->
         schema_version=source.schema_version,
         schema_snapshot=snapshot,
         todo=source.todo,
+        status=source.status,
         due_date=occurs_on if has_deadline else None,
         created_by=created_by,
     )

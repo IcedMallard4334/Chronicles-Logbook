@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from datetime import time as time_of_day
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -9,9 +10,12 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
+    Time,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, with_loader_criteria
 
 from app.database import Base, JSONType
 
@@ -22,6 +26,64 @@ class MiraConsent(Base):
     accepted: Mapped[bool] = mapped_column(Boolean, nullable=False)
     version: Mapped[str] = mapped_column(String(30), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class MiraConversation(Base):
+    """One saved chat with Mira, so earlier conversations can be reopened."""
+
+    __tablename__ = "mira_conversations"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(120), nullable=False, default="New conversation")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class MiraMessage(Base):
+    __tablename__ = "mira_messages"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    conversation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("mira_conversations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(12), nullable=False)
+    content: Mapped[str] = mapped_column(String, nullable=False)
+    # Mira's own summary of how it approached the answer, when the model gave one.
+    thinking: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class UserActivityDay(Base):
+    """A day on which a user logged in or did something in Chronicles (streaks)."""
+
+    __tablename__ = "user_activity_days"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12), primary_key=True)
+
+
+class UserAchievement(Base):
+    """A badge someone has earned, kept so that it stays earned."""
+
+    __tablename__ = "user_achievements"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # False until the celebration for it has been shown.
+    seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class User(Base):
@@ -80,6 +142,15 @@ class Project(Base):
         nullable=False,
         default=False,
         server_default="false",
+    )
+
+    # The statuses entries move through, in order: [{"name": "In progress",
+    # "done": false}, ...]. Empty means the default "Still to do" / "Done" pair.
+    statuses: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+        server_default="[]",
+        default=list,
     )
 
     # Stores a bare list of field-definition dicts, e.g.
@@ -285,7 +356,11 @@ class Entry(Base):
         server_default="false",
     )
 
+    # Which of the project's statuses the entry is in; ``todo`` follows from it.
+    status: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -297,6 +372,44 @@ class Entry(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    # Deleting an entry only stamps this (US-3.10): the row and its history
+    # stay, so the deletion is itself a version and can be reverted. Every ORM
+    # SELECT hides stamped rows — see _hide_deleted_entries below.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+@event.listens_for(Entry, "before_insert")
+def _give_new_entries_a_status(_mapper, connection, target) -> None:
+    """Every entry starts in its project's first status that matches its todo flag.
+
+    Done here, at the one place every entry is inserted from, so rules,
+    recurrence, import and the API can't each forget it.
+    """
+    if target.status is not None:
+        return
+    from sqlalchemy import select
+
+    from app.statuses import default_name, statuses_of
+
+    raw = connection.execute(select(Project.statuses).where(Project.id == target.project_id)).scalar()
+    target.status = default_name(statuses_of(raw), bool(target.todo))
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_deleted_entries(state) -> None:
+    """Keep soft-deleted entries out of every query unless asked for.
+
+    Applied globally rather than at each of the many places entries are read,
+    so a count, a join or a new endpoint can't forget it. Pass
+    ``execution_options={"include_deleted": True}`` to see them.
+    """
+    if state.is_select and not state.execution_options.get("include_deleted", False):
+        state.statement = state.statement.options(
+            with_loader_criteria(Entry, lambda cls: cls.deleted_at.is_(None), include_aliases=True)
+        )
 
 
 class EntryRevision(Base):
@@ -317,13 +430,24 @@ class EntryRevision(Base):
     schema_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, nullable=False, default=list)
     time_spent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     todo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str | None] = mapped_column(String(60), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
     changed_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # What this version did (created / edited / deleted / reverted) and why.
+    # A "deleted" version is a tombstone: it keeps the entry's last values.
+    action: Mapped[str] = mapped_column(String(20), nullable=False, default="edited")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which values differ from the version before, and what they used to be,
+    # keyed as "title", "time_spent", "todo", "due_date" or "data.<field id>".
+    changed_fields: Mapped[list[str]] = mapped_column(JSONType, nullable=False, default=list)
+    previous_values: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    reverted_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     editor = relationship("User", lazy="selectin", foreign_keys=[changed_by])
 
@@ -544,13 +668,17 @@ class Dashboard(Base):
     )
 
     # [{"id": "...", "type": "saved_filter" | "board" | "statistic",
-    #   "title": "...", "config": {...}}, ...], in display order.
+    #   "title": "...", "config": {...}, "w": 1, "h": 2}, ...], in display
+    # order. w and h are how many grid columns and rows the panel spans.
     panels: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONType,
         nullable=False,
         server_default="[]",
         default=list,
     )
+
+    # How many blocks wide the dashboard grid is.
+    columns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="3", default=3)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

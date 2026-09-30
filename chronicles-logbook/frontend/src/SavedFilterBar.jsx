@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { deleteSavedFilter, fetchSavedFilters, saveFilter } from "./api"
+import { TrashButton } from "./TrashIcon"
 
 /**
  * Name the current entry filters, and put a saved set back in one click (US-2.12).
@@ -84,14 +85,11 @@ export function SavedFilterBar({ criteria, onApply }) {
               >
                 {filter.name}
               </button>
-              <button
-                type="button"
+              <TrashButton
                 className="saved-filter-remove"
-                aria-label={`Delete saved filter ${filter.name}`}
+                label={`Delete saved filter ${filter.name}`}
                 onClick={() => remove(filter.id)}
-              >
-                ×
-              </button>
+              />
             </li>
           ))}
         </ul>

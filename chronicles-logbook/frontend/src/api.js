@@ -88,11 +88,58 @@ async function request(path, options = {}, retried = false) {
     throw error
   }
 
+  noteInteraction(path, options.method)
+
   if (response.status === 204) {
     return null
   }
 
   return response.json()
+}
+
+// ── Daily streaks ────────────────────────────────────────────────────
+
+export const STREAKS_CHANGED = "chronicles-streaks-changed"
+// Fired after every successful save, so anything that reacts to activity (badges) can.
+export const ACTIVITY_EVENT = "chronicles-activity"
+let interactionDay = null
+
+// Anything that saves something counts as interacting with the app; reading,
+// deleting, signing in and talking to Mira do not.
+function noteInteraction(path, method = "GET") {
+  if (!["POST", "PUT", "PATCH"].includes(String(method).toUpperCase())) return
+  if (/^\/(streaks|auth|ai|achievements)(\/|\?|$)/.test(path)) return
+  window.dispatchEvent(new Event(ACTIVITY_EVENT))
+  const day = localDateString()
+  if (interactionDay === day) return
+  interactionDay = day
+  // Deferred so the saved request has fully returned before the ping is sent.
+  setTimeout(() => {
+    recordStreakActivity("interaction").catch(() => {
+      interactionDay = null
+    })
+  }, 0)
+}
+
+export async function recordStreakActivity(kind) {
+  const streaks = await request("/streaks/activity", {
+    method: "POST",
+    body: JSON.stringify({ kind, day: localDateString() }),
+  })
+  window.dispatchEvent(new CustomEvent(STREAKS_CHANGED, { detail: streaks }))
+  return streaks
+}
+
+export async function fetchAchievements() {
+  return request("/achievements")
+}
+
+export async function markAchievementsSeen(keys) {
+  return request("/achievements/seen", { method: "POST", body: JSON.stringify({ keys }) })
+}
+
+export async function fetchStreaks() {
+  return request(`/streaks?today=${localDateString()}`)
 }
 
 export async function fetchProjects() {
@@ -196,6 +243,7 @@ export async function fetchEntriesGlobal({
   projectId,
   tag,
   todo,
+  status,
   start,
   end,
   sort,
@@ -213,6 +261,7 @@ export async function fetchEntriesGlobal({
   // Compared against undefined so `todo: false` still narrows the search to
   // completed work rather than being dropped as falsy.
   if (todo !== undefined) params.append("todo", todo)
+  if (status) params.append("status", status)
   if (sort) params.append("sort", sort)
   // US-3.11: structured filters over a project's custom fields. Sent as
   // JSON, same as the server expects — a GET request has no body to carry a
@@ -228,7 +277,7 @@ export async function fetchEntriesGlobal({
 
 export async function createEntry(projectId, payload) {
   const hasNestedData = payload && typeof payload === "object" && "data" in payload
-  const { data, time_spent = null, todo, due_date, id, created_at, title } = hasNestedData
+  const { data, time_spent = null, todo, status, due_date, due_time, id, created_at, title } = hasNestedData
     ? payload
     : { data: payload, time_spent: null }
 
@@ -238,7 +287,9 @@ export async function createEntry(projectId, payload) {
   // Outstanding-work fields (US-2.15) are omitted unless the entry is being
   // logged as something still to do, so the server default of "done" holds.
   if (todo !== undefined) body.todo = todo
+  if (status) body.status = status
   if (due_date !== undefined) body.due_date = due_date
+  if (due_time !== undefined) body.due_time = due_time
 
   // Sent only by offline sync and import, which already know the entry's
   // identity and when it was captured. Ordinary online capture omits both and
@@ -261,6 +312,19 @@ export async function fetchEntryHistory(projectId, entryId) {
   return request(`/projects/${projectId}/entries/${entryId}/history`)
 }
 
+// Makes an earlier version current again by adding a new one (US-3.10);
+// reverting a deleted entry restores it.
+export async function revertEntry(projectId, entryId, { revision, note }) {
+  return request(`/projects/${projectId}/entries/${entryId}/revert`, {
+    method: "POST",
+    body: JSON.stringify(note ? { revision, note } : { revision }),
+  })
+}
+
+export async function fetchDeletedEntries(projectId) {
+  return request(`/projects/${projectId}/entries/deleted`)
+}
+
 // What bringing this one entry up to the project's current schema would
 // produce, without saving it — feeds the "update to current schema" choice
 // in the entry detail view so it can show real values before committing.
@@ -271,7 +335,7 @@ export async function fetchEntryMigrationPreview(projectId, entryId) {
 export async function updateEntry(
   projectId,
   entryId,
-  { title, data, time_spent, todo, due_date, migrateToCurrentSchema }
+  { title, data, time_spent, todo, status, due_date, due_time, migrateToCurrentSchema, note }
 ) {
   // Only the keys actually passed are sent, so an omitted time_spent leaves
   // the stored duration alone while an explicit null clears it.
@@ -280,11 +344,15 @@ export async function updateEntry(
   if (data !== undefined) body.data = data
   if (time_spent !== undefined) body.time_spent = time_spent
   if (todo !== undefined) body.todo = todo
+  if (status) body.status = status
   if (due_date !== undefined) body.due_date = due_date
+  if (due_time !== undefined) body.due_time = due_time
   // An entry keeps the exact shape it was recorded in by default; this is
   // the explicit, per-entry opt-in to bring it up to the project's current
   // schema as part of this same save.
   if (migrateToCurrentSchema) body.migrate_to_current_schema = true
+  // Why it was corrected — kept on the new version, not the entry (US-3.10).
+  if (note) body.note = note
 
   return request(`/projects/${projectId}/entries/${entryId}`, {
     method: "PUT",
@@ -519,6 +587,9 @@ export function fetchCalendarActivities({start, end}) {
 export function createCalendarActivity(payload) {
   return request("/calendar/activities", {method: "POST", body: JSON.stringify(payload)})
 }
+export function updateCalendarActivity(id, payload) {
+  return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "PUT", body: JSON.stringify(payload)})
+}
 export function deleteCalendarActivity(id) {
   return request(`/calendar/activities/${encodeURIComponent(id)}`, {method: "DELETE"})
 }
@@ -543,10 +614,10 @@ export async function fetchDashboard() {
  * lets a drag or a delete be "compute the new array, PUT it" rather than
  * a dance of matching endpoints.
  */
-export async function updateDashboardPanels(panels) {
+export async function updateDashboardPanels(panels, columns) {
   return request("/dashboard", {
     method: "PUT",
-    body: JSON.stringify({ panels }),
+    body: JSON.stringify(columns === undefined ? { panels } : { panels, columns }),
   })
 }
 
@@ -560,6 +631,85 @@ export async function sendAIMessage(message) {
     method: "POST",
     body: JSON.stringify({ message }),
   })
+}
+
+
+export async function fetchMiraConversations() {
+  return request("/ai/conversations")
+}
+
+export async function createMiraConversation() {
+  return request("/ai/conversations", { method: "POST" })
+}
+
+export async function fetchMiraConversation(id) {
+  return request(`/ai/conversations/${id}`)
+}
+
+export async function deleteMiraConversation(id) {
+  return request(`/ai/conversations/${id}`, { method: "DELETE" })
+}
+
+/**
+ * Sends a message and reads Mira's reply as it is written. `onEvent` gets each
+ * server-sent event (start, thought, delta, action, error, done) in order.
+ */
+export async function streamMiraReply(conversationId, message, onEvent, retried = false) {
+  const token = window.localStorage.getItem("chronicles_token")
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/ai/conversations/${conversationId}/stream`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, today: localDateString() }),
+    })
+  } catch {
+    const error = new Error("Cannot reach the Chronicles API.")
+    error.offline = true
+    throw error
+  }
+
+  if (response.status === 401 && !retried && !window.localStorage.getItem("chronicles_signed_out")) {
+    await refreshSession()
+    return streamMiraReply(conversationId, message, onEvent, true)
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    const error = new Error(typeof body.detail === "string" ? body.detail : `Request failed with status ${response.status}`)
+    error.status = response.status
+    throw error
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  const flush = (chunk) => {
+    const parts = chunk.split("\n\n")
+    const rest = parts.pop()
+    for (const part of parts) {
+      const line = part.split("\n").find((candidate) => candidate.startsWith("data: "))
+      if (!line) continue
+      let event
+      try {
+        event = JSON.parse(line.slice(6))
+      } catch {
+        continue
+      }
+      onEvent(event)
+    }
+    return rest
+  }
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer = flush(buffer + decoder.decode(value, { stream: true }))
+  }
+  flush(`${buffer}\n\n`)
 }
 
 

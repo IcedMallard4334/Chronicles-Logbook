@@ -47,7 +47,7 @@ export default function CommandPalette({ projects, onNavigate, onOpenProject, on
     { label: "Go to board", hint: "Workspace", action: () => onNavigate("board") },
     { label: "Go to outstanding work", hint: "Workspace", action: () => onNavigate("outstanding") },
     { label: "Go to calendar", hint: "Schedule", action: () => onNavigate("calendar") },
-    { label: "Go to my dashboard", hint: "Dashboard", action: () => onNavigate("dashboard") },
+    { label: "Go to my dashboard", hint: "Dashboard", action: () => onNavigate("home") },
     { label: "Create a project", hint: "New", action: onCreateProject },
     { label: "Help & documentation", hint: "Help", action: () => navigate("/help") },
     // Picking a project by name opens that project. It used to land on Home

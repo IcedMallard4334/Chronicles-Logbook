@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
@@ -19,6 +19,74 @@ describe("Mira assistant interfaces", () => {
     fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "Help me capture today's research" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     expect(state.onSend).toHaveBeenCalledWith("Help me capture today's research")
+  })
+
+  it("dictates into the message box when the browser supports speech recognition", () => {
+    let instance
+    window.webkitSpeechRecognition = class {
+      constructor() { instance = this }
+      start() {}
+      stop() { this.onend?.() }
+    }
+    try {
+      render(<MiraAssistantPage conversation={conversation()} />)
+      fireEvent.click(screen.getByRole("button", { name: "Dictate your message" }))
+      expect(screen.getByRole("button", { name: "Stop dictating" })).toHaveAttribute("aria-pressed", "true")
+      act(() => {
+        instance.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "plan my week" }], { isFinal: true })] })
+      })
+      expect(screen.getByLabelText("Message Mira").value).toBe("plan my week")
+      fireEvent.click(screen.getByRole("button", { name: "Stop dictating" }))
+      expect(screen.getByRole("button", { name: "Dictate your message" })).toBeInTheDocument()
+    } finally {
+      delete window.webkitSpeechRecognition
+    }
+  })
+
+  it("hides the microphone where dictation is unsupported", () => {
+    render(<MiraAssistantPage conversation={conversation()} />)
+    expect(screen.queryByRole("button", { name: "Dictate your message" })).not.toBeInTheDocument()
+  })
+
+  it("renders Mira's markdown, showing its thinking while it streams", () => {
+    const state = conversation({
+      sending: true,
+      messages: [
+        { id: "u1", role: "user", content: "Hello" },
+        { id: "m1", role: "assistant", content: "A **logbook** records work.", thinking: "Weighing what to explain.", streaming: true },
+      ],
+    })
+    const { container } = render(<MiraAssistantPage conversation={state} />)
+    expect(container.querySelector(".mira-message-assistant strong")).toHaveTextContent("logbook")
+    expect(container).not.toHaveTextContent("**")
+    expect(screen.getByText("Weighing what to explain.")).toBeInTheDocument()
+    expect(container.querySelector(".mira-caret")).toBeInTheDocument()
+  })
+
+  it("lists earlier conversations and opens, starts and deletes them", () => {
+    const state = conversation({
+      conversations: [
+        { id: "c1", title: "Planning my week", updated_at: "2026-09-29T10:00:00Z" },
+        { id: "c2", title: "Research notes", updated_at: "2026-09-28T10:00:00Z" },
+      ],
+      activeConversationId: "c1",
+      onSelectConversation: vi.fn(),
+      onNewConversation: vi.fn(),
+      onDeleteConversation: vi.fn(),
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.queryByText("Research notes")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /History/ }))
+    fireEvent.click(screen.getByText("Research notes"))
+    expect(state.onSelectConversation).toHaveBeenCalledWith("c2")
+
+    fireEvent.click(screen.getByRole("button", { name: /History/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete conversation: Planning my week" }))
+    expect(state.onDeleteConversation).toHaveBeenCalledWith("c1")
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }))
+    expect(state.onNewConversation).toHaveBeenCalled()
   })
 
   it("renders replies, loading state, errors, and retry", () => {
@@ -55,26 +123,57 @@ describe("Mira assistant interfaces", () => {
     expect(screen.getByText("Shared message")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Open full assistant"))
     expect(onOpenFull).toHaveBeenCalled()
-    fireEvent.click(screen.getByText("Clear conversation"))
+    fireEvent.click(screen.getByText("New conversation"))
     expect(state.onClear).toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Close Mira" }))
     expect(onToggle).toHaveBeenCalledTimes(2)
   })
 
-  it("shows a project proposal and waits for confirmation", () => {
+  it("lists what Mira proposes and waits for confirmation", () => {
     const state = conversation({
-      pendingAction: { type: "create_project", payload: { name: "Research notes", description: "Weekly findings" }, requires_confirmation: true },
-      onConfirmAction: vi.fn(),
-      onCancelAction: vi.fn(),
-      onOpenProject: vi.fn(),
-      actionSaving: false,
+      pendingActions: [
+        { type: "create_project", summary: "Create project “Research notes” with 2 fields", destructive: false },
+        { type: "create_task", summary: "Add the task “Outline” to “Research notes”", destructive: false },
+      ],
+      onRunActions: vi.fn(),
+      onCancelActions: vi.fn(),
+      actionsRunning: false,
     })
     render(<MiraAssistantPage conversation={state} />)
-    expect(screen.getByRole("region", { name: "Proposed project" })).toBeInTheDocument()
-    expect(screen.getByText("Mira has not created anything yet. Review this project before confirming.")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-    expect(state.onCancelAction).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole("button", { name: "Create project" }))
-    expect(state.onConfirmAction).toHaveBeenCalledTimes(1)
+
+    const card = screen.getByRole("region", { name: "Proposed actions" })
+    expect(within(card).getByText("Mira would like to do 2 things")).toBeInTheDocument()
+    expect(within(card).getByText("Create project “Research notes” with 2 fields")).toBeInTheDocument()
+    expect(within(card).getByText("Nothing has changed yet. Review this before confirming.")).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel" }))
+    expect(state.onCancelActions).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(card).getByRole("button", { name: "Do all 2" }))
+    expect(state.onRunActions).toHaveBeenCalledTimes(1)
+  })
+
+  it("says plainly when an action can't be undone, and disables the buttons while working", () => {
+    const state = conversation({
+      pendingActions: [{ type: "delete_task", summary: "Delete a task", destructive: true }],
+      onRunActions: vi.fn(),
+      onCancelActions: vi.fn(),
+      actionsRunning: true,
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.getByText(/this can’t be undone/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Working…" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+  })
+
+  it("offers action-oriented starting points, and an opt-in to run simple changes straight away", () => {
+    const state = conversation({ autoRun: false, onToggleAutoRun: vi.fn() })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.getByText("Set up a project")).toBeInTheDocument()
+    expect(screen.getByText("Schedule something")).toBeInTheDocument()
+    const toggle = screen.getByLabelText(/Run simple changes straight away/)
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    expect(state.onToggleAutoRun).toHaveBeenCalledWith(true)
   })
 })

@@ -4,6 +4,30 @@ Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting), **US-3.17*
 
 ## Frontend performance: Google Lighthouse (US-3.17)
 
+!!! success "Re-measured after the post-review work (30 September 2026)"
+    Lighthouse 13 against the production build of the landing page, served locally
+    (`npm run build`, then `serve -s dist`), desktop Chrome, headless:
+
+    | Category | Score |
+    |---|---|
+    | Performance | **98** |
+    | Accessibility | **100** |
+    | Best practices | **96** |
+    | SEO | **100** |
+
+    First Contentful Paint 1.4 s, Largest Contentful Paint 1.8 s, Total Blocking Time
+    50 ms, Cumulative Layout Shift 0.08. Two notes: best practices reads 96 here only
+    because the local run has no backend, so the page's session check logs one
+    failed request to the console (the deployed site, with its API, scored 100); and
+    this run caught a real accessibility failure, which was fixed. The sign-in page's
+    error message contrasted 4.2:1 against the dark background (below the 4.5:1
+    minimum), so it now mixes towards the text colour on both themes.
+
+    The authenticated pages can't be audited without a session; everything added since
+    the last measurement (the Get-started tour, Mira, badges, the grid dashboard) loads
+    with the app bundle after sign-in and does not touch the landing page's critical path.
+
+
 **Tool:** [Google Lighthouse](https://developer.chrome.com/docs/lighthouse) — Google's own auditing tool for page performance, accessibility, best practices and SEO, run either from Chrome DevTools or via the hosted [PageSpeed Insights](https://pagespeed.web.dev/) report, which runs the same Lighthouse engine against a live URL without needing a local Chrome install. We used PageSpeed Insights against the deployed site so results are reproducible by anyone with the URL, including a grader.
 
 **Target:** `https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/` (the deployed landing page — the only page an unauthenticated crawl, like a grader's first look, can reach).

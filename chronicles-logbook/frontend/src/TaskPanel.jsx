@@ -6,6 +6,7 @@ import {
   toggleTask,
   updateTask,
 } from "./api"
+import { TrashButton } from "./TrashIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -172,14 +173,10 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
                   <span className={`task-checklist-text ${item.completed ? "completed" : ""}`}>
                     {item.text}
                   </span>
-                  <button
-                    type="button"
-                    className="btn-text-danger"
+                  <TrashButton
+                    label="Remove checklist item"
                     onClick={() => handleRemoveChecklistItem(item.id)}
-                    aria-label="Remove checklist item"
-                  >
-                    Remove
-                  </button>
+                  />
                 </li>
               ))}
             </ul>
@@ -373,15 +370,11 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         >
           Edit
         </button>
-        <button
-          type="button"
-          className="btn-text-danger"
+        <TrashButton
+          label="Delete task"
           onClick={handleDelete}
           disabled={isDeleting}
-          aria-label="Delete task"
-        >
-          {isDeleting ? "…" : "Delete"}
-        </button>
+        />
       </div>
     </li>
   )
@@ -389,7 +382,8 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
 
 // ── Task Panel (main export) ─────────────────────────────────────────
 
-export function TaskPanel({ projectId }) {
+export function TaskPanel({ projectId, onLogEntry }) {
+  const [finished, setFinished] = useState(null)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -417,7 +411,10 @@ export function TaskPanel({ projectId }) {
   }, [loadTasks])
 
   const handleToggle = async (pid, taskId) => {
+    const before = tasks.find((task) => task.id === taskId)
     await toggleTask(pid, taskId)
+    // Finishing a task is the natural moment to record what was done, which is an entry.
+    setFinished(before && !before.completed ? before.title : null)
     loadTasks()
   }
 
@@ -460,6 +457,14 @@ export function TaskPanel({ projectId }) {
           </button>
         )}
       </div>
+
+      {finished && (
+        <div className="task-finished-note" role="status">
+          <span>Finished “{finished}”. Want a record of what you did? A task is a plan; an entry is the record.</span>
+          {onLogEntry && <button type="button" className="btn-secondary" onClick={() => { setFinished(null); onLogEntry() }}>Log an entry</button>}
+          <button type="button" className="btn-text" onClick={() => setFinished(null)}>Not now</button>
+        </div>
+      )}
 
       {showForm && !editingTask && (
         <TaskForm

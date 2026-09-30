@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import COOKIE_SECURE, SESSION_SECRET_KEY
 from app.database import Base, async_engine
 from app.routers import (
+    achievements,
     activities,
     ai,
     auth,
@@ -20,6 +21,7 @@ from app.routers import (
     projects,
     saved_filters,
     statistics,
+    streaks,
     tasks,
     transfer,
 )
@@ -38,6 +40,12 @@ _DEFAULT_ORIGINS = [
 _ADDED_COLUMNS = (
     ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
     ("entries", "due_date", "DATE"),
+    ("entries", "due_time", "TIME"),
+    ("dashboards", "columns", "INTEGER NOT NULL DEFAULT 3"),
+    ("projects", "statuses", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("entries", "status", "VARCHAR(60)"),
+    ("entry_revisions", "status", "VARCHAR(60)"),
+    ("entry_revisions", "due_time", "TIME"),
     ("entries", "time_spent", "INTEGER"),
     ("entries", "retired_data", "JSONB NOT NULL DEFAULT '{}'::jsonb"),
     ("entries", "schema_version", "INTEGER NOT NULL DEFAULT 1"),
@@ -56,7 +64,31 @@ _ADDED_COLUMNS = (
     ("project_members", "invited_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
     ("project_members", "responded_at", "TIMESTAMPTZ"),
     ("entries", "title", "VARCHAR(255)"),
+    # Entry history & corrections (US-3.10) — see migrations/014_entry_history.sql.
+    ("entries", "deleted_at", "TIMESTAMPTZ"),
+    ("entry_revisions", "action", "VARCHAR(20) NOT NULL DEFAULT 'edited'"),
+    ("entry_revisions", "note", "TEXT"),
+    ("entry_revisions", "changed_fields", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    ("entry_revisions", "previous_values", "JSONB NOT NULL DEFAULT '{}'::jsonb"),
+    ("entry_revisions", "reverted_to", "INTEGER"),
 )
+
+# Entries saved before entry_revisions existed (or by a path that didn't
+# record one) get their current state as v1, so a first correction can't
+# overwrite the only copy of what they said. Idempotent; see migration 014.
+_BACKFILL_ENTRY_HISTORY = """
+    INSERT INTO entry_revisions (
+        id, entry_id, revision, title, data, retired_data, schema_version,
+        schema_snapshot, time_spent, todo, due_date, changed_by, changed_at, action
+    )
+    SELECT
+        md5(e.id::text || '-entry-history-baseline')::uuid, e.id, 1, e.title, e.data,
+        e.retired_data, e.schema_version, e.schema_snapshot, e.time_spent, e.todo,
+        e.due_date, e.created_by, COALESCE(e.updated_at, e.created_at), 'created'
+    FROM entries e
+    WHERE NOT EXISTS (SELECT 1 FROM entry_revisions r WHERE r.entry_id = e.id)
+    ON CONFLICT DO NOTHING
+"""
 
 
 @asynccontextmanager
@@ -79,6 +111,18 @@ async def lifespan(app: FastAPI):
                 await conn.execute(
                     text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
                 )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_entries_deleted_at ON entries(deleted_at)")
+            )
+            await conn.execute(text(_BACKFILL_ENTRY_HISTORY))
+            # Entries from before statuses existed start in the default pair.
+            await conn.execute(
+                text("UPDATE entries SET status = CASE WHEN todo THEN 'Still to do' ELSE 'Done' END WHERE status IS NULL")
+            )
+            # v1 rows written before versions recorded an action.
+            await conn.execute(
+                text("UPDATE entry_revisions SET action = 'created' WHERE revision = 1 AND action = 'edited'")
+            )
     yield
 
 
@@ -120,6 +164,8 @@ app.include_router(automation.rules_router)
 app.include_router(automation.recurrence_router)
 app.include_router(automation.reminders_router)
 app.include_router(dashboard.router)
+app.include_router(streaks.router)
+app.include_router(achievements.router)
 
 
 @app.get("/health")

@@ -1,0 +1,19 @@
+.activities-page .day-activity-form { max-width: 560px; }
+.activities-section { margin-top: 1.5rem; }
+.activities-section h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+.activities-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.activity-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.3));
+  border-radius: 0.75rem;
+  background: var(--surface, transparent);
+}
+.activity-when { display: grid; gap: 0.15rem; font-size: 0.85rem; }
+.activity-when span { color: var(--muted); }
+.activity-main p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.88rem; }
+.activity-actions { display: flex; align-items: center; gap: 0.25rem; }
+@media (max-width: 700px) { .activity-row { grid-template-columns: 1fr; } }

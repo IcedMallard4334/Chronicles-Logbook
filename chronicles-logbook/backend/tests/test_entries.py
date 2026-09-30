@@ -1219,6 +1219,41 @@ async def test_update_entry_clears_due_date_with_explicit_null(
     assert response.json()["due_date"] is None
 
 
+async def test_entry_due_time_is_saved_updated_and_cleared_with_its_date(
+    authenticated_client, project_with_schema
+):
+    project_id = project_with_schema["id"]
+    created = await authenticated_client.post(
+        f"/projects/{project_id}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_date": "2026-10-01", "due_time": "14:30:00"},
+    )
+    assert created.status_code == 201
+    assert created.json()["due_time"] == "14:30:00"
+    entry_id = created.json()["id"]
+
+    changed = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}", json={"due_time": "09:15:00"}
+    )
+    assert changed.json()["due_time"] == "09:15:00"
+
+    cleared = await authenticated_client.put(
+        f"/projects/{project_id}/entries/{entry_id}", json={"due_date": None}
+    )
+    assert cleared.json()["due_date"] is None
+    assert cleared.json()["due_time"] is None
+
+
+async def test_entry_due_time_without_a_date_is_not_kept(
+    authenticated_client, project_with_schema
+):
+    response = await authenticated_client.post(
+        f"/projects/{project_with_schema['id']}/entries",
+        json={"data": VALID_DATA, "todo": True, "due_time": "14:30:00"},
+    )
+    assert response.status_code == 201
+    assert response.json()["due_time"] is None
+
+
 async def test_update_entry_leaves_outstanding_fields_when_omitted(
     authenticated_client, project_with_schema
 ):

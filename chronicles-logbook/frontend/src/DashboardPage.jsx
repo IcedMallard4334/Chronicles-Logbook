@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   fetchDashboard,
   updateDashboardPanels,
@@ -8,6 +8,7 @@ import {
   fetchStatistics,
   fetchFieldTimeline,
 } from "./api"
+import { projectStatuses, statusOf } from "./statuses"
 import "./DashboardPage.css"
 
 function newPanelId() {
@@ -22,6 +23,16 @@ const PANEL_TYPE_LABELS = {
   saved_filter: "Saved filter",
   board: "Board",
 }
+
+const MIN_COLUMNS = 2
+const MAX_COLUMNS = 6
+const DEFAULT_COLUMNS = 3
+const HEIGHTS = [
+  { value: 1, label: "Short" },
+  { value: 2, label: "Medium" },
+  { value: 3, label: "Tall" },
+  { value: 4, label: "Extra tall" },
+]
 
 const STATISTIC_VIEWS = [
   { value: "overview", label: "Overview totals" },
@@ -178,7 +189,7 @@ function BoardPanelBody({ config, projects }) {
   const isStatus = grouping === "__status__"
   const field = isStatus ? null : (project.entry_schema || []).find((item) => item.id === grouping)
   const columns = isStatus
-    ? [{ key: "todo", label: "Still to do" }, { key: "done", label: "Done" }]
+    ? projectStatuses(project).map((status) => ({ key: status.name, label: status.name }))
     : (field?.options || []).map((option) => ({ key: option, label: option }))
 
   return (
@@ -188,7 +199,7 @@ function BoardPanelBody({ config, projects }) {
           <span>{column.label}</span>
           <strong>
             {entries.filter((entry) => {
-              const value = isStatus ? (entry.todo ? "todo" : "done") : entry.data?.[grouping]
+              const value = isStatus ? statusOf(entry, project) : entry.data?.[grouping]
               return value === column.key
             }).length}
           </strong>
@@ -206,7 +217,9 @@ function PanelBody({ panel, projects, savedFilters }) {
 
 // ---- Adding a panel ----
 
-function AddPanelForm({ projects, savedFilters, onAdd, onCancel }) {
+function AddPanelForm({ projects, savedFilters, columns, onAdd, onCancel }) {
+  const [width, setWidth] = useState(1)
+  const [height, setHeight] = useState(2)
   const [type, setType] = useState("statistic")
   const [view, setView] = useState("overview")
   const [projectId, setProjectId] = useState(projects[0]?.id || "")
@@ -244,7 +257,7 @@ function AddPanelForm({ projects, savedFilters, onAdd, onCancel }) {
         ? { view, project_id: projectId, field_id: fieldId }
         : { view }
 
-    onAdd({ id: newPanelId(), type, config })
+    onAdd({ id: newPanelId(), type, config, w: Math.min(width, columns), h: height })
   }
 
   return (
@@ -321,6 +334,23 @@ function AddPanelForm({ projects, savedFilters, onAdd, onCancel }) {
         </>
       )}
 
+      <div className="dashboard-add-panel-size">
+        <label>
+          Width
+          <select value={width} onChange={(event) => setWidth(Number(event.target.value))}>
+            {Array.from({ length: columns }, (_, index) => index + 1).map((value) => (
+              <option key={value} value={value}>{value} {value === 1 ? "block" : "blocks"} wide</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Height
+          <select value={height} onChange={(event) => setHeight(Number(event.target.value))}>
+            {HEIGHTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </label>
+      </div>
+
       <div className="dashboard-add-panel-actions">
         <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
         <button type="submit" className="btn-primary" disabled={!canSubmit}>Add panel</button>
@@ -331,12 +361,15 @@ function AddPanelForm({ projects, savedFilters, onAdd, onCancel }) {
 
 // ---- The page itself ----
 
-export default function DashboardPage({ projects }) {
+export default function DashboardPage({ projects, embedded = false }) {
   const [panels, setPanels] = useState(null)
   const [savedFilters, setSavedFilters] = useState([])
   const [error, setError] = useState(null)
   const [adding, setAdding] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [columns, setColumns] = useState(DEFAULT_COLUMNS)
+  const [dragId, setDragId] = useState(null)
+  const [overId, setOverId] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -344,18 +377,23 @@ export default function DashboardPage({ projects }) {
       .then(([dashboard, filters]) => {
         if (cancelled) return
         setPanels(dashboard.panels)
+        setColumns(dashboard.columns || DEFAULT_COLUMNS)
         setSavedFilters(filters)
       })
       .catch((caught) => { if (!cancelled) setError(caught.message) })
     return () => { cancelled = true }
   }, [])
 
-  const persist = async (nextPanels) => {
+  const persist = async (nextPanels, nextColumns) => {
     setPanels(nextPanels)
+    if (nextColumns !== undefined) setColumns(nextColumns)
     setSaving(true)
     try {
-      const dashboard = await updateDashboardPanels(nextPanels)
+      const dashboard = nextColumns === undefined
+        ? await updateDashboardPanels(nextPanels)
+        : await updateDashboardPanels(nextPanels, nextColumns)
       setPanels(dashboard.panels)
+      if (dashboard.columns) setColumns(dashboard.columns)
       setError(null)
     } catch (caught) {
       setError("Could not save your dashboard. Your changes may not have stuck — try again.")
@@ -371,6 +409,65 @@ export default function DashboardPage({ projects }) {
 
   const handleRemove = (panelId) => {
     persist(panels.filter((panel) => panel.id !== panelId))
+  }
+
+  const handleResize = (panelId, change) => {
+    persist(panels.map((panel) => (panel.id === panelId ? { ...panel, ...change } : panel)))
+  }
+
+  const handleColumns = (count) => {
+    persist(panels.map((panel) => ({ ...panel, w: Math.min(panel.w || 1, count) })), count)
+  }
+
+  // Dragging is done with pointer events on the grip, so the same code serves a
+  // mouse, a finger and a pen. `touch-action: none` on the grip (see the CSS)
+  // stops the browser scrolling instead while a finger is on it.
+  const overIdRef = useRef(null)
+  overIdRef.current = overId
+
+  const startDrag = (event, panelId) => {
+    if (saving) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setDragId(panelId)
+  }
+
+  useEffect(() => {
+    if (!dragId) return undefined
+    const panelUnder = (x, y) => document.elementFromPoint?.(x, y)?.closest?.("[data-panel-id]")?.dataset.panelId || null
+    const move = (event) => {
+      setOverId(panelUnder(event.clientX, event.clientY))
+      // Near the top or bottom of the window, scroll so a long dashboard can be reached mid-drag.
+      if (event.clientY < 60) window.scrollBy?.(0, -14)
+      else if (event.clientY > window.innerHeight - 60) window.scrollBy?.(0, 14)
+    }
+    const finish = (event) => {
+      const target = event.type === "pointerup" ? panelUnder(event.clientX, event.clientY) || overIdRef.current : null
+      handleDrop(dragId, target)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", finish)
+    window.addEventListener("pointercancel", finish)
+    return () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", finish)
+      window.removeEventListener("pointercancel", finish)
+    }
+    // handleDrop reads the current panels; re-binding per drag is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragId, panels])
+
+  const handleDrop = (sourceId, targetId) => {
+    setDragId(null)
+    setOverId(null)
+    if (!sourceId || !targetId || sourceId === targetId) return
+    const from = panels.findIndex((panel) => panel.id === sourceId)
+    const to = panels.findIndex((panel) => panel.id === targetId)
+    if (from < 0 || to < 0) return
+    const next = [...panels]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    persist(next)
   }
 
   const handleMove = (index, direction) => {
@@ -390,18 +487,32 @@ export default function DashboardPage({ projects }) {
   }
 
   return (
-    <section className="dashboard-page workspace-page" aria-labelledby="dashboard-title">
+    <section className={`dashboard-page workspace-page${embedded ? " is-embedded" : ""}`} aria-labelledby="dashboard-title">
       <header className="workspace-heading">
         <div>
           <span className="workspace-eyebrow">ONE VIEW OF WHAT MATTERS</span>
-          <h1 id="dashboard-title">My dashboard</h1>
+          {embedded ? <h2 id="dashboard-title">My dashboard</h2> : <h1 id="dashboard-title">My dashboard</h1>}
           <p>Arrange the statistics and views that matter to you.</p>
         </div>
-        {!adding && (
-          <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
-            + Add panel
-          </button>
-        )}
+        <div className="dashboard-header-actions">
+          <label className="dashboard-columns">
+            Blocks across
+            <select
+              value={columns}
+              disabled={saving}
+              onChange={(event) => handleColumns(Number(event.target.value))}
+            >
+              {Array.from({ length: MAX_COLUMNS - MIN_COLUMNS + 1 }, (_, index) => index + MIN_COLUMNS).map((count) => (
+                <option key={count} value={count}>{count}</option>
+              ))}
+            </select>
+          </label>
+          {!adding && (
+            <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
+              + Add panel
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="workspace-body">
@@ -411,6 +522,7 @@ export default function DashboardPage({ projects }) {
           <AddPanelForm
             projects={projects}
             savedFilters={savedFilters}
+            columns={columns}
             onAdd={handleAdd}
             onCancel={() => setAdding(false)}
           />
@@ -423,15 +535,48 @@ export default function DashboardPage({ projects }) {
             <p>Add a panel to see your statistics, saved filters, or boards at a glance.</p>
           </div>
         ) : (
-          <ul className="dashboard-panel-grid">
+          <ul className="dashboard-panel-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
             {panels.map((panel, index) => (
-              <li className="dashboard-panel" key={panel.id}>
+              <li
+                className={`dashboard-panel${dragId === panel.id ? " is-dragging" : ""}${overId === panel.id && dragId !== panel.id ? " is-drop-target" : ""}`}
+                key={panel.id}
+                data-panel-id={panel.id}
+                style={{ gridColumn: `span ${Math.min(panel.w || 1, columns)}`, gridRow: `span ${panel.h || 2}` }}
+              >
                 <header className="dashboard-panel-header">
                   <span>
                     <span className="dashboard-panel-type">{PANEL_TYPE_LABELS[panel.type]}</span>
                     <strong>{defaultTitleFor(panel, { projects, savedFilters })}</strong>
                   </span>
                   <div className="dashboard-panel-controls">
+                    <button
+                      type="button"
+                      className="dashboard-panel-grip"
+                      aria-label="Drag to rearrange panel"
+                      title="Drag to rearrange"
+                      disabled={saving}
+                      onPointerDown={(event) => startDrag(event, panel.id)}
+                    >
+                      ⠿
+                    </button>
+                    <select
+                      aria-label="Panel width"
+                      value={Math.min(panel.w || 1, columns)}
+                      disabled={saving}
+                      onChange={(event) => handleResize(panel.id, { w: Number(event.target.value) })}
+                    >
+                      {Array.from({ length: columns }, (_, i) => i + 1).map((value) => (
+                        <option key={value} value={value}>{value} wide</option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Panel height"
+                      value={panel.h || 2}
+                      disabled={saving}
+                      onChange={(event) => handleResize(panel.id, { h: Number(event.target.value) })}
+                    >
+                      {HEIGHTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    </select>
                     <button
                       type="button"
                       aria-label="Move panel up"

@@ -14,10 +14,14 @@ import {
   fetchEntryMigrationPreview,
   fetchFieldTimeline,
   fetchProjects,
+  fetchAchievements,
+  markAchievementsSeen,
+  recordStreakActivity,
   fetchStatistics,
   fetchTasks,
   getGoogleLoginUrl,
   sendAIMessage,
+  streamMiraReply,
   unarchiveProject,
   updateEntry,
   updateProject,
@@ -54,6 +58,67 @@ describe("api", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "How should I log progress?" }),
     })
+  })
+
+  it("reads streamed Mira events even when they are split across chunks", async () => {
+    const encoder = new TextEncoder()
+    const chunks = [
+      'data: {"type":"start"}\n\ndata: {"type":"del',
+      'ta","text":"Hi "}\n\ndata: {"type":"delta","text":"there"}\n\n',
+      'data: {"type":"done"}\n\n',
+    ].map((text) => encoder.encode(text))
+    let index = 0
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { getReader: () => ({ read: async () => (index < chunks.length ? { done: false, value: chunks[index++] } : { done: true }) }) },
+    })
+
+    const events = []
+    await streamMiraReply("conv-1", "Hello", (event) => events.push(event))
+
+    expect(events.map((event) => event.type)).toEqual(["start", "delta", "delta", "done"])
+    expect(events.filter((event) => event.type === "delta").map((event) => event.text).join("")).toBe("Hi there")
+    expect(fetch.mock.calls[0][0]).toBe("http://localhost:8000/ai/conversations/conv-1/stream")
+  })
+
+  it("reports a refused stream request with the server's message", async () => {
+    fetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ detail: "Conversation not found." }) })
+
+    await expect(streamMiraReply("gone", "Hello", () => {})).rejects.toThrow("Conversation not found.")
+  })
+
+  it("counts a save as today's interaction, once, but not reads or Mira", async () => {
+    fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: "1" }) })
+
+    await fetchProjects()
+    await sendAIMessage("hello")
+    expect(fetch.mock.calls.some(([url]) => url.includes("/streaks/activity"))).toBe(false)
+
+    await createProject({ name: "Notes" })
+    await createProject({ name: "More notes" })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const pings = fetch.mock.calls.filter(([url]) => url.includes("/streaks/activity"))
+    expect(pings).toHaveLength(1)
+    expect(JSON.parse(pings[0][1].body).kind).toBe("interaction")
+  })
+
+  it("announces every save so badges can be checked, but not badge or streak traffic itself", async () => {
+    fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    const heard = []
+    const listen = () => heard.push("saved")
+    window.addEventListener("chronicles-activity", listen)
+
+    await createProject({ name: "A" })
+    await createProject({ name: "B" })
+    expect(heard).toEqual(["saved", "saved"])
+
+    await markAchievementsSeen(["first_project"])
+    await fetchAchievements()
+    await recordStreakActivity("login")
+    await fetchProjects()
+    expect(heard).toHaveLength(2)
+    window.removeEventListener("chronicles-activity", listen)
   })
 
   it("creates a project", async () => {

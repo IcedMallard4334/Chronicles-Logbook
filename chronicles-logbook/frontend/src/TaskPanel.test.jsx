@@ -92,6 +92,35 @@ describe("TaskPanel", () => {
     })
   })
 
+  it("nudges someone who finishes a task to record what they did as an entry", async () => {
+    toggleTask.mockResolvedValue({ ...mockTask, completed: true })
+    const onLogEntry = vi.fn()
+    render(<TaskPanel projectId="proj-1" onLogEntry={onLogEntry} />)
+    await screen.findByText("Write tests")
+
+    fireEvent.click(screen.getAllByLabelText("Mark complete")[0])
+
+    const note = await screen.findByRole("status")
+    expect(note).toHaveTextContent("Finished “Write tests”")
+    expect(note).toHaveTextContent("A task is a plan; an entry is the record.")
+    fireEvent.click(within(note).getByRole("button", { name: "Log an entry" }))
+    expect(onLogEntry).toHaveBeenCalledOnce()
+    expect(screen.queryByText(/Finished “Write tests”/)).not.toBeInTheDocument()
+  })
+
+  it("lets the nudge be dismissed, and offers no entry button where none can be logged", async () => {
+    toggleTask.mockResolvedValue({ ...mockTask, completed: true })
+    render(<TaskPanel projectId="proj-1" />)
+    await screen.findByText("Write tests")
+
+    fireEvent.click(screen.getAllByLabelText("Mark complete")[0])
+    const note = await screen.findByRole("status")
+    expect(within(note).queryByRole("button", { name: "Log an entry" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(note).getByRole("button", { name: "Not now" }))
+    expect(screen.queryByText(/Finished “Write tests”/)).not.toBeInTheDocument()
+  })
+
   it("deletes a task after confirmation", async () => {
     deleteTask.mockResolvedValue(null)
     window.confirm = vi.fn(() => true)

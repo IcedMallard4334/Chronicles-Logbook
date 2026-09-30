@@ -1,4 +1,5 @@
 import DayActivityDialog from "./DayActivityDialog"
+import { EntryDetailModal } from "./EntryShared"
 import { useEffect, useMemo, useState } from "react"
 import { disconnectGoogleCalendar, fetchEntriesGlobal, fetchGoogleCalendarAuthUrl, fetchGoogleCalendarEvents, fetchGoogleCalendarStatus, fetchCalendarActivities } from "./api"
 import { dateKey, monthDays, groupGoogleEvents } from "./calendarDates"
@@ -6,7 +7,8 @@ import "./CalendarView.css"
 
 const time = (value) => new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
-export default function CalendarView() {
+export default function CalendarView({ projects = [], userId = null, onEditProject, renderProjectDelete } = {}) {
+  const [openEntry, setOpenEntry] = useState(null)
   const [month, setMonth] = useState(() => new Date())
   const [selected, setSelected] = useState(() => new Date())
   const [accounts, setAccounts] = useState([])
@@ -107,6 +109,9 @@ export default function CalendarView() {
   const selectedEvents = eventMap.get(selectedKey) || []
   const selectedActivities = activities.filter(activity => activity.day === selectedKey)
   const todayKey = dateKey(new Date())
+  const projectFor = (id) => projects.find(project => project.id === id)
+  const ownsProject = (id) => { const project = projectFor(id); return Boolean(project) && !project.shared }
+  const openEntryProject = openEntry ? projectFor(openEntry.project_id) : null
 
   async function connect() {
     setBusy(true)
@@ -184,7 +189,15 @@ export default function CalendarView() {
         })}
       </div>
 
-      {dayOpen && <DayActivityDialog key={selectedKey} date={selected} events={selectedEvents} entries={selectedEntries} activities={selectedActivities} loading={loading || entriesLoading || activitiesLoading} activityError={activityError} onClose={() => setDayOpen(false)} onSaved={activity => setActivities(items => [...items, activity])} onDeleted={id => setActivities(items => items.filter(item => item.id !== id))} />}
+      {dayOpen && <DayActivityDialog key={selectedKey} date={selected} events={selectedEvents} entries={selectedEntries} activities={selectedActivities} loading={loading || entriesLoading || activitiesLoading} activityError={activityError} onClose={() => setDayOpen(false)} onSaved={activity => setActivities(items => [...items, activity])} onUpdated={activity => setActivities(items => items.map(item => item.id === activity.id ? activity : item))} onDeleted={id => setActivities(items => items.filter(item => item.id !== id))}
+        onOpenEntry={projectFor && projects.length ? (entry => { if (projectFor(entry.project_id)) { setDayOpen(false); setOpenEntry(entry) } }) : undefined}
+        onEditProject={onEditProject ? (id => { setDayOpen(false); onEditProject(id) }) : undefined}
+        canManageProject={ownsProject}
+        renderProjectDelete={renderProjectDelete ? (id => ownsProject(id) ? renderProjectDelete(projectFor(id), () => { setEntries(items => items.filter(item => item.project_id !== id)); setDayOpen(false) }) : null) : undefined} />}
+      {openEntry && openEntryProject && <EntryDetailModal project={openEntryProject} entry={openEntry} projects={projects} entries={entries.filter(item => item.project_id === openEntryProject.id)} canManage={!openEntryProject.shared || (Boolean(userId) && openEntry.created_by === userId)}
+        onClose={() => { setOpenEntry(null); setDayOpen(true) }}
+        onSaved={saved => { setEntries(items => items.map(item => item.id === saved.id ? { ...item, ...saved } : item)); setOpenEntry(null); setDayOpen(true) }}
+        onDeleted={id => { setEntries(items => items.filter(item => item.id !== id)); setOpenEntry(null); setDayOpen(true) }} />}
     </section>
   )
 }

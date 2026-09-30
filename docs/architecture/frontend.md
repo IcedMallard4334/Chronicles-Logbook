@@ -74,6 +74,24 @@ view switch, not from the diagram's Sprint 1/2 shell):
 | `HelpPage.jsx`, `helpContent.js` | The searchable in-app help manual |
 | `GuidedTour.jsx`, `tourSteps.js` | The welcome tour and per-page coach marks |
 
+**Added after the Sprint 3 review** (see [Post-review improvements](../features/whats-new.md)):
+
+| File | Responsibility |
+|---|---|
+| `HomeWorkspace.jsx` | Home: the welcome plus the embedded dashboard |
+| `ActivitiesPage.jsx`, `ActivityForm.jsx` | Scheduled activities: list, add, edit, delete |
+| `DayActivityDialog.jsx` | The Calendar's day view, with management of activities, entries and projects |
+| `EntryHistory.jsx`, `DeletedEntries.jsx`, `entryVersions.js` | Versions, reverting, "as it stood on" a date, restoring deleted entries |
+| `StatusEditor.jsx`, `StatusPicker.jsx`, `statuses.js` | Defining, choosing and filtering by entry statuses |
+| `MiraAssistant.jsx`, `MiraMarkdown.jsx` | Mira's panel: streaming, Markdown, history, proposal cards |
+| `miraActions.js` | Runs confirmed Mira proposals through the ordinary API (26 handlers) |
+| `speech.js`, `PageReader.jsx` | Voice dictation and the opt-in page reader |
+| `Streaks.jsx` | The two streak counters in the top bar |
+| `AchievementsSection.jsx`, `AchievementCelebration.jsx`, `BadgeArt.jsx`, `Confetti.jsx` | Badges on the profile, the celebration dialog, badge art and confetti |
+| `TrashIcon.jsx`, `NavIcons.jsx` | The animated delete control and the navigation icons |
+| `EntryTaskGuide.jsx` | The "Entry or task?" explainer |
+| `preferences.js` | Theme, accent and the custom button and background colours |
+
 ## Routing
 
 ```mermaid

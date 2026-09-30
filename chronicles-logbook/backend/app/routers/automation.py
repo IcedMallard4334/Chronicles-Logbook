@@ -24,7 +24,7 @@ from app.automation import (
     validate_rule,
 )
 from app.database import get_db
-from app.models import EntryRecurrence, EntryRule, Project, User
+from app.models import Entry, EntryRecurrence, EntryRule, Project, User
 from app.routers.auth import get_current_user
 from app.routers.projects import (
     _get_project_entry,
@@ -188,6 +188,8 @@ async def list_recurrences(
         await materialize_due_occurrences(db, [project_id], resolve_today(today))
     result = await db.scalars(
         select(EntryRecurrence)
+        # Joined so a deleted entry's recurrence is hidden along with it.
+        .join(Entry, Entry.id == EntryRecurrence.entry_id)
         .where(EntryRecurrence.project_id == project_id)
         .order_by(EntryRecurrence.created_at)
     )

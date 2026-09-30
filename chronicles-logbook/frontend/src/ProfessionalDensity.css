@@ -280,3 +280,4 @@
   .home-main .workspace-sidebar { height: auto; }
   .app-shell > .home-main { grid-template-columns: 1fr; }
 }
+.workspace-sidebar-nav button svg { width:16px; height:16px; flex:0 0 auto; }

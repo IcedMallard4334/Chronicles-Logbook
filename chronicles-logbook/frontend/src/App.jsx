@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom"
-import { sendAIMessage, signOut } from "./api"
+import { createMiraConversation, deleteMiraConversation, fetchMiraConversation, fetchMiraConversations, signOut, streamMiraReply } from "./api"
+import { describeOutcome, pageToView, runActions } from "./miraActions"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
   EntryDetailModal,
@@ -15,19 +16,28 @@ import {
 import HomeWorkspace from "./HomeWorkspace"
 import TodayPage from "./TodayPage"
 import CommandPalette, { OPEN_COMMAND_PALETTE } from "./CommandPalette"
+import ActivitiesPage from "./ActivitiesPage"
 import CalendarView from "./CalendarView"
 import BoardView from "./BoardView"
-import DashboardPage from "./DashboardPage"
 import OutstandingPage from "./OutstandingPage"
 import StatisticsPage from "./StatisticsPage"
 import ChronologicalTimeline from "./EntryTimeline"
 import FieldTimeline from "./FieldTimeline"
 import { MiraAssistantPage, MiraLauncher } from "./MiraAssistant"
 import LogoIcon from "./ChroniclesLogo"
+import DeletedEntries from "./DeletedEntries"
 import { TaskPanel } from "./TaskPanel"
 import OfflineStatus from "./OfflineStatus"
 import Invitations from "./Invitations"
 import Reminders from "./Reminders"
+import Streaks from "./Streaks"
+import AchievementCelebration from "./AchievementCelebration"
+import EntryTaskGuide from "./EntryTaskGuide"
+import { ActivityIcon, BoardIcon, OutstandingIcon, TodayIcon } from "./NavIcons"
+import StatusEditor, { statusProblem } from "./StatusEditor"
+import StatusPicker from "./StatusPicker"
+import { hasCustomStatuses, projectStatuses } from "./statuses"
+import "./StatusEditor.css"
 import AutomationPanel from "./AutomationPanel"
 import { ruleFillableFieldIds } from "./automationRules"
 import { formatDuration } from "./formatDuration"
@@ -78,6 +88,7 @@ import {
 } from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
+import { TrashButton } from "./TrashIcon"
 
 function generateId() {
   return `field-${Math.random().toString(36).slice(2, 9)}`
@@ -462,6 +473,7 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
 function EditProjectModal({ isOpen, onClose, project, onSave }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [statuses, setStatuses] = useState(() => projectStatuses(null).map((item) => ({ ...item })))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -469,6 +481,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     if (isOpen && project) {
       setName(project.name || "")
       setDescription(project.description || "")
+      setStatuses(projectStatuses(project).map((item) => ({ ...item })))
       setError(null)
     }
   }, [isOpen, project])
@@ -489,10 +502,19 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
       setError("Project name can't be empty.")
       return
     }
+    const problem = statusProblem(statuses)
+    if (problem) {
+      setError(problem)
+      return
+    }
     setIsSaving(true)
     setError(null)
     try {
-      await onSave({ name: trimmed, description: description.trim() || null })
+      await onSave({
+        name: trimmed,
+        description: description.trim() || null,
+        statuses: statuses.map((item) => ({ name: item.name.trim(), done: item.done })),
+      })
       onClose()
     } catch (err) {
       setError(formatError(err))
@@ -534,6 +556,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
               rows={3}
             />
           </label>
+          <StatusEditor statuses={statuses} onChange={setStatuses} />
           {error && <p className="error" role="alert">{error}</p>}
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={handleCancel}>
@@ -552,7 +575,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
 function ProjectList({
   projects, statistics, selectedId, onSelect, onCreate,
   onShowHome, homeActive, onShowTimeline, timelineActive,
-  onShowToday, todayActive, onShowOutstanding, outstandingActive,
+  onShowToday, todayActive, onShowOutstanding, outstandingActive, onShowActivities, activitiesActive,
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -594,18 +617,23 @@ function ProjectList({
       </div>
       <nav className="workspace-sidebar-nav" aria-label="Workspace views">
         <button type="button" className={homeActive ? "is-active" : ""} aria-current={homeActive ? "page" : undefined} onClick={onShowHome}>
-          <span aria-hidden="true">⌂</span> Projects
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>
+          Dashboard
         </button>
         <button type="button" className={timelineActive ? "is-active" : ""} aria-current={timelineActive ? "page" : undefined} onClick={onShowTimeline}>
-          <span aria-hidden="true">◷</span> Activity
+          <ActivityIcon /> Activity
         </button>
         <button type="button" className={todayActive ? "is-active" : ""} aria-current={todayActive ? "page" : undefined} onClick={onShowToday}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          <TodayIcon />
           Today
         </button>
         <button type="button" className={outstandingActive ? "is-active" : ""} aria-current={outstandingActive ? "page" : undefined} onClick={onShowOutstanding}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /><path d="M4 4l2.5 2.5" /></svg>
+          <OutstandingIcon />
           Outstanding
+        </button>
+        <button type="button" className={activitiesActive ? "is-active" : ""} aria-current={activitiesActive ? "page" : undefined} onClick={onShowActivities}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4" /></svg>
+          Activities
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
@@ -1003,9 +1031,7 @@ function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChang
             A link needs somewhere to point — create another project first.
           </p>
         ))}
-      <button type="button" className="btn-text-danger" onClick={() => onRemove(index)}>
-        Remove field
-      </button>
+      <TrashButton label="Remove field" onClick={() => onRemove(index)} />
     </div>
   )
 }
@@ -1364,7 +1390,11 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
   const [hoursSpent, setHoursSpent] = useState("")
   const [minutesSpent, setMinutesSpent] = useState("")
   const [todo, setTodo] = useState(false)
+  const customStatuses = hasCustomStatuses(project)
+  const finishedStatus = () => projectStatuses(project).find((item) => item.done)?.name
+  const [status, setStatus] = useState(finishedStatus)
   const [dueDate, setDueDate] = useState("")
+  const [dueTime, setDueTime] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   // US-3.12: the project's rules, so a field a rule can fill may be left
@@ -1433,6 +1463,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
     setMinutesSpent("")
     setTodo(false)
     setDueDate("")
+    setDueTime("")
     setError(null)
   }, [project.id])
 
@@ -1489,9 +1520,11 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
+        ...(customStatuses ? { status } : {}),
         // Sent as null rather than "" so the server reads it as "no deadline"
         // instead of rejecting an empty date.
         due_date: dueDate || null,
+        due_time: dueDate && dueTime ? dueTime : null,
       })
       const applied = created?.applied_rules || []
       if (applied.length > 0) {
@@ -1504,7 +1537,9 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       setHoursSpent("")
       setMinutesSpent("")
       setTodo(false)
+      setStatus(finishedStatus())
       setDueDate("")
+      setDueTime("")
     } catch (err) {
       setError(formatError(err))
     } finally {
@@ -1580,6 +1615,17 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       {/* Logging something that has not happened yet: it is planned work, so it
           belongs in the outstanding view rather than the record of what was done. */}
       <div className="form-grid entry-outstanding">
+        {customStatuses ? (
+          <StatusPicker
+            project={project}
+            value={status}
+            onChange={(name, done) => {
+              setStatus(name)
+              setTodo(!done)
+              if (done) { setDueDate(""); setDueTime("") }
+            }}
+          />
+        ) : (
         <div className="checkbox-with-tip">
           <label className="field-label checkbox-label">
             <input
@@ -1587,22 +1633,34 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
               checked={todo}
               onChange={(e) => {
                 setTodo(e.target.checked)
-                if (!e.target.checked) setDueDate("")
+                if (!e.target.checked) { setDueDate(""); setDueTime("") }
               }}
             />
             This is still to do
           </label>
           <InfoTip text="Marks this as work you haven't finished yet, instead of a record of something already done. It'll show up on Outstanding and in Board's 'Still to do' column until you check it off." />
         </div>
+        )}
         {todo && (
-          <label className="field-label due-date-field">
-            Due date
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </label>
+          <>
+            <label className="field-label due-date-field">
+              Due date
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </label>
+            <label className="field-label due-date-field">
+              Time of day (optional)
+              <input
+                type="time"
+                value={dueTime}
+                disabled={!dueDate}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </label>
+          </>
         )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
@@ -1937,6 +1995,7 @@ function ProjectDetail({
   onEntryCreated,
   onEntryUpdated,
   onEntryDeleted,
+  onEntryRestored,
   onEditProject,
   onToggleArchive,
   onDeleteProject,
@@ -1946,6 +2005,9 @@ function ProjectDetail({
 }) {
   const [tab, setTab] = useState("entries")
   const [leaving, setLeaving] = useState(false)
+  const [addingEntry, setAddingEntry] = useState(false)
+  const [savedNotice, setSavedNotice] = useState(null)
+  const [sharing, setSharing] = useState(false)
   const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
@@ -2001,6 +2063,17 @@ function ProjectDetail({
               {project.entry_schema?.length === 1 ? "field" : "fields"} · Schema
             </button>
           </p>
+          {!project.shared && (
+            <div className="detail-actions" role="group" aria-label="Project actions">
+              <button type="button" className="btn-secondary detail-share-btn" onClick={() => setSharing(true)}>
+                Share this project
+              </button>
+              <button type="button" className="btn-secondary detail-archive-btn" onClick={onToggleArchive}>
+                {project.archived ? "Unarchive project" : "Archive project"}
+              </button>
+              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
+            </div>
+          )}
         </div>
         <div className="tab-switch" role="tablist" aria-label="Project tabs">
           <button
@@ -2008,6 +2081,7 @@ function ProjectDetail({
             role="tab"
             aria-selected={tab === "entries"}
             className={tab === "entries" ? "active" : ""}
+            title="Entries: a record of work you have already done"
             onClick={() => setTab("entries")}
           >
             Entries
@@ -2026,6 +2100,7 @@ function ProjectDetail({
             role="tab"
             aria-selected={tab === "tasks"}
             className={tab === "tasks" ? "active" : ""}
+            title="Tasks: things you still need to do"
             onClick={() => setTab("tasks")}
           >
             Tasks
@@ -2044,12 +2119,49 @@ function ProjectDetail({
       <div className="detail-body">
         {tab === "entries" ? (
           <>
+            <div className="entries-toolbar">
+              <h3>Past entries</h3>
+              <EntryTaskGuide />
+              {!project.archived && (
+                <button
+                  type="button"
+                  className="entry-add-toggle"
+                  aria-expanded={addingEntry || (project.entries || []).length === 0}
+                  aria-controls="new-entry-form"
+                  aria-label={addingEntry ? "Close the new entry form" : "Add a new entry"}
+                  title={addingEntry ? "Close" : "Add a new entry"}
+                  onClick={() => { setSavedNotice(null); setAddingEntry((open) => !open) }}
+                  disabled={(project.entries || []).length === 0}
+                >
+                  {addingEntry ? "×" : "+"}
+                </button>
+              )}
+            </div>
+            {savedNotice && <p className="rule-applied-notice" role="status">{savedNotice}</p>}
             {project.archived ? (
               <div className="hint-card" role="status">
                 <p>This project is archived. Unarchive it to add new entries.</p>
               </div>
-            ) : (
-              <EntryForm project={project} projects={projects} entries={project.entries || []} onCreated={onEntryCreated} onOpenProject={onOpenProject} />
+            ) : (addingEntry || (project.entries || []).length === 0) && (
+              <div id="new-entry-form">
+                <EntryForm
+                  project={project}
+                  projects={projects}
+                  entries={project.entries || []}
+                  onCreated={async (payload) => {
+                    const result = await onEntryCreated(payload)
+                    const applied = result?.applied_rules || []
+                    setSavedNotice(
+                      applied.length > 0
+                        ? `Saved. ${applied.length === 1 ? "Rule" : "Rules"} applied: ${applied.map((rule) => rule.name).join(", ")}.`
+                        : "Entry saved."
+                    )
+                    setAddingEntry(false)
+                    return result
+                  }}
+                  onOpenProject={onOpenProject}
+                />
+              </div>
             )}
             <EntryList
               entries={project.entries || []}
@@ -2063,6 +2175,12 @@ function ProjectDetail({
               onEntryUpdated={onEntryUpdated}
               onEntryDeleted={onEntryDeleted}
             />
+            <DeletedEntries
+              project={project}
+              liveCount={(project.entries || []).length}
+              userId={userId}
+              onRestored={onEntryRestored}
+            />
           </>
         ) : tab === "schema" ? (
           <SchemaBuilder
@@ -2074,13 +2192,17 @@ function ProjectDetail({
             onSwitchToEntries={() => setTab("entries")}
           />
         ) : tab === "tasks" ? (
-          <TaskPanel projectId={project.id} />
+          <TaskPanel
+            projectId={project.id}
+            onLogEntry={() => { setTab("entries"); setAddingEntry(true); setSavedNotice(null) }}
+          />
         ) : tab === "automation" ? (
           <AutomationPanel project={project} />
         ) : null}
       </div>
-      <footer className="detail-footer">
-        {project.shared ? (
+      {sharing && <ShareProjectDialog projectId={project.id} projectName={project.name} onClose={() => setSharing(false)} />}
+      {project.shared && <footer className="detail-footer">
+        {(
           <div className="detail-shared-note">
             <p>
               Shared with you. You can add entries and correct your own; changing
@@ -2095,22 +2217,8 @@ function ProjectDetail({
               {leaving ? "Leaving…" : "Leave project"}
             </button>
           </div>
-        ) : (
-          <>
-            <ShareProjectPanel projectId={project.id} />
-            <div className="detail-footer-actions">
-              <button
-                type="button"
-                className="btn-secondary detail-archive-btn"
-                onClick={onToggleArchive}
-              >
-                {project.archived ? "Unarchive project" : "Archive project"}
-              </button>
-              <DeleteProjectControl project={project} onDeleted={onDeleteProject} />
-            </div>
-          </>
         )}
-      </footer>
+      </footer>}
       {showProjectHint && (
         <PageHint
           hint={projectTour}
@@ -2148,17 +2256,16 @@ function DeleteProjectControl({ project, onDeleted }) {
 
   if (!confirming) {
     return (
-      <button
-        type="button"
-        className="btn-danger detail-delete-btn"
+      <TrashButton
+        className="detail-delete-btn"
+        label="Delete project"
+        text="Delete project"
         onClick={() => {
           setConfirming(true)
           setTyped("")
           setError("")
         }}
-      >
-        Delete project
-      </button>
+      />
     )
   }
 
@@ -2200,6 +2307,29 @@ function DeleteProjectControl({ project, onDeleted }) {
           {error}
         </p>
       )}
+    </div>
+  )
+}
+
+function ShareProjectDialog({ projectId, projectName, onClose }) {
+  const dialogRef = useDialogFocus(true, onClose)
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        ref={dialogRef}
+        className="modal-card share-dialog"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-dialog-title"
+        tabIndex={-1}
+      >
+        <h2 id="share-dialog-title">Share {projectName}</h2>
+        <ShareProjectPanel projectId={projectId} />
+        <div className="modal-actions">
+          <button type="button" className="btn-secondary" onClick={onClose}>Done</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -2379,14 +2509,18 @@ function App() {
   const [miraMessages, setMiraMessages] = useState([])
   const [miraSending, setMiraSending] = useState(false)
   const [miraError, setMiraError] = useState(null)
-  const [miraPendingAction, setMiraPendingAction] = useState(null)
-  const [miraActionSaving, setMiraActionSaving] = useState(false)
+  const [miraActions, setMiraActions] = useState([])
+  const [miraActionsRunning, setMiraActionsRunning] = useState(false)
+  const [miraAutoRun, setMiraAutoRun] = useState(() => window.localStorage.getItem("chronicles-mira-auto-run") === "on")
+  const appNavigate = useNavigate()
   const [miraOpen, setMiraOpen] = useState(false)
+  const [miraConversationId, setMiraConversationId] = useState(null)
+  const [miraConversations, setMiraConversations] = useState([])
   const miraSequence = useRef(0)
-  const miraActionSavingRef = useRef(false)
+  const miraRunningRef = useRef(false)
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics"]
+    const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics", "activities"]
     const requestedView = params.get("view")
     const startView = window.localStorage.getItem("chronicles-start-view")
     return params.has("calendar_connected") || params.has("calendar_error")
@@ -2404,7 +2538,7 @@ function App() {
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`)
   }, [currentView])
 
-  const showWorkspaceSidebar = ["home", "today", "outstanding"].includes(currentView)
+  const showWorkspaceSidebar = ["home", "today", "outstanding", "activities"].includes(currentView)
 
   // US-3.23: a one-time welcome tour, then a single coach mark the first
   // time each page is opened. Both read seenTours() fresh on every render
@@ -2419,28 +2553,116 @@ function App() {
   const showPageHint =
     !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
 
+  const refreshMiraConversations = useCallback(async () => {
+    try {
+      setMiraConversations(await fetchMiraConversations())
+    } catch {
+      // History is a convenience; a failed refresh must not interrupt the chat.
+    }
+  }, [])
+
+  // Runs what Mira proposed, now that it has been confirmed (or is safe to run
+  // straight away), and reports in the chat how it went.
+  const runMiraActions = useCallback(async (actions) => {
+    if (miraRunningRef.current || !actions.length) return
+    miraRunningRef.current = true
+    setMiraActionsRunning(true)
+    setMiraError(null)
+    try {
+      const outcome = await runActions(actions, {
+        navigate: (page) => {
+          const target = pageToView(page)
+          if (target) setCurrentView(target)
+          else appNavigate(`/${page}`)
+        },
+      })
+      setMiraMessages(previous => [...previous, { id: `mira-outcome-${Date.now()}`, role: "assistant", content: describeOutcome(outcome) }])
+      setMiraActions([])
+      try {
+        setProjects(await fetchProjects())
+      } catch {
+        // The chat already says what happened; the list catches up on the next load.
+      }
+    } finally {
+      miraRunningRef.current = false
+      setMiraActionsRunning(false)
+    }
+  }, [appNavigate])
+
   const sendMiraMessage = useCallback(async (message) => {
     const trimmed = message.trim()
     if (!trimmed || miraSending) return
     const id = ++miraSequence.current
+    const replyId = `mira-${id}`
+    const upsertReply = (change) => setMiraMessages(previous => previous.some(item => item.id === replyId)
+      ? previous.map(item => item.id === replyId ? change(item) : item)
+      : [...previous, change({ id: replyId, role: "assistant", content: "", thinking: "", streaming: true })])
     setMiraMessages(previous => [...previous, { id: `user-${id}`, role: "user", content: trimmed }])
     setMiraSending(true)
     setMiraError(null)
     try {
-      const response = await sendAIMessage(trimmed)
-      if (response?.action) {
-        setMiraPendingAction(response.action)
-      } else {
-        const reply = response?.reply?.trim()
-        if (!reply) throw new Error("Mira did not return a reply.")
-        setMiraMessages(previous => [...previous, { id: `mira-${id}`, role: "assistant", content: reply }])
+      let conversationId = miraConversationId
+      if (!conversationId) {
+        conversationId = (await createMiraConversation()).id
+        setMiraConversationId(conversationId)
       }
+      let failure = null
+      const proposed = []
+      await streamMiraReply(conversationId, trimmed, (event) => {
+        if (event.type === "thought") upsertReply(item => ({ ...item, thinking: `${item.thinking}${event.text}` }))
+        else if (event.type === "delta") upsertReply(item => ({ ...item, content: `${item.content}${event.text}` }))
+        else if (event.type === "action") {
+          proposed.push(event.action)
+          setMiraActions(previous => [...previous, event.action])
+        } else if (event.type === "error") failure = event.detail || "Mira could not reply just now. Please try again."
+      })
+      if (failure) throw new Error(failure)
+      if (proposed.length) {
+        const list = proposed.map(action => `- ${action.summary}`).join("\n")
+        upsertReply(item => ({ ...item, content: `${item.content}\n\n**Proposed for your approval:**\n${list}` }))
+      }
+      upsertReply(item => ({ ...item, streaming: false }))
+      // Quick path: when the person has opted in, anything that only adds or changes runs at once.
+      if (proposed.length && miraAutoRun && !proposed.some(action => action.destructive)) runMiraActions(proposed)
     } catch {
+      setMiraMessages(previous => previous.filter(item => item.id !== replyId))
       setMiraError({ message: "Mira could not reply just now. Please try again.", retryMessage: trimmed })
     } finally {
+      setMiraMessages(previous => previous.map(item => item.id === replyId ? { ...item, streaming: false } : item))
       setMiraSending(false)
+      refreshMiraConversations()
+    }
+  }, [miraSending, miraConversationId, refreshMiraConversations, miraAutoRun, runMiraActions])
+
+  const startNewMiraConversation = useCallback(() => {
+    setMiraConversationId(null)
+    setMiraMessages([])
+    setMiraError(null)
+    setMiraActions([])
+  }, [])
+
+  const openMiraConversation = useCallback(async (conversationId) => {
+    if (miraSending) return
+    try {
+      const conversation = await fetchMiraConversation(conversationId)
+      setMiraConversationId(conversation.id)
+      setMiraMessages(conversation.messages.map(item => ({ id: item.id, role: item.role, content: item.content, thinking: item.thinking || "" })))
+      setMiraError(null)
+      setMiraActions([])
+    } catch {
+      setMiraError({ message: "That conversation could not be opened.", retryMessage: null })
     }
   }, [miraSending])
+
+  const removeMiraConversation = useCallback(async (conversationId) => {
+    try {
+      await deleteMiraConversation(conversationId)
+      if (conversationId === miraConversationId) startNewMiraConversation()
+      await refreshMiraConversations()
+    } catch {
+      setMiraError({ message: "That conversation could not be deleted.", retryMessage: null })
+    }
+  }, [miraConversationId, refreshMiraConversations, startNewMiraConversation])
 
   const loadProjects = useCallback(async () => {
     try {
@@ -2453,36 +2675,6 @@ function App() {
     }
   }, [])
 
-  const handleMiraProjectConfirmation = useCallback(async () => {
-    const action = miraPendingAction
-    const name = action?.type === "create_project" ? action.payload?.name?.trim() : ""
-    const description = action?.payload?.description?.trim() || null
-    if (!name) {
-      setMiraError({ message: "This project proposal is invalid. Please ask Mira again.", retryMessage: null })
-      return
-    }
-    if (projects.some(project => project.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      setMiraError({ message: "A project with this name already exists. Choose a different name or cancel this proposal.", retryMessage: null })
-      return
-    }
-    if (miraActionSavingRef.current) return
-    miraActionSavingRef.current = true
-    setMiraActionSaving(true)
-    setMiraError(null)
-    try {
-      const project = await createProject({ name, description, entry_schema: [] })
-      const refreshed = await fetchProjects()
-      setProjects(refreshed)
-      setMiraPendingAction(null)
-      setMiraMessages(previous => [...previous, { id: `mira-created-${project.id}`, role: "assistant", content: `Created “${project.name}”. You can open it whenever you are ready.`, projectId: project.id }])
-    } catch (err) {
-      setMiraError({ message: formatError(err), retryMessage: null })
-    } finally {
-      miraActionSavingRef.current = false
-      setMiraActionSaving(false)
-    }
-  }, [miraPendingAction, projects])
-
   const openMiraProject = useCallback((projectId) => {
     setView("project")
     setSelectedId(projectId)
@@ -2493,18 +2685,32 @@ function App() {
     messages: miraMessages,
     sending: miraSending,
     error: miraError,
-    pendingAction: miraPendingAction,
-    actionSaving: miraActionSaving,
+    pendingActions: miraActions,
+    actionsRunning: miraActionsRunning,
+    autoRun: miraAutoRun,
+    onToggleAutoRun: (on) => {
+      setMiraAutoRun(on)
+      window.localStorage.setItem("chronicles-mira-auto-run", on ? "on" : "off")
+    },
     onSend: sendMiraMessage,
-    onConfirmAction: handleMiraProjectConfirmation,
-    onCancelAction: () => { setMiraPendingAction(null); setMiraError(null) },
+    onRunActions: () => runMiraActions(miraActions),
+    onCancelActions: () => { setMiraActions([]); setMiraError(null) },
     onOpenProject: openMiraProject,
-    onClear: () => { setMiraMessages([]); setMiraError(null); setMiraPendingAction(null) },
+    onClear: startNewMiraConversation,
+    conversations: miraConversations,
+    activeConversationId: miraConversationId,
+    onSelectConversation: openMiraConversation,
+    onNewConversation: startNewMiraConversation,
+    onDeleteConversation: removeMiraConversation,
   }
 
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
+
+  useEffect(() => {
+    if (miraOpen || currentView === "assistant") refreshMiraConversations()
+  }, [miraOpen, currentView, refreshMiraConversations])
 
 
   // Totals come from the server rather than being counted in the browser.
@@ -2709,6 +2915,7 @@ function App() {
           timeSpent: payload.time_spent ?? null,
           todo: payload.todo ?? false,
           dueDate: payload.due_date ?? null,
+          dueTime: payload.due_time ?? null,
         })
       } catch {
         // Offline *and* unable to store locally. Re-throw the original
@@ -2732,6 +2939,22 @@ function App() {
               ...project,
               entries: (project.entries || []).map((entry) =>
                 entry.id === updated.id ? updated : entry
+              ),
+            }
+          : project
+      )
+    )
+  }
+
+  // A restored entry (US-3.10) goes back where its capture time puts it.
+  const handleEntryRestored = (restored) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === restored.project_id
+          ? {
+              ...project,
+              entries: [...(project.entries || []).filter((entry) => entry.id !== restored.id), restored].sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at)
               ),
             }
           : project
@@ -2881,19 +3104,6 @@ function App() {
               </svg>
               <span>Home</span>
             </button>
-            <button
-              type="button"
-              className={`nav-item ${currentView === "dashboard" ? "active" : ""}`}
-              onClick={() => setCurrentView("dashboard")}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="9" rx="1" />
-                <rect x="14" y="3" width="7" height="5" rx="1" />
-                <rect x="14" y="12" width="7" height="9" rx="1" />
-                <rect x="3" y="16" width="7" height="5" rx="1" />
-              </svg>
-              <span>Dashboard</span>
-            </button>
             <button type="button" className={`nav-item ${currentView === "assistant" ? "active" : ""}`} onClick={() => setCurrentView("assistant")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" /><path d="M9 11h.01M15 11h.01" /></svg>
               <span>Mira</span>
@@ -2927,11 +3137,7 @@ function App() {
               className={`nav-item ${currentView === "board" ? "active" : ""}`}
               onClick={() => setCurrentView("board")}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="4" width="5" height="16" rx="1" />
-                <rect x="10" y="4" width="5" height="11" rx="1" />
-                <rect x="17" y="4" width="4" height="7" rx="1" />
-              </svg>
+              <BoardIcon />
               <span>Board</span>
             </button>
             <button
@@ -2964,6 +3170,7 @@ function App() {
           <div className="nav-pill-right">
             <OfflineStatus userId={userId} projects={projects} />
             <Invitations onChanged={loadProjects} />
+            <Streaks />
             <Reminders onOpenProject={handleSelectProject} onOccurrencesCreated={loadEntries} />
             <AuthActions />
           </div>
@@ -3001,6 +3208,8 @@ function App() {
             todayActive={currentView === "today"}
             onShowOutstanding={() => setCurrentView("outstanding")}
             outstandingActive={currentView === "outstanding"}
+            onShowActivities={() => setCurrentView("activities")}
+            activitiesActive={currentView === "activities"}
           />
         </div>}
         <div className="content">
@@ -3012,7 +3221,16 @@ function App() {
             {loading ? (
               <ViewLoader label="Opening your logbook…" delay={0} />
             ) : currentView === "calendar" ? (
-              <CalendarView projects={projects} />
+              <CalendarView
+                projects={projects}
+                userId={userId}
+                onEditProject={(id) => { setSelectedId(id); setIsEditModalOpen(true) }}
+                renderProjectDelete={(project, done) => (
+                  <DeleteProjectControl project={project} onDeleted={(id) => { handleDeleteProject(id); done() }} />
+                )}
+              />
+            ) : currentView === "activities" ? (
+              <ActivitiesPage />
             ) : currentView === "today" ? (
               <TodayPage projects={projects} onNavigate={setCurrentView} onCreateProject={() => setIsModalOpen(true)} />
             ) : currentView === "assistant" ? (
@@ -3028,7 +3246,7 @@ function App() {
             ) : currentView === "statistics" ? (
               <StatisticsPage projects={projects} onNavigate={setCurrentView} />
             ) : currentView === "dashboard" ? (
-              <DashboardPage projects={projects} />
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} />
             ) : view === "timeline" ? (
               <EntryTimeline projects={projects} />
             ) : selectedProject ? (
@@ -3042,6 +3260,7 @@ function App() {
                 onEntryCreated={handleEntryCreated}
                 onEntryUpdated={handleEntryUpdated}
                 onEntryDeleted={handleEntryDeleted}
+                onEntryRestored={handleEntryRestored}
                 onEditProject={() => setIsEditModalOpen(true)}
                 onToggleArchive={handleToggleArchive}
                 onDeleteProject={handleDeleteProject}
@@ -3050,7 +3269,7 @@ function App() {
                 hintsSuppressed={showWelcome || showPageHint}
               />
             ) : projects.length > 0 ? (
-              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} onToday={() => setCurrentView("today")} onNavigate={setCurrentView} onOpenProject={handleSelectProject} />
+              <HomeWorkspace projects={projects} onCreateProject={() => setIsModalOpen(true)} />
             ) : (
               <EmptyState onCreate={() => setIsModalOpen(true)} onSeedDemoData={handleSeedDemoData} />
             )}
@@ -3068,6 +3287,7 @@ function App() {
         project={selectedProject}
         onSave={handleProjectUpdate}
       />
+      <AchievementCelebration />
       <CommandPalette projects={projects} onNavigate={setCurrentView} onOpenProject={handleSelectProject} onCreateProject={() => setIsModalOpen(true)} />
       {showWelcome && (
         <WelcomeTour tour={WELCOME_TOUR} onFinish={() => setWelcomeTick((tick) => tick + 1)} />

@@ -87,7 +87,7 @@ export const HELP_SECTIONS = [
         blocks: [
           {
             type: "p",
-            text: "The bar across the top opens Home, Dashboard, Mira, All Entries, All Tasks, Board, Calendar and Statistics. Home's sidebar has Projects, Activity, Today and Outstanding; it stays available while you switch between these views.",
+            text: "The bar across the top opens Home, Mira, All Entries, All Tasks, Board, Calendar and Statistics. Home is your dashboard; its sidebar has Dashboard, Activity, Activities, Today and Outstanding, and it stays available while you switch between these views.",
           },
           {
             type: "dl",
@@ -349,7 +349,7 @@ export const HELP_SECTIONS = [
       {
         id: "entry-history",
         title: "Entry history: seeing what an entry used to say",
-        keywords: ["entry history", "revisions", "past values", "who changed", "audit", "version history", "previous value"],
+        keywords: ["entry history", "revisions", "past values", "who changed", "audit", "version history", "previous value", "revert", "restore", "undo", "deleted entries", "trash"],
         blocks: [
           {
             type: "p",
@@ -357,7 +357,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "This is read-only: there's no 'restore this revision' button today, it's a record for reference — checking what a figure used to be, or when a change was actually made — rather than a way to undo an edit.",
+            text: "Every version says what changed and what it was before, and the first version is the entry exactly as you first saved it. Click 'Revert to this version' to bring an earlier version back: Chronicles adds a new version matching it rather than erasing anything, so the version you replaced stays in the history too. You can also pick a date to see the entry as it stood then. Deleted entries appear under 'Deleted entries' at the bottom of a project, where Restore brings them back.",
           },
         ],
       },
@@ -725,7 +725,7 @@ export const HELP_SECTIONS = [
           },
           {
             type: "p",
-            text: "Mira cannot read your saved projects, entries, tasks or calendar on its own, and it never creates anything without asking — a proposed project is shown as a card you must explicitly confirm or cancel before it's created. Conversation history lives only in your browser session and clears on refresh; that does not mean a provider you've consented to deletes what was already sent to it.",
+            text: "Mira can do what you can do by hand: create projects, change their fields and statuses, log entries, add and finish tasks, schedule activities, set due dates and repeats, create rules, share a project and open pages. She sees a small snapshot of your workspace (project and field names, open task titles, the first words of recent entries and your next two weeks of activities). Nothing she proposes happens until you confirm the card, and deleting always asks; you can switch on “Run simple changes straight away” to skip the card for changes that only add or edit. Conversations are saved to your account, reopen from History, and can be deleted; that does not mean a provider you've consented to deletes what was already sent to it.",
           },
         ],
       },
@@ -859,6 +859,94 @@ export const HELP_SECTIONS = [
           {
             type: "p",
             text: "'Delete account', in the Danger zone, permanently deletes your Chronicles account and everything owned by it — every project, entry and task — and cannot be undone. To confirm, you have to type DELETE into a confirmation box.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "newer-features",
+    title: "Newer features",
+    articles: [
+      {
+        id: "badges-and-streaks",
+        title: "Badges, streaks and celebrations",
+        keywords: ["badges", "achievements", "streak", "confetti", "milestone", "trophy", "award", "login streak", "activity streak", "hours", "profile"],
+        blocks: [
+          {
+            type: "p",
+            text: "Chronicles marks milestones with badges: your first project, a hundred entries, a hundred hours logged, ten days in a row. Each badge has a name, a rarity (bronze, silver, gold or legendary) and a short explanation. When you earn one, a celebration with confetti appears.",
+          },
+          {
+            type: "p",
+            text: "See them all on your Profile under Achievements: a ring of how many you have, bars by rarity and by area, and every badge to click. Clicking a badge tells you what it celebrates, how to earn it and how far along you are. Badges you've earned stay earned, even if you later delete the work behind them.",
+          },
+          {
+            type: "p",
+            text: "The two counters in the top bar are your streaks: days in a row you opened Chronicles, and days in a row you saved something (an entry, a task, a project, an activity). A streak survives until the end of the next day. If your system is set to reduce motion, the confetti is skipped.",
+          },
+        ],
+      },
+      {
+        id: "custom-statuses",
+        title: "Statuses: more than still to do and done",
+        keywords: ["status", "statuses", "in progress", "blocked", "board", "columns", "workflow", "kanban", "stage"],
+        blocks: [
+          {
+            type: "p",
+            text: "Each project can have its own ordered list of statuses (2 to 8), for example Backlog, In progress, Blocked and Done. Choose them in Edit project, and tick the ones that mean the work is finished. The Board gets one column per status, and you can drag entries between them.",
+          },
+          {
+            type: "p",
+            text: "Pick an entry's status when you add or edit it, and filter All Entries by any status. If you remove a status, its entries move to the nearest remaining one of the same kind, so outstanding work stays outstanding.",
+          },
+        ],
+      },
+      {
+        id: "home-dashboard",
+        title: "The dashboard on Home",
+        keywords: ["dashboard", "home", "panels", "widgets", "grid", "drag", "resize", "layout", "blocks"],
+        blocks: [
+          {
+            type: "p",
+            text: "Home is your dashboard. Choose how many blocks across the grid is (2 to 6), then add panels (a statistic, a saved filter or a board) and give each a width and height. Drag a panel by its grip to rearrange it, with a mouse or a finger, or use the arrow buttons. Panels stack into one column on a phone.",
+          },
+        ],
+      },
+      {
+        id: "activities-page",
+        title: "Activities and the Calendar",
+        keywords: ["activities", "calendar", "schedule", "plan", "edit activity", "delete activity", "day view"],
+        blocks: [
+          {
+            type: "p",
+            text: "Activities are things you plan, saved in Chronicles only (your Google Calendar is never changed). Add them from a day in the Calendar or from the Activities page, which lists everything upcoming and earlier to edit or delete. In a day's view you can also open, edit or delete that day's entries and manage the projects they belong to.",
+          },
+        ],
+      },
+      {
+        id: "entry-or-task",
+        title: "Entry or task?",
+        keywords: ["entry or task", "difference", "entries vs tasks", "which", "confused", "plan", "record"],
+        blocks: [
+          {
+            type: "p",
+            text: "Ask one question: has it already happened? If so, it's an entry, a record of work done. If it's still to do, it's a task. They work together: plan it as a task, then log an entry when you finish so there's a record of what you did. The 'Entry or task?' button on the Entries and Tasks pages explains it with examples.",
+          },
+        ],
+      },
+      {
+        id: "voice-and-colours",
+        title: "Voice, reading aloud and your own colours",
+        keywords: ["voice", "dictation", "microphone", "speech", "read aloud", "page reader", "accessibility", "colour", "color", "theme", "background", "wheel"],
+        blocks: [
+          {
+            type: "p",
+            text: "The microphone in Mira's message box dictates what you say (in browsers that support it, such as Chrome and Edge). In Profile you can turn on the page reader, which adds a Read this page button that speaks the page or just the text you've selected.",
+          },
+          {
+            type: "p",
+            text: "Profile also has colour pickers for your buttons and your background. A custom background replaces Light and Dark until you press Reset colours.",
           },
         ],
       },
