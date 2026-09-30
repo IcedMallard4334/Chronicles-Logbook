@@ -45,6 +45,18 @@ describe("Mira assistant interfaces", () => {
     }
   })
 
+  it("puts the microphone before the hint text and the send button at the end", () => {
+    window.webkitSpeechRecognition = class { start() {} stop() {} }
+    try {
+      const { container } = render(<MiraAssistantPage conversation={conversation()} />)
+      const row = container.querySelector(".mira-composer-actions")
+      const order = [...row.children].map((child) => child.className.split(" ")[0])
+      expect(order).toEqual(["mira-mic", "mira-composer-hint", "btn-primary"])
+    } finally {
+      delete window.webkitSpeechRecognition
+    }
+  })
+
   it("hides the microphone where dictation is unsupported", () => {
     render(<MiraAssistantPage conversation={conversation()} />)
     expect(screen.queryByRole("button", { name: "Dictate your message" })).not.toBeInTheDocument()

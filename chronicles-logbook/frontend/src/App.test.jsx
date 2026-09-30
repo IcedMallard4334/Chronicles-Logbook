@@ -169,13 +169,31 @@ describe("workspace summary", () => {
 })
 
 describe("App workspace", () => {
+  it("closes the phone layout's project sheet once a project is chosen", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const toggle = screen.getByRole("button", { name: "Projects", expanded: false })
+
+    fireEvent.click(toggle)
+    expect(toggle.closest("aside")).toHaveClass("is-projects-open")
+    fireEvent.click(within(projects).getByText("Field Notes"))
+
+    await waitFor(() => expect(toggle.closest("aside")).not.toHaveClass("is-projects-open"))
+  })
+
   it("puts the dashboard on the home page, in the sidebar rather than the top bar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     await screen.findByRole("listbox", { name: "Projects" })
 
     const sidebar = screen.getByRole("navigation", { name: "Workspace views" })
     expect(within(sidebar).getByRole("button", { name: "Dashboard" })).toBeInTheDocument()
-    expect(within(sidebar).queryByRole("button", { name: "Projects" })).not.toBeInTheDocument()
+    // "Projects" is the toggle for the phone layout's project sheet (hidden on wide screens by CSS).
+    const toggle = within(sidebar).getByRole("button", { name: "Projects" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(sidebar.closest("aside")).toHaveClass("is-projects-open")
+    fireEvent.click(toggle)
     // One Activity entry: scheduled activities live inside it, not beside it.
     expect(within(sidebar).getByRole("button", { name: "Activity" })).toBeInTheDocument()
     expect(within(sidebar).queryByRole("button", { name: "Activities" })).not.toBeInTheDocument()

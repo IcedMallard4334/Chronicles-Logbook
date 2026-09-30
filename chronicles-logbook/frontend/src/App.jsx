@@ -88,6 +88,8 @@ import {
 } from "./fieldTypes"
 import "./App.css"
 import "./tasks.css"
+// Last, so the small-screen rules win over every stylesheet above.
+import "./MobileLayout.css"
 import { TrashButton } from "./TrashIcon"
 
 function generateId() {
@@ -579,6 +581,9 @@ function ProjectList({
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
+  // On a phone the navigation is a bar along the bottom, and the project list
+  // opens upwards from it; on a wide screen this changes nothing.
+  const [projectsOpen, setProjectsOpen] = useState(false)
   const [pinnedIds, setPinnedIds] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem("chronicles-pinned-projects") || "[]") } catch { return [] }
   })
@@ -610,7 +615,7 @@ function ProjectList({
   })
 
   return (
-    <aside className="sidebar workspace-sidebar" aria-label="Workspace navigation">
+    <aside className={`sidebar workspace-sidebar${projectsOpen ? " is-projects-open" : ""}`} aria-label="Workspace navigation">
       <div className="workspace-sidebar-brand">
         <span className="workspace-sidebar-mark" aria-hidden="true">C</span>
         <div><strong>Workspace</strong><span>Projects and activity</span></div>
@@ -631,6 +636,16 @@ function ProjectList({
           <OutstandingIcon />
           Outstanding
         </button>
+        <button
+          type="button"
+          className={`sidebar-projects-toggle${projectsOpen ? " is-active" : ""}`}
+          aria-expanded={projectsOpen}
+          aria-controls="sidebar-projects"
+          onClick={() => setProjectsOpen((open) => !open)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+          Projects
+        </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
         <span><strong>{activeProjects.length}</strong> active</span>
@@ -646,12 +661,12 @@ function ProjectList({
           <strong>{totals ? totals.current_streak : "–"}</strong> day streak
         </span>
       </div>
-      <div className="sidebar-head">
+      <div className="sidebar-head" id="sidebar-projects">
         <h2>Projects</h2>
         <button
           type="button"
           className="btn-icon"
-          onClick={onCreate}
+          onClick={() => { setProjectsOpen(false); onCreate() }}
           aria-label="Create project"
           title="Create project"
         >
@@ -672,7 +687,7 @@ function ProjectList({
                   <button
                     type="button"
                     className={`project-button ${project.id === selectedId ? "active" : ""}`}
-                    onClick={() => onSelect(project.id)}
+                    onClick={() => { setProjectsOpen(false); onSelect(project.id) }}
                     role="option"
                     aria-selected={project.id === selectedId}
                   >

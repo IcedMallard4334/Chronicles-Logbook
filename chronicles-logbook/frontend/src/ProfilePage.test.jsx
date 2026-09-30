@@ -132,6 +132,18 @@ describe("ProfilePage", () => {
     expect(document.documentElement.style.getPropertyValue("--blue")).toBe("")
   })
 
+  it("lists the accent colour straight after workspace density, before your own colours", async () => {
+    renderPage()
+    await screen.findByText("Ethan Student")
+
+    const labels = [...document.querySelectorAll(".profile-row-label")].map((node) => node.textContent)
+    const density = labels.indexOf("Workspace density")
+    expect(labels[density + 1]).toBe("Accent colour")
+    expect(labels[density + 2]).toBe("Your own colours")
+    expect(labels).not.toContain("Workspace settings")
+    expect(screen.getByRole("heading", { name: "Workspace settings" })).toBeInTheDocument()
+  })
+
   it("cycles through light, dark, and system themes", async () => {
     renderPage()
 

@@ -6,7 +6,7 @@ is tested. They were delivered in four stages of five, then two larger pieces
 (Mira acting on the app, and achievements). Longer write-ups are linked where they
 exist.
 
-Current test totals after this work: **696 backend tests at 95% coverage**, **767
+Current test totals after this work: **696 backend tests at 95% coverage**, **770
 frontend tests at 83% statement coverage**, Lighthouse on the landing page **98
 performance, 100 accessibility, 96 best practices, 100 SEO**. See
 [Testing](../development/testing.md).
@@ -113,6 +113,25 @@ preset's second colour showing through).
 Choosing a preset accent (here or in first-time setup) clears the accent customisations, so what
 you click is what you see; a custom page background is kept. The background scene for a custom
 glow is drawn from three neighbouring hues of your colour (`AmbientBackground.jsx`).
+
+### Phones and small screens
+
+Below 720px wide the app is laid out for a thumb rather than shrunk from a desktop:
+
+- **The side panel becomes a bottom panel**: Dashboard, Activity, Today, Outstanding and **Projects**
+  along the bottom. *Projects* opens the project list upwards from the bar, with its search and the
+  **+** to create a project; choosing a project closes it. The workspace statistics are hidden.
+- **The top bar is one row**: the seven destinations share a single line, and the streak chips, bell
+  and avatar are smaller.
+- **Notifications** open as a sheet under the bar, always within the screen, instead of hanging off
+  the bell and being cut off on the left.
+- The **search shortcut** (Ctrl K) is hidden, since a phone has no keyboard for it; the Mira button
+  rides above the bottom panel; headings, buttons and spacing are a size down.
+
+Wide screens are unchanged. The rules live in `MobileLayout.css`, loaded last so they win over the rest.
+
+Also in this round: **Accent colour** now sits directly under Workspace density on the Profile, and
+Mira's microphone comes before the hint text, in the accent colour.
 
 ### Smaller fixes
 
