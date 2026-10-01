@@ -135,6 +135,20 @@ async function currentProject(reference, workspace) {
   return found
 }
 
+const minutesOf = (clock) => {
+  const [hours, minutes] = String(clock).split(":").map(Number)
+  return hours * 60 + (minutes || 0)
+}
+const clockOf = (total) => `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
+
+/** A start and an end that are valid together: the end is always after the start, on the same day. */
+export function activityTimes(startTime, endTime) {
+  const startMinutes = startTime ? minutesOf(startTime) : endTime ? Math.max(minutesOf(endTime) - 60, 0) : 9 * 60
+  const start = Math.min(startMinutes, 23 * 60 + 58)
+  const end = endTime && minutesOf(endTime) > start ? minutesOf(endTime) : Math.min(start + 60, 23 * 60 + 59)
+  return { start: clockOf(start), end: clockOf(end) }
+}
+
 const HANDLERS = {
   async create_project(p, workspace) {
     if (workspace.projects.some((project) => same(project.name, p.name))) {
@@ -252,15 +266,20 @@ const HANDLERS = {
     return "Deleted a task"
   },
   async create_activity(p) {
+    // Said with no time at all, it is an all-day item; said with a start only
+    // ("at 2pm"), it runs for an hour. An end that isn't after the start is
+    // replaced the same way, so a slip in the times never costs the whole action.
+    const allDay = Boolean(p.all_day) || (!p.start_time && !p.end_time)
+    const { start, end } = allDay ? { start: null, end: null } : activityTimes(p.start_time, p.end_time)
     await createCalendarActivity({
       title: p.title,
       description: p.description || "",
       day: p.day,
-      all_day: Boolean(p.all_day),
-      start_time: p.all_day ? null : p.start_time || "09:00",
-      end_time: p.all_day ? null : p.end_time || "10:00",
+      all_day: allDay,
+      start_time: start,
+      end_time: end,
     })
-    return `Scheduled “${p.title}” on ${p.day}`
+    return `Scheduled “${p.title}” on ${p.day}${allDay ? "" : ` at ${start}`}`
   },
   async update_activity(p) {
     const today = new Date()
@@ -399,9 +418,12 @@ export async function runActions(actions, { navigate } = {}) {
 export function describeOutcome({ done, failed, skipped }) {
   const lines = done.map((line) => `- ✓ ${line}`)
   if (failed) {
-    lines.push(`- ✗ ${failed.summary}: ${failed.error}`)
+    // The server's wording, without its technical prefix, then an invitation to put it right.
+    const reason = String(failed.error).replace(/^(Value error|Assertion error),?\s*/i, "")
+    lines.push(`- ✗ ${failed.summary}: ${reason}`)
     if (skipped) lines.push(`- ${skipped} more ${skipped === 1 ? "action was" : "actions were"} not run.`)
   }
   const heading = failed ? (done.length ? "**Part of that is done.**" : "**That didn't work.**") : "**Done.**"
-  return `${heading}\n${lines.join("\n")}`
+  const next = failed ? "\n\nTell me what to change and I'll try again." : ""
+  return `${heading}\n${lines.join("\n")}${next}`
 }

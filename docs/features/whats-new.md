@@ -190,3 +190,16 @@ Mira can add these too: *"put my badges on my dashboard"* becomes an `add_dashbo
   and an entry with nothing readable is "Untitled entry · 29 Sep". The same helper names entries on the
   Entries, Outstanding and Calendar pages and in dashboard panels; Mira's workspace snapshot follows the same rule.
 - Editing an older untitled entry pre-fills the title with that suggested name, so it can be saved as is.
+
+## Smoother pages, tidier fields and a smaller phone layout
+
+- **Entrances.** Pages, sections, lists, cards, forms and dialogs now fade and rise into place, one after
+  another (`Motion.css`). Nothing is left transformed afterwards, and it is switched off for people who ask
+  for reduced motion.
+- **Fields.** Search boxes, tags and date pickers that had no styling now share the dropdown look
+  (`Dropdowns.css`), and the Activity page has proper spacing.
+- **Phones.** Below 720px the whole interface scales down together (root size 14px), project actions sit in a
+  compact row, and buttons, tabs, inputs and cards are smaller.
+- **Mira and the calendar.** "Log an event at 2pm" used to fail with *End time must be after start time*,
+  because an unspecified end defaulted to 10:00. A start alone now runs for an hour, an end that isn't after the
+  start is corrected, and no time at all makes an all-day activity.

@@ -12,7 +12,7 @@ vi.mock("./api", () => {
 
 import * as api from "./api"
 import {
-  SUPPORTED_ACTIONS, buildField, describeOutcome, findField, findProject, mapValues, pageToView, resolveExpression, runActions,
+  SUPPORTED_ACTIONS, activityTimes, buildField, describeOutcome, findField, findProject, mapValues, pageToView, resolveExpression, runActions,
 } from "./miraActions"
 
 const HOURS = { id: "f-hours", name: "Hours", type: "number" }
@@ -228,7 +228,7 @@ describe("running actions", () => {
       act("delete_activity", { activity: "a1" }),
     ])
 
-    expect(api.createCalendarActivity).toHaveBeenNthCalledWith(1, { title: "Planning", description: "", day: "2026-10-02", all_day: false, start_time: "09:00", end_time: "10:00" })
+    expect(api.createCalendarActivity).toHaveBeenNthCalledWith(1, { title: "Planning", description: "", day: "2026-10-02", all_day: true, start_time: null, end_time: null })
     expect(api.createCalendarActivity).toHaveBeenNthCalledWith(2, expect.objectContaining({ all_day: true, start_time: null, end_time: null }))
     expect(api.updateCalendarActivity).toHaveBeenCalledWith("a1", {
       title: "Standup v2", description: "", day: "2026-10-01", all_day: true, start_time: null, end_time: null,
@@ -342,8 +342,9 @@ describe("describing how it went", () => {
 
   it("separates partial success from total failure and mentions what was skipped", () => {
     expect(describeOutcome({ done: ["Made A"], failed: { summary: "Make B", error: "No." }, skipped: 2 })).toBe(
-      "**Part of that is done.**\n- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run."
+      "**Part of that is done.**\n- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run.\n\nTell me what to change and I'll try again."
     )
+    expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "Value error, End time must be after start time." }, skipped: 0 })).toContain("Make A: End time must be after start time.")
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("**That didn't work.**")
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("1 more action was not run.")
   })
@@ -365,5 +366,27 @@ describe("dashboard panels", () => {
     expect(first[1].config).toEqual({})
     const [second] = api.updateDashboardPanels.mock.calls[1]
     expect(second.at(-1)).toMatchObject({ type: "board", config: { project_id: "p1", grouping: "__status__" }, w: 2, h: 3 })
+  })
+})
+
+describe("activity times", () => {
+  it("runs for an hour when only a start is given, and never ends before it starts", () => {
+    expect(activityTimes("14:00")).toEqual({ start: "14:00", end: "15:00" })
+    expect(activityTimes("14:00", "10:00")).toEqual({ start: "14:00", end: "15:00" })
+    expect(activityTimes("23:30")).toEqual({ start: "23:30", end: "23:59" })
+    expect(activityTimes("09:00", "11:30")).toEqual({ start: "09:00", end: "11:30" })
+  })
+
+  it("schedules '2pm today' and a time-less activity without a validation error", async () => {
+    api.createCalendarActivity.mockResolvedValue({})
+
+    const outcome = await runActions([
+      act("create_activity", { title: "OS Fight", day: "2026-10-01", start_time: "14:00" }),
+      act("create_activity", { title: "Review", day: "2026-10-01" }),
+    ])
+
+    expect(outcome.failed).toBeFalsy()
+    expect(api.createCalendarActivity.mock.calls[0][0]).toMatchObject({ all_day: false, start_time: "14:00", end_time: "15:00" })
+    expect(api.createCalendarActivity.mock.calls[1][0]).toMatchObject({ all_day: true, start_time: null, end_time: null })
   })
 })

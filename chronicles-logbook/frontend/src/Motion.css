@@ -1,0 +1,75 @@
+/* --------------------------------------------------
+   ENTRANCES
+   Things arrive instead of popping in: a short fade and rise, staggered so a
+   page builds from the top. Opacity and a small transform only, applied as a
+   backwards-filled animation so nothing is left transformed afterwards (which
+   would trap fixed-position children). Switched off for reduced motion.
+   -------------------------------------------------- */
+@keyframes ui-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ui-enter-scale {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ui-enter-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+:root { --enter-step: 45ms; }
+
+/* Whole pages and their sections */
+.workspace-page,
+.project-detail,
+.home-hub-welcome,
+.statistics-page,
+.profile-page > *,
+.help-page > * {
+  animation: ui-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.workspace-page > *,
+.project-detail > *,
+.detail-body > *,
+.dashboard-page > *,
+.activities-page > * {
+  animation: ui-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.workspace-page > :nth-child(1), .project-detail > :nth-child(1), .detail-body > :nth-child(1) { animation-delay: 0ms; }
+.workspace-page > :nth-child(2), .project-detail > :nth-child(2), .detail-body > :nth-child(2) { animation-delay: calc(var(--enter-step) * 1); }
+.workspace-page > :nth-child(3), .project-detail > :nth-child(3), .detail-body > :nth-child(3) { animation-delay: calc(var(--enter-step) * 2); }
+.workspace-page > :nth-child(4), .project-detail > :nth-child(4), .detail-body > :nth-child(4) { animation-delay: calc(var(--enter-step) * 3); }
+.workspace-page > :nth-child(n+5), .project-detail > :nth-child(n+5), .detail-body > :nth-child(n+5) { animation-delay: calc(var(--enter-step) * 4); }
+
+/* Repeated items arrive one after another */
+.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item,
+.dashboard-project-list li, .dashboard-badge-list li, .workspace-table tbody tr, .achievement-tile,
+.entry-card, .recent-entry, .invites-item, .reminders-item, .profile-card, .stat-card, .log-list > li, .board-cards > li {
+  animation: ui-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(1) { animation-delay: 0ms; }
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(2) { animation-delay: 40ms; }
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(3) { animation-delay: 80ms; }
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(4) { animation-delay: 120ms; }
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(5) { animation-delay: 160ms; }
+:is(.task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .achievement-tile, .entry-card, .recent-entry, .stat-card, .log-list > li, .board-cards > li):nth-child(n+6) { animation-delay: 200ms; }
+
+/* Sidebar, tabs and forms */
+.workspace-sidebar-nav button, .project-list li, .tab-switch button { animation: ui-enter-fade 0.5s ease backwards; }
+.entry-form, .task-form, .day-activity-form, .dashboard-add-panel, .hint-card, .task-finished-note, .rule-applied-notice {
+  animation: ui-enter-scale 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Popups, menus and sheets */
+dialog[open], .day-dialog, .invites-panel, .user-menu, .mira-panel, .command-palette {
+  animation: ui-enter-scale 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+dialog[open]::backdrop { animation: ui-enter-fade 0.3s ease backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-delay: 0ms !important; }
+  .workspace-page, .workspace-page > *, .project-detail, .project-detail > *, .detail-body > *, .dashboard-page > *, .activities-page > *,
+  .task-item, .activity-row, .timeline-row, .dashboard-panel, .board-card, .outstanding-item, .entry-form, .task-form,
+  dialog[open], .day-dialog, .invites-panel, .user-menu, .mira-panel, .command-palette { animation: none !important; }
+}

@@ -167,7 +167,7 @@ def test_a_bad_call_among_good_ones_is_reported_and_the_rest_still_go_through(mo
     events = list(gemini_service.stream_response("x"))
 
     assert [e["type"] for e in events] == ["action", "delta"]
-    assert "couldn't prepare one action" in events[1]["text"]
+    assert "I still need a title" in events[1]["text"] and "Could you tell me?" in events[1]["text"]
 
 
 def test_the_context_and_tool_list_reach_the_model(monkeypatch):
@@ -310,3 +310,23 @@ def test_dashboard_panels_are_summarised_in_plain_words():
     assert summarise("add_dashboard_panel", {"kind": "badges"}) == "Add your unlocked badges to your dashboard"
     assert summarise("add_dashboard_panel", {"kind": "projects"}) == "Add your projects to your dashboard"
     assert "Bug Log" in summarise("add_dashboard_panel", {"kind": "board", "project": "Bug Log"})
+
+
+def test_a_missing_detail_becomes_a_question_not_an_error():
+    with pytest.raises(InvalidProposal) as caught:
+        validate_call("create_entry", {"project": "P"})
+    assert caught.value.question == "To log the entry, I still need a title. Could you tell me?"
+
+    with pytest.raises(InvalidProposal) as several:
+        validate_call("create_task", {})
+    assert "which project" in several.value.question and "a title" in several.value.question
+
+
+def test_an_unclear_detail_is_asked_about_in_plain_words():
+    with pytest.raises(InvalidProposal) as caught:
+        validate_call("create_activity", {"title": "A", "day": "tomorrow-ish"})
+    assert caught.value.question.startswith("I couldn't use which day")
+    assert "another way" in caught.value.question
+    with pytest.raises(InvalidProposal) as unknown:
+        validate_call("drop_database", {})
+    assert unknown.value.question == ""
