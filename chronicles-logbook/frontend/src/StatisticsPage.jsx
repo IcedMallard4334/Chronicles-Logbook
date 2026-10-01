@@ -30,6 +30,7 @@ import { SkeletonRows } from "./ViewTransition"
 
 import "./StatisticsPage.css"
 import { TrashButton } from "./TrashIcon"
+import { EditButton } from "./EditIcon"
 
 /** The panels the Customise drawer can show, hide and reorder. */
 const PANEL_LABELS = {
@@ -713,9 +714,7 @@ function SavedStatCard({ statistic, onEdit, onDeleted }) {
       <div className="saved-stat-head">
         <h3>{statistic.name}</h3>
         <span className="saved-stat-actions">
-          <button type="button" className="btn-text" onClick={onEdit}>
-            Edit
-          </button>
+          <EditButton onClick={onEdit} />
           <TrashButton label="Delete" onClick={remove} disabled={deleting} />
         </span>
       </div>

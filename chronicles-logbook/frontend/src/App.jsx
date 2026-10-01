@@ -89,7 +89,9 @@ import {
 import "./App.css"
 import "./tasks.css"
 // Last, so the small-screen rules win over every stylesheet above.
+import "./Dropdowns.css"
 import "./MobileLayout.css"
+import { PencilIcon } from "./EditIcon"
 import { TrashButton } from "./TrashIcon"
 
 function generateId() {
@@ -648,10 +650,10 @@ function ProjectList({
         </button>
       </nav>
       <div className="workspace-sidebar-stats" aria-label="Workspace summary">
-        <span><strong>{activeProjects.length}</strong> active</span>
-        <span><strong>{totals ? totals.entries : "–"}</strong> entries</span>
-        <span><strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong> logged</span>
-        <span><strong>{totals ? totals.open_tasks ?? 0 : "–"}</strong> open tasks</span>
+        <span><strong>{activeProjects.length}</strong> Active Projects</span>
+        <span><strong>{totals ? totals.entries : "–"}</strong> Logged Entries</span>
+        <span><strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong> Hours Logged</span>
+        <span><strong>{totals ? totals.open_tasks ?? 0 : "–"}</strong> Open Tasks</span>
       </div>
       <div className="sidebar-head" id="sidebar-projects">
         <h2>Projects</h2>
@@ -2048,12 +2050,12 @@ function ProjectDetail({
             {project.archived && <span className="status-badge archived-badge">Archived</span>}
             <button
               type="button"
-              className="btn-icon"
+              className="btn-icon btn-edit"
               onClick={onEditProject}
               aria-label="Edit project"
               title="Edit project"
             >
-              ✎
+              <PencilIcon size={16} />
             </button>
           </div>
           {project.description && <p className="detail-description">{project.description}</p>}
@@ -2128,7 +2130,7 @@ function ProjectDetail({
               {!project.archived && (
                 <button
                   type="button"
-                  className="entry-add-toggle"
+                  className="btn-primary entry-add-toggle"
                   aria-expanded={addingEntry || (project.entries || []).length === 0}
                   aria-controls="new-entry-form"
                   aria-label={addingEntry ? "Close the new entry form" : "Add a new entry"}
@@ -2136,7 +2138,7 @@ function ProjectDetail({
                   onClick={() => { setSavedNotice(null); setAddingEntry((open) => !open) }}
                   disabled={(project.entries || []).length === 0}
                 >
-                  {addingEntry ? "×" : "+"}
+                  <span aria-hidden="true">{addingEntry ? "× Close" : "+ Log entry"}</span>
                 </button>
               )}
             </div>

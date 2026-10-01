@@ -4,6 +4,7 @@ import { createCalendarActivity, deleteCalendarActivity, fetchCalendarActivities
 import { dateKey } from "./calendarDates"
 import "./ActivitiesPage.css"
 import { TrashButton } from "./TrashIcon"
+import { EditButton } from "./EditIcon"
 
 const SPAN_DAYS = 183
 
@@ -81,7 +82,7 @@ export default function ActivitiesPage() {
                 {activity.description && <p>{activity.description}</p>}
               </div>
               <div className="activity-actions">
-                <button type="button" className="btn-text" disabled={saving} aria-label={`Edit activity ${activity.title}`} onClick={() => { setEditing(activity); setAdding(false) }}>Edit</button>
+                <EditButton disabled={saving} aria-label={`Edit activity ${activity.title}`} onClick={() => { setEditing(activity); setAdding(false) }} />
                 <TrashButton label={`Delete activity ${activity.title}`} disabled={saving} onClick={() => setDeleteId(activity.id)} />
               </div>
             </li>

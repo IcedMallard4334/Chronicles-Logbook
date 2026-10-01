@@ -142,7 +142,7 @@ export default function CalendarView({ projects = [], userId = null, onEditProje
       </div>
       {notice && <div className="ic-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss calendar notice">×</button></div>}
       <div className="ic-footer">
-        <div className="ic-legend"><span><i className="ic-google-dot" />Google events</span><span><i className="ic-entry-dot" />Logbook entries</span></div>
+        <div className="ic-legend"><span><i className="ic-google-dot" />Google events</span><span><i className="ic-entry-dot" />Logbook entries</span><span><i className="ic-activity-dot" />Activities</span></div>
         <div className="ic-connection">
           {(loading || entriesLoading) && (
             <span className="ic-loading" role="status">
