@@ -84,7 +84,7 @@ describe("workspace summary", () => {
   const statistics = {
     totals: {
       projects: 3, active_projects: 2, archived_projects: 1,
-      entries: 128, time_spent: 200, active_days: 47,
+      entries: 128, time_spent: 200, active_days: 47, open_tasks: 9,
       current_streak: 6, longest_streak: 19,
       first_entry_at: "2026-01-04T08:12:00Z", last_entry_at: "2026-09-10T17:40:00Z",
     },
@@ -111,7 +111,7 @@ describe("workspace summary", () => {
 
     const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
-    expect(within(summary).getByText("47")).toBeInTheDocument()
+    expect(within(summary).getByText("9")).toBeInTheDocument()
   })
 
   it("renders time logged as hours and minutes", async () => {
@@ -131,7 +131,7 @@ describe("workspace summary", () => {
 
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
-    // entries, logged, active days, day streak — every server-derived figure.
+    // entries, logged, open tasks, day streak — every server-derived figure.
     expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(3)
   })
 
@@ -579,5 +579,23 @@ describe("entry rules in a project (US-3.12)", () => {
     await waitFor(() => expect(createEntry).toHaveBeenCalled())
     expect(createEntry.mock.lastCall[1].data).toEqual({ hours: 2 })
     expect(await screen.findByText("Saved. Rule applied: Default kind.")).toBeInTheDocument()
+  })
+})
+
+describe("collapsible navigation on small screens", () => {
+  it("folds the tabs away from a button, and remembers it", async () => {
+    window.localStorage.removeItem("chronicles-nav-collapsed")
+    render(<MemoryRouter><App /></MemoryRouter>)
+
+    const toggle = await screen.findByRole("button", { name: "Hide navigation tabs" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(document.querySelector(".nav-pill")).not.toHaveClass("is-collapsed")
+
+    fireEvent.click(toggle)
+
+    expect(screen.getByRole("button", { name: "Show navigation tabs" })).toHaveAttribute("aria-expanded", "false")
+    expect(document.querySelector(".nav-pill")).toHaveClass("is-collapsed")
+    expect(window.localStorage.getItem("chronicles-nav-collapsed")).toBe("1")
+    window.localStorage.removeItem("chronicles-nav-collapsed")
   })
 })

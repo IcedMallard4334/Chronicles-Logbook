@@ -18,7 +18,7 @@ from app.custom_statistics import (
     validate_statistic,
 )
 from app.database import get_db
-from app.models import Entry, Project, SavedStatistic, StatisticsLayout, User
+from app.models import Entry, Project, SavedStatistic, StatisticsLayout, Task, User
 from app.routers.auth import get_current_user
 from app.schemas import (
     CustomStatisticPreviewRequest,
@@ -183,6 +183,14 @@ async def read_statistics(
 
     overall_current, overall_longest = _streaks(all_days, today)
 
+    open_tasks = (
+        await db.execute(
+            select(func.count(Task.id))
+            .join(Project, Task.project_id == Project.id)
+            .where(Project.user_id == user.id, Task.completed.is_(False))
+        )
+    ).scalar_one()
+
     return StatisticsResponse(
         totals=StatisticsTotals(
             projects=len(projects),
@@ -191,6 +199,7 @@ async def read_statistics(
             entries=overall.entries,
             time_spent=int(overall.time_spent or 0),
             active_days=overall.active_days,
+            open_tasks=open_tasks,
             current_streak=overall_current,
             longest_streak=overall_longest,
             first_entry_at=overall.first_entry_at,

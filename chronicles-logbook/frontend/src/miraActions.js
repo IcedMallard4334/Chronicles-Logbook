@@ -221,6 +221,7 @@ const HANDLERS = {
       title: p.title,
       ...(p.description ? { description: p.description } : {}),
       ...(p.due_date ? { due_date: p.due_date } : {}),
+      ...(p.due_date && p.due_time ? { due_time: p.due_time } : {}),
       checklist: (p.checklist || []).map((text) => ({ id: newId(), text, completed: false })),
     })
     return `Added the task “${p.title}” to “${project.name}”`
@@ -231,6 +232,7 @@ const HANDLERS = {
       ...(p.title ? { title: p.title } : {}),
       ...(p.description !== undefined ? { description: p.description } : {}),
       ...(p.due_date ? { due_date: p.due_date } : {}),
+      ...(p.due_time !== undefined ? { due_time: p.due_time || null } : {}),
     })
     return "Updated a task"
   },
@@ -280,7 +282,7 @@ const HANDLERS = {
   async set_reminder(p) {
     const [projectId, itemId] = splitRef(p.target)
     if (p.kind === "task") {
-      await updateTask(projectId, itemId, { due_date: p.due_date })
+      await updateTask(projectId, itemId, { due_date: p.due_date, due_time: p.due_time || null })
     } else {
       await updateEntry(projectId, itemId, { todo: true, due_date: p.due_date, due_time: p.due_time || null })
     }
