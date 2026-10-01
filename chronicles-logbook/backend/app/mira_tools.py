@@ -129,6 +129,7 @@ class CreateTask(_Args):
     title: Name
     description: ShortText | None = None
     due_date: date | None = None
+    due_time: Clock | None = None
     checklist: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)]] = Field(
         default_factory=list, max_length=20
     )
@@ -139,6 +140,7 @@ class UpdateTask(_Args):
     title: Name | None = None
     description: ShortText | None = None
     due_date: date | None = None
+    due_time: Clock | None = None
 
 
 class CompleteTask(_Args):
@@ -350,10 +352,12 @@ _register(_tool("delete_entry", "Delete an entry (it can be restored from the pr
 }, ["entry"]), DeleteEntry, True)
 _register(_tool("create_task", "Add a task to a project.", {
     "project": _PROJECT, "title": _s("Task title."), "description": _s("Details."), "due_date": _DATE,
+    "due_time": _CLOCK,
     "checklist": _arr({"type": "string"}, "Checklist item texts, each under 30 characters."),
 }, ["project", "title"]), CreateTask)
 _register(_tool("update_task", "Change a task (id from your context).", {
     "task": _s("The task's id."), "title": _s("New title."), "description": _s("New details."), "due_date": _DATE,
+    "due_time": _CLOCK,
 }, ["task"]), UpdateTask)
 _register(_tool("complete_task", "Mark a task done, or reopen it with completed=false.", {
     "task": _s("The task's id."), "completed": _b("False to reopen."),
@@ -465,6 +469,7 @@ def summarise(name: str, p: dict[str, Any]) -> str:
             return "Delete an entry"
         case "create_task":
             due = f", due {p['due_date']}" if p.get("due_date") else ""
+            due += f" at {p['due_time']}" if p.get("due_date") and p.get("due_time") else ""
             return f"Add the task {_ref(p['title'])} to {_ref(p['project'])}{due}"
         case "update_task":
             return "Update a task"

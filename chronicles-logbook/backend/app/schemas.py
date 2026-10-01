@@ -561,6 +561,7 @@ class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     due_date: date | None = None
+    due_time: time_of_day | None = None
     checklist: list[ChecklistItem] = Field(default_factory=list)
 
 
@@ -570,6 +571,7 @@ class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     due_date: date | None = None
+    due_time: time_of_day | None = None
     completed: bool | None = None
     checklist: list[ChecklistItem] | None = None
 
@@ -582,6 +584,7 @@ class TaskResponse(BaseModel):
     title: str
     description: str | None
     due_date: date | None
+    due_time: time_of_day | None = None
     completed: bool
     checklist: list[ChecklistItem]
     # Who added it, and who ticked it off. completed_by is cleared when a task
@@ -824,6 +827,8 @@ class StatisticsTotals(BaseModel):
     # not the sum of the per-project figures: a day worked on two projects
     # counts once here and once in each project.
     active_days: int
+    # Tasks not yet ticked off, across every project the person owns.
+    open_tasks: int = 0
     # A run of consecutive days with at least one entry (basic tier: "where a
     # run of days has been kept up"). current_streak is the run that reaches
     # today or yesterday — it is still alive if nothing was written yet today.

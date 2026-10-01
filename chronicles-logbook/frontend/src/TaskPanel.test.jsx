@@ -234,3 +234,29 @@ describe("TaskForm", () => {
     expect(createTask).not.toHaveBeenCalled()
   })
 })
+
+describe("task time of day", () => {
+  it("is disabled until there is a date, then saved with the task", async () => {
+    createTask.mockResolvedValue({})
+    render(<TaskForm projectId="proj-1" onSaved={() => {}} />)
+
+    const time = screen.getByLabelText(/Time of day/)
+    expect(time).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Call the bank" } })
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-10-05" } })
+    expect(time).toBeEnabled()
+    fireEvent.change(time, { target: { value: "14:30" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add task" }))
+
+    await waitFor(() => expect(createTask).toHaveBeenCalled())
+    expect(createTask.mock.calls[0][1]).toMatchObject({ due_date: "2026-10-05", due_time: "14:30" })
+  })
+
+  it("shows the time beside the date in the list", async () => {
+    fetchTasks.mockResolvedValue([{ ...mockTask, due_time: "09:15:00" }])
+    render(<TaskPanel projectId="proj-1" />)
+
+    expect(await screen.findByText(/· 09:15/)).toBeInTheDocument()
+  })
+})

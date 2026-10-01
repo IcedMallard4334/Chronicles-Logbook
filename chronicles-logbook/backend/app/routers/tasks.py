@@ -69,6 +69,7 @@ async def create_task(
         title=data.title,
         description=data.description,
         due_date=data.due_date,
+        due_time=data.due_time if data.due_date else None,
         checklist=[item.model_dump() for item in data.checklist],
         created_by=user.id,
     )
@@ -113,6 +114,10 @@ async def update_task(
         task.description = data.description
     if data.due_date is not None:
         task.due_date = data.due_date
+    if "due_time" in data.model_fields_set:
+        task.due_time = data.due_time
+    if task.due_date is None:
+        task.due_time = None
     if data.completed is not None:
         task.completed = data.completed
     if data.checklist is not None:

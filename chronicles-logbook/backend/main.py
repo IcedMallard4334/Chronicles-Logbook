@@ -41,6 +41,7 @@ _ADDED_COLUMNS = (
     ("entries", "todo", "BOOLEAN NOT NULL DEFAULT false"),
     ("entries", "due_date", "DATE"),
     ("entries", "due_time", "TIME"),
+    ("tasks", "due_time", "TIME"),
     ("dashboards", "columns", "INTEGER NOT NULL DEFAULT 3"),
     ("projects", "statuses", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
     ("entries", "status", "VARCHAR(60)"),

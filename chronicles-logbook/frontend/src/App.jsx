@@ -651,7 +651,7 @@ function ProjectList({
         <span><strong>{activeProjects.length}</strong> active</span>
         <span><strong>{totals ? totals.entries : "–"}</strong> entries</span>
         <span><strong>{totals ? formatDuration(totals.time_spent) : "–"}</strong> logged</span>
-        <span><strong>{totals ? totals.active_days : "–"}</strong> active days</span>
+        <span><strong>{totals ? totals.open_tasks ?? 0 : "–"}</strong> open tasks</span>
       </div>
       <div className="sidebar-head" id="sidebar-projects">
         <h2>Projects</h2>
@@ -2521,6 +2521,15 @@ function App() {
   const [miraConversations, setMiraConversations] = useState([])
   const miraSequence = useRef(0)
   const miraRunningRef = useRef(false)
+  // On a phone the seven tabs can be folded away, leaving just the logo and the
+  // controls on the right. Remembered, and ignored on wide screens.
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try { return window.localStorage.getItem("chronicles-nav-collapsed") === "1" } catch { return false }
+  })
+  const toggleNav = () => setNavCollapsed((collapsed) => {
+    try { window.localStorage.setItem("chronicles-nav-collapsed", collapsed ? "0" : "1") } catch { /* private mode */ }
+    return !collapsed
+  })
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics", "activities"]
@@ -3089,13 +3098,23 @@ function App() {
         <div className="app-bg-grid" />
       </div>
       <header className="topbar">
-        <nav className="nav-pill" aria-label="Main navigation">
+        <nav className={`nav-pill${navCollapsed ? " is-collapsed" : ""}`} aria-label="Main navigation">
           <div className="nav-flow" aria-hidden="true"><svg viewBox="0 0 1400 70" preserveAspectRatio="none"><path d="M-100 55 C180 -20 330 100 600 35 S1000 0 1500 45" /><path d="M-100 15 C250 90 420 -25 740 40 S1100 80 1500 10" /><path d="M-100 60 C350 20 500 80 900 15 S1200 65 1500 35" /></svg></div>
           <div className="nav-pill-left">
             <LogoIcon size={30} />
             <span className="brand-name">Chronicles</span>
+            <button
+              type="button"
+              className="nav-collapse-toggle"
+              aria-expanded={!navCollapsed}
+              aria-controls="main-nav-tabs"
+              aria-label={navCollapsed ? "Show navigation tabs" : "Hide navigation tabs"}
+              onClick={toggleNav}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points={navCollapsed ? "6 9 12 15 18 9" : "6 15 12 9 18 15"} /></svg>
+            </button>
           </div>
-          <div className="nav-pill-center">
+          <div className="nav-pill-center" id="main-nav-tabs">
             <button
               type="button"
               className={`nav-item ${showWorkspaceSidebar ? "active" : ""}`}

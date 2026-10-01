@@ -469,6 +469,7 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_time: Mapped[time_of_day | None] = mapped_column(Time, nullable=True)
 
     completed: Mapped[bool] = mapped_column(
         Boolean,

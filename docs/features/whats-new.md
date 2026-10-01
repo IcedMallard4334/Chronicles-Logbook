@@ -155,3 +155,14 @@ Mira's microphone comes before the hint text, in the accent colour.
 `014` entry history · `015` due time · `016` Mira conversations · `017` activity streaks ·
 `018` dashboard grid · `019` entry statuses · `020` achievements. All are additive;
 `main.py` applies the same statements on startup, so nothing needs running by hand.
+
+## Task times, a folding top bar and open tasks
+
+- **Time of day on tasks.** The task form has an optional *Time of day* beside the due date
+  (enabled once a date is set). It is stored as `tasks.due_time` (migration `021`, mirrored in
+  `main.py`), shown beside the date in the list, and Mira can set it when creating or
+  updating a task or setting a reminder.
+- **Folding top bar on phones.** Below 720px the word *Chronicles* gives way to a button next to
+  the logo that hides or shows the seven tabs. The choice is remembered in the browser.
+- **Open tasks stat.** The sidebar's *active days* figure is replaced by *open tasks*
+  (`totals.open_tasks` in `GET /statistics`). Active days still appears on the Statistics page.

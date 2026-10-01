@@ -39,6 +39,7 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
   const [title, setTitle] = useState(task?.title || "")
   const [description, setDescription] = useState(task?.description || "")
   const [dueDate, setDueDate] = useState(task?.due_date || "")
+  const [dueTime, setDueTime] = useState((task?.due_time || "").slice(0, 5))
   const [checklist, setChecklist] = useState(task?.checklist || [])
   const [newItemText, setNewItemText] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -48,6 +49,7 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
     setTitle(task?.title || "")
     setDescription(task?.description || "")
     setDueDate(task?.due_date || "")
+    setDueTime((task?.due_time || "").slice(0, 5))
     setChecklist(task?.checklist || [])
     setNewItemText("")
     setError(null)
@@ -93,6 +95,7 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
         title: trimmed,
         description: description.trim() || null,
         due_date: dueDate || null,
+        due_time: dueDate && dueTime ? dueTime : null,
         checklist: checklist.map((item) => ({
           id: item.id,
           text: item.text.trim(),
@@ -107,6 +110,7 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
       setTitle("")
       setDescription("")
       setDueDate("")
+      setDueTime("")
       setChecklist([])
       setNewItemText("")
       onSaved()
@@ -139,6 +143,15 @@ export function TaskForm({ projectId, task, onSaved, onCancel }) {
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
+          />
+        </label>
+        <label className="field-label">
+          Time of day (optional)
+          <input
+            type="time"
+            value={dueTime}
+            disabled={!dueDate}
+            onChange={(e) => setDueTime(e.target.value)}
           />
         </label>
         <label className="field-label full">
@@ -270,6 +283,7 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         title: task.title,
         description: task.description,
         due_date: task.due_date,
+        due_time: task.due_time ? task.due_time.slice(0, 5) : null,
         completed: task.completed,
         checklist: updatedChecklist,
       })
@@ -349,6 +363,7 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
           <span className={`task-due ${overdue ? "task-overdue" : ""}`}>
             {overdue ? "Overdue · " : ""}
             {formatDate(task.due_date)}
+            {task.due_time ? ` · ${task.due_time.slice(0, 5)}` : ""}
           </span>
         )}
         {/* Only worth the line when someone is named: a logbook nobody shares

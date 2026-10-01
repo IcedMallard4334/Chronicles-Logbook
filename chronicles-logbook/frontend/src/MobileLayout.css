@@ -5,13 +5,30 @@
 
 /* The projects toggle only exists for the bottom panel. */
 .sidebar-projects-toggle { display: none !important; }
+.nav-collapse-toggle { display: none; }
 
 @media (max-width: 720px) {
   /* ── Top bar: smaller everything, so it is a bar and not a block ── */
   .app-shell { padding-inline: 8px; padding-bottom: 92px; }
   .app-shell .topbar { padding-top: 6px; }
   .app-shell .nav-pill { padding: 6px 8px; gap: 4px; border-radius: 18px; }
-  .app-shell .nav-pill-left .brand-name { font-size: 0.92rem; }
+  /* The name gives way to a button that folds the seven tabs away. */
+  .app-shell .nav-pill-left .brand-name { display: none; }
+  .app-shell .nav-pill-left { gap: 8px; }
+  .app-shell .nav-collapse-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--blue, #6b5bff);
+    border-radius: 50%;
+    background: var(--blue-bg, rgba(107, 91, 255, 0.12));
+    color: var(--blue, #6b5bff);
+    cursor: pointer;
+  }
+  .app-shell .nav-collapse-toggle svg { width: 16px; height: 16px; }
+  .app-shell .nav-pill.is-collapsed .nav-pill-center { display: none; }
   .app-shell .nav-pill-right { gap: 4px; }
   .app-shell .nav-pill-center .nav-item { min-height: 40px; padding: 5px 2px; gap: 2px; border-radius: 10px; }
   .app-shell .nav-pill-center .nav-item svg { width: 15px; height: 15px; }

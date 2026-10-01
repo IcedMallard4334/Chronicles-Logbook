@@ -312,3 +312,31 @@ async def test_create_task_rejects_an_oversized_description(authenticated_client
         json={"title": "Too long", "description": "x" * 4001},
     )
     assert response.status_code == 422
+
+
+async def test_task_time_of_day_needs_a_date_and_can_be_changed(authenticated_client, test_project):
+    base = f"/projects/{test_project['id']}/tasks"
+
+    timed = (await authenticated_client.post(base, json={"title": "Call", "due_date": "2026-10-05", "due_time": "14:30"})).json()
+    assert timed["due_time"].startswith("14:30")
+
+    stray = (await authenticated_client.post(base, json={"title": "No date", "due_time": "09:00"})).json()
+    assert stray["due_time"] is None
+
+    moved = (await authenticated_client.put(f"{base}/{timed['id']}", json={"due_time": "16:00"})).json()
+    assert moved["due_time"].startswith("16:00")
+    untouched = (await authenticated_client.put(f"{base}/{timed['id']}", json={"title": "Call back"})).json()
+    assert untouched["due_time"].startswith("16:00")
+    cleared = (await authenticated_client.put(f"{base}/{timed['id']}", json={"due_time": None})).json()
+    assert cleared["due_time"] is None
+
+
+async def test_statistics_count_open_tasks(authenticated_client, test_project):
+    base = f"/projects/{test_project['id']}/tasks"
+    first = (await authenticated_client.post(base, json={"title": "One"})).json()
+    await authenticated_client.post(base, json={"title": "Two"})
+    await authenticated_client.patch(f"{base}/{first['id']}/toggle")
+
+    totals = (await authenticated_client.get("/statistics")).json()["totals"]
+
+    assert totals["open_tasks"] == 1

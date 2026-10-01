@@ -255,7 +255,7 @@ describe("running actions", () => {
       act("stop_recurrence", { entry: "p1/e1" }),
     ])
 
-    expect(api.updateTask).toHaveBeenCalledWith("p1", "t1", { due_date: "2026-10-01" })
+    expect(api.updateTask).toHaveBeenCalledWith("p1", "t1", { due_date: "2026-10-01", due_time: null })
     expect(api.updateEntry).toHaveBeenCalledWith("p1", "e1", { todo: true, due_date: "2026-10-02", due_time: "08:00" })
     expect(api.setRecurrence).toHaveBeenCalledWith("p1", "e1", { frequency: "weekly", interval: 2, ends_on: "2026-12-31" })
     expect(api.stopRecurrence).toHaveBeenCalledWith("p1", "e1")
