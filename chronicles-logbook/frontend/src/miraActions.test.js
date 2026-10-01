@@ -342,8 +342,9 @@ describe("describing how it went", () => {
 
   it("separates partial success from total failure and mentions what was skipped", () => {
     expect(describeOutcome({ done: ["Made A"], failed: { summary: "Make B", error: "No." }, skipped: 2 })).toBe(
-      "**Part of that is done.**\n- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run."
+      "**Part of that is done.**\n- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run.\n\nTell me what to change and I'll try again."
     )
+    expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "Value error, End time must be after start time." }, skipped: 0 })).toContain("Make A: End time must be after start time.")
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("**That didn't work.**")
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("1 more action was not run.")
   })
