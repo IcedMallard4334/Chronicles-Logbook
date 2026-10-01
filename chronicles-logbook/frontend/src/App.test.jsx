@@ -91,34 +91,14 @@ describe("workspace summary", () => {
     projects: [],
   }
 
-  it("shows the run of days being kept up, with the best run on hover", async () => {
-    // Basic tier: "where a run of days has been kept up". The longest run is
-    // kept to a tooltip so a broken streak still shows what was achieved.
+  it("leaves the streak out of the sidebar summary (the top bar shows streaks)", async () => {
     fetchStatistics.mockResolvedValue(statistics)
 
     render(<MemoryRouter><App /></MemoryRouter>)
 
     const summary = await screen.findByLabelText("Workspace summary")
-    await waitFor(() => expect(within(summary).getByText("6")).toBeInTheDocument())
-    const streak = within(summary).getByText("6").closest("span")
-    expect(streak).toHaveTextContent("day streak")
-    expect(streak).toHaveAttribute("title", "Longest run: 19 days")
-    expect(streak).toHaveClass("is-streak-alive")
-  })
-
-  it("does not mark a broken streak as alive", async () => {
-    fetchStatistics.mockResolvedValue({
-      ...statistics,
-      totals: { ...statistics.totals, current_streak: 0, longest_streak: 1 },
-    })
-
-    render(<MemoryRouter><App /></MemoryRouter>)
-
-    const summary = await screen.findByLabelText("Workspace summary")
     await waitFor(() => expect(within(summary).getByText("128")).toBeInTheDocument())
-    const streak = within(summary).getByText("day streak").closest("span")
-    expect(streak).not.toHaveClass("is-streak-alive")
-    expect(streak).toHaveAttribute("title", "Longest run: 1 day")
+    expect(within(summary).queryByText("day streak")).not.toBeInTheDocument()
   })
 
   it("shows server-side totals rather than counting loaded entries", async () => {
@@ -152,7 +132,7 @@ describe("workspace summary", () => {
     const projects = await screen.findByRole("listbox", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
     // entries, logged, active days, day streak — every server-derived figure.
-    expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(4)
+    expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(3)
   })
 
   it("refetches totals when the project list changes", async () => {
