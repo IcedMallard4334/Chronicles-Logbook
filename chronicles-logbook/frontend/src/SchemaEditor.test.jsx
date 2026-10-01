@@ -655,6 +655,7 @@ describe("filling in an entry", () => {
     fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "3" } })
     fireEvent.change(screen.getByLabelText("Rate"), { target: { value: "50" } })
 
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     await waitFor(() =>
@@ -662,6 +663,7 @@ describe("filling in an entry", () => {
         data: { "f-hours": 3, "f-rate": 50 },
         time_spent: null,
         todo: false,
+        title: "Test entry",
         due_date: null,
         due_time: null,
       })
@@ -701,6 +703,7 @@ describe("filling in an entry", () => {
     await openProject()
     await screen.findByRole("heading", { name: "New entry" })
 
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     await waitFor(() =>
@@ -708,6 +711,7 @@ describe("filling in an entry", () => {
         data: {},
         time_spent: null,
         todo: false,
+        title: "Test entry",
         due_date: null,
         due_time: null,
       })
@@ -1033,6 +1037,7 @@ describe("filling in a rich entry", () => {
     await openProject()
     await screen.findByRole("heading", { name: "New entry" })
 
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("needs at least one tag")
@@ -1111,6 +1116,7 @@ describe("filling in a rich entry", () => {
     addTag("prototype")
     addItem("Pack bags")
 
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     await waitFor(() =>
@@ -1124,6 +1130,7 @@ describe("filling in a rich entry", () => {
         },
         time_spent: null,
         todo: false,
+        title: "Test entry",
         due_date: null,
         due_time: null,
       })
@@ -1166,6 +1173,7 @@ describe("filling in a rich entry", () => {
     await screen.findByRole("heading", { name: "New entry" })
 
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Pitched the tent" } })
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     // Saving closes the form; reopening it must offer the entry just saved.

@@ -1,3 +1,4 @@
+import { entryName } from "./entryNames"
 import DayActivityDialog from "./DayActivityDialog"
 import { EntryDetailModal } from "./EntryShared"
 import { useEffect, useMemo, useState } from "react"
@@ -142,7 +143,7 @@ export default function CalendarView({ projects = [], userId = null, onEditProje
       </div>
       {notice && <div className="ic-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss calendar notice">×</button></div>}
       <div className="ic-footer">
-        <div className="ic-legend"><span><i className="ic-google-dot" />Google events</span><span><i className="ic-entry-dot" />Logbook entries</span></div>
+        <div className="ic-legend"><span><i className="ic-google-dot" />Google events</span><span><i className="ic-entry-dot" />Logbook entries</span><span><i className="ic-activity-dot" />Activities</span></div>
         <div className="ic-connection">
           {(loading || entriesLoading) && (
             <span className="ic-loading" role="status">
@@ -169,7 +170,7 @@ export default function CalendarView({ projects = [], userId = null, onEditProje
         {!selectedEvents.length && !selectedEntries.length && !selectedActivities.length && <p>{loading || entriesLoading ? "Loading this day…" : "No events or logbook entries for this day."}</p>}
         <div className="ic-detail-list">
           {selectedEvents.map(event => <div className="ic-detail-item" key={event.id}><i className="ic-google-dot" /><div><span className="ic-detail-type">Google Calendar · {event.all_day ? "All day" : `${time(event.start)} – ${time(event.end)}`}</span>{event.html_link?.startsWith("https://") ? <a href={event.html_link} target="_blank" rel="noopener noreferrer">{event.summary} ↗</a> : <strong>{event.summary}</strong>}{event.location && <span>{event.location}</span>}</div></div>)}
-          {selectedEntries.map(entry => <div className="ic-detail-item" key={entry.id}><i className="ic-entry-dot" /><div><span className="ic-detail-type">Chronicles · {time(entry.created_at)}</span><strong>{entry.project_name}</strong><span>{Object.values(entry.data || {}).filter(value => typeof value === "string" || typeof value === "number").join(" · ")}</span></div></div>)}
+          {selectedEntries.map(entry => <div className="ic-detail-item" key={entry.id}><i className="ic-entry-dot" /><div><span className="ic-detail-type">Chronicles · {time(entry.created_at)}</span><strong>{entry.project_name}</strong><span>{entryName(entry)}</span></div></div>)}
         </div>
       </section>
       <div className="ic-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <span key={day}>{day}</span>)}</div>

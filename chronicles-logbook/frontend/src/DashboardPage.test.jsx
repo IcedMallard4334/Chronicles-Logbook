@@ -10,6 +10,7 @@ import {
   fetchEntriesGlobal,
   fetchStatistics,
   fetchFieldTimeline,
+  fetchAchievements,
 } from "./api"
 
 vi.mock("./api", () => ({
@@ -20,6 +21,7 @@ vi.mock("./api", () => ({
   fetchEntriesGlobal: vi.fn(),
   fetchStatistics: vi.fn(),
   fetchFieldTimeline: vi.fn(),
+  fetchAchievements: vi.fn(),
 }))
 
 const projects = [
@@ -250,5 +252,46 @@ describe("DashboardPage grid", () => {
 
     await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalledTimes(1))
     expect(updateDashboardPanels.mock.calls[0][0][0]).toMatchObject({ w: 3, h: 3 })
+  })
+})
+
+describe("projects and badges panels", () => {
+  it("shows the projects and their figures", async () => {
+    fetchDashboard.mockResolvedValue({ panels: [{ id: "pp", type: "projects", config: {} }], updated_at: "2026-09-24T00:00:00Z" })
+
+    render(<DashboardPage projects={projects} />)
+
+    expect(await screen.findByText("Operations", { selector: "strong" })).toBeInTheDocument()
+    expect(await screen.findByText("4 entries · 2h")).toBeInTheDocument()
+  })
+
+  it("shows only the badges that have been unlocked", async () => {
+    fetchAchievements.mockResolvedValue({
+      badges: [
+        { key: "a", name: "First Chapter", tier: "bronze", category: "projects", blurb: "You began.", earned: true, progress: 1, target: 1 },
+        { key: "b", name: "Grand Library", tier: "gold", category: "projects", blurb: "Many.", earned: false, progress: 1, target: 10 },
+      ],
+    })
+    fetchDashboard.mockResolvedValue({ panels: [{ id: "pb", type: "badges", config: {} }], updated_at: "2026-09-24T00:00:00Z" })
+
+    render(<DashboardPage projects={projects} />)
+
+    expect(await screen.findByText("First Chapter")).toBeInTheDocument()
+    expect(screen.queryByText("Grand Library")).not.toBeInTheDocument()
+  })
+
+  it("adds a badges panel from the form", async () => {
+    fetchAchievements.mockResolvedValue({ badges: [] })
+    fetchDashboard.mockResolvedValue({ panels: [], updated_at: "2026-09-24T00:00:00Z" })
+    updateDashboardPanels.mockResolvedValue({ panels: [], updated_at: "2026-09-24T00:01:00Z" })
+
+    render(<DashboardPage projects={projects} />)
+    await screen.findByText(/Your dashboard is empty/)
+    fireEvent.click(screen.getByRole("button", { name: "+ Add panel" }))
+    fireEvent.change(screen.getByLabelText("Panel type"), { target: { value: "badges" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add panel" }))
+
+    await waitFor(() => expect(updateDashboardPanels).toHaveBeenCalled())
+    expect(updateDashboardPanels.mock.calls[0][0][0]).toMatchObject({ type: "badges", config: {} })
   })
 })

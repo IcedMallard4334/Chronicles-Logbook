@@ -25,6 +25,7 @@ import { entryPreview } from "./EntryShared"
 import { StructuredSearch } from "./StructuredSearch"
 import "./AutomationPanel.css"
 import { TrashButton } from "./TrashIcon"
+import { EditButton } from "./EditIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -387,7 +388,7 @@ export default function AutomationPanel({ project }) {
                       <button type="button" className="btn-text" disabled={busyId === rule.id} onClick={() => toggleRule(rule)}>
                         {rule.enabled ? "Turn off" : "Turn on"}
                       </button>
-                      <button type="button" className="btn-text" onClick={() => setEditing(rule)}>Edit</button>
+                      <EditButton onClick={() => setEditing(rule)} />
                       <TrashButton label="Delete" onClick={() => setConfirmDeleteId(rule.id)} />
                     </>
                   )}

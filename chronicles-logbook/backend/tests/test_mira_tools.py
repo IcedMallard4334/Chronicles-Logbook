@@ -63,6 +63,9 @@ def test_a_project_can_be_proposed_with_fields_and_statuses():
     [
         ("drop_database", {}, "not something Mira can do"),
         ("create_task", "oops", "not well formed"),
+        ("create_entry", {"project": "P"}, "title"),
+        ("add_dashboard_panel", {"kind": "board"}, "project"),
+        ("add_dashboard_panel", {"kind": "calendar"}, "kind"),
         ("create_task", {"project": "P"}, "title"),
         ("create_task", {"project": "P", "title": "T", "surprise": 1}, "surprise"),
         ("create_task", {"project": "P", "title": "T", "due_date": "tomorrow"}, "due_date"),
@@ -110,7 +113,7 @@ def test_every_tool_can_be_summarised_from_a_minimal_valid_call():
         "set_recurrence": {"entry": "e", "frequency": "monthly"}, "stop_recurrence": {"entry": "e"},
         "create_rule": {"project": "P", "name": "R", "actions": [{"type": "mark_todo"}]},
         "share_project": {"project": "P", "email": "a@b.co"}, "create_statistic": {"project": "P", "name": "S", "expression": "SUM({Hours})"},
-        "open_page": {"page": "board"}, "set_theme": {"theme": "dark"},
+        "open_page": {"page": "board"}, "set_theme": {"theme": "dark"}, "add_dashboard_panel": {"kind": "badges"},
     }
     assert set(samples) == set(TOOLS)
     for name, arguments in samples.items():
@@ -301,3 +304,9 @@ async def test_consent_given_before_mira_could_see_the_workspace_no_longer_count
     state = (await authenticated_client.get("/ai/consent")).json()
 
     assert state["decided"] is False and state["version"] == ai_router.CONSENT_VERSION
+
+
+def test_dashboard_panels_are_summarised_in_plain_words():
+    assert summarise("add_dashboard_panel", {"kind": "badges"}) == "Add your unlocked badges to your dashboard"
+    assert summarise("add_dashboard_panel", {"kind": "projects"}) == "Add your projects to your dashboard"
+    assert "Bug Log" in summarise("add_dashboard_panel", {"kind": "board", "project": "Bug Log"})

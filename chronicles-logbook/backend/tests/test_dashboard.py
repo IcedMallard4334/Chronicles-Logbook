@@ -145,3 +145,24 @@ async def test_sizes_and_widths_outside_the_allowed_range_are_rejected(authentic
     for columns in (1, 7):
         response = await authenticated_client.put("/dashboard", json={"panels": [], "columns": columns})
         assert response.status_code == 422, columns
+
+
+async def test_projects_and_badges_panels_are_accepted(authenticated_client):
+    panels = [
+        {"id": "p-all", "type": "projects", "config": {}},
+        {"id": "p-one", "type": "projects", "config": {"project_id": str(uuid4())}},
+        {"id": "b", "type": "badges", "config": {}},
+    ]
+
+    response = await authenticated_client.put("/dashboard", json={"panels": panels})
+
+    assert response.status_code == 200
+    assert [panel["type"] for panel in response.json()["panels"]] == ["projects", "projects", "badges"]
+
+
+async def test_a_projects_panel_rejects_a_bad_project_id(authenticated_client):
+    response = await authenticated_client.put(
+        "/dashboard", json={"panels": [{"id": "x", "type": "projects", "config": {"project_id": "nope"}}]}
+    )
+
+    assert response.status_code == 422

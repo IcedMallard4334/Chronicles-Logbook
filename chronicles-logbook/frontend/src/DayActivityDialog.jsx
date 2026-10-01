@@ -4,6 +4,7 @@ import { createCalendarActivity, deleteCalendarActivity, updateCalendarActivity 
 import { dateKey } from "./calendarDates"
 import "./DayActivityDialog.css"
 import { TrashButton } from "./TrashIcon"
+import { EditButton } from "./EditIcon"
 
 export default function DayActivityDialog({
   date, events, entries, activities, loading, activityError, onClose, onSaved, onUpdated, onDeleted,
@@ -67,7 +68,7 @@ export default function DayActivityDialog({
         {item.link?.startsWith("https://") ? <a href={item.link} target="_blank" rel="noopener noreferrer">{item.title} ↗</a> : <strong>{item.title}</strong>}
         {item.description && <p>{item.description}</p>}
         {item.kind === "activity" && <div className="day-item-actions">
-          <button type="button" className="btn-text" disabled={busy} onClick={() => { setEditing(item.activity); setAdding(false); setError("") }} aria-label={`Edit activity ${item.title}`}>Edit</button>
+          <EditButton disabled={busy} onClick={() => { setEditing(item.activity); setAdding(false); setError("") }} aria-label={`Edit activity ${item.title}`} />
           <TrashButton className="day-delete" label="Delete activity" text="Delete activity" onClick={() => setDeleteId(item.id)} />
         </div>}
         {item.kind === "entry" && onOpenEntry && <div className="day-item-actions">

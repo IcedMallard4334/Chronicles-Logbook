@@ -7,6 +7,7 @@ import {
   updateTask,
 } from "./api"
 import { TrashButton } from "./TrashIcon"
+import { EditButton } from "./EditIcon"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -377,14 +378,7 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         )}
       </div>
       <div className="task-actions">
-        <button
-          type="button"
-          className="btn-text"
-          onClick={() => onEdit(task)}
-          aria-label="Edit task"
-        >
-          Edit
-        </button>
+        <EditButton onClick={() => onEdit(task)} aria-label="Edit task" />
         <TrashButton
           label="Delete task"
           onClick={handleDelete}
@@ -468,7 +462,7 @@ export function TaskPanel({ projectId, onLogEntry }) {
               setEditingTask(null)
             }}
           >
-            Add task
+            <span aria-hidden="true">+ </span>Add task
           </button>
         )}
       </div>

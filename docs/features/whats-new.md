@@ -166,3 +166,27 @@ Mira's microphone comes before the hint text, in the accent colour.
   the logo that hides or shows the seven tabs. The choice is remembered in the browser.
 - **Open tasks stat.** The sidebar's *active days* figure is replaced by *open tasks*
   (`totals.open_tasks` in `GET /statistics`). Active days still appears on the Statistics page.
+
+## Projects and badges on the dashboard
+
+Two new panel types can be added from **Add panel**:
+
+- **Projects**: every active project with its entry count and hours, or a single project's card.
+  Config: `{}` or `{"project_id": "…"}`.
+- **Badges**: every badge you have unlocked, drawn as on the badges page, updating as you earn more.
+  Config: `{}`.
+
+Both are validated like the other panel types (`type` is one of `saved_filter`, `board`,
+`statistic`, `projects`, `badges`); see [Dashboard and activities](../api/dashboard-and-activities.md).
+
+Mira can add these too: *"put my badges on my dashboard"* becomes an `add_dashboard_panel` proposal.
+
+## Entry names and required titles
+
+- **Titles are required** when logging or editing an entry in the app, and when Mira logs one. The
+  API still accepts an entry without a title, so imports, offline captures and older entries keep working.
+- **No more ids as names.** Entries without a title are named from their first readable words
+  (`frontend/src/entryNames.js`); stored ids and uuids are skipped, links read as "↳ linked entry",
+  and an entry with nothing readable is "Untitled entry · 29 Sep". The same helper names entries on the
+  Entries, Outstanding and Calendar pages and in dashboard panels; Mira's workspace snapshot follows the same rule.
+- Editing an older untitled entry pre-fills the title with that suggested name, so it can be saved as is.

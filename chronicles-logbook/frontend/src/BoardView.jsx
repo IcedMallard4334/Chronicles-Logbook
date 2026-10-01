@@ -46,6 +46,7 @@ const preview = (entry, project, projectNames) => {
         value !== null &&
         value !== undefined &&
         value !== "" &&
+        !(typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim())) &&
         !(Array.isArray(value) && value.length === 0),
     )
     .map(([id, value]) => {

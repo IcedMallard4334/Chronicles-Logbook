@@ -13,7 +13,7 @@ my Bug Log project" impossible. Three things now let her act:
 
 1. **A snapshot of the workspace**, so she can refer to real projects, tasks and
    entries.
-2. **A list of 26 functions** she can call, covering the everyday things you do.
+2. **A list of 27 functions** she can call, covering the everyday things you do.
 3. **Several actions in one reply**, so "set up a launch project with three tasks" is
    one request.
 
@@ -33,7 +33,7 @@ be proposed, and arguments that don't fit are refused rather than guessed at.
 | **Reminders** | `set_reminder` (a due date and time on a task or entry), `set_recurrence`, `stop_recurrence` |
 | **Automation and stats** | `create_rule`, `create_statistic` |
 | **People** | `share_project` |
-| **The app** | `open_page`, `set_theme` |
+| **The app** | `open_page`, `set_theme`, `add_dashboard_panel` (projects, unlocked badges, a project's board or an overview statistic) |
 
 Projects and fields are referred to by **name**, the way you'd say them. Existing
 entries, tasks and activities are referred to by the **ids shown in her context**

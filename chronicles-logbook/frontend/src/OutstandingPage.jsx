@@ -1,3 +1,4 @@
+import { entryName } from "./entryNames"
 import { useEffect, useMemo, useState } from "react"
 import { fetchEntriesGlobal, updateEntry } from "./api"
 import "./OutstandingPage.css"
@@ -38,12 +39,6 @@ function dueLabel(entry, today) {
   if (days < 0) return `${Math.abs(days)} days ago`
   return asLocalDate(entry.due_date).toLocaleDateString(undefined, { day: "2-digit", month: "short" })
 }
-
-const displayValue = (entry) =>
-  Object.values(entry.data || {})
-    .filter(Boolean)
-    .map((value) => (typeof value === "object" ? JSON.stringify(value) : String(value)))
-    .join(" · ") || "No note content"
 
 export default function OutstandingPage({ projects, onNavigate }) {
   const [projectId, setProjectId] = useState("")
@@ -180,7 +175,7 @@ export default function OutstandingPage({ projects, onNavigate }) {
                 {grouped[bucket.key].map((entry) => (
                   <li key={entry.id} className="outstanding-row">
                     <div className="outstanding-row-main">
-                      <span className="outstanding-preview">{displayValue(entry)}</span>
+                      <span className="outstanding-preview">{entryName(entry)}</span>
                       <span className="workspace-project-label">{entry.project_name}</span>
                     </div>
                     <span className="outstanding-due">

@@ -708,16 +708,27 @@ class DashboardPanelStatisticConfig(BaseModel):
     field_id: str | None = None
 
 
+class DashboardPanelProjectsConfig(BaseModel):
+    # One project's card, or every active project when left out.
+    project_id: UUID | None = None
+
+
+class DashboardPanelBadgesConfig(BaseModel):
+    """Shows the badges the person has unlocked; nothing to configure."""
+
+
 _PANEL_CONFIG_MODELS: dict[str, type[BaseModel]] = {
     "saved_filter": DashboardPanelSavedFilterConfig,
     "board": DashboardPanelBoardConfig,
     "statistic": DashboardPanelStatisticConfig,
+    "projects": DashboardPanelProjectsConfig,
+    "badges": DashboardPanelBadgesConfig,
 }
 
 
 class DashboardPanel(BaseModel):
     id: str = Field(..., min_length=1, max_length=100)
-    type: Literal["saved_filter", "board", "statistic"]
+    type: Literal["saved_filter", "board", "statistic", "projects", "badges"]
     title: str | None = Field(default=None, max_length=100)
     config: dict[str, Any]
     # Grid cells the panel covers: columns across, rows down.

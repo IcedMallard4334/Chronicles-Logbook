@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
 import EntryHistory from "./EntryHistory"
+import { suggestedTitle } from "./entryNames"
 import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
 import RecurrenceControl from "./RecurrenceControl"
@@ -581,7 +582,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const [mode, setMode] = useState("view")
   const [migrateChosen, setMigrateChosen] = useState(false)
   const [migrationError, setMigrationError] = useState(null)
-  const [title, setTitle] = useState(entry.title || "")
+  const [title, setTitle] = useState(entry.title || suggestedTitle(entry))
   const [data, setData] = useState(entry.data || {})
   const [hoursSpent, setHoursSpent] = useState(entry.time_spent ? String(Math.floor(entry.time_spent / 60)) : "")
   const [minutesSpent, setMinutesSpent] = useState(entry.time_spent ? String(entry.time_spent % 60) : "")
@@ -678,6 +679,10 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
 
   const handleSave = async (event) => {
     event.preventDefault()
+    if (!title.trim()) {
+      setError("Give this entry a title so it can be found again.")
+      return
+    }
     setIsSaving(true)
     setError(null)
     try {
@@ -699,7 +704,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
       const saved = await updateEntry(project.id, entry.id, {
-        title: title.trim() || null,
+        title: title.trim(),
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
@@ -736,7 +741,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const cancelEdit = () => {
     setMode("view")
     setMigrateChosen(false)
-    setTitle(entry.title || "")
+    setTitle(entry.title || suggestedTitle(entry))
     setData(entry.data || {})
     setNote("")
     setError(null)
@@ -896,9 +901,10 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               <p className="error" role="alert">{migrationError}</p>
             )}
             <label className="field-label">
-              Title (optional)
+              Title
               <input
                 type="text"
+                required
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Give this entry a name"

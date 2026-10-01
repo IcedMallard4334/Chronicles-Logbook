@@ -22,6 +22,7 @@ from pydantic import (
     StringConstraints,
     ValidationError,
     field_validator,
+    model_validator,
 )
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
@@ -101,7 +102,7 @@ class RemoveField(_Args):
 class CreateEntry(_Args):
     project: Ref
     values: dict[str, Any] = Field(default_factory=dict)
-    title: Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)] | None = None
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     time_spent_minutes: int | None = Field(default=None, ge=0, le=100000)
     todo: bool | None = None
     status: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
@@ -244,6 +245,21 @@ class SetTheme(_Args):
     theme: Literal["light", "dark", "system"]
 
 
+class AddDashboardPanel(_Args):
+    kind: Literal["projects", "badges", "board", "statistic"]
+    # A projects panel may name one project; a board panel needs one.
+    project: Ref | None = None
+    view: Literal["overview", "project_breakdown"] = "overview"
+    width: int = Field(default=1, ge=1, le=6)
+    height: int = Field(default=2, ge=1, le=4)
+
+    @model_validator(mode="after")
+    def _board_needs_a_project(self):
+        if self.kind == "board" and not self.project:
+            raise ValueError("a board panel needs a project")
+        return self
+
+
 # ── Declarations handed to the model ─────────────────────────────────
 
 
@@ -289,7 +305,7 @@ _STATUS_SPEC = _obj(
     ["name"],
 )
 _ENTRY_EXTRAS = {
-    "title": _s("Optional short title."),
+    "title": _s("A short, descriptive title. Required when logging an entry: never leave an entry untitled."),
     "time_spent_minutes": _n("Minutes spent."),
     "todo": _b("True when the work is still to do."),
     "status": _s("One of the project's statuses."),
@@ -341,7 +357,7 @@ _register(_tool("create_entry", "Log an entry in a project. Use values for the p
     "project": _PROJECT,
     "values": {"type": "object", "description": "Field name to value. Tags are a list of strings."},
     **_ENTRY_EXTRAS,
-}, ["project"]), CreateEntry)
+}, ["project", "title"]), CreateEntry)
 _register(_tool("update_entry", "Change an existing entry (id from your context).", {
     "entry": _s("The entry's id."),
     "values": {"type": "object", "description": "Field name to new value."},
@@ -404,6 +420,13 @@ _register(_tool("create_statistic", "Save a custom statistic over a project's en
 _register(_tool("open_page", "Take the person to a page of the app.", {
     "page": _s("The page.", enum=list(PAGES)),
 }, ["page"]), OpenPage)
+_register(_tool("add_dashboard_panel", "Add a panel to the person's dashboard: their projects, the badges they have unlocked, a project's board, or an overview statistic.", {
+    "kind": _s("Which panel.", enum=["projects", "badges", "board", "statistic"]),
+    "project": _s("For a projects panel, one project to show (leave out for all active projects); for a board, the project."),
+    "view": _s("For a statistic panel: overview or project_breakdown.", enum=["overview", "project_breakdown"]),
+    "width": {"type": "integer", "description": "Blocks wide, 1 to 6."},
+    "height": {"type": "integer", "description": "Blocks tall, 1 to 4."},
+}, ["kind"]), AddDashboardPanel)
 _register(_tool("set_theme", "Switch the app's colour theme.", {
     "theme": _s("Theme.", enum=["light", "dark", "system"]),
 }, ["theme"]), SetTheme)
@@ -502,4 +525,12 @@ def summarise(name: str, p: dict[str, Any]) -> str:
             return f"Open the {p['page']} page"
         case "set_theme":
             return f"Switch to the {p['theme']} theme"
+        case "add_dashboard_panel":
+            what = {
+                "projects": "your projects" if not p.get("project") else f"the project {_ref(p['project'])}",
+                "badges": "your unlocked badges",
+                "board": f"the board for {_ref(p['project'])}" if p.get("project") else "a board",
+                "statistic": "a statistic",
+            }[p["kind"]]
+            return f"Add {what} to your dashboard"
     return name

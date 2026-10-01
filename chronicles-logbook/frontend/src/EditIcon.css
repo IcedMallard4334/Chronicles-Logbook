@@ -1,0 +1,21 @@
+.btn-edit { display: inline-flex; align-items: center; gap: 0.35rem; }
+.btn-edit .pencil-icon { flex: 0 0 auto; overflow: visible; }
+.pencil-icon .pencil-body { transform-box: fill-box; transform-origin: 0% 100%; }
+.btn-edit:hover:not(:disabled) .pencil-body,
+.btn-edit:focus-visible .pencil-body { animation: pencil-write 0.7s ease-in-out infinite; }
+.btn-edit:hover:not(:disabled) .pencil-line,
+.btn-edit:focus-visible .pencil-line { stroke-dasharray: 18; animation: pencil-trace 0.7s ease-in-out infinite; }
+@keyframes pencil-write {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(1.5px, -1px) rotate(-8deg); }
+  50% { transform: translate(-1px, 0) rotate(4deg); }
+  75% { transform: translate(1px, -1px) rotate(-6deg); }
+}
+@keyframes pencil-trace {
+  0% { stroke-dashoffset: 18; }
+  60%, 100% { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-edit:hover .pencil-body, .btn-edit:focus-visible .pencil-body,
+  .btn-edit:hover .pencil-line, .btn-edit:focus-visible .pencil-line { animation: none; }
+}
