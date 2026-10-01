@@ -34,3 +34,41 @@ select:not([multiple]):not([size]):focus-visible {
 select:not([multiple]):not([size]):disabled { opacity: 0.55; cursor: not-allowed; }
 select:not([multiple]):not([size]) option { background: var(--surface); color: var(--text); }
 select:not([multiple]):not([size]):invalid { color: var(--muted); }
+
+/* --------------------------------------------------
+   TEXT FIELDS
+   A baseline for inputs a page forgot to style (search boxes, dates, tags),
+   so none of them fall back to the browser's grey square. :where() keeps the
+   specificity at zero: any page rule still wins.
+   -------------------------------------------------- */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"]), textarea) {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: var(--surface-soft);
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"]), textarea)::placeholder {
+  color: var(--muted);
+  opacity: 0.85;
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"]), textarea):focus-visible {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 25%, transparent);
+}
+:where(input[type="date"], input[type="time"])::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; filter: invert(0.6); }
+
+/* The Activity page: room around everything, and a tidy filter bar. */
+.activity-hub-tabs { margin-bottom: 1rem; }
+.activity-hub-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.activity-hub-tabs button:focus:not(:focus-visible) { outline: none; }
+.entry-timeline-filters label { gap: 0.45rem; }
+.entry-timeline-filters { padding: 0.25rem 0 0.5rem; row-gap: 1.1rem; }
+.activities-page .activities-section { margin-top: 0; padding: 1.5rem 1.5rem 0.5rem; }
+.activities-page .activities-section:last-of-type { padding-bottom: 1.75rem; }
+.activities-page .activities-section h2 { margin-bottom: 0.85rem; }
+.activities-page .activities-section .hint { margin: 0; padding: 0.9rem 1rem; border: 1px dashed var(--line); border-radius: 0.75rem; }
+.activities-page .day-activity-form { margin: 1.25rem 1.5rem 0; }

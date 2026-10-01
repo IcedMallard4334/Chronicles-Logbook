@@ -156,6 +156,59 @@
   .mira-composer-hint { flex: 1 1 100%; order: 3; }
 }
 
+/* ── A second pass: everything a size smaller, in proportion ──
+   Rem-based sizes shrink together with the root; the rules after it
+   handle the controls that are sized in pixels. */
+@media (max-width: 720px) {
+  html { font-size: 14px; }
+
+  .app-shell .btn-primary,
+  .app-shell .btn-secondary,
+  .app-shell .btn-danger,
+  .app-shell .btn-text-danger { padding: 7px 12px; min-height: 34px; font-size: 0.8rem; border-radius: 10px; }
+  .app-shell .btn-text { font-size: 0.78rem; }
+  .app-shell input:not([type="checkbox"], [type="radio"]),
+  .app-shell select,
+  .app-shell textarea { font-size: 0.85rem; padding-top: 7px; padding-bottom: 7px; min-height: 36px; }
+  .app-shell select:not([multiple]):not([size]) { padding-right: 28px; }
+  .app-shell h1 { font-size: 1.3rem; }
+  .app-shell h2 { font-size: 1.1rem; }
+  .app-shell h3 { font-size: 0.98rem; }
+
+  /* Project header: actions sit in a compact row instead of full-width slabs. */
+  .detail-header { padding: 14px; gap: 10px; }
+  .detail-actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .detail-actions > * { width: auto; flex: 0 0 auto; }
+  .detail-actions button, .detail-actions .btn-trash { padding: 6px 11px; min-height: 32px; font-size: 0.76rem; }
+  .detail-body { padding: 14px; }
+  .detail-description, .detail-meta { font-size: 0.82rem; }
+
+  /* Tabs: smaller, and they scroll sideways rather than wrap. */
+  .tab-switch { gap: 2px; padding: 3px; }
+  .tab-switch button { padding: 6px 12px; font-size: 0.78rem; white-space: nowrap; }
+
+  /* The entries toolbar keeps its heading on one line. */
+  .entries-toolbar { flex-wrap: wrap; gap: 8px; }
+  .entries-toolbar h3 { white-space: nowrap; font-size: 0.95rem; }
+  .entry-task-guide-button { white-space: nowrap; padding: 3px 9px; font-size: 0.72rem; line-height: 1.3; gap: 5px; }
+  .entry-task-guide-button span { width: 1rem; height: 1rem; font-size: 0.66rem; }
+  .entries-toolbar .entry-task-guide-button { margin-left: 0; margin-right: auto; }
+  .entry-add-toggle { padding: 5px 12px; font-size: 0.78rem; }
+
+  /* Lists, cards, forms and panels */
+  .log-list > li, .task-item, .activity-row { padding: 10px 12px; }
+  .entry-form, .task-form, .day-activity-form { padding: 12px; gap: 10px; }
+  .field-label, .form-grid label { font-size: 0.78rem; }
+  .workspace-heading { padding: 16px 14px; }
+  .workspace-filters, .workspace-body, .workspace-pagination { padding: 12px 14px; }
+  .activities-page .activities-section { padding: 14px 14px 4px; }
+  .activities-page .day-activity-form { margin: 12px 14px 0; }
+  .dashboard-panel { padding: 10px; }
+  .achievement-tile { padding: 8px; }
+  .profile-row { padding: 10px 0; gap: 8px; }
+  dialog, .day-dialog { max-width: calc(100vw - 16px); }
+}
+
 @media (max-width: 420px) {
   .app-shell .nav-pill-center .nav-item span { font-size: 0.48rem; }
   .app-shell .nav-pill-left .brand-name { display: none; }

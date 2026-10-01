@@ -90,6 +90,7 @@ import "./App.css"
 import "./tasks.css"
 // Last, so the small-screen rules win over every stylesheet above.
 import "./Dropdowns.css"
+import "./Motion.css"
 import "./MobileLayout.css"
 import { PencilIcon } from "./EditIcon"
 import { TrashButton } from "./TrashIcon"
