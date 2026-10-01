@@ -11,6 +11,7 @@ import {
   deleteProject,
   deleteTask,
   fetchCalendarActivities,
+  fetchDashboard,
   fetchEntry,
   fetchProject,
   fetchProjects,
@@ -24,6 +25,7 @@ import {
   updateEntry,
   updateProject,
   updateSchema,
+  updateDashboardPanels,
   updateTask,
 } from "./api"
 import { applyPreferences, readPreference } from "./preferences"
@@ -335,6 +337,25 @@ const HANDLERS = {
   async open_page(p, workspace) {
     workspace.navigate?.(p.page)
     return `Opened ${p.page}`
+  },
+  async add_dashboard_panel(p, workspace) {
+    const project = p.project ? await currentProject(p.project, workspace) : null
+    const config = {
+      projects: project ? { project_id: project.id } : {},
+      badges: {},
+      board: { project_id: project?.id, grouping: "__status__" },
+      statistic: { view: p.view || "overview" },
+    }[p.kind]
+    const current = await fetchDashboard()
+    const panel = {
+      id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `panel-${Date.now()}`,
+      type: p.kind,
+      config,
+      w: p.width || 1,
+      h: p.height || 2,
+    }
+    await updateDashboardPanels([...(current.panels || []), panel], current.columns)
+    return `Added ${{ projects: project ? `“${project.name}”` : "your projects", badges: "your unlocked badges", board: `the board for “${project?.name}”`, statistic: "a statistic" }[p.kind]} to your dashboard`
   },
   async set_theme(p) {
     window.localStorage.setItem("chronicles-theme", p.theme)

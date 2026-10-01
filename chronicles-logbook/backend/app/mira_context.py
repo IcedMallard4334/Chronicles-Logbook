@@ -7,6 +7,7 @@ full entries.
 """
 
 from datetime import date, timedelta
+from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,11 +23,22 @@ ACTIVITY_WINDOW_DAYS = 14
 PREVIEW_LENGTH = 50
 
 
+def _is_uuid(value: str) -> bool:
+    try:
+        UUID(value.strip())
+    except ValueError:
+        return False
+    return True
+
+
 def _preview(entry: Entry) -> str:
     if entry.title:
         text = entry.title
     else:
-        text = next((str(v) for v in (entry.data or {}).values() if isinstance(v, str) and v.strip()), "")
+        text = next(
+            (str(v) for v in (entry.data or {}).values() if isinstance(v, str) and v.strip() and not _is_uuid(v)),
+            "Untitled entry",
+        )
     text = " ".join(text.split())
     return text[:PREVIEW_LENGTH] + ("…" if len(text) > PREVIEW_LENGTH else "")
 

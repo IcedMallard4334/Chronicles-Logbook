@@ -1,3 +1,4 @@
+import { entryName } from "./entryNames"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   fetchDashboard,
@@ -169,7 +170,7 @@ function SavedFilterPanelBody({ config, savedFilters }) {
       {entries.map((entry) => (
         <li key={entry.id}>
           <span>{entry.project_name}</span>
-          <p>{Object.values(entry.data || {}).filter(Boolean).join(" · ") || "No note content"}</p>
+          <p>{entryName(entry)}</p>
         </li>
       ))}
     </ul>

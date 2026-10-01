@@ -178,3 +178,15 @@ Two new panel types can be added from **Add panel**:
 
 Both are validated like the other panel types (`type` is one of `saved_filter`, `board`,
 `statistic`, `projects`, `badges`); see [Dashboard and activities](../api/dashboard-and-activities.md).
+
+Mira can add these too: *"put my badges on my dashboard"* becomes an `add_dashboard_panel` proposal.
+
+## Entry names and required titles
+
+- **Titles are required** when logging or editing an entry in the app, and when Mira logs one. The
+  API still accepts an entry without a title, so imports, offline captures and older entries keep working.
+- **No more ids as names.** Entries without a title are named from their first readable words
+  (`frontend/src/entryNames.js`); stored ids and uuids are skipped, links read as "↳ linked entry",
+  and an entry with nothing readable is "Untitled entry · 29 Sep". The same helper names entries on the
+  Entries, Outstanding and Calendar pages and in dashboard panels; Mira's workspace snapshot follows the same rule.
+- Editing an older untitled entry pre-fills the title with that suggested name, so it can be saved as is.

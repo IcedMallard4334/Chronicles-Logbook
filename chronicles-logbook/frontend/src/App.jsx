@@ -1482,6 +1482,10 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       setError("Define an entry schema before adding entries.")
       return
     }
+    if (!title.trim()) {
+      setError("Give this entry a title so it can be found again.")
+      return
+    }
     setIsSaving(true)
     setError(null)
     try {
@@ -1521,7 +1525,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
       const timeSpent = hours * 60 + minutes
       setRuleNotice(null)
       const created = await onCreated({
-        title: title.trim() || undefined,
+        title: title.trim(),
         data: payload,
         time_spent: timeSpent === 0 ? null : timeSpent,
         todo,
@@ -1569,9 +1573,10 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         <h3>New entry</h3>
       </div>
       <label className="field-label">
-        Title (optional)
+        Title
         <input
           type="text"
+          required
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Give this entry a name so it's easy to find later"

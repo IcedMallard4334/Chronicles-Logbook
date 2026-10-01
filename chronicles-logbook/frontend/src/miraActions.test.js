@@ -5,7 +5,7 @@ vi.mock("./api", () => {
     "archiveProject", "createCalendarActivity", "createCustomStatistic", "createEntry", "createProject", "createRule",
     "createTask", "deleteCalendarActivity", "deleteEntry", "deleteProject", "deleteTask", "fetchCalendarActivities",
     "fetchEntry", "fetchProject", "fetchProjects", "fetchTasks", "setRecurrence", "shareProject", "stopRecurrence",
-    "toggleTask", "unarchiveProject", "updateCalendarActivity", "updateEntry", "updateProject", "updateSchema", "updateTask",
+    "toggleTask", "fetchDashboard", "updateDashboardPanels", "unarchiveProject", "updateCalendarActivity", "updateEntry", "updateProject", "updateSchema", "updateTask",
   ]
   return Object.fromEntries(names.map((name) => [name, vi.fn()]))
 })
@@ -87,7 +87,7 @@ describe("building fields and values", () => {
 
 describe("running actions", () => {
   it("supports every action the server can propose", () => {
-    expect(SUPPORTED_ACTIONS).toHaveLength(26)
+    expect(SUPPORTED_ACTIONS).toHaveLength(27)
   })
 
   it("creates a project with fields and statuses, then uses it by name in the next action", async () => {
@@ -346,5 +346,24 @@ describe("describing how it went", () => {
     )
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("**That didn't work.**")
     expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("1 more action was not run.")
+  })
+})
+
+describe("dashboard panels", () => {
+  it("adds a projects panel and a board panel after the existing ones", async () => {
+    api.fetchDashboard.mockResolvedValue({ panels: [{ id: "old", type: "badges", config: {}, w: 1, h: 2 }], columns: 3 })
+    api.updateDashboardPanels.mockResolvedValue({})
+
+    await runActions([
+      act("add_dashboard_panel", { kind: "projects" }),
+      act("add_dashboard_panel", { kind: "board", project: "Bug Log", width: 2, height: 3 }),
+    ])
+
+    const [first, columns] = api.updateDashboardPanels.mock.calls[0]
+    expect(columns).toBe(3)
+    expect(first.map((panel) => panel.type)).toEqual(["badges", "projects"])
+    expect(first[1].config).toEqual({})
+    const [second] = api.updateDashboardPanels.mock.calls[1]
+    expect(second.at(-1)).toMatchObject({ type: "board", config: { project_id: "p1", grouping: "__status__" }, w: 2, h: 3 })
   })
 })

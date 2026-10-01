@@ -574,6 +574,7 @@ describe("entry rules in a project (US-3.12)", () => {
     expect(screen.getByText("Leave for the rule…")).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText("Hours"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
     await waitFor(() => expect(createEntry).toHaveBeenCalled())
