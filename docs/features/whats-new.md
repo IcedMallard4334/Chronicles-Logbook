@@ -166,3 +166,15 @@ Mira's microphone comes before the hint text, in the accent colour.
   the logo that hides or shows the seven tabs. The choice is remembered in the browser.
 - **Open tasks stat.** The sidebar's *active days* figure is replaced by *open tasks*
   (`totals.open_tasks` in `GET /statistics`). Active days still appears on the Statistics page.
+
+## Projects and badges on the dashboard
+
+Two new panel types can be added from **Add panel**:
+
+- **Projects**: every active project with its entry count and hours, or a single project's card.
+  Config: `{}` or `{"project_id": "…"}`.
+- **Badges**: every badge you have unlocked, drawn as on the badges page, updating as you earn more.
+  Config: `{}`.
+
+Both are validated like the other panel types (`type` is one of `saved_filter`, `board`,
+`statistic`, `projects`, `badges`); see [Dashboard and activities](../api/dashboard-and-activities.md).

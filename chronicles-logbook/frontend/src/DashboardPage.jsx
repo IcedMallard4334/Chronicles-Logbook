@@ -7,7 +7,9 @@ import {
   fetchEntriesGlobal,
   fetchStatistics,
   fetchFieldTimeline,
+  fetchAchievements,
 } from "./api"
+import BadgeArt, { TIER_LABELS } from "./BadgeArt"
 import { projectStatuses, statusOf } from "./statuses"
 import "./DashboardPage.css"
 
@@ -22,6 +24,8 @@ const PANEL_TYPE_LABELS = {
   statistic: "Statistic",
   saved_filter: "Saved filter",
   board: "Board",
+  projects: "Projects",
+  badges: "Badges",
 }
 
 const MIN_COLUMNS = 2
@@ -50,6 +54,11 @@ function defaultTitleFor(panel, { projects, savedFilters }) {
       ? `${projects.find((item) => item.id === panel.config.project_id).name} board`
       : "Board"
   }
+  if (panel.type === "projects") {
+    const named = projects.find((item) => item.id === panel.config.project_id)
+    return named ? named.name : "My projects"
+  }
+  if (panel.type === "badges") return "Unlocked badges"
   return STATISTIC_VIEWS.find((item) => item.value === panel.config.view)?.label || "Statistic"
 }
 
@@ -209,7 +218,75 @@ function BoardPanelBody({ config, projects }) {
   )
 }
 
+function ProjectsPanelBody({ config, projects }) {
+  const [totals, setTotals] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchStatistics()
+      .then((data) => { if (!cancelled) setTotals(data.projects || []) })
+      .catch(() => { if (!cancelled) setTotals([]) })
+    return () => { cancelled = true }
+  }, [])
+
+  const shown = config.project_id
+    ? projects.filter((item) => item.id === config.project_id)
+    : projects.filter((item) => !item.archived)
+  if (config.project_id && shown.length === 0) return <p className="dashboard-panel-error">This project is no longer available.</p>
+  if (shown.length === 0) return <p className="hint">No projects yet.</p>
+
+  return (
+    <ul className="dashboard-project-list">
+      {shown.map((project) => {
+        const figures = (totals || []).find((item) => item.project_id === project.id)
+        return (
+          <li key={project.id}>
+            <span>
+              <strong>{project.name}</strong>
+              {project.archived && <em> · archived</em>}
+            </span>
+            <span className="dashboard-project-figures">
+              {figures ? `${figures.entries} ${figures.entries === 1 ? "entry" : "entries"} · ${Math.round((figures.time_spent / 60) * 10) / 10}h` : "…"}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function BadgesPanelBody() {
+  const [badges, setBadges] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAchievements()
+      .then((data) => { if (!cancelled) setBadges(data.badges.filter((badge) => badge.earned)) })
+      .catch(() => { if (!cancelled) setError("Could not load your badges.") })
+    return () => { cancelled = true }
+  }, [])
+
+  if (error) return <p className="dashboard-panel-error">{error}</p>
+  if (!badges) return <p className="hint">Loading…</p>
+  if (badges.length === 0) return <p className="hint">No badges unlocked yet. Log an entry or create a project to earn your first.</p>
+
+  return (
+    <ul className="dashboard-badge-list">
+      {badges.map((badge) => (
+        <li key={badge.key} title={`${badge.name}: ${badge.blurb}`}>
+          <BadgeArt badge={badge} size={52} />
+          <span>{badge.name}</span>
+          <small>{TIER_LABELS[badge.tier]}</small>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function PanelBody({ panel, projects, savedFilters }) {
+  if (panel.type === "projects") return <ProjectsPanelBody config={panel.config} projects={projects} />
+  if (panel.type === "badges") return <BadgesPanelBody />
   if (panel.type === "saved_filter") return <SavedFilterPanelBody config={panel.config} savedFilters={savedFilters} />
   if (panel.type === "board") return <BoardPanelBody config={panel.config} projects={projects} />
   return <StatisticPanelBody config={panel.config} />
@@ -242,6 +319,8 @@ function AddPanelForm({ projects, savedFilters, columns, onAdd, onCancel }) {
       ? Boolean(filterId)
       : type === "board"
       ? Boolean(projectId)
+      : type === "projects" || type === "badges"
+      ? true
       : view !== "field_timeline" || (projectId && fieldId)
 
   const handleSubmit = (event) => {
@@ -253,6 +332,10 @@ function AddPanelForm({ projects, savedFilters, columns, onAdd, onCancel }) {
         ? { filter_id: filterId }
         : type === "board"
         ? { project_id: projectId, grouping }
+        : type === "projects"
+        ? (projectId ? { project_id: projectId } : {})
+        : type === "badges"
+        ? {}
         : view === "field_timeline"
         ? { view, project_id: projectId, field_id: fieldId }
         : { view }
@@ -314,6 +397,18 @@ function AddPanelForm({ projects, savedFilters, columns, onAdd, onCancel }) {
           </label>
         )
       )}
+
+      {type === "projects" && (
+        <label>
+          Which project
+          <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+            <option value="">All my active projects</option>
+            {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+      )}
+
+      {type === "badges" && <p className="hint">Shows every badge you have unlocked so far, and updates as you earn more.</p>}
 
       {type === "board" && (
         <>

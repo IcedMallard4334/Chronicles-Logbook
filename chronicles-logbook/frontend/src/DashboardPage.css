@@ -57,3 +57,11 @@ body:has(.dashboard-panel.is-dragging) { cursor:grabbing; user-select:none; }
   .dashboard-panel { grid-column:auto !important; grid-row:auto !important; }
 }
 @media (prefers-reduced-motion: reduce) { .dashboard-panel { transition:none; } }
+
+.dashboard-project-list { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.dashboard-project-list li { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 10px; border-radius:7px; background:var(--surface-soft); font-size:.8rem; }
+.dashboard-project-list em { font-style:normal; color:var(--muted); }
+.dashboard-project-figures { color:var(--muted); font-size:.74rem; white-space:nowrap; }
+.dashboard-badge-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:10px; margin:0; padding:0; list-style:none; }
+.dashboard-badge-list li { display:grid; justify-items:center; gap:2px; text-align:center; font-size:.72rem; line-height:1.2; }
+.dashboard-badge-list small { color:var(--muted); font-size:.64rem; }
