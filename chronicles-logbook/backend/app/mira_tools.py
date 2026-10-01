@@ -435,7 +435,52 @@ DECLARATIONS = [declaration for declaration, _model, _destructive in TOOLS.value
 
 
 class InvalidProposal(ValueError):
-    """A function call the model made that can't be turned into a safe proposal."""
+    """A function call the model made that can't be turned into a safe proposal.
+
+    ``question`` is the same problem put to the person in plain words: what is
+    missing or unclear, as something they can answer. It is empty when the call
+    was not something a person could fix by answering (an unknown function).
+    """
+
+    def __init__(self, message: str, question: str = ""):
+        super().__init__(message)
+        self.question = question
+
+
+# How a missing or unclear argument is named when Mira asks about it.
+_ASKING_FOR = {
+    "title": "a title", "name": "a name", "project": "which project", "day": "which day", "date": "which date",
+    "due_date": "a due date", "start_time": "a start time", "end_time": "an end time", "due_time": "a time",
+    "email": "an email address", "page": "which page", "kind": "which kind", "task": "which task",
+    "entry": "which entry", "activity": "which activity", "expression": "the calculation", "field": "which field",
+    "new_name": "the new name", "statuses": "the statuses", "frequency": "how often", "theme": "which theme",
+    "target": "which task or entry", "actions": "what it should do",
+}
+_DOING = {
+    "create_project": "create the project", "create_task": "add the task", "create_entry": "log the entry",
+    "create_activity": "schedule it", "set_reminder": "set the reminder", "share_project": "share the project",
+    "create_rule": "create the rule", "create_statistic": "save the statistic", "add_dashboard_panel": "add the panel",
+    "set_recurrence": "repeat it", "add_field": "add the field", "rename_field": "rename the field",
+}
+
+
+def _label(location: tuple) -> str:
+    key = next((str(part) for part in reversed(location) if isinstance(part, str)), "request")
+    return _ASKING_FOR.get(key, key.replace("_", " "))
+
+
+def _question(name: str, errors: list[dict[str, Any]]) -> str:
+    missing = [_label(error["loc"]) for error in errors if error["type"] == "missing"]
+    unclear = [_label(error["loc"]) for error in errors if error["type"] != "missing"]
+    doing = _DOING.get(name, "do that")
+    if missing:
+        needs = ", ".join(dict.fromkeys(missing))
+        return f"To {doing}, I still need {needs}. Could you tell me?"
+    if unclear:
+        what = ", ".join(dict.fromkeys(unclear))
+        detail = errors[0]["msg"].removeprefix("Value error, ").rstrip(".")
+        return f"I couldn't use {what} ({detail[:1].lower() + detail[1:]}). Could you say it another way?"
+    return ""
 
 
 def validate_call(name: str, arguments: Any) -> dict[str, Any]:
@@ -448,9 +493,10 @@ def validate_call(name: str, arguments: Any) -> dict[str, Any]:
     try:
         payload = model.model_validate(arguments).model_dump(mode="json", exclude_none=True)
     except ValidationError as error:
-        first = error.errors()[0]
+        errors = error.errors()
+        first = errors[0]
         where = ".".join(str(part) for part in first["loc"]) or "request"
-        raise InvalidProposal(f"{where}: {first['msg']}") from error
+        raise InvalidProposal(f"{where}: {first['msg']}", _question(name, errors)) from error
     return {
         "type": name,
         "payload": payload,

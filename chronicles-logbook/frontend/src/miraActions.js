@@ -418,9 +418,12 @@ export async function runActions(actions, { navigate } = {}) {
 export function describeOutcome({ done, failed, skipped }) {
   const lines = done.map((line) => `- ✓ ${line}`)
   if (failed) {
-    lines.push(`- ✗ ${failed.summary}: ${failed.error}`)
+    // The server's wording, without its technical prefix, then an invitation to put it right.
+    const reason = String(failed.error).replace(/^(Value error|Assertion error),?\s*/i, "")
+    lines.push(`- ✗ ${failed.summary}: ${reason}`)
     if (skipped) lines.push(`- ${skipped} more ${skipped === 1 ? "action was" : "actions were"} not run.`)
   }
   const heading = failed ? (done.length ? "**Part of that is done.**" : "**That didn't work.**") : "**Done.**"
-  return `${heading}\n${lines.join("\n")}`
+  const next = failed ? "\n\nTell me what to change and I'll try again." : ""
+  return `${heading}\n${lines.join("\n")}${next}`
 }
