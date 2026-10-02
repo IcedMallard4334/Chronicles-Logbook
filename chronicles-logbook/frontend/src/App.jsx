@@ -1985,18 +1985,7 @@ function EntryTimeline({ projects }) {
   const [mode, setMode] = useState("entries")
 
   if (mode === "fields") {
-    return (
-      <section>
-        <button
-          type="button"
-          onClick={() => setMode("entries")}
-        >
-          Entry timeline
-        </button>
-
-        <FieldTimeline projects={projects} />
-      </section>
-    )
+    return <FieldTimeline projects={projects} onShowEntryTimeline={() => setMode("entries")} />
   }
 
   return <ChronologicalTimeline projects={projects} onShowFieldTrends={() => setMode("fields")} />
