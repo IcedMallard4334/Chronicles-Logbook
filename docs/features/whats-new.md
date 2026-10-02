@@ -221,3 +221,6 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
 - **Every page, not just the app shell.** Profile, Badges and Help are separate pages, so they now load the same
   phone, dropdown and entrance styles. The Activity filters fold behind a **Filters** button, the Board shows
   one swipeable column at a time, and the three project actions share a row.
+- **Fixed top bar, one-line schema fields, tidy past entries.** On a phone the top bar stays fixed so its toggle never
+  scrolls away; a schema field's name, type and remove button share one line; each past entry is a small card with
+  its fields two to a row and the time underneath; and the frames-inside-frames shrink so content gets the width.
