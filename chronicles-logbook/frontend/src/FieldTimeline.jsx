@@ -11,6 +11,7 @@ import {
 
 import { fetchFieldTimeline } from "./api"
 import { fieldTypeLabel, isNumericField } from "./fieldTypes"
+import "./EntryTimeline.css"
 
 function formatError(error) {
   return error instanceof Error ? error.message : "Something went wrong."
@@ -27,7 +28,7 @@ function formatError(error) {
  *
  * The `timeline-*` styles live in App.css, which the app loads globally.
  */
-export default function FieldTimeline({ projects, embedded = false }) {
+export default function FieldTimeline({ projects, embedded = false, onShowEntryTimeline }) {
   const [projectId, setProjectId] = useState("")
   const [fieldId, setFieldId] = useState("")
   const [start, setStart] = useState("")
@@ -100,9 +101,14 @@ export default function FieldTimeline({ projects, embedded = false }) {
   return (
     <section className="timeline" aria-label="Field timeline">
       {!embedded && (
-        <header className="timeline-header">
-          <h2>Field Timeline</h2>
-          <p>Choose a field and date range to visualise how its values change over time.</p>
+        <header className="timeline-header timeline-title-row">
+          <div>
+            <h2>Field Timeline</h2>
+            <p>Choose a field and date range to visualise how its values change over time.</p>
+          </div>
+          <button type="button" className="btn-secondary" onClick={onShowEntryTimeline}>
+            Entry timeline
+          </button>
         </header>
       )}
 
