@@ -18,7 +18,18 @@ export const ACTION_TYPES = [
   { value: "add_tags", label: "Add tags" },
   { value: "set_field", label: "Fill in a field" },
   { value: "mark_todo", label: "Mark as to-do" },
+  { value: "set_status", label: "Move it to a status" },
+  { value: "create_task", label: "Add a follow-up task" },
+  { value: "repeat", label: "Make it repeat" },
 ]
+
+// A rule waits for one of two moments. The second can only follow up with a
+// task or a repeat: the entry's own values stay exactly as they were just saved.
+export const TRIGGERS = [
+  { value: "created", label: "a new entry is logged" },
+  { value: "status", label: "an entry moves to a status" },
+]
+const FOLLOW_UP_TYPES = ["create_task", "repeat"]
 
 export const FREQUENCIES = [
   { value: "daily", label: "day", plural: "days" },
@@ -35,8 +46,9 @@ export function settableFields(schema) {
 }
 
 /** Which action types make sense for this schema (no tags field, no "Add tags"). */
-export function availableActionTypes(schema) {
+export function availableActionTypes(schema, trigger = "created") {
   return ACTION_TYPES.filter((type) => {
+    if (trigger === "status" && !FOLLOW_UP_TYPES.includes(type.value)) return false
     if (type.value === "add_tags") return tagFields(schema).length > 0
     if (type.value === "set_field") return settableFields(schema).length > 0
     return true
@@ -51,7 +63,10 @@ export function defaultValueForField(field) {
 }
 
 /** A fresh action of the given type, pointed at the first field it can use. */
-export function newAction(type, schema) {
+export function newAction(type, schema, statuses = []) {
+  if (type === "set_status") return { type, status: statuses[0] ?? "" }
+  if (type === "create_task") return { type, title: "Follow up: {title}", due_in_days: 2 }
+  if (type === "repeat") return { type, frequency: "weekly", interval: 1 }
   if (type === "add_tags") {
     return { type, field_id: tagFields(schema)[0]?.id ?? "", tags: [] }
   }
@@ -62,9 +77,79 @@ export function newAction(type, schema) {
   return { type: "mark_todo", due_in_days: null }
 }
 
-export function emptyRule(schema) {
-  const firstType = availableActionTypes(schema)[0]?.value ?? "mark_todo"
-  return { name: "", enabled: true, match: "all", conditions: [], actions: [newAction(firstType, schema)] }
+export function emptyRule(schema, statuses = []) {
+  return {
+    name: "",
+    enabled: true,
+    match: "all",
+    trigger: "created",
+    trigger_status: null,
+    conditions: [],
+    actions: [newAction(availableActionTypes(schema)[0]?.value ?? "mark_todo", schema, statuses)],
+  }
+}
+
+/**
+ * Ready-made automations, built from what the project actually has, so a person
+ * starts from a sentence they recognise instead of a blank form. Each is only
+ * offered when the project has what it needs.
+ */
+export function ruleRecipes(project) {
+  const schema = project?.entry_schema || []
+  const statuses = project?.statuses?.length
+    ? project.statuses
+    : [{ name: "Still to do", done: false }, { name: "Done", done: true }]
+  const open = statuses.find((status) => !status.done)
+  const done = statuses.find((status) => status.done)
+  const recipes = []
+
+  if (done) {
+    recipes.push({
+      id: "follow-up-when-done",
+      title: "Follow up when something is done",
+      detail: `When an entry moves to ${done.name}, add a task to write it up.`,
+      rule: {
+        ...emptyRule(schema, statuses.map((status) => status.name)),
+        name: `Follow up when ${done.name}`,
+        trigger: "status",
+        trigger_status: done.name,
+        actions: [{ type: "create_task", title: "Write up: {title}", due_in_days: 2 }],
+      },
+    })
+  }
+  if (open) {
+    recipes.push({
+      id: "everything-new-is-to-do",
+      title: "Treat new entries as work to do",
+      detail: `Every new entry starts in ${open.name} and is due in 3 days.`,
+      rule: {
+        ...emptyRule(schema),
+        name: "New entries are work to do",
+        actions: [{ type: "set_status", status: open.name }, { type: "mark_todo", due_in_days: 3 }],
+      },
+    })
+  }
+  recipes.push({
+    id: "weekly-habit",
+    title: "Make new entries a weekly habit",
+    detail: "Every new entry repeats once a week.",
+    rule: { ...emptyRule(schema), name: "Weekly habit", actions: [{ type: "repeat", frequency: "weekly", interval: 1 }] },
+  })
+  const choice = schema.find((field) => field.type === "dropdown" && (field.options || []).length > 0)
+  if (choice && tagFields(schema).length > 0) {
+    recipes.push({
+      id: "tag-by-choice",
+      title: `Tag by ${choice.name}`,
+      detail: `When ${choice.name} is ${choice.options[0]}, add the tag "${choice.options[0].toLowerCase()}".`,
+      rule: {
+        ...emptyRule(schema),
+        name: `Tag ${choice.options[0]}`,
+        conditions: [{ field_id: choice.id, operator: "equals", value: choice.options[0] }],
+        actions: [{ type: "add_tags", field_id: tagFields(schema)[0].id, tags: [choice.options[0].toLowerCase()] }],
+      },
+    })
+  }
+  return recipes
 }
 
 /**
@@ -90,9 +175,12 @@ export function ruleFillableFieldIds(rules) {
 /** What's wrong with a rule before it is sent, in words, or null if nothing. */
 export function ruleProblem(rule, schema) {
   if (!rule.name.trim()) return "Give the rule a name."
+  if (rule.trigger === "status" && !rule.trigger_status) return "Choose which status the rule waits for."
   if (rule.actions.length === 0) return "Add at least one thing for the rule to do."
   const byId = Object.fromEntries((schema || []).map((field) => [field.id, field]))
   for (const action of rule.actions) {
+    if (action.type === "set_status" && !action.status) return "Choose which status to move the entry to."
+    if (action.type === "create_task" && !String(action.title ?? "").trim()) return "Say what the follow-up task is."
     if (action.type === "add_tags" && (!action.tags || action.tags.length === 0)) {
       return "Enter at least one tag to add."
     }
@@ -118,6 +206,8 @@ export function ruleForRequest(rule, schema) {
     name: rule.name.trim(),
     enabled: rule.enabled,
     match: rule.match,
+    trigger: rule.trigger === "status" ? "status" : "created",
+    trigger_status: rule.trigger === "status" ? rule.trigger_status : null,
     conditions: rule.conditions.map(({ field_id, operator, value, value2 }) => {
       const condition = { field_id, operator }
       if (value !== undefined) condition.value = value
@@ -125,6 +215,18 @@ export function ruleForRequest(rule, schema) {
       return condition
     }),
     actions: rule.actions.map((action) => {
+      if (action.type === "set_status") return { type: "set_status", status: action.status }
+      if (action.type === "create_task") {
+        const due = action.due_in_days
+        return {
+          type: "create_task",
+          title: String(action.title).trim(),
+          due_in_days: due === "" || due === null || due === undefined ? null : Number(due),
+        }
+      }
+      if (action.type === "repeat") {
+        return { type: "repeat", frequency: action.frequency, interval: Number(action.interval) || 1 }
+      }
       if (action.type === "add_tags") {
         return { type: "add_tags", field_id: action.field_id, tags: action.tags }
       }
@@ -167,6 +269,16 @@ export function describeCondition(condition, byId) {
 }
 
 export function describeAction(action, byId) {
+  if (action.type === "set_status") return `move it to ${action.status}`
+  if (action.type === "create_task") {
+    const due = action.due_in_days === null || action.due_in_days === undefined ? "" : action.due_in_days === 0 ? ", due that day" : `, due in ${action.due_in_days} ${action.due_in_days === 1 ? "day" : "days"}`
+    return `add the task “${action.title}”${due}`
+  }
+  if (action.type === "repeat") {
+    const frequency = FREQUENCIES.find((item) => item.value === action.frequency)
+    const every = action.interval === 1 ? `every ${frequency?.label}` : `every ${action.interval} ${frequency?.plural}`
+    return `make it repeat ${every}`
+  }
   if (action.type === "add_tags") {
     const tags = action.tags || []
     return `add ${tags.length === 1 ? "tag" : "tags"} ${tags.join(", ")} to ${fieldName(byId, action.field_id)}`
@@ -185,7 +297,10 @@ export function describeRule(rule, schema) {
   const byId = Object.fromEntries((schema || []).map((field) => [field.id, field]))
   const conditions = (rule.conditions || []).map((condition) => describeCondition(condition, byId))
   const joiner = rule.match === "any" ? " or " : " and "
-  const when = conditions.length === 0 ? "For every new entry" : `When ${conditions.join(joiner)}`
+  const moment = rule.trigger === "status" ? `an entry moves to ${rule.trigger_status}` : null
+  const when = moment
+    ? conditions.length === 0 ? `When ${moment}` : `When ${moment} and ${conditions.join(joiner)}`
+    : conditions.length === 0 ? "For every new entry" : `When ${conditions.join(joiner)}`
   const actions = (rule.actions || []).map((action) => describeAction(action, byId))
   return `${when}: ${actions.join("; ")}.`
 }

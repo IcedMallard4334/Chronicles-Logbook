@@ -1116,8 +1116,37 @@ class MarkTodoAction(BaseModel):
     due_in_days: int | None = Field(default=None, ge=0, le=MAX_DUE_IN_DAYS)
 
 
+class SetStatusAction(BaseModel):
+    """Put the entry in one of the project's statuses (which also decides whether it is outstanding)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["set_status"]
+    status: str = Field(..., min_length=1, max_length=40)
+
+
+class CreateTaskAction(BaseModel):
+    """Add a follow-up task to the project. ``{title}`` in the text is replaced by the entry's title."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["create_task"]
+    title: str = Field(..., min_length=1, max_length=200)
+    due_in_days: int | None = Field(default=None, ge=0, le=MAX_DUE_IN_DAYS)
+
+
+class RepeatAction(BaseModel):
+    """Make the entry repeat (the same thing the Repeat button does by hand)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["repeat"]
+    frequency: Literal["daily", "weekly", "monthly"]
+    interval: int = Field(default=1, ge=1, le=365)
+
+
 RuleAction = Annotated[
-    AddTagsAction | SetFieldAction | MarkTodoAction,
+    AddTagsAction | SetFieldAction | MarkTodoAction | SetStatusAction | CreateTaskAction | RepeatAction,
     Field(discriminator="type"),
 ]
 
@@ -1134,6 +1163,18 @@ class EntryRuleCreate(BaseModel):
     # No conditions means the rule applies to every new entry in the project.
     conditions: list[FieldCondition] = Field(default_factory=list, max_length=MAX_RULE_CONDITIONS)
     actions: list[RuleAction] = Field(..., min_length=1, max_length=MAX_ACTIONS_PER_RULE)
+    # When the rule runs: as an entry is logged, or when an entry moves into a status
+    # (the second only does follow-ups: a task, or a repeat).
+    trigger: Literal["created", "status"] = "created"
+    trigger_status: str | None = Field(default=None, max_length=40)
+
+    @model_validator(mode="after")
+    def trigger_matches_status(self):
+        if self.trigger == "status" and not (self.trigger_status or "").strip():
+            raise ValueError("Choose which status the rule waits for.")
+        if self.trigger == "created":
+            self.trigger_status = None
+        return self
 
 
 class EntryRuleResponse(BaseModel):
@@ -1146,6 +1187,8 @@ class EntryRuleResponse(BaseModel):
     match: Literal["all", "any"]
     conditions: list[dict[str, Any]]
     actions: list[dict[str, Any]]
+    trigger: Literal["created", "status"] = "created"
+    trigger_status: str | None = None
     created_by: UUID | None = None
     created_at: datetime
     updated_at: datetime

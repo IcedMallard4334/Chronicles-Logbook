@@ -441,3 +441,35 @@
   .schema-builder, .schema-summary { padding: 12px; }
   .schema-builder h3, .schema-builder h2 { font-size: 1rem; }
 }
+
+/* The project panel beside Home folds away on a wide screen so the dashboard can have it all. */
+.panel-expand, .panel-collapse { display: none; }
+@media (min-width: 721px) {
+  .panel-collapse { display: inline-grid; place-items: center; }
+  .panel-collapse svg { width: 16px; height: 16px; }
+  .home-main { position: relative; transition: grid-template-columns 0.25s ease; }
+  .home-main.is-panel-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .home-main.is-panel-collapsed > .sidebar-stack { display: none; }
+  .home-main.is-panel-collapsed .panel-expand {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--blue);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+  .home-main.is-panel-collapsed .panel-expand svg { width: 14px; height: 14px; }
+  .home-main.is-panel-collapsed .panel-expand:hover { background: var(--blue-bg); }
+  .home-main.is-panel-collapsed .content { padding-top: 44px; }
+}

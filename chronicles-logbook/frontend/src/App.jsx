@@ -580,7 +580,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
 function ProjectList({
   projects, statistics, selectedId, onSelect, onCreate,
   onShowHome, homeActive, onShowTimeline, timelineActive,
-  onShowToday, todayActive, onShowOutstanding, outstandingActive,
+  onShowToday, todayActive, onShowOutstanding, outstandingActive, onCollapse,
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
@@ -658,6 +658,11 @@ function ProjectList({
       </div>
       <div className="sidebar-head" id="sidebar-projects">
         <h2>Projects</h2>
+        {onCollapse && (
+          <button type="button" className="btn-icon panel-collapse" aria-label="Hide the project panel" title="Hide the project panel" onClick={onCollapse}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18" /></svg>
+          </button>
+        )}
         <button
           type="button"
           className="btn-icon"
@@ -2604,6 +2609,14 @@ function App() {
     try { window.localStorage.setItem("chronicles-nav-collapsed", collapsed ? "0" : "1") } catch { /* private mode */ }
     return !collapsed
   })
+  // The project panel beside Home can be folded away so a dashboard has the whole width.
+  const [panelCollapsed, setPanelCollapsed] = useState(() => {
+    try { return window.localStorage.getItem("chronicles-panel-collapsed") === "1" } catch { return false }
+  })
+  const togglePanel = () => setPanelCollapsed((collapsed) => {
+    try { window.localStorage.setItem("chronicles-panel-collapsed", collapsed ? "0" : "1") } catch { /* private mode */ }
+    return !collapsed
+  })
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const validViews = ["home", "today", "assistant", "entries", "tasks", "board", "outstanding", "calendar", "statistics", "activities"]
@@ -3272,7 +3285,13 @@ function App() {
           </div>
         </nav>
       </header>
-      <main className={`app-main ${showWorkspaceSidebar ? "home-main" : "app-main-wide"}`}>
+      <main className={`app-main ${showWorkspaceSidebar ? "home-main" : "app-main-wide"}${showWorkspaceSidebar && panelCollapsed ? " is-panel-collapsed" : ""}`}>
+        {showWorkspaceSidebar && panelCollapsed && (
+          <button type="button" className="panel-expand" aria-label="Show the project panel" title="Show the project panel" onClick={togglePanel}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg>
+            <span>Projects</span>
+          </button>
+        )}
         {error && (
           <div className="global-error" role="alert">
             <p>{error}</p>
@@ -3293,6 +3312,7 @@ function App() {
           <ProjectList
             projects={projects}
             statistics={statistics}
+            onCollapse={togglePanel}
             selectedId={currentView === "home" ? selectedId : null}
             onSelect={handleSelectProject}
             onCreate={() => setIsModalOpen(true)}

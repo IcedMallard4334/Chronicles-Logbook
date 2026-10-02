@@ -13,10 +13,13 @@ vi.mock("./api", () => ({
   createRule: vi.fn(),
   updateRule: vi.fn(),
   deleteRule: vi.fn(),
+  setRecurrence: vi.fn(),
+  stopRecurrence: vi.fn(),
+  localDateString: () => "2026-10-02",
 }))
 
 import AutomationPanel from "./AutomationPanel"
-import { createRule, deleteRule, fetchRecurrences, fetchRules, updateRule } from "./api"
+import { createRule, deleteRule, fetchRecurrences, fetchRules, setRecurrence, stopRecurrence, updateRule } from "./api"
 
 const SCHEMA = [
   { id: "f-summary", name: "Summary", type: "text" },
@@ -80,7 +83,7 @@ describe("the automation tab", () => {
     createRule.mockResolvedValue({ ...rule, id: "r2", name: "Tag everything" })
     render(<AutomationPanel project={project} />)
 
-    fireEvent.click(await screen.findByRole("button", { name: "+ New rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "+ New automation" }))
     const form = screen.getByRole("form", { name: "New rule" })
     fireEvent.change(within(form).getByLabelText("Rule name"), { target: { value: "Tag everything" } })
     fireEvent.change(within(form).getByLabelText("Tags to add"), { target: { value: "logged, new" } })
@@ -91,6 +94,8 @@ describe("the automation tab", () => {
         name: "Tag everything",
         enabled: true,
         match: "all",
+        trigger: "created",
+        trigger_status: null,
         conditions: [],
         actions: [{ type: "add_tags", field_id: "f-tags", tags: ["logged", "new"] }],
       })
@@ -104,7 +109,7 @@ describe("the automation tab", () => {
     createRule.mockResolvedValue(rule)
     render(<AutomationPanel project={project} />)
 
-    fireEvent.click(await screen.findByRole("button", { name: "+ New rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "+ New automation" }))
     const form = screen.getByRole("form", { name: "New rule" })
     fireEvent.change(within(form).getByLabelText("Rule name"), { target: { value: "Default kind" } })
     fireEvent.change(within(form).getByLabelText("Then"), { target: { value: "set_field" } })
@@ -122,7 +127,7 @@ describe("the automation tab", () => {
     fetchRules.mockResolvedValue([])
     render(<AutomationPanel project={project} />)
 
-    fireEvent.click(await screen.findByRole("button", { name: "+ New rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "+ New automation" }))
     fireEvent.click(screen.getByRole("button", { name: "Save rule" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Give the rule a name.")
@@ -134,7 +139,7 @@ describe("the automation tab", () => {
     createRule.mockRejectedValue(new Error("'Urgent' is not an option"))
     render(<AutomationPanel project={project} />)
 
-    fireEvent.click(await screen.findByRole("button", { name: "+ New rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "+ New automation" }))
     fireEvent.change(screen.getByLabelText("Rule name"), { target: { value: "X" } })
     fireEvent.change(screen.getByLabelText("Tags to add"), { target: { value: "a" } })
     fireEvent.click(screen.getByRole("button", { name: "Save rule" }))
@@ -190,8 +195,8 @@ describe("the automation tab", () => {
     render(<AutomationPanel project={{ ...project, shared: true }} />)
 
     expect(await screen.findByText("Triage bugs")).toBeInTheDocument()
-    expect(screen.getByText(/Only the project.s owner can change its rules/)).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "+ New rule" })).toBeNull()
+    expect(screen.getByText(/Only the project.s owner can change its automations/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "+ New automation" })).toBeNull()
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull()
   })
 
@@ -200,7 +205,7 @@ describe("the automation tab", () => {
     fetchRecurrences.mockResolvedValue([])
     render(<AutomationPanel project={project} />)
 
-    expect(await screen.findByText("No rules yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No automations yet. Pick an idea above, or start your own.")).toBeInTheDocument()
     expect(screen.getByText("No entries repeat yet.")).toBeInTheDocument()
   })
 
@@ -209,7 +214,7 @@ describe("the automation tab", () => {
     render(<AutomationPanel project={{ ...project, entry_schema: [] }} />)
 
     expect(await screen.findByText(/Add some fields in the Schema tab first/)).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "+ New rule" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "+ New automation" })).toBeNull()
   })
 
   it("reports a failure to load", async () => {
@@ -217,5 +222,60 @@ describe("the automation tab", () => {
     render(<AutomationPanel project={project} />)
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Cannot reach the Chronicles API.")
+  })
+})
+
+describe("automations from ideas, and repeats added here", () => {
+  it("starts a rule from a ready-made idea and saves it", async () => {
+    fetchRules.mockResolvedValue([])
+    createRule.mockResolvedValue({ ...rule, id: "r3", name: "Follow up when Done" })
+    render(<AutomationPanel project={project} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Follow up when something is done/ }))
+    const form = screen.getByRole("form", { name: "New rule" })
+    expect(within(form).getByLabelText("Rule name")).toHaveValue("Follow up when Done")
+    fireEvent.click(within(form).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() => expect(createRule).toHaveBeenCalled())
+    expect(createRule.mock.calls[0][1]).toMatchObject({
+      trigger: "status",
+      trigger_status: "Done",
+      actions: [{ type: "create_task", title: "Write up: {title}", due_in_days: 2 }],
+    })
+  })
+
+  it("adds a repeat by choosing one of the project's entries", async () => {
+    fetchRecurrences.mockResolvedValue([])
+    setRecurrence.mockResolvedValue({})
+    const withEntries = {
+      ...project,
+      entries: [
+        { id: "e1", title: "Weekly review", data: {}, created_at: "2026-09-01T00:00:00Z" },
+        { id: "e2", title: "Stand-up notes", data: {}, created_at: "2026-09-02T00:00:00Z" },
+      ],
+    }
+    render(<AutomationPanel project={withEntries} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add repeat" }))
+    fireEvent.change(screen.getByLabelText("Which entry should repeat?"), { target: { value: "stand" } })
+    expect(screen.queryByText("Weekly review")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: /Stand-up notes/ }))
+    fireEvent.change(screen.getByLabelText("Every"), { target: { value: "2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add repeat" }))
+
+    await waitFor(() => expect(setRecurrence).toHaveBeenCalled())
+    expect(setRecurrence).toHaveBeenCalledWith("p1", "e2", { frequency: "weekly", interval: 2, starts_on: "2026-10-02", ends_on: null })
+  })
+
+  it("leaves out entries that already repeat, and can stop one", async () => {
+    stopRecurrence.mockResolvedValue(null)
+    render(<AutomationPanel project={project} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add repeat" }))
+    expect(screen.getByText(/every entry already repeats|no entries/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop repeating" }))
+    await waitFor(() => expect(stopRecurrence).toHaveBeenCalledWith("p1", "e1"))
   })
 })
