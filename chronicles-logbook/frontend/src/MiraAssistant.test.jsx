@@ -191,3 +191,29 @@ describe("Mira assistant interfaces", () => {
     expect(state.onToggleAutoRun).toHaveBeenCalledWith(true)
   })
 })
+
+describe("collapsible suggestions", () => {
+  it("can be folded away to leave room for the message box, and opened again", () => {
+    render(<MiraAssistantPage conversation={conversation()} />)
+    const toggle = screen.getByRole("button", { name: "Hide suggestions" })
+    expect(screen.getByLabelText("Suggested prompts")).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(screen.queryByLabelText("Suggested prompts")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show suggestions" })).toHaveAttribute("aria-expanded", "false")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show suggestions" }))
+    expect(screen.getByLabelText("Suggested prompts")).toBeInTheDocument()
+  })
+
+  it("starts folded on a phone", () => {
+    const original = window.matchMedia
+    window.matchMedia = () => ({ matches: true })
+    try {
+      render(<MiraAssistantPage conversation={conversation()} />)
+      expect(screen.queryByLabelText("Suggested prompts")).not.toBeInTheDocument()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+})

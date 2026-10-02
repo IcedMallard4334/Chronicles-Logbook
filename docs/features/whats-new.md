@@ -203,3 +203,21 @@ Mira can add these too: *"put my badges on my dashboard"* becomes an `add_dashbo
 - **Mira and the calendar.** "Log an event at 2pm" used to fail with *End time must be after start time*,
   because an unspecified end defaulted to 10:00. A start alone now runs for an hour, an end that isn't after the
   start is corrected, and no time at all makes an all-day activity.
+
+## A phone layout of its own
+
+Below 720px the app is arranged for one hand rather than squeezed from the desktop:
+
+- **One bottom bar everywhere.** Home pages keep Dashboard, Activity, Today, Outstanding and Projects; every other
+  page gets Home, Entries, Tasks, Calendar and a **More** sheet (Mira, Board, Statistics). The seven top tabs start
+  folded on a phone (the button beside the logo opens them as a dropdown); a saved choice is respected.
+- **Folding.** A project's long description shows two lines with *Show more*; Mira's suggested prompts start folded
+  (*Show suggestions*) so the message box is always in view; the project tabs scroll sideways instead of wrapping.
+- **Compact pages.** Filters sit two to a row, the timeline is a thin rail of small cards, the home welcome is a
+  single line, and the Profile's colour controls line up on the left.
+- **Board statuses.** The Board now says where columns come from: each is one of the project's statuses, edited from
+  the pencil beside the project's name (*Edit project*, then *Statuses*).
+
+- **Every page, not just the app shell.** Profile, Badges and Help are separate pages, so they now load the same
+  phone, dropdown and entrance styles. The Activity filters fold behind a **Filters** button, the Board shows
+  one swipeable column at a time, and the three project actions share a row.

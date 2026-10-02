@@ -56,6 +56,9 @@ function ConversationHistory({ conversations = [], activeId, onSelect, onNew, on
 }
 
 function Conversation({ messages, sending, error, onSend, onClear, pendingActions, actionsRunning, onRunActions, onCancelActions, autoRun, onToggleAutoRun, onOpenProject, conversations, activeConversationId, onSelectConversation, onNewConversation, onDeleteConversation, compact = false }) {
+  // The suggestions are a convenience; on a phone they would push the message box
+  // off the screen, so they start folded there and open from a button.
+  const [promptsOpen, setPromptsOpen] = useState(() => !(typeof window !== "undefined" && window.matchMedia?.("(max-width: 720px)").matches))
   const [draft, setDraft] = useState("")
   const feedRef = useRef(null)
   const dictation = useRef(null)
@@ -110,9 +113,12 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
     <div className="mira-feed" ref={feedRef} aria-live="polite" aria-busy={sending} aria-label="Mira conversation">
       {!messages.length && !sending && <div className="mira-welcome">
         <div><h2>Make room for your next idea.</h2><p>Bring a rough idea, a work update, or a plan. Let’s give it a clear next step.</p></div>
-        <div className="mira-prompts" aria-label="Suggested prompts">
+        <button type="button" className="mira-prompts-toggle" aria-expanded={promptsOpen} aria-controls="mira-prompts-list" onClick={() => setPromptsOpen((open) => !open)}>
+          {promptsOpen ? "Hide suggestions" : "Show suggestions"}
+        </button>
+        {promptsOpen && <div className="mira-prompts" id="mira-prompts-list" aria-label="Suggested prompts">
           {[...ACTION_PROMPTS, ...PROMPTS].map(({ title, detail, prompt }, index) => <button type="button" key={title} onClick={() => { setDraft(prompt); document.getElementById(compact ? "mira-compact-input" : "mira-full-input")?.focus() }}><span className="mira-prompt-number" aria-hidden="true">0{index + 1}</span><strong>{title}</strong><span>{detail}</span><span className="mira-prompt-arrow" aria-hidden="true">↗</span></button>)}
-        </div>
+        </div>}
       </div>}
       {messages.map(message => <article className={`mira-message mira-message-${message.role}`} key={message.id}>
         <span className="mira-message-label">{message.role === "user" ? "You" : "Mira"}</span>

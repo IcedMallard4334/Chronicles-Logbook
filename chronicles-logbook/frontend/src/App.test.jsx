@@ -600,3 +600,17 @@ describe("collapsible navigation on small screens", () => {
     window.localStorage.removeItem("chronicles-nav-collapsed")
   })
 })
+
+describe("phone navigation", () => {
+  it("offers a bottom bar with the main pages and a More sheet away from Home", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: /All Tasks/ }))
+
+    const bar = await screen.findByRole("navigation", { name: "Quick navigation" })
+    expect(within(bar).getByRole("button", { name: "Tasks" })).toHaveAttribute("aria-current", "page")
+
+    fireEvent.click(within(bar).getByRole("button", { name: "More" }))
+    expect(within(bar).getByRole("button", { name: "Board" })).toBeInTheDocument()
+    expect(within(bar).getByRole("button", { name: "Statistics" })).toBeInTheDocument()
+  })
+})

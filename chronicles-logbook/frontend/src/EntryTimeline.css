@@ -95,3 +95,5 @@
     flex-direction: column;
   }
 }
+
+.timeline-filters-toggle { display: none; }

@@ -17,3 +17,5 @@
 .board-column-empty { margin:0; color:var(--muted); font-size:.72rem; }
 .board-error { padding:12px 32px 0; margin:0; font-size:.78rem; }
 @media(max-width:650px) { .board-columns { padding:18px 20px; } .board-column { flex-basis:232px; } .board-error { padding:12px 20px 0; } }
+
+.board-status-hint { margin: 0; padding: 0.6rem 1.25rem 0; color: var(--muted); font-size: 0.78rem; }

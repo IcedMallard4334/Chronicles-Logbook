@@ -70,3 +70,6 @@
 }
 .mira-mic:hover, .mira-mic:focus-visible { background: var(--blue, #6b5bff); color: #fff; }
 .mira-mic.is-listening { background: #d93025; border-color: #d93025; color: #fff; }
+
+.mira-prompts-toggle { justify-self: start; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--blue); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.mira-prompts-toggle:hover { background: var(--blue-bg); }
