@@ -39,6 +39,9 @@ export default function EntryTimeline({ projects, onShowFieldTrends }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [retry, setRetry] = useState(0)
+  // Seven filters are half a phone screen, so there they sit behind a button
+  // (the button is hidden, and the filters always shown, on a wide screen).
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const filtersActive = Boolean(query.trim() || projectId || tag.trim() || todo || start || end)
   const rangeError = start && end && start > end ? "Start date must be on or before end date." : ""
@@ -109,7 +112,10 @@ export default function EntryTimeline({ projects, onShowFieldTrends }) {
         </button>
       </header>
 
-      <div className="entry-timeline-filters" aria-label="Timeline filters">
+      <button type="button" className="timeline-filters-toggle" aria-expanded={filtersOpen} aria-controls="timeline-filters" onClick={() => setFiltersOpen((open) => !open)}>
+        {filtersOpen ? "Hide filters" : filtersActive ? "Filters (on)" : "Filters"}
+      </button>
+      <div className={`entry-timeline-filters${filtersOpen ? " is-open" : ""}`} id="timeline-filters" aria-label="Timeline filters">
         <label>
           Search
           <input

@@ -349,3 +349,42 @@
   .mira-prompts { max-height: 34svh; }
   .mira-clear { margin: 0 12px 10px; }
 }
+
+/* Board: one column at a time, swiped sideways, with the next one peeking in. */
+@media (max-width: 720px) {
+  .board-columns { padding: 12px; gap: 10px; scroll-snap-type: x mandatory; scroll-padding-inline: 12px; -webkit-overflow-scrolling: touch; }
+  .board-column { flex: 0 0 82%; scroll-snap-align: start; padding: 10px; }
+  .board-status-hint { padding: 8px 14px 0; }
+  .board-controls, .board-toolbar { flex-wrap: wrap; }
+}
+
+@media (max-width: 720px) {
+  .timeline-filters-toggle { display: inline-flex; align-items: center; margin: 0 0 10px; padding: 6px 14px; border: 1px solid var(--blue); border-radius: 999px; background: var(--blue-bg); color: var(--blue); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+  .entry-timeline-filters:not(.is-open) { display: none; }
+  .timeline-title-row .btn-secondary { white-space: nowrap; }
+}
+
+/* The three project actions share one row. */
+@media (max-width: 720px) {
+  .detail-actions .detail-archive-btn,
+  .detail-actions .detail-share-btn,
+  .detail-actions .detail-delete-btn { min-width: 0; width: auto; align-self: center; }
+  .detail-actions .detail-archive-btn, .detail-actions .detail-share-btn { padding: 6px 10px; }
+  .detail-actions .detail-delete-btn { padding: 6px 8px; }
+}
+
+/* Profile, badges and help are pages of their own (not inside the app shell), so
+   these rules carry :root to outrank their page stylesheets whatever order they load in. */
+@media (max-width: 720px) {
+  :root .profile-card { padding: 14px; }
+  :root .profile-row { padding: 12px; gap: 10px; }
+  :root .profile-row .colour-controls { justify-items: stretch; width: 100%; }
+  :root .profile-row .colour-pickers { justify-content: flex-start; max-width: none; }
+  :root .profile-row .density-toggle { justify-self: start; align-self: flex-start; }
+  :root .profile-row .density-toggle button { padding: 6px 12px; }
+  :root .profile-row .profile-select { width: 100%; min-width: 0; }
+  :root .achievements-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
+  :root .achievements-heading .btn-secondary { align-self: flex-start; white-space: nowrap; }
+  :root .achievement-grid, :root .badge-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+  :root .profile-page, :root .help-page, :root .achievements-page { padding-inline: 8px; }
+}

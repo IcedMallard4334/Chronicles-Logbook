@@ -5,6 +5,9 @@ import LogoIcon from "./ChroniclesLogo"
 import { HELP_SECTIONS } from "./helpContent"
 import "./App.css"
 import "./HelpPage.css"
+import "./Dropdowns.css"
+import "./Motion.css"
+import "./MobileLayout.css"
 
 function ArticleBlock({ block }) {
   if (block.type === "p") return <p>{block.text}</p>

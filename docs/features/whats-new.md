@@ -217,3 +217,7 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
   single line, and the Profile's colour controls line up on the left.
 - **Board statuses.** The Board now says where columns come from: each is one of the project's statuses, edited from
   the pencil beside the project's name (*Edit project*, then *Statuses*).
+
+- **Every page, not just the app shell.** Profile, Badges and Help are separate pages, so they now load the same
+  phone, dropdown and entrance styles. The Activity filters fold behind a **Filters** button, the Board shows
+  one swipeable column at a time, and the three project actions share a row.

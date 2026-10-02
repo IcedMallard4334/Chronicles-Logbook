@@ -5,6 +5,9 @@ import { AchievementSummary, BadgeDialog, FILTERS } from "./AchievementParts"
 import { fetchAchievements } from "./api"
 import BadgeArt, { TIER_LABELS } from "./BadgeArt"
 import "./Achievements.css"
+import "./Dropdowns.css"
+import "./Motion.css"
+import "./MobileLayout.css"
 
 /** Every badge, grouped by area, to open and read about. */
 export default function AchievementsPage() {
