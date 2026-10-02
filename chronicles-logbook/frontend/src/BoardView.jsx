@@ -204,6 +204,12 @@ export default function BoardView({ projects }) {
         </label>
       </div>
 
+      {grouping.id === STATUS_GROUP && (
+        <p className="board-status-hint">
+          Each column is one of this project's statuses. To add or rename one, open the project and use the pencil beside its name (Edit project, then Statuses).
+        </p>
+      )}
+
       {error && (
         <p className="board-error workspace-error" role="alert">
           {error}

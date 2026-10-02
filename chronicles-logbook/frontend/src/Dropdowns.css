@@ -72,3 +72,18 @@ select:not([multiple]):not([size]):invalid { color: var(--muted); }
 .activities-page .activities-section h2 { margin-bottom: 0.85rem; }
 .activities-page .activities-section .hint { margin: 0; padding: 0.9rem 1rem; border: 1px dashed var(--line); border-radius: 0.75rem; }
 .activities-page .day-activity-form { margin: 1.25rem 1.5rem 0; }
+
+/* Filter bars: a dropdown stands level with the text box beside it. */
+.entry-timeline-filters :is(input, select):not([type="checkbox"]),
+.workspace-filters :is(input, select):not([type="checkbox"]) {
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+}
+.entry-timeline-filters select:not([multiple]):not([size]),
+.workspace-filters select:not([multiple]):not([size]) {
+  padding: 0.5rem 2rem 0.5rem 0.7rem;
+  font-weight: 400;
+}
+.entry-timeline-filters label,
+.workspace-filters label { align-content: start; }

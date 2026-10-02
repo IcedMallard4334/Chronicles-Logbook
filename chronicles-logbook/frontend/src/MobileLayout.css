@@ -6,6 +6,8 @@
 /* The projects toggle only exists for the bottom panel. */
 .sidebar-projects-toggle { display: none !important; }
 .nav-collapse-toggle { display: none; }
+.mobile-tab-bar { display: none; }
+.detail-description-toggle { display: none; }
 
 @media (max-width: 720px) {
   /* ── Top bar: smaller everything, so it is a bar and not a block ── */
@@ -212,4 +214,138 @@
 @media (max-width: 420px) {
   .app-shell .nav-pill-center .nav-item span { font-size: 0.48rem; }
   .app-shell .nav-pill-left .brand-name { display: none; }
+}
+
+
+/* --------------------------------------------------
+   PHONE REDESIGN
+   On a phone the app is a stack of short screens, not a desktop squeezed in:
+   navigation is one bar under the thumb, headers are one line, long text folds,
+   and nothing is wider than the screen.
+   -------------------------------------------------- */
+@media (max-width: 720px) {
+  /* Navigation: the same bar on every page. */
+  .mobile-tab-bar {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.22);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-tab-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+  .mobile-tab-row button,
+  .mobile-tab-more button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 46px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .mobile-tab-bar svg { width: 18px; height: 18px; }
+  .mobile-tab-bar .is-active { color: var(--blue); background: var(--blue-bg); }
+  .mobile-tab-more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px 0 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .mobile-tab-more button { flex-direction: row; gap: 8px; min-height: 42px; font-size: 0.8rem; background: var(--surface-soft); }
+  .mobile-tab-more svg { width: 16px; height: 16px; }
+  .app-shell:has(.mobile-tab-bar) .mira-launcher { bottom: 80px; right: 12px; }
+
+  /* The top bar is only a bar: the tabs live in the bottom bar unless opened. */
+  .app-shell .nav-pill { position: relative; }
+  .app-shell .nav-pill:not(.is-collapsed) .nav-pill-center {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 5;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Pages: one column, small gutters, no double frames. */
+  .app-shell .app-main { padding-inline: 0; }
+  .workspace-page { min-height: 0; border-radius: 14px; }
+  .workspace-heading { flex-direction: column; align-items: stretch; gap: 10px; }
+  .workspace-heading h1 { font-size: 1.25rem; }
+  .workspace-heading p { font-size: 0.82rem; margin: 0; }
+  .workspace-heading > .btn-primary,
+  .workspace-heading > .btn-secondary,
+  .workspace-heading > button { align-self: flex-start; }
+  .workspace-eyebrow { font-size: 0.62rem; }
+
+  /* Filters fold into two compact columns. */
+  .entry-timeline-filters,
+  .workspace-filters { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .workspace-filters label { flex: 1 1 calc(50% - 10px); }
+  .entry-timeline-filters :is(input, select):not([type="checkbox"]),
+  .workspace-filters :is(input, select):not([type="checkbox"]) { min-height: 38px; font-size: 0.82rem; }
+  .entry-timeline-filters label, .workspace-filters label { font-size: 0.72rem; }
+  .timeline-title-row { flex-direction: row; align-items: center; }
+  .timeline-title-row .btn-secondary { padding: 6px 10px; font-size: 0.74rem; }
+
+  /* Timeline: the card is the whole row, with a thin rail. */
+  .timeline-list { margin-top: 0.75rem; }
+  .timeline-row { grid-template-columns: 0.7rem minmax(0, 1fr); gap: 0.6rem; padding-bottom: 0.7rem; }
+  .timeline-row article { padding: 10px 12px; }
+  .timeline-marker { width: 0.65rem; height: 0.65rem; margin-top: 0.35rem; }
+  .timeline-fields { display: grid; gap: 6px; }
+  .timeline-fields dt { font-size: 0.64rem; }
+  .timeline-fields dd { font-size: 0.85rem; overflow-wrap: anywhere; }
+
+  /* Project header: long text folds. */
+  .detail-description { font-size: 0.82rem; overflow-wrap: anywhere; }
+  .detail-description:not(.is-open) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .detail-description-toggle { display: inline-block; padding: 0; }
+  .project-title-row h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .detail-meta { font-size: 0.74rem; }
+  .tab-switch { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tab-switch::-webkit-scrollbar { display: none; }
+  .tab-switch button { flex: 0 0 auto; }
+
+  /* Home: the welcome is a line, not a hero. */
+  .home-hub-welcome { flex-wrap: wrap; align-items: center; }
+  .home-hub-welcome .chronicles-logo, .home-hub-welcome > svg { display: none; }
+  .home-hub-welcome h1 { font-size: 1.2rem; }
+  .home-hub-welcome p { font-size: 0.8rem; }
+  .dashboard-page .dashboard-toolbar, .dashboard-toolbar { flex-wrap: wrap; gap: 8px; }
+
+  /* Profile: rows stack, controls fill the row and line up on the left. */
+  .profile-card { padding: 14px; }
+  .profile-row { padding: 12px; }
+  .colour-controls { justify-items: stretch; width: 100%; }
+  .colour-pickers { justify-content: flex-start; max-width: none; }
+  .profile-colours .profile-mode-switch, .profile-colours [role="group"] { justify-self: start; }
+
+  /* Mira: the message box stays in view. */
+  .mira-page { min-height: calc(100svh - 200px); grid-template-rows: auto minmax(120px, 1fr) auto auto; }
+  .mira-page-header { padding: 12px 14px; gap: 10px; }
+  .mira-page-header h1 { font-size: 1.15rem; margin: 0; }
+  .mira-page-header p:not(.workspace-kicker) { display: none; }
+  .mira-feed { padding: 12px; }
+  .mira-composer { padding: 10px 12px; }
+  .mira-keyboard-hint, .mira-footnote { display: none; }
+  .mira-welcome { padding: 8px 0; gap: 8px; }
+  .mira-welcome h2 { font-size: 1rem; }
+  .mira-welcome p { font-size: 0.82rem; }
+  .mira-prompts { max-height: 34svh; }
+  .mira-clear { margin: 0 12px 10px; }
 }
