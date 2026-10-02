@@ -252,7 +252,7 @@ function AuthActions() {
     }
   }
 
-  if (!user) return <a className="auth-link" href="/">Sign in</a>
+  if (!user) return <a className="auth-link" href="/signin">Sign in</a>
 
   const initials = user.full_name
     .split(" ")

@@ -23,6 +23,17 @@ A rule belongs to a project and has **conditions** (when to act) and **actions**
 | `add_tags` | Adds tags to a tags field, keeping the author's own tags and skipping duplicates | Tag every Bug entry `triage` |
 | `set_field` | Fills a text, number, date or dropdown field, **only if the author left it blank** (unless `overwrite: true`) | Default Severity to `High` for bugs |
 | `mark_todo` | Marks the entry as a to-do, optionally due `due_in_days` after capture | Bugs are due in 3 days |
+| `set_status` | Puts the entry in one of the project's statuses (which also decides whether it is outstanding) | New bugs start in *Still to do* |
+| `create_task` | Adds a follow-up task to the project; `{title}` becomes the entry's title; optional `due_in_days` | “Write up: {title}”, due in 2 days |
+| `repeat` | Makes the entry repeat (`frequency` daily, weekly or monthly, every `interval`), as the Repeat button does by hand | Weekly habit entries |
+
+**Triggers.** A rule runs when `trigger` is `created` (as an entry is logged, the default) or `status` (when an entry
+*moves into* `trigger_status`). A status rule can only follow up (`create_task`, `repeat`): the entry's own values stay
+exactly as they were just saved, and saving again without changing status never fires it twice. Conditions still apply.
+
+**On the Automation tab** the page leads with ready-made ideas built from the project's own statuses and fields
+(follow up when something is done, treat new entries as work to do, a weekly habit, tag by a choice field), each
+opening the rule editor pre-filled. **+ Add repeat** lists the project's entries, then asks how often.
 
 ```json
 POST /projects/{project_id}/rules

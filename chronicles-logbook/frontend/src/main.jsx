@@ -3,6 +3,7 @@ import { fetchCurrentUser, refreshSession } from './api'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import './index.css'
+import LandingPage from './LandingPage.jsx'
 import AuthPage from './AuthPage.jsx'
 import ChroniclesLogo from './ChroniclesLogo.jsx'
 import { ViewLoader } from './ViewTransition.jsx'
@@ -93,6 +94,15 @@ function SessionGate({ children }) {
 
 function LandingRoute() {
   const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
+  if (isSignedIn) return <Navigate to="/app" replace />
+  // A visitor sent back with a reason (an expired session, a failed sign-in) needs the sign-in form, not the tour.
+  const search = window.location.search
+  if (search) return <Navigate to={`/signin${search}`} replace />
+  return <LandingPage />
+}
+
+function SignInRoute() {
+  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
   return isSignedIn ? <Navigate to="/app" replace /> : <AuthPage />
 }
 
@@ -129,6 +139,7 @@ createRoot(document.getElementById('root')).render(
         <Routes>
           <Route element={<SessionGate />}>
             <Route path="/" element={<LandingRoute />} />
+            <Route path="/signin" element={<SignInRoute />} />
             <Route path="/app" element={<ProtectedAppRoute />} />
             <Route element={<ProtectedSetupRoute />}>
               <Route path="/setup" element={<SetupPage />} />
