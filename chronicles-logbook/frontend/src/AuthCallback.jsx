@@ -75,7 +75,7 @@ function AuthCallback() {
           <>
             <h1>Sign-in unsuccessful</h1>
             <p className="auth-message auth-error" role="alert">{message}</p>
-            <Link className="auth-submit" to="/">Try again</Link>
+            <Link className="auth-submit" to="/signin">Try again</Link>
           </>
         )}
       </section>

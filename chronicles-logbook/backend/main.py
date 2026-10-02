@@ -42,6 +42,8 @@ _ADDED_COLUMNS = (
     ("entries", "due_date", "DATE"),
     ("entries", "due_time", "TIME"),
     ("tasks", "due_time", "TIME"),
+    ("entry_rules", "trigger", "VARCHAR(10) NOT NULL DEFAULT 'created'"),
+    ("entry_rules", "trigger_status", "VARCHAR(40)"),
     ("dashboards", "columns", "INTEGER NOT NULL DEFAULT 3"),
     ("projects", "statuses", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
     ("entries", "status", "VARCHAR(60)"),

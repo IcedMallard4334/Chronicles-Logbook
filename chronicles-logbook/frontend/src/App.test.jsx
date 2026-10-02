@@ -614,3 +614,18 @@ describe("phone navigation", () => {
     expect(within(bar).getByRole("button", { name: "Statistics" })).toBeInTheDocument()
   })
 })
+
+describe("the project panel beside Home", () => {
+  it("can be hidden for a full-width dashboard and brought back, remembering the choice", async () => {
+    window.localStorage.removeItem("chronicles-panel-collapsed")
+    render(<MemoryRouter><App /></MemoryRouter>)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hide the project panel" }))
+    expect(document.querySelector("main")).toHaveClass("is-panel-collapsed")
+    expect(window.localStorage.getItem("chronicles-panel-collapsed")).toBe("1")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show the project panel" }))
+    expect(document.querySelector("main")).not.toHaveClass("is-panel-collapsed")
+    window.localStorage.removeItem("chronicles-panel-collapsed")
+  })
+})

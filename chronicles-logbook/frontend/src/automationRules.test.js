@@ -18,6 +18,7 @@ import {
 } from "./api"
 import {
   availableActionTypes,
+  describeAction,
   describeRecurrence,
   describeRule,
   dueLabel,
@@ -27,6 +28,7 @@ import {
   ruleFillableFieldIds,
   ruleForRequest,
   ruleProblem,
+  ruleRecipes,
 } from "./automationRules"
 
 const SCHEMA = [
@@ -96,10 +98,15 @@ describe("describing a rule in words", () => {
 
 describe("building a rule", () => {
   it("only offers actions the schema can support", () => {
-    expect(availableActionTypes(SCHEMA).map((type) => type.value)).toEqual(["add_tags", "set_field", "mark_todo"])
+    expect(availableActionTypes(SCHEMA).map((type) => type.value)).toEqual(["add_tags", "set_field", "mark_todo", "set_status", "create_task", "repeat"])
     expect(availableActionTypes([{ id: "c", name: "C", type: "checklist" }]).map((type) => type.value)).toEqual([
       "mark_todo",
+      "set_status",
+      "create_task",
+      "repeat",
     ])
+    // A rule that waits for a status can only follow up.
+    expect(availableActionTypes(SCHEMA, "status").map((type) => type.value)).toEqual(["create_task", "repeat"])
   })
 
   it("starts new actions pointed at a field they can use", () => {
@@ -138,6 +145,8 @@ describe("building a rule", () => {
       name: "Long bugs",
       enabled: true,
       match: "all",
+      trigger: "created",
+      trigger_status: null,
       conditions: [{ field_id: "f-hours", operator: "gt", value: 5 }],
       actions: [
         { type: "set_field", field_id: "f-hours", value: 8, overwrite: false },
@@ -243,5 +252,49 @@ describe("automation API calls", () => {
     fetch.mockResolvedValueOnce(noContent())
     await stopRecurrence("p1", "e1")
     expect(fetch.mock.lastCall[1].method).toBe("DELETE")
+  })
+})
+
+describe("automations that follow the flow", () => {
+  const project = { entry_schema: SCHEMA, statuses: [{ name: "Backlog", done: false }, { name: "Shipped", done: true }] }
+
+  it("builds ready-made automations from the project's own statuses", () => {
+    const recipes = ruleRecipes(project)
+    const followUp = recipes.find((recipe) => recipe.id === "follow-up-when-done")
+
+    expect(followUp.rule).toMatchObject({ trigger: "status", trigger_status: "Shipped" })
+    expect(followUp.detail).toContain("Shipped")
+    expect(recipes.find((recipe) => recipe.id === "everything-new-is-to-do").rule.actions[0]).toEqual({ type: "set_status", status: "Backlog" })
+    expect(recipes.some((recipe) => recipe.id === "tag-by-choice")).toBe(true)
+    expect(ruleRecipes({ entry_schema: [] }).map((recipe) => recipe.id)).toContain("weekly-habit")
+  })
+
+  it("every recipe is a rule that can be sent as it stands", () => {
+    for (const recipe of ruleRecipes(project)) {
+      expect(ruleProblem(recipe.rule, SCHEMA)).toBeNull()
+      expect(ruleForRequest(recipe.rule, SCHEMA).actions.length).toBeGreaterThan(0)
+    }
+  })
+
+  it("describes new actions and the status trigger in a sentence", () => {
+    const rule = {
+      trigger: "status",
+      trigger_status: "Shipped",
+      match: "all",
+      conditions: [],
+      actions: [{ type: "create_task", title: "Write up: {title}", due_in_days: 2 }, { type: "repeat", frequency: "weekly", interval: 2 }],
+    }
+
+    expect(describeRule(rule, SCHEMA)).toBe("When an entry moves to Shipped: add the task “Write up: {title}”, due in 2 days; make it repeat every 2 weeks.")
+    expect(describeAction({ type: "set_status", status: "Done" }, {})).toBe("move it to Done")
+  })
+
+  it("asks for what is missing in the new actions", () => {
+    const base = { ...emptyRule(SCHEMA), name: "x" }
+
+    expect(ruleProblem({ ...base, trigger: "status", trigger_status: "" }, SCHEMA)).toMatch(/which status/)
+    expect(ruleProblem({ ...base, actions: [{ type: "set_status", status: "" }] }, SCHEMA)).toMatch(/Choose which status/)
+    expect(ruleProblem({ ...base, actions: [{ type: "create_task", title: " " }] }, SCHEMA)).toMatch(/follow-up task/)
+    expect(ruleForRequest({ ...base, actions: [{ type: "repeat", frequency: "daily", interval: "3" }] }, SCHEMA).actions[0]).toEqual({ type: "repeat", frequency: "daily", interval: 3 })
   })
 })

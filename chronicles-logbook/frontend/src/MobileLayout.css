@@ -441,3 +441,92 @@
   .schema-builder, .schema-summary { padding: 12px; }
   .schema-builder h3, .schema-builder h2 { font-size: 1rem; }
 }
+
+/* The project panel beside Home folds away on a wide screen so the dashboard can have it all. */
+.panel-expand, .panel-collapse { display: none; }
+@media (min-width: 721px) {
+  .panel-collapse { display: inline-grid; place-items: center; }
+  .panel-collapse svg { width: 16px; height: 16px; }
+  .home-main { position: relative; transition: grid-template-columns 0.25s ease; }
+  .home-main.is-panel-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .home-main.is-panel-collapsed > .sidebar-stack { display: none; }
+  .home-main.is-panel-collapsed .panel-expand {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--blue);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+  .home-main.is-panel-collapsed .panel-expand svg { width: 14px; height: 14px; }
+  .home-main.is-panel-collapsed .panel-expand:hover { background: var(--blue-bg); }
+  .home-main.is-panel-collapsed .content { padding-top: 44px; }
+}
+
+/* Home: the welcome is a short block, not a row of pieces. */
+@media (max-width: 720px) {
+  .home-hub-welcome-mark { display: none; }
+  .home-hub-header, .home-hub-focus { padding: 14px; gap: 10px; }
+  .home-hub-header h1 { font-size: 1.3rem; margin: 2px 0 4px; }
+  .home-hub-eyebrow { letter-spacing: 0.06em; font-size: 0.66rem; }
+  .home-hub-welcome-actions { flex-wrap: wrap; gap: 10px; width: 100%; justify-content: space-between; }
+  .home-hub-summary { white-space: normal; flex-wrap: wrap; gap: 4px 14px; }
+  .home-hub-welcome-actions .btn-primary { flex: 0 0 auto; white-space: nowrap; }
+}
+
+/* Very small phones (about 70mm wide and under): one more notch down. */
+@media (max-width: 340px) {
+  html { font-size: 13px; }
+  .app-shell { padding-inline: 4px; }
+  .app-shell > .topbar { padding: 0 4px; }
+  .app-shell .nav-pill { padding: 5px 6px; }
+  .streak { padding: 0.1rem 0.3rem; font-size: 0.68rem; }
+  .mobile-tab-row button, .workspace-sidebar-nav button, .workspace-sidebar-nav .sidebar-projects-toggle { font-size: 0.54rem; padding-inline: 0; min-height: 44px; }
+  .mobile-tab-bar svg, .workspace-sidebar-nav button svg { width: 16px; height: 16px; }
+  .mobile-tab-more { grid-template-columns: 1fr; }
+  .workspace-heading, .home-hub-header, .detail-header { padding: 12px; }
+  .detail-body, .workspace-body, .workspace-filters, .workspace-pagination { padding: 8px; }
+  .home-hub-welcome-actions .btn-primary { width: 100%; }
+  .entry-timeline-filters, .workspace-filters { grid-template-columns: 1fr; }
+  .workspace-filters label { flex-basis: 100%; }
+  .log-fields { grid-template-columns: 1fr; }
+  .field-card:has(> .field-row) > .field-row { grid-template-columns: 1fr; }
+  .field-card:has(> .field-row) { grid-template-columns: minmax(0, 1fr); }
+  .field-card:has(> .field-row) > .btn-trash { grid-column: 1; grid-row: auto; justify-self: end; }
+  .detail-actions button { flex: 1 1 auto; }
+  .dashboard-panel-grid { grid-template-columns: 1fr !important; }
+  .dashboard-panel { grid-column: 1 / -1 !important; }
+  .mira-composer-actions { gap: 6px; }
+  .invites-panel { left: 4px; right: 4px; }
+}
+
+/* Tighter reading rhythm on a small screen: paragraphs were set for a wide page. */
+@media (max-width: 720px) {
+  .app-shell p, .app-shell .hint, .app-shell li, .app-shell label { line-height: 1.45; }
+  .app-shell .hint, .automation-panel .hint { font-size: 0.8rem; }
+  .automation-panel { gap: 10px; }
+  .automation-recipes { padding: 10px; }
+  .automation-trigger { grid-template-columns: 1fr; }
+}
+
+/* Mira: a slim header so the message box stays near the top. */
+@media (max-width: 720px) {
+  .mira-page-header { padding: 8px 12px; gap: 6px 10px; }
+  .mira-page-badge { display: none; }
+  .mira-heading-identity { gap: 10px; align-items: center; }
+  .mira-page-header .mira-mark { width: 32px; height: 32px; font-size: 1.1rem; }
+  .mira-page-header .mira-mark svg { width: 18px; height: 18px; }
+  .mira-page-header h1 span { font-size: 0.7rem; }
+  .mira-welcome h2 { font-size: 0.95rem; }
+}

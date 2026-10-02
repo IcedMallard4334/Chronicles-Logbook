@@ -41,6 +41,7 @@ from app.schemas import (
     RecurrenceResponse,
     RemindersResponse,
 )
+from app.statuses import names_of, statuses_of
 
 rules_router = APIRouter(prefix="/projects/{project_id}/rules", tags=["Entry rules"])
 recurrence_router = APIRouter(prefix="/projects/{project_id}", tags=["Recurrence"])
@@ -101,7 +102,14 @@ async def create_rule(
             detail=f"A project can have at most {MAX_RULES_PER_PROJECT} rules.",
         )
 
-    actions = validate_rule(payload.conditions, payload.actions, project.entry_schema or [])
+    actions = validate_rule(
+        payload.conditions,
+        payload.actions,
+        project.entry_schema or [],
+        trigger=payload.trigger,
+        trigger_status=payload.trigger_status,
+        status_names=names_of(statuses_of(project.statuses)),
+    )
     rule = EntryRule(
         project_id=project_id,
         name=payload.name.strip(),
@@ -109,6 +117,8 @@ async def create_rule(
         match=payload.match,
         conditions=[c.model_dump() for c in payload.conditions],
         actions=actions,
+        trigger=payload.trigger,
+        trigger_status=payload.trigger_status,
         created_by=user.id,
     )
     db.add(rule)
@@ -141,7 +151,16 @@ async def replace_rule(
     _refuse_if_archived(project)
     rule = await _get_rule(rule_id, project_id, db)
 
-    rule.actions = validate_rule(payload.conditions, payload.actions, project.entry_schema or [])
+    rule.actions = validate_rule(
+        payload.conditions,
+        payload.actions,
+        project.entry_schema or [],
+        trigger=payload.trigger,
+        trigger_status=payload.trigger_status,
+        status_names=names_of(statuses_of(project.statuses)),
+    )
+    rule.trigger = payload.trigger
+    rule.trigger_status = payload.trigger_status
     rule.name = payload.name.strip()
     rule.enabled = payload.enabled
     rule.match = payload.match

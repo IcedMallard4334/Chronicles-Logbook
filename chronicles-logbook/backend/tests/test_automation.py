@@ -1028,3 +1028,77 @@ def test_add_tags_stops_at_the_tag_limit():
 def test_unknown_action_type_does_nothing():
     fields = {"f": {"id": "f", "name": "F", "type": "text"}}
     assert _apply_action({"type": "explode", "field_id": "f"}, _outcome({}), fields, server_today()) is False
+
+
+# ═══ Rules that follow the flow: statuses, follow-up tasks, repeats ═════════
+
+
+async def test_a_rule_can_set_the_status_and_add_a_follow_up_task_and_a_repeat(authenticated_client, project):
+    pid = project["id"]
+    await _rule(
+        authenticated_client,
+        pid,
+        name="Bugs need a look",
+        conditions=[BUG_CONDITION],
+        actions=[
+            {"type": "set_status", "status": "Still to do"},
+            {"type": "create_task", "title": "Triage: {title}", "due_in_days": 2},
+            {"type": "repeat", "frequency": "weekly", "interval": 1},
+        ],
+    )
+
+    entry = await _entry(authenticated_client, pid, title="Login fails", data=_data(**{"f-kind": "Bug"}))
+
+    assert entry["status"] == "Still to do" and entry["todo"] is True
+    tasks = (await authenticated_client.get(f"/projects/{pid}/tasks")).json()
+    assert [t["title"] for t in tasks] == ["Triage: Login fails"]
+    assert tasks[0]["due_date"] == (server_today() + timedelta(days=2)).isoformat()
+    repeat = await authenticated_client.get(f"/projects/{pid}/entries/{entry['id']}/recurrence")
+    assert repeat.status_code == 200 and repeat.json()["frequency"] == "weekly"
+
+
+async def test_a_rule_waiting_for_a_status_adds_its_task_when_an_entry_gets_there(authenticated_client, project):
+    pid = project["id"]
+    await _rule(
+        authenticated_client,
+        pid,
+        name="Follow up when done",
+        trigger="status",
+        trigger_status="Done",
+        actions=[{"type": "create_task", "title": "Write up {title}"}],
+    )
+    entry = await _entry(authenticated_client, pid, title="Parser", status="Still to do")
+    assert (await authenticated_client.get(f"/projects/{pid}/tasks")).json() == []
+
+    await authenticated_client.put(f"/projects/{pid}/entries/{entry['id']}", json={"status": "Done"})
+
+    tasks = (await authenticated_client.get(f"/projects/{pid}/tasks")).json()
+    assert [t["title"] for t in tasks] == ["Write up Parser"]
+
+    # Saving again without moving it somewhere new does not add another.
+    await authenticated_client.put(f"/projects/{pid}/entries/{entry['id']}", json={"title": "Parser v2"})
+    assert len((await authenticated_client.get(f"/projects/{pid}/tasks")).json()) == 1
+
+
+@pytest.mark.parametrize(
+    ("rule", "message"),
+    [
+        ({"trigger": "status", "actions": [{"type": "create_task", "title": "x"}]}, "status"),
+        (
+            {"trigger": "status", "trigger_status": "Nope", "actions": [{"type": "create_task", "title": "x"}]},
+            "not a status",
+        ),
+        (
+            {"trigger": "status", "trigger_status": "Done", "actions": [{"type": "mark_todo"}]},
+            "task or repeat",
+        ),
+        ({"actions": [{"type": "set_status", "status": "Nope"}]}, "not a status"),
+    ],
+)
+async def test_rules_that_cannot_work_are_refused(authenticated_client, project, rule, message):
+    response = await authenticated_client.post(
+        f"/projects/{project['id']}/rules", json={"name": "Bad", **rule}
+    )
+
+    assert response.status_code == 422
+    assert message in response.text

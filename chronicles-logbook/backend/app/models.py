@@ -757,6 +757,10 @@ class EntryRule(Base):
     actions: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONType, nullable=False, default=list, server_default="[]"
     )
+    # "created": runs as an entry is logged. "status": runs when an entry moves
+    # into ``trigger_status`` (follow-up actions only).
+    trigger: Mapped[str] = mapped_column(String(10), nullable=False, default="created", server_default="created")
+    trigger_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

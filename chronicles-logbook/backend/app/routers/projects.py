@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.automation import apply_entry_rules
+from app.automation import apply_entry_rules, apply_status_rules, run_follow_ups
 from app.computed import apply_computed_fields
 from app.database import get_db
 from app.models import (
@@ -915,18 +915,22 @@ async def create_entry(
 
     statuses = statuses_of(project.statuses)
     todo = data.todo or rules.mark_todo
-    if data.status is not None:
-        if data.status not in names_of(statuses):
+    # A status a rule chose stands in for one the author left out.
+    chosen_status = data.status
+    if chosen_status is None and rules.status in names_of(statuses):
+        chosen_status = rules.status
+    if chosen_status is not None:
+        if chosen_status not in names_of(statuses):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Unknown status '{data.status}'. Choose one of: {', '.join(names_of(statuses))}.",
+                detail=f"Unknown status '{chosen_status}'. Choose one of: {', '.join(names_of(statuses))}.",
             )
         # The status the author chose decides whether the entry is outstanding.
-        todo = not is_done(statuses, data.status)
+        todo = not is_done(statuses, chosen_status)
 
     entry = Entry(
         project_id=project_id,
-        status=reconcile(statuses, data.status, todo),
+        status=reconcile(statuses, chosen_status, todo),
         title=(data.title or "").strip() or None,
         data=apply_computed_fields(payload_data, project.entry_schema),
         schema_version=project.schema_version,
@@ -949,6 +953,8 @@ async def create_entry(
     db.add(entry)
     await db.flush()
     db.add(_record_entry_revision(entry, user.id, revision=1, changed_at=entry.created_at))
+    # Tasks and repeats a rule asked for, now that the entry has an id.
+    await run_follow_ups(db, project, entry, rules, user.id)
     await db.commit()
     await db.refresh(entry)
 
@@ -1203,6 +1209,7 @@ async def update_entry(
     # Same treatment for the outstanding-work fields: clearing a due date is
     # an explicit null, and ticking an outstanding entry off is todo=false.
     statuses = statuses_of(project.statuses)
+    status_before = entry.status
     if "status" in payload.model_fields_set and payload.status is not None:
         if payload.status not in names_of(statuses):
             raise HTTPException(
@@ -1228,6 +1235,11 @@ async def update_entry(
                 entry, user.id, revision=latest_revision + 1, note=payload.note, previous=previous
             )
         )
+    # Rules waiting for the status the entry has just moved into.
+    if entry.status != status_before:
+        await db.flush()
+        follow_ups = await apply_status_rules(db, project, entry)
+        await run_follow_ups(db, project, entry, follow_ups, user.id)
     await db.commit()
     await db.refresh(entry)
 

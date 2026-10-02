@@ -224,3 +224,19 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
 - **Fixed top bar, one-line schema fields, tidy past entries.** On a phone the top bar stays fixed so its toggle never
   scrolls away; a schema field's name, type and remove button share one line; each past entry is a small card with
   its fields two to a row and the time underneath; and the frames-inside-frames shrink so content gets the width.
+
+## A front door, folding panels, automations that fit the flow, and very small phones
+
+- **A real landing page.** `/` now tells the story at length for visitors who are not signed in: what Chronicles is, six
+  headline features, four showcases (your format, planning, automations, Mira), three steps, who it suits, streaks and
+  badges, and an FAQ. It is drawn entirely in CSS. Sign-in moved to `/signin` (the old form, unchanged), and anything
+  redirected back with a reason (an expired session) goes straight to it.
+- **Fold the project panel.** The panel beside Home has a **Hide the project panel** button; a **Projects** button
+  brings it back, and the choice is remembered. The dashboard then has the whole width.
+- **Automations rebuilt around the flow.** Rules can now move an entry to a status, add a follow-up task and make it
+  repeat, and they can wait for an entry to *reach a status* as well as for a new entry. The tab starts from ready-made
+  ideas, and **+ Add repeat** picks an entry from the project and sets how often. See
+  [Entry automation](entry-automation.md).
+- **Very small phones.** The page no longer forces a 320px minimum width (which pushed a 70mm-wide phone sideways); below
+  340px everything steps down once more: smaller type, a one-column filter bar, one-column dashboard panels. The sign-in
+  page shows its form first.

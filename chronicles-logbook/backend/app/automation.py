@@ -42,10 +42,13 @@ from app.schemas import (
     MAX_TAG_LENGTH,
     MAX_TAGS,
     AddTagsAction,
+    CreateTaskAction,
     FieldCondition,
     MarkTodoAction,
+    RepeatAction,
     RuleAction,
     SetFieldAction,
+    SetStatusAction,
 )
 from app.search import SearchQueryError, conditions_match, validate_conditions_against_schema
 
@@ -162,10 +165,17 @@ def _value_problem(field_def: dict[str, Any], value: Any) -> str | None:
     return None
 
 
+FOLLOW_UP_ACTIONS = (CreateTaskAction, RepeatAction)
+
+
 def validate_rule(
     conditions: list[FieldCondition],
     actions: list[RuleAction],
     entry_schema: list[dict[str, Any]],
+    *,
+    trigger: str = "created",
+    trigger_status: str | None = None,
+    status_names: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Check a rule against the project's schema; return its actions, normalised.
 
@@ -178,11 +188,26 @@ def validate_rule(
     except SearchQueryError as error:
         raise _unprocessable(str(error)) from None
 
+    if status_names is not None:
+        if trigger == "status" and trigger_status not in status_names:
+            raise _unprocessable(
+                f"'{trigger_status}' is not a status of this project. Choose one of: {', '.join(status_names)}."
+            )
+    if trigger == "status" and not all(isinstance(action, FOLLOW_UP_ACTIONS) for action in actions):
+        raise _unprocessable("A rule that waits for a status can add a task or repeat the entry, nothing else.")
+
     fields_by_id = {f["id"]: f for f in entry_schema}
     normalised: list[dict[str, Any]] = []
 
     for action in actions:
-        if isinstance(action, MarkTodoAction):
+        if isinstance(action, (MarkTodoAction, CreateTaskAction, RepeatAction)):
+            normalised.append(action.model_dump())
+            continue
+        if isinstance(action, SetStatusAction):
+            if status_names is not None and action.status not in status_names:
+                raise _unprocessable(
+                    f"'{action.status}' is not a status of this project. Choose one of: {', '.join(status_names)}."
+                )
             normalised.append(action.model_dump())
             continue
 
@@ -211,6 +236,9 @@ class RuleOutcome:
     data: dict[str, Any]
     mark_todo: bool = False
     due_date: date | None = None
+    status: str | None = None
+    new_tasks: list[dict[str, Any]] = field(default_factory=list)
+    repeat: dict[str, Any] | None = None
     applied: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -239,6 +267,20 @@ def _apply_action(
         due_in = action.get("due_in_days")
         if due_in is not None and outcome.due_date is None:
             outcome.due_date = today + timedelta(days=due_in)
+        return True
+
+    if kind == "set_status":
+        if outcome.status is None:
+            outcome.status = action.get("status")
+        return True
+
+    if kind == "create_task":
+        outcome.new_tasks.append({"title": action.get("title", ""), "due_in_days": action.get("due_in_days")})
+        return True
+
+    if kind == "repeat":
+        if outcome.repeat is None:
+            outcome.repeat = {"frequency": action.get("frequency"), "interval": action.get("interval", 1)}
         return True
 
     field_def = fields_by_id.get(action.get("field_id"))
@@ -294,7 +336,11 @@ async def apply_entry_rules(
     rules = (
         await db.scalars(
             select(EntryRule)
-            .where(EntryRule.project_id == project.id, EntryRule.enabled.is_(True))
+            .where(
+                EntryRule.project_id == project.id,
+                EntryRule.enabled.is_(True),
+                EntryRule.trigger == "created",
+            )
             .order_by(EntryRule.created_at, EntryRule.id)
         )
     ).all()
@@ -316,6 +362,93 @@ async def apply_entry_rules(
             outcome.applied.append({"id": rule.id, "name": rule.name})
 
     return outcome
+
+
+async def apply_status_rules(
+    db: AsyncSession, project: Project, entry: Entry, today: date | None = None
+) -> RuleOutcome:
+    """Run the rules waiting for the status ``entry`` has just moved into.
+
+    Only follow-ups come out of these (a task, a repeat): the entry's own
+    values are left exactly as the person just saved them.
+    """
+    outcome = RuleOutcome(data=dict(entry.data or {}))
+    rules = (
+        await db.scalars(
+            select(EntryRule)
+            .where(
+                EntryRule.project_id == project.id,
+                EntryRule.enabled.is_(True),
+                EntryRule.trigger == "status",
+                EntryRule.trigger_status == entry.status,
+            )
+            .order_by(EntryRule.created_at, EntryRule.id)
+        )
+    ).all()
+    if not rules:
+        return outcome
+
+    schema = project.entry_schema or []
+    fields_by_id = {f["id"]: f for f in schema}
+    as_saved = apply_computed_fields(dict(entry.data or {}), schema)
+    today = today or server_today()
+
+    for rule in rules:
+        conditions = [FieldCondition.model_validate(c) for c in rule.conditions or []]
+        matched, _ = conditions_match(as_saved, schema, conditions, rule.match)
+        if not matched:
+            continue
+        changed = [_apply_action(a, outcome, fields_by_id, today) for a in rule.actions or []]
+        if any(changed):
+            outcome.applied.append({"id": rule.id, "name": rule.name})
+    return outcome
+
+
+def _task_title(template: str, entry: Entry, schema: list[dict[str, Any]]) -> str:
+    name = display_title(entry.title, entry.data or {}, schema) or "this entry"
+    return template.replace("{title}", name).strip()[:255]
+
+
+async def run_follow_ups(
+    db: AsyncSession,
+    project: Project,
+    entry: Entry,
+    outcome: RuleOutcome,
+    user_id: UUID | None,
+    today: date | None = None,
+) -> None:
+    """Create the tasks and the repeat a rule asked for. The caller commits."""
+    today = today or server_today()
+    for follow_up in outcome.new_tasks:
+        title = _task_title(follow_up["title"], entry, project.entry_schema or [])
+        if not title:
+            continue
+        due = follow_up.get("due_in_days")
+        db.add(
+            Task(
+                project_id=project.id,
+                title=title,
+                due_date=today + timedelta(days=due) if due is not None else None,
+                checklist=[],
+                created_by=user_id,
+            )
+        )
+
+    if outcome.repeat:
+        already = await db.scalar(select(EntryRecurrence).where(EntryRecurrence.entry_id == entry.id))
+        if already is None:
+            recurrence = EntryRecurrence(
+                entry_id=entry.id,
+                project_id=project.id,
+                created_by=user_id,
+                frequency=outcome.repeat["frequency"],
+                interval=outcome.repeat["interval"],
+                starts_on=entry.due_date or today,
+                next_index=1,
+                active=True,
+            )
+            schedule_next(recurrence)
+            db.add(recurrence)
 
 
 # ── Access ───────────────────────────────────────────────────────────────────
