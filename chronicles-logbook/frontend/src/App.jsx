@@ -622,6 +622,11 @@ function ProjectList({
       <div className="workspace-sidebar-brand">
         <span className="workspace-sidebar-mark" aria-hidden="true">C</span>
         <div><strong>Workspace</strong><span>Projects and activity</span></div>
+        {onCollapse && (
+          <button type="button" className="btn-icon panel-collapse" aria-label="Hide the project panel" title="Hide the project panel" onClick={onCollapse}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18" /></svg>
+          </button>
+        )}
       </div>
       <nav className="workspace-sidebar-nav" aria-label="Workspace views">
         <button type="button" className={homeActive ? "is-active" : ""} aria-current={homeActive ? "page" : undefined} onClick={onShowHome}>
@@ -658,11 +663,6 @@ function ProjectList({
       </div>
       <div className="sidebar-head" id="sidebar-projects">
         <h2>Projects</h2>
-        {onCollapse && (
-          <button type="button" className="btn-icon panel-collapse" aria-label="Hide the project panel" title="Hide the project panel" onClick={onCollapse}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18" /></svg>
-          </button>
-        )}
         <button
           type="button"
           className="btn-icon"
