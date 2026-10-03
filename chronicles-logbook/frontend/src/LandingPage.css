@@ -255,3 +255,5 @@
   .lp *, .lp *::before, .lp *::after { animation: none !important; transition: none !important; }
   [data-reveal] { opacity: 1; transform: none; }
 }
+
+.lp-mock-badge { display: inline-flex; align-items: center; gap: 6px; }
