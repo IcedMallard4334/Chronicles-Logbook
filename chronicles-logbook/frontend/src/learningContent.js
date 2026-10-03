@@ -26,7 +26,7 @@ export const CHRONICLES = [
     wash: "blue",
     title: "Understanding Digital Logbooks",
     description: "What is a digital logbook? Learn the core concept before you build one.",
-    meta: { level: "Beginner", duration: "4 min", tag: "Getting started" },
+    meta: { level: "Beginner", duration: "2 min", tag: "Getting started" },
     lessons: [
       {
         title: "What is a logbook?",
@@ -75,7 +75,7 @@ export const CHRONICLES = [
     wash: "mauve",
     title: "Understanding Entries",
     description: "Learn how entries work and what they're for before you start logging.",
-    meta: { level: "Beginner", duration: "4 min", tag: "Getting started" },
+    meta: { level: "Beginner", duration: "1 min", tag: "Getting started" },
     lessons: [
       {
         title: "What is an entry?",
@@ -116,7 +116,7 @@ export const CHRONICLES = [
     wash: "blue",
     title: "Creating Your First Logbook",
     description: "A hands-on walkthrough of starting a project, defining fields, and logging your first entry.",
-    meta: { level: "Beginner", duration: "6 min", tag: "Tutorial" },
+    meta: { level: "Beginner", duration: "2 min", tag: "Tutorial" },
     lessons: [
       {
         title: "Starting a new logbook",
@@ -154,7 +154,7 @@ export const CHRONICLES = [
     wash: "mauve",
     title: "Designing Your Logbook",
     description: "Learn how to decide what information is worth capturing in every entry.",
-    meta: { level: "Beginner", duration: "5 min", tag: "Core concept" },
+    meta: { level: "Beginner", duration: "2 min", tag: "Core concept" },
     lessons: [
       {
         title: "You choose what to capture",
@@ -188,7 +188,7 @@ export const CHRONICLES = [
     wash: "blue",
     title: "Adding and Managing Entries",
     description: "A practical tutorial: add, view, edit, and move through the entries you've recorded.",
-    meta: { level: "Beginner", duration: "6 min", tag: "Tutorial" },
+    meta: { level: "Beginner", duration: "2 min", tag: "Tutorial" },
     lessons: [
       {
         title: "Adding an entry",
@@ -226,7 +226,7 @@ export const CHRONICLES = [
     wash: "mauve",
     title: "Building a History",
     description: "A single entry tells you about one event. See how entries together become a history.",
-    meta: { level: "Beginner", duration: "4 min", tag: "Core concept" },
+    meta: { level: "Beginner", duration: "1 min", tag: "Core concept" },
     lessons: [
       {
         title: "One entry vs. many",
@@ -254,7 +254,7 @@ export const CHRONICLES = [
     wash: "blue",
     title: "What Can You Use a Digital Logbook For?",
     description: "Explore different ways people use Chronicles — and how you might adapt it to yours.",
-    meta: { level: "Beginner", duration: "4 min", tag: "Inspiration" },
+    meta: { level: "Beginner", duration: "1 min", tag: "Inspiration" },
     lessons: [
       {
         title: "A few examples",
@@ -287,7 +287,7 @@ export const CHRONICLES = [
     wash: "mauve",
     title: "Logbook vs Other Tools",
     description: "What makes a logbook different from a task manager, a diary, or a database?",
-    meta: { level: "Beginner", duration: "3 min", tag: "Core concept" },
+    meta: { level: "Beginner", duration: "1 min", tag: "Core concept" },
     lessons: [
       {
         title: "What makes a logbook different?",
@@ -321,7 +321,7 @@ export const CHRONICLES = [
     wash: "blue",
     title: "Getting More Value From Your Logbook",
     description: "A logbook gets more useful the longer you keep it up. Here's how to make that count.",
-    meta: { level: "Intermediate", duration: "5 min", tag: "Advanced" },
+    meta: { level: "Intermediate", duration: "1 min", tag: "Advanced" },
     lessons: [
       {
         title: "Habits that make a logbook pay off",
@@ -353,7 +353,7 @@ export const CHRONICLES = [
     wash: "mauve",
     title: "Tips & Best Practices",
     description: "A short collection of practical tips for keeping a logbook worth coming back to.",
-    meta: { level: "Beginner", duration: "3 min", tag: "Tips" },
+    meta: { level: "Beginner", duration: "1 min", tag: "Tips" },
     lessons: [
       {
         title: "Keep these in mind",
