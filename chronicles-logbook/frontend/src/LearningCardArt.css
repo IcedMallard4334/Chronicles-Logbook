@@ -1,0 +1,54 @@
+/* The illustrated banner on a Learning Chronicles card. Two washes, built
+   from the same theme tokens as the rest of the app (--blue/--blue-bg,
+   --mauve/--mauve-bg), so the card follows whichever accent and light/dark
+   mode is active rather than carrying its own fixed colours. */
+
+.learning-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 118px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.learning-art.is-wash-blue { background: linear-gradient(145deg, var(--blue-bg), color-mix(in srgb, var(--blue-bg) 55%, var(--surface))); }
+.learning-art.is-wash-mauve { background: linear-gradient(145deg, var(--mauve-bg), color-mix(in srgb, var(--mauve-bg) 55%, var(--surface))); }
+
+/* A couple of soft floating circles in each banner — the bit of confetti
+   that keeps a flat colour wash from reading as an empty block. */
+.learning-art::before,
+.learning-art::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.55;
+}
+.learning-art::before { width: 30px; height: 30px; top: -10px; right: 14px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.learning-art::after { width: 16px; height: 16px; bottom: 10px; left: 18px; background: color-mix(in srgb, var(--surface) 55%, transparent); }
+
+.learning-art svg { position: relative; z-index: 1; width: 104px; height: 80px; overflow: visible; }
+
+.learning-art.is-wash-mauve .is-base { fill: var(--mauve); }
+.learning-art.is-wash-blue .is-base { fill: var(--blue); }
+
+.learning-art.is-wash-mauve .is-light { fill: color-mix(in srgb, var(--mauve) 55%, var(--surface)); }
+.learning-art.is-wash-blue .is-light { fill: color-mix(in srgb, var(--blue) 55%, var(--surface)); }
+
+.learning-art.is-wash-mauve .is-dot { fill: var(--mauve); }
+.learning-art.is-wash-blue .is-dot { fill: var(--blue); }
+.learning-art .is-dot.is-light { opacity: 0.6; }
+.learning-art .is-dot.is-small { opacity: 0.8; }
+
+.learning-art.is-wash-mauve .is-needle { fill: var(--mauve); }
+.learning-art.is-wash-blue .is-needle { fill: var(--blue); }
+
+.learning-art .is-line { fill: none; stroke: var(--surface); stroke-width: 3; stroke-linecap: round; opacity: 0.85; }
+.learning-art .is-line.is-right { opacity: 0.6; }
+
+.learning-art .is-trail { fill: none; stroke-width: 3; stroke-linecap: round; opacity: 0.5; }
+.learning-art.is-wash-blue .is-trail { stroke: var(--blue); }
+.learning-art.is-wash-mauve .is-trail { stroke: var(--mauve); }
+.learning-art .is-trail.is-far { opacity: 0.3; }
+
+.learning-art .is-ring { fill: none; stroke: var(--surface); stroke-width: 3; opacity: 0.7; }

@@ -349,6 +349,8 @@ function AuthActions() {
 
 
 function EmptyState({ onCreate, onSeedDemoData }) {
+  const navigate = useNavigate()
+
   return (
     <div className="empty-state">
       <div className="empty-state-inner">
@@ -364,6 +366,9 @@ function EmptyState({ onCreate, onSeedDemoData }) {
               Load demo data
             </button>
           </div>
+          <button type="button" className="btn-text empty-learning-link" onClick={() => navigate("/learning")}>
+            New to digital logbooks? Explore Learning Chronicles →
+          </button>
         </div>
         <div className="empty-features">
           <div className="empty-feature">

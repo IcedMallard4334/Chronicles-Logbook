@@ -1,0 +1,77 @@
+/* Learning Chronicles — the app's built-in learning centre. Reuses the
+   same tokens (--surface, --line, --muted, --blue, --radius-*) as the rest
+   of the app rather than introducing a second visual language. */
+
+.learning-chronicles { display: grid; gap: 20px; padding: 28px; }
+.learning-chronicles.is-all { padding: 24px 0 0; }
+.learning-chronicles-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.learning-chronicles-head h2 { margin: 6px 0 6px; font-size: 1.3rem; letter-spacing: -0.02em; }
+.learning-chronicles-head p { margin: 0; max-width: 56ch; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+.learning-chronicles-head .btn-secondary { flex-shrink: 0; }
+
+.learning-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+
+.learning-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+.learning-card:hover,
+.learning-card:focus-visible {
+  border-color: var(--blue);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.learning-card-art-wrap { position: relative; }
+
+.learning-card-duration {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 55%, transparent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.learning-card-body { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 8px 6px; }
+.learning-card strong { font-size: 0.95rem; }
+.learning-card p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
+
+.learning-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.learning-card-meta span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.learning-card-cta { margin-top: auto; padding-top: 6px; color: var(--blue); font-size: 0.8rem; font-weight: 600; }
+
+.learning-more-note { margin: 0; color: var(--muted); font-size: 0.8rem; }
+
+@media (max-width: 650px) {
+  .learning-chronicles { padding: 20px; }
+  .learning-card-grid { grid-template-columns: 1fr; }
+}

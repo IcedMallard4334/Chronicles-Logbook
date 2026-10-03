@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { expect, it, vi } from "vitest"
 
 vi.mock("./DashboardPage", () => ({
@@ -13,8 +14,16 @@ const projects = [
   { id: "archive", name: "Completed work", archived: true },
 ]
 
+function renderHome(props) {
+  return render(
+    <MemoryRouter>
+      <HomeWorkspace projects={projects} onCreateProject={vi.fn()} {...props} />
+    </MemoryRouter>
+  )
+}
+
 it("keeps the welcome and project counts, with the dashboard underneath it", () => {
-  render(<HomeWorkspace projects={projects} onCreateProject={vi.fn()} />)
+  renderHome()
 
   expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument()
   expect(screen.getByText((_, element) => element?.textContent === "2 active projects")).toBeInTheDocument()
@@ -26,9 +35,18 @@ it("keeps the welcome and project counts, with the dashboard underneath it", () 
 
 it("still lets someone start a project from the welcome", () => {
   const create = vi.fn()
-  render(<HomeWorkspace projects={projects} onCreateProject={create} />)
+  renderHome({ onCreateProject: create })
 
   fireEvent.click(screen.getByRole("button", { name: /New project/ }))
 
   expect(create).toHaveBeenCalledOnce()
+})
+
+it("shows a clearly separate Learning Chronicles section below the dashboard", () => {
+  renderHome()
+
+  expect(
+    screen.getByText("Learn how to get the most out of your digital logbook")
+  ).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Explore all Learning Chronicles/ })).toBeInTheDocument()
 })
