@@ -1,4 +1,6 @@
+.home-hub-stack { display:grid; gap:20px; min-width:0; }
 .home-hub { min-width:0; overflow:hidden; background:var(--surface); }
+.home-hub-learning-wrap { border:1px solid var(--line); border-radius:16px; }
 .home-hub-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; padding:28px; border-bottom:1px solid var(--line); }
 .home-hub-welcome { background:linear-gradient(118deg, color-mix(in srgb,var(--blue-bg) 72%,var(--surface)), var(--surface) 64%); }
 .home-hub-welcome-mark { flex:0 0 48px; display:grid; place-items:center; width:48px; height:48px; border:2px solid var(--blue); border-radius:50%; color:var(--text); background:var(--surface); font-size:1.6rem; font-weight:800; }

@@ -1,0 +1,73 @@
+/* Chronicle reader — sits inside .help-card/.help-main's existing page
+   chrome (HelpPage.css), adding only what a lesson-by-lesson guide needs
+   on top of that shared layout. */
+
+.chronicle-reader-head { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.chronicle-reader-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.chronicle-reader-icon svg { width: 24px; height: 24px; }
+.chronicle-reader-head h1 { margin: 0; }
+
+.chronicle-progress { margin: 14px 0 6px; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+.chronicle-progress-bar { display: flex; gap: 5px; margin-bottom: 28px; }
+.chronicle-progress-bar span { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
+.chronicle-progress-bar span.is-done { background: var(--blue); }
+
+.chronicle-lesson { max-width: 62ch; }
+.chronicle-lesson h2 { margin: 0 0 14px; font-size: 1.2rem; }
+.chronicle-lesson p { color: var(--text); line-height: 1.6; }
+.chronicle-lesson ul, .chronicle-lesson ol { color: var(--text); line-height: 1.6; padding-left: 22px; }
+.chronicle-lesson li { margin-bottom: 6px; }
+
+.chronicle-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 16px 0; }
+.chronicle-flow [role="listitem"] { display: flex; align-items: center; gap: 6px; }
+.chronicle-flow-step {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.chronicle-flow-arrow { color: var(--muted); }
+
+.chronicle-callout {
+  margin: 16px 0;
+  padding: 14px 18px;
+  border-left: 3px solid var(--blue);
+  border-radius: 0 10px 10px 0;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.chronicle-example {
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.chronicle-example-heading { margin: 0 0 10px; color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
+.chronicle-example dl { display: grid; gap: 8px; margin: 0; }
+.chronicle-example dt { color: var(--muted); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.chronicle-example dd { margin: 2px 0 0; color: var(--text); font-size: 0.88rem; }
+
+.chronicle-lesson-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
+.chronicle-complete { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+
+.chronicle-reader-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+
+@media (max-width: 650px) {
+  .chronicle-lesson-nav, .chronicle-reader-foot { flex-direction: column; align-items: stretch; }
+}

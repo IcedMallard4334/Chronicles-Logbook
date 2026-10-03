@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
 import ChroniclesLogo from "./ChroniclesLogo"
+import { StreakIcon } from "./Streaks"
 import { getGoogleLoginUrl } from "./api"
 import "./LandingPage.css"
 
@@ -132,7 +133,7 @@ function HeroMock() {
           </div>
         </div>
       </div>
-      <div className="lp-mock-badge">🔥 12-day streak</div>
+      <div className="lp-mock-badge"><StreakIcon kind="login" size={15} /> 12-day streak</div>
       <div className="lp-mock-mira"><b>Mira</b> I added 3 tasks to “Capstone build”.</div>
     </div>
   )

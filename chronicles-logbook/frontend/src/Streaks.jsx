@@ -3,17 +3,26 @@ import { useEffect, useState } from "react"
 import { fetchStreaks, recordStreakActivity, STREAKS_CHANGED } from "./api"
 import "./Streaks.css"
 
+/** The streak marks as line icons, so they take the theme's colours instead of an emoji's own. */
+export function StreakIcon({ kind, size = 16 }) {
+  return (
+    <svg className={`streak-icon is-${kind}`} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" focusable="false">
+      {kind === "login"
+        ? <path d="M12 2.5s5.5 4.2 5.5 9.6a5.5 5.5 0 0 1-11 0c0-2.2 1.1-3.6 2.2-4.6.1 2 1 3.2 2.1 3.4C10.3 7.6 10.3 5 12 2.5z" />
+        : <path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z" />}
+    </svg>
+  )
+}
+
 const KINDS = [
   {
     key: "login",
-    icon: "🔥",
     name: "Login streak",
     help: "Consecutive days you have opened Chronicles.",
     nudge: "Opened today’s logbook to keep it going.",
   },
   {
     key: "interaction",
-    icon: "⚡",
     name: "Activity streak",
     help: "Consecutive days you did something: logged an entry, completed a task, created a project or ran an activity.",
     nudge: "Do something today to keep it going.",
@@ -52,13 +61,13 @@ export default function Streaks() {
 
   return (
     <ul className="streaks" aria-label="Daily streaks">
-      {KINDS.map(({ key, icon, name, help, nudge }) => {
+      {KINDS.map(({ key, name, help, nudge }) => {
         const streak = streaks[key]
         const alive = streak.current > 0
         const tip = `${name}: ${dayLabel(streak.current)}. Longest: ${dayLabel(streak.longest)}. ${help} ${streak.active_today ? "Done for today." : nudge}`
         return (
           <li key={key} className={`streak ${alive ? "is-alive" : ""} ${streak.active_today ? "is-done" : ""}`} title={tip}>
-            <span aria-hidden="true">{icon}</span>
+            <StreakIcon kind={key} />
             <span className="streak-count">{streak.current}</span>
             <span className="sr-only">{tip}</span>
           </li>

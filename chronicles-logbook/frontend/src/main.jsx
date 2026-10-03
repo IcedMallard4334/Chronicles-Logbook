@@ -24,6 +24,8 @@ const AuthCallback = lazy(() => import('./AuthCallback.jsx'))
 const ProfilePage = lazy(() => import('./ProfilePage.jsx'))
 const HelpPage = lazy(() => import('./HelpPage.jsx'))
 const AchievementsPage = lazy(() => import('./AchievementsPage.jsx'))
+const LearningHubPage = lazy(() => import('./LearningHubPage.jsx'))
+const ChronicleReader = lazy(() => import('./ChronicleReader.jsx'))
 const SetupPage = lazy(() => import('./SetupPage.jsx'))
 const OnboardingLayout = lazy(() => import('./OnboardingLayout.jsx'))
 const MiraConsentPage = lazy(() => import('./MiraConsentPage.jsx'))
@@ -131,6 +133,16 @@ function ProtectedHelpRoute() {
   return isSignedIn ? <HelpPage /> : <Navigate to="/" replace />
 }
 
+function ProtectedLearningHubRoute() {
+  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
+  return isSignedIn ? <LearningHubPage /> : <Navigate to="/" replace />
+}
+
+function ProtectedChronicleRoute() {
+  const isSignedIn = Boolean(window.localStorage.getItem('chronicles_token'))
+  return isSignedIn ? <ChronicleReader /> : <Navigate to="/" replace />
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
@@ -148,6 +160,8 @@ createRoot(document.getElementById('root')).render(
             <Route path="/profile" element={<ProtectedProfileRoute />} />
             <Route path="/help" element={<ProtectedHelpRoute />} />
             <Route path="/achievements" element={<ProtectedAchievementsRoute />} />
+            <Route path="/learning" element={<ProtectedLearningHubRoute />} />
+            <Route path="/learning/:chronicleId" element={<ProtectedChronicleRoute />} />
           </Route>
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="*" element={<Navigate to="/" replace />} />

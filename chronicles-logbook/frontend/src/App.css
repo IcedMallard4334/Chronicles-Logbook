@@ -732,6 +732,12 @@
   margin-top: 8px;
 }
 
+.empty-learning-link {
+  display: block;
+  margin: 18px auto 0;
+  font-size: 0.85rem;
+}
+
 .btn-lg {
   padding: 14px 32px;
   font-size: 0.95rem;

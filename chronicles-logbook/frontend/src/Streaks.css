@@ -13,3 +13,8 @@
 }
 .streak.is-alive { opacity: 0.9; }
 .streak.is-done { opacity: 1; border-color: var(--blue, #6b5bff); background: color-mix(in srgb, var(--blue, #6b5bff) 12%, transparent); }
+
+.streak-icon { flex: 0 0 auto; }
+.streak-icon.is-login { color: #ff7a2f; }
+.streak-icon.is-interaction { color: #f5b73b; }
+.streak:not(.is-alive) .streak-icon { color: var(--muted, #8b8aa3); fill-opacity: 0.35; }
