@@ -23,9 +23,12 @@ describe("LearningChronicles", () => {
 
     expect(screen.getByText("Learn how to get the most out of your digital logbook")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Explore all Learning Chronicles/ })).toBeInTheDocument()
-    // Every pilot chronicle shows up as its own card.
-    for (const chronicle of CHRONICLES) {
+    // Home shows the first four as cards; the rest wait in the full hub.
+    for (const chronicle of CHRONICLES.slice(0, 4)) {
       expect(screen.getByText(chronicle.title)).toBeInTheDocument()
+    }
+    for (const chronicle of CHRONICLES.slice(4)) {
+      expect(screen.queryByText(chronicle.title)).not.toBeInTheDocument()
     }
   })
 

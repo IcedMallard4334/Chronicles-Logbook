@@ -51,7 +51,8 @@ describe("ChronicleReader", () => {
     expect(screen.getByText("You've completed this guide")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Next →" })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to Learning Chronicles" }))
+    // The top bar has a back arrow with the same name; the one in the footer is last.
+    fireEvent.click(screen.getAllByRole("button", { name: "Back to Learning Chronicles" }).at(-1))
     expect(screen.getByText("Learning hub")).toBeInTheDocument()
   })
 
