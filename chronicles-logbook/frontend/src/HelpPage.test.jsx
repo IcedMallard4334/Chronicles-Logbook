@@ -62,6 +62,7 @@ function renderHelp(initialEntries = ["/help"]) {
       <Routes>
         <Route path="/help" element={<HelpPage />} />
         <Route path="/app" element={<p>Logbook home</p>} />
+        <Route path="/profile" element={<p>Profile page</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -161,5 +162,22 @@ describe("HelpPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to workspace" }))
 
     expect(screen.getByText("Logbook home")).toBeInTheDocument()
+  })
+
+  it("the Back button returns to the profile when help was opened from there", () => {
+    renderHelp([{ pathname: "/help", state: { from: "/profile" } }])
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to profile" }))
+
+    expect(screen.getByText("Profile page")).toBeInTheDocument()
+  })
+
+  it("still returns to the profile after switching topics", () => {
+    renderHelp([{ pathname: "/help", state: { from: "/profile" } }])
+
+    fireEvent.click(screen.getByRole("button", { name: "Inviting someone" }))
+    fireEvent.click(screen.getByRole("button", { name: "Back to profile" }))
+
+    expect(screen.getByText("Profile page")).toBeInTheDocument()
   })
 })

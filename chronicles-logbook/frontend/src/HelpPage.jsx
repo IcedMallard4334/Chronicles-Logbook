@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import LogoIcon from "./ChroniclesLogo"
 import { HELP_SECTIONS } from "./helpContent"
@@ -58,7 +58,11 @@ function matchesQuery(article, query) {
 
 export default function HelpPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  // Pages that link here (e.g. Profile) pass { from } in the navigation
+  // state so Back returns to them; anything else falls back to the workspace.
+  const backTo = location.state?.from === "/profile" ? "/profile" : "/app"
   const [query, setQuery] = useState("")
 
   // Flattened once for O(1) "find the active article" lookups — the nav
@@ -87,7 +91,8 @@ export default function HelpPage() {
   }, [query])
 
   const selectArticle = (id) => {
-    setSearchParams(id === defaultArticleId ? {} : { topic: id })
+    // Keep the navigation state so Back still knows where help was opened from.
+    setSearchParams(id === defaultArticleId ? {} : { topic: id }, { state: location.state })
   }
 
   return (
@@ -113,11 +118,13 @@ export default function HelpPage() {
           <div className="nav-pill-left">
             <button
               type="button"
-              className="nav-item"
-              onClick={() => navigate("/app")}
-              aria-label="Back to workspace"
+              className="nav-item profile-back"
+              onClick={() => navigate(backTo)}
+              aria-label={backTo === "/profile" ? "Back to profile" : "Back to workspace"}
             >
-              <span aria-hidden="true">←</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
               <span>Back</span>
             </button>
             <button type="button" className="nav-item" onClick={() => navigate("/app")}>

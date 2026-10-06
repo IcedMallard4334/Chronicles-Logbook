@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import HelpPage from "./HelpPage"
 import ProfilePage from "./ProfilePage"
 import { deleteAccount, fetchCurrentUser } from "./api"
 
@@ -20,6 +21,7 @@ function renderPage() {
     <MemoryRouter initialEntries={["/profile"]}>
       <Routes>
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="/app" element={<p>Workspace</p>} />
         <Route path="/" element={<p>Landing page</p>} />
       </Routes>
@@ -249,4 +251,16 @@ describe("ProfilePage", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Server error")
     })
   })
+})
+
+it("returns to the profile from help opened on the profile", async () => {
+  renderPage()
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open help" }))
+  expect(await screen.findByRole("heading", { name: /Help & documentation/ })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole("button", { name: "Back to profile" }))
+
+  expect(await screen.findByRole("button", { name: "Open help" })).toBeInTheDocument()
+  expect(screen.queryByText("Workspace")).not.toBeInTheDocument()
 })

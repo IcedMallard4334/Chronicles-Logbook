@@ -586,12 +586,21 @@ function ProjectList({
   projects, statistics, selectedId, onSelect, onCreate,
   onShowHome, homeActive, onShowTimeline, timelineActive,
   onShowToday, todayActive, onShowOutstanding, outstandingActive, onCollapse,
+  sheetOpen, onSheetOpenChange,
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const [query, setQuery] = useState("")
   // On a phone the navigation is a bar along the bottom, and the project list
   // opens upwards from it; on a wide screen this changes nothing.
-  const [projectsOpen, setProjectsOpen] = useState(false)
+  // The phone's bottom bar (MobileTabBar) can open the sheet too, so App may
+  // own this state; without those props the panel keeps its own.
+  const [ownProjectsOpen, setOwnProjectsOpen] = useState(false)
+  const projectsOpen = sheetOpen ?? ownProjectsOpen
+  const setProjectsOpen = (next) => {
+    const value = typeof next === "function" ? next(projectsOpen) : next
+    if (onSheetOpenChange) onSheetOpenChange(value)
+    else setOwnProjectsOpen(value)
+  }
   const [pinnedIds, setPinnedIds] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem("chronicles-pinned-projects") || "[]") } catch { return [] }
   })
@@ -2001,6 +2010,10 @@ const TAB_BAR_ICONS = {
   entries: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /></>,
   tasks: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>,
   calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
+  projects: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+  today: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /><circle cx="12" cy="16" r="1.5" /></>,
+  activities: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+  outstanding: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
   assistant: <path d="M12 3a7 7 0 0 0-7 7v3a4 4 0 0 0 4 4h1l2 3 2-3h1a4 4 0 0 0 4-4v-3a7 7 0 0 0-7-7Z" />,
   board: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18M15 3v18" /></>,
@@ -2012,18 +2025,19 @@ const TAB_BAR_ICONS = {
  * four places used most and a "More" sheet for the rest. Hidden on wide screens,
  * where the top bar carries every destination.
  */
-function MobileTabBar({ currentView, onGo }) {
+function MobileTabBar({ currentView, activeTab, onGo, projectsOpen = false, onProjects }) {
   const [moreOpen, setMoreOpen] = useState(false)
-  const main = [["home", "Home"], ["entries", "Entries"], ["tasks", "Tasks"], ["calendar", "Calendar"]]
-  const more = [["assistant", "Mira"], ["board", "Board"], ["statistics", "Statistics"]]
-  const inMore = more.some(([view]) => view === currentView)
+  const main = [["home", "Home"], ["projects", "Projects"], ["entries", "Entries"], ["calendar", "Calendar"]]
+  const more = [["today", "Today"], ["activities", "Activity"], ["outstanding", "Outstanding"], ["tasks", "Tasks"], ["board", "Board"], ["statistics", "Statistics"], ["assistant", "Mira"]]
+  const current = activeTab || currentView
+  const inMore = more.some(([view]) => view === current)
   const icon = (name) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{TAB_BAR_ICONS[name]}</svg>
   return (
     <nav className={`mobile-tab-bar${moreOpen ? " is-more-open" : ""}`} aria-label="Quick navigation">
       {moreOpen && (
         <div className="mobile-tab-more" id="mobile-tab-more">
           {more.map(([view, label]) => (
-            <button key={view} type="button" className={currentView === view ? "is-active" : ""} aria-current={currentView === view ? "page" : undefined} onClick={() => { setMoreOpen(false); onGo(view) }}>
+            <button key={view} type="button" className={current === view ? "is-active" : ""} aria-current={current === view ? "page" : undefined} onClick={() => { setMoreOpen(false); onGo(view) }}>
               {icon(view)}
               {label}
             </button>
@@ -2031,8 +2045,13 @@ function MobileTabBar({ currentView, onGo }) {
         </div>
       )}
       <div className="mobile-tab-row">
-        {main.map(([view, label]) => (
-          <button key={view} type="button" className={currentView === view ? "is-active" : ""} aria-current={currentView === view ? "page" : undefined} onClick={() => { setMoreOpen(false); onGo(view) }}>
+        {main.map(([view, label]) => view === "projects" ? (
+          <button key={view} type="button" className={projectsOpen ? "is-active" : ""} aria-expanded={projectsOpen} aria-controls="sidebar-projects" onClick={() => { setMoreOpen(false); onProjects?.() }}>
+            {icon(view)}
+            {label}
+          </button>
+        ) : (
+          <button key={view} type="button" className={!projectsOpen && current === view ? "is-active" : ""} aria-current={current === view ? "page" : undefined} onClick={() => { setMoreOpen(false); onGo(view) }}>
             {icon(view)}
             {label}
           </button>
@@ -2632,6 +2651,8 @@ function App() {
   }, [currentView])
 
   const showWorkspaceSidebar = ["home", "today", "outstanding", "activities"].includes(currentView)
+  // Phone only: the project sheet that opens from the bottom bar's Projects tab.
+  const [projectsSheetOpen, setProjectsSheetOpen] = useState(false)
 
   // US-3.23: a one-time welcome tour, then a single coach mark the first
   // time each page is opened. Both read seenTours() fresh on every render
@@ -3318,6 +3339,8 @@ function App() {
             todayActive={currentView === "today"}
             onShowOutstanding={() => setCurrentView("outstanding")}
             outstandingActive={currentView === "outstanding"}
+            sheetOpen={projectsSheetOpen}
+            onSheetOpenChange={setProjectsSheetOpen}
           />
         </div>}
         <div className="content">
@@ -3403,14 +3426,24 @@ function App() {
       {showPageHint && (
         <PageHint hint={pageTour} onDismiss={() => setHintTick((tick) => tick + 1)} />
       )}
-      {!showWorkspaceSidebar && (
-        <MobileTabBar
-          currentView={currentView}
-          onGo={(view) => {
-            if (view === "home") { setCurrentView("home"); setSelectedId(null); setView("project") } else setCurrentView(view)
-          }}
-        />
-      )}
+      {/* One bottom bar on every page (shown by MobileLayout.css below 720px only). */}
+      <MobileTabBar
+        currentView={currentView}
+        activeTab={currentView === "home" && view === "timeline" ? "activities" : currentView}
+        projectsOpen={projectsSheetOpen}
+        onProjects={() => {
+          if (projectsSheetOpen) { setProjectsSheetOpen(false); return }
+          // The project list lives in the Home panel, so bring Home's panel up first.
+          if (!showWorkspaceSidebar) setCurrentView("home")
+          setProjectsSheetOpen(true)
+        }}
+        onGo={(view) => {
+          setProjectsSheetOpen(false)
+          if (view === "home") { setCurrentView("home"); setSelectedId(null); setView("project") }
+          else if (view === "activities") handleShowTimeline()
+          else setCurrentView(view)
+        }}
+      />
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )
