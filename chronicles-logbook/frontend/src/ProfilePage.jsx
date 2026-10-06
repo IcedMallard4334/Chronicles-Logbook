@@ -452,7 +452,7 @@ export default function ProfilePage() {
                   <span className="profile-row-label">Help manual</span>
                   <span className="profile-row-value">Search how-to guides for every feature and field type.</span>
                 </div>
-                <button type="button" className="btn-secondary" onClick={() => navigate("/help")}>
+                <button type="button" className="btn-secondary" onClick={() => navigate("/help", { state: { from: "/profile" } })}>
                   Open help
                 </button>
               </div>
