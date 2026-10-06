@@ -37,12 +37,48 @@ function useTheme() {
     window.localStorage.setItem("chronicles-theme", theme)
   }, [theme])
 
-  const cycleTheme = () => {
-    const themes = ["light", "dark", "system"]
-    setTheme((current) => themes[(themes.indexOf(current) + 1) % themes.length])
-  }
+  return [theme, setTheme]
+}
 
-  return [theme, cycleTheme]
+const iconProps = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true }
+
+const THEME_OPTIONS = [
+  {
+    id: "light",
+    label: "Light",
+    icon: <svg {...iconProps}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>,
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    icon: <svg {...iconProps}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>,
+  },
+  {
+    id: "system",
+    label: "System",
+    icon: <svg {...iconProps}><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>,
+  },
+]
+
+function ThemePicker({ theme, onChange }) {
+  return (
+    <div className="theme-picker" role="radiogroup" aria-label="Theme">
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="radio"
+          aria-checked={theme === option.id}
+          title={option.label}
+          className={theme === option.id ? "is-selected" : ""}
+          onClick={() => onChange(option.id)}
+        >
+          {option.icon}
+          <span>{option.label}</span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function useDensity() {
@@ -106,7 +142,7 @@ function DeleteAccountModal({ onClose, onConfirm, error, isDeleting, confirmatio
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const [theme, cycleTheme] = useTheme()
+  const [theme, setTheme] = useTheme()
   const [density, setDensity] = useDensity()
   const [screenReader, setScreenReader] = useState(screenReaderEnabled)
   const [speed, setSpeed] = useState(readerRate)
@@ -217,7 +253,11 @@ export default function ProfilePage() {
         .slice(0, 2)
     : "?"
 
-  const themeLabel = theme.charAt(0).toUpperCase() + theme.slice(1)
+  const themeDescription = {
+    light: "Light — bright workspace",
+    dark: "Dark — low-glare workspace",
+    system: "System — follows your device setting",
+  }[theme] || "System — follows your device setting"
   const updateAccent = (nextAccent) => {
     setAccent(nextAccent)
     window.localStorage.setItem("chronicles-accent", nextAccent)
@@ -315,11 +355,9 @@ export default function ProfilePage() {
               <div className="profile-row">
                 <div className="profile-row-text">
                   <span className="profile-row-label">Theme</span>
-                  <span className="profile-row-value">{themeLabel}</span>
+                  <span className="profile-row-value">{themeDescription}</span>
                 </div>
-                <button type="button" className="btn-secondary" onClick={cycleTheme}>
-                  Switch theme
-                </button>
+                <ThemePicker theme={theme} onChange={setTheme} />
               </div>
               <div className="profile-row">
                 <div className="profile-row-text">

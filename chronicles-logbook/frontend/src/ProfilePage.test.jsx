@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -144,25 +144,26 @@ describe("ProfilePage", () => {
     expect(screen.getByRole("heading", { name: "Workspace settings" })).toBeInTheDocument()
   })
 
-  it("cycles through light, dark, and system themes", async () => {
+  it("switches between light, dark, and system themes from the icon picker", async () => {
     renderPage()
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Ethan Student" })).toBeInTheDocument()
     })
 
-    expect(screen.getByText("System")).toBeInTheDocument()
+    const picker = screen.getByRole("radiogroup", { name: "Theme" })
+    expect(within(picker).getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true")
 
-    fireEvent.click(screen.getByRole("button", { name: "Switch theme" }))
-    expect(screen.getByText("Light")).toBeInTheDocument()
+    fireEvent.click(within(picker).getByRole("radio", { name: "Dark" }))
+    expect(within(picker).getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true")
+    expect(document.documentElement.dataset.theme).toBe("dark")
+    expect(window.localStorage.getItem("chronicles-theme")).toBe("dark")
+
+    fireEvent.click(within(picker).getByRole("radio", { name: "Light" }))
     expect(document.documentElement.dataset.theme).toBe("light")
 
-    fireEvent.click(screen.getByRole("button", { name: "Switch theme" }))
-    expect(screen.getByText("Dark")).toBeInTheDocument()
-    expect(document.documentElement.dataset.theme).toBe("dark")
-
-    fireEvent.click(screen.getByRole("button", { name: "Switch theme" }))
-    expect(screen.getByText("System")).toBeInTheDocument()
+    fireEvent.click(within(picker).getByRole("radio", { name: "System" }))
+    expect(screen.getByText("System — follows your device setting")).toBeInTheDocument()
     expect(document.documentElement.dataset.theme).toBeUndefined()
   })
 

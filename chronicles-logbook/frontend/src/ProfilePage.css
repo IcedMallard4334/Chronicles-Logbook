@@ -153,3 +153,11 @@
 .screen-reader-help ul { margin: 0.4rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.25rem; }
 .screen-reader-help kbd { padding: 0.05rem 0.35rem; border: 1px solid var(--line); border-radius: 0.3rem; background: var(--surface-soft); font: inherit; font-size: 0.78rem; }
 .colour-picker > span { white-space: nowrap; }
+
+/* Theme picker: Light / Dark / System as an icon segmented control.
+   Matches the density toggle so the Appearance rows read as one set. */
+.theme-picker { display:flex; padding:3px; gap:2px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); }
+.theme-picker button { display:inline-flex; align-items:center; gap:6px; border:0; border-radius:5px; padding:6px 10px; background:transparent; color:var(--muted); font-size:.72rem; cursor:pointer; }
+.theme-picker button:hover { color:var(--text); }
+.theme-picker button.is-selected { background:var(--surface); color:var(--blue); box-shadow:0 1px 3px #0001; }
+.theme-picker button:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
