@@ -227,7 +227,10 @@ async def stream_reply(
         )
     ).all()
     history = [(m.role, m.content) for m in earlier]
-    if not earlier:
+    # Remembered so a failed reply can leave the conversation exactly as it was.
+    retitled = not earlier
+    title_before = conversation.title
+    if retitled:
         conversation.title = message[:60] + ("…" if len(message) > 60 else "")
     user_message = MiraMessage(conversation_id=conversation.id, role="user", content=message)
     db.add(user_message)
@@ -287,6 +290,14 @@ async def stream_reply(
                 )
                 db.add(saved)
                 conversation.updated_at = datetime.now(timezone.utc)
+                await db.commit()
+            if failed:
+                # A failed reply leaves nothing behind: the question is removed
+                # so a retry is not saved next to the attempt that failed, and a
+                # title taken from it does not outlive the message it came from.
+                await db.delete(user_message)
+                if retitled:
+                    conversation.title = title_before
                 await db.commit()
         yield _sse({"type": "done"})
 

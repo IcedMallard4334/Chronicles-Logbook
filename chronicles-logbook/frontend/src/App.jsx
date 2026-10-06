@@ -2738,9 +2738,12 @@ function App() {
       upsertReply(item => ({ ...item, streaming: false }))
       // Quick path: when the person has opted in, anything that only adds or changes runs at once.
       if (proposed.length && miraAutoRun && !proposed.some(action => action.destructive)) runMiraActions(proposed)
-    } catch {
-      setMiraMessages(previous => previous.filter(item => item.id !== replyId))
-      setMiraError({ message: "Mira could not reply just now. Please try again.", retryMessage: trimmed })
+    } catch (error) {
+      // The failed exchange leaves nothing behind — the question is dropped with
+      // the reply it never got, so a retry cannot duplicate it — and whatever the
+      // backend said about the failure is what the person reads.
+      setMiraMessages(previous => previous.filter(item => item.id !== replyId && item.id !== `user-${id}`))
+      setMiraError({ message: error?.message || "Mira could not reply just now. Please try again.", retryMessage: trimmed })
     } finally {
       setMiraMessages(previous => previous.map(item => item.id === replyId ? { ...item, streaming: false } : item))
       setMiraSending(false)
