@@ -171,7 +171,7 @@
   .app-shell .btn-text { font-size: 0.78rem; }
   .app-shell input:not([type="checkbox"], [type="radio"]),
   .app-shell select,
-  .app-shell textarea { font-size: 0.85rem; padding-top: 7px; padding-bottom: 7px; min-height: 36px; }
+  .app-shell textarea { font-size: 16px; padding-top: 7px; padding-bottom: 7px; min-height: 40px; }
   .app-shell select:not([multiple]):not([size]) { padding-right: 28px; }
   .app-shell h1 { font-size: 1.3rem; }
   .app-shell h2 { font-size: 1.1rem; }
@@ -435,7 +435,7 @@
 
 /* Less gutter, more content: the frames inside frames shrink on a phone. */
 @media (max-width: 720px) {
-  .app-shell { margin-inline: 0; padding-inline: 6px; }
+  .app-shell { width: auto; max-width: none; margin-inline: 0; padding-inline: 10px; }
   .project-detail { padding: 0; }
   .detail-body { padding: 10px; }
   .schema-builder, .schema-summary { padding: 12px; }
@@ -532,3 +532,93 @@
 }
 
 .workspace-sidebar-brand .panel-collapse { margin-left: auto; flex: 0 0 auto; }
+
+
+/* --------------------------------------------------
+   PHONE LAYOUT, ROUND 2
+   One bottom bar on every page, a plain top bar, 16px form fields
+   (iOS Safari zooms into anything smaller), and Mira out of the way.
+   -------------------------------------------------- */
+@media (max-width: 720px) {
+  /* Top bar: logo, name, streaks and avatar only. The bottom bar is the navigation. */
+  .app-shell .nav-collapse-toggle,
+  .app-shell .nav-pill .nav-pill-center { display: none !important; }
+  .app-shell .nav-pill-left .brand-name { display: inline; font-size: 1rem; }
+
+  /* The Home panel's own tab row is replaced by the bottom bar; the panel is
+     only ever the project sheet, opened from the bar's Projects tab. */
+  .workspace-sidebar > .workspace-sidebar-nav { display: none !important; }
+  .app-shell > .home-main .sidebar-stack { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell > .home-main .sidebar-stack:not(:has(.is-projects-open)) { display: none; }
+  .app-shell > .home-main .workspace-sidebar { border-radius: 18px 18px 0 0; border: 1px solid var(--line); border-bottom: 0; }
+  .workspace-sidebar.is-projects-open .project-list,
+  .home-main .workspace-sidebar .project-list { max-height: 46svh; }
+
+  /* Every form field at 16px, so tapping one never zooms the page. */
+  :root input:not([type="checkbox"], [type="radio"]),
+  :root select,
+  :root textarea { font-size: 16px; }
+
+  /* Room under the last card for the bottom bar and Mira. */
+  .app-shell { padding-bottom: 150px; }
+
+  /* Mira: a round button above the bar, right-hand side, no label. */
+  .app-shell .mira-launcher,
+  .app-shell:has(.mobile-tab-bar) .mira-launcher { right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell .mira-launch-button { padding: 5px; }
+  .app-shell .mira-launch-button > span:not(.mira-mark) { display: none; }
+  .app-shell .mira-launch-button .mira-mark { width: 34px; height: 34px; }
+  .app-shell:has(.is-projects-open) .mira-launcher,
+  .app-shell:has(.mobile-tab-bar.is-more-open) .mira-launcher { display: none; }
+
+  /* Bottom bar: four tabs and More, at a comfortable thumb height. */
+  .mobile-tab-row button,
+  .mobile-tab-more button { min-height: 48px; font-size: 0.68rem; }
+  .mobile-tab-more { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mobile-tab-more button { justify-content: flex-start; padding-inline: 12px; font-size: 0.85rem; }
+
+  /* All Entries: each row is a card, not a table you swipe sideways. */
+  .workspace-table-wrap { overflow-x: visible; }
+  .workspace-table, .workspace-table tbody { display: block; width: 100%; min-width: 0; }
+  .workspace-table thead { display: none; }
+  .workspace-table tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "check title title" "check project project" "check recorded time";
+    gap: 4px 10px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+  }
+  .workspace-table td { display: block; padding: 0; border: 0; min-width: 0; }
+  .workspace-table td:nth-child(1) { grid-area: check; align-self: start; padding-top: 2px; }
+  .workspace-table td:nth-child(2) { grid-area: title; font-weight: 600; }
+  .workspace-table td:nth-child(3) { grid-area: project; }
+  .workspace-table td:nth-child(4) { grid-area: recorded; color: var(--muted); font-size: 0.78rem; }
+  .workspace-table td:nth-child(5) { display: none; }
+  .workspace-table td:nth-child(6) { grid-area: time; color: var(--muted); font-size: 0.78rem; text-align: right; }
+  .workspace-table .workspace-project-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+}
+
+/* Between a phone and a laptop (a phone on its side, a tablet, or a phone in
+   "desktop site" mode) the seven top tabs no longer wrap onto a second row:
+   they stay on one line and scroll sideways. */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .app-shell .nav-pill .nav-pill-center {
+    display: flex;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-shell .nav-pill .nav-pill-center::-webkit-scrollbar { display: none; }
+  .app-shell .nav-pill-center .nav-item { flex: 0 0 auto; white-space: nowrap; }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .app-shell .nav-pill-center { gap: 2px; }
+  .app-shell .nav-pill-center .nav-item { padding-inline: 8px; gap: 5px; font-size: 0.78rem; }
+  .app-shell .nav-pill-left .brand-name { display: none; }
+}

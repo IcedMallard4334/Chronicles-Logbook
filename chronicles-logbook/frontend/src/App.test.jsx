@@ -152,13 +152,17 @@ describe("App workspace", () => {
   it("closes the phone layout's project sheet once a project is chosen", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
     const projects = await screen.findByRole("listbox", { name: "Projects" })
-    const toggle = screen.getByRole("button", { name: "Projects", expanded: false })
+    const aside = projects.closest("aside")
+    // On a phone the sheet opens from the bottom bar's Projects tab.
+    const bar = screen.getByRole("navigation", { name: "Quick navigation" })
+    const toggle = within(bar).getByRole("button", { name: "Projects", expanded: false })
 
     fireEvent.click(toggle)
-    expect(toggle.closest("aside")).toHaveClass("is-projects-open")
+    expect(aside).toHaveClass("is-projects-open")
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
     fireEvent.click(within(projects).getByText("Field Notes"))
 
-    await waitFor(() => expect(toggle.closest("aside")).not.toHaveClass("is-projects-open"))
+    await waitFor(() => expect(aside).not.toHaveClass("is-projects-open"))
   })
 
   it("puts the dashboard on the home page, in the sidebar rather than the top bar", async () => {
@@ -607,9 +611,12 @@ describe("phone navigation", () => {
     fireEvent.click(await screen.findByRole("button", { name: /All Tasks/ }))
 
     const bar = await screen.findByRole("navigation", { name: "Quick navigation" })
-    expect(within(bar).getByRole("button", { name: "Tasks" })).toHaveAttribute("aria-current", "page")
+    for (const name of ["Home", "Projects", "Entries", "Calendar", "More"]) {
+      expect(within(bar).getByRole("button", { name })).toBeInTheDocument()
+    }
 
     fireEvent.click(within(bar).getByRole("button", { name: "More" }))
+    expect(within(bar).getByRole("button", { name: "Tasks" })).toHaveAttribute("aria-current", "page")
     expect(within(bar).getByRole("button", { name: "Board" })).toBeInTheDocument()
     expect(within(bar).getByRole("button", { name: "Statistics" })).toBeInTheDocument()
   })
