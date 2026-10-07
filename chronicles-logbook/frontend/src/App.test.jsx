@@ -633,6 +633,19 @@ describe("entry rules in a project (US-3.12)", () => {
     expect(screen.getByText("For every new entry: fill in Kind with Bug.")).toBeInTheDocument()
   })
 
+  // Phones used to scroll the tab bar sideways with the tabs at a fixed
+  // width, which pushed Automation off the screen's edge. The four tabs now
+  // share the row equally (a four-column grid in MobileLayout.css); this pins
+  // the four tabs that layout relies on.
+  it("shows all four project tabs in the tab list", async () => {
+    await openBugLog()
+
+    const tabList = screen.getByRole("tablist", { name: "Project tabs" })
+    expect(within(tabList).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Entries", "Schema", "Tasks", "Automation",
+    ])
+  })
+
   it("lets a field a rule fills be left blank, and says which rule applied", async () => {
     createEntry.mockResolvedValue({
       id: "entry-9", project_id: "proj-2", title: null, data: { hours: 2, kind: "Bug" },
