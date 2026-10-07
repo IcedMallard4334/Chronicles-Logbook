@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
-import { fetchExportDocument, importLogbook } from "./api"
+import { fetchExportDocument, fetchProjects, importLogbook } from "./api"
+import { csvToDocument } from "./csvImport"
 import { useDialogFocus } from "./useDialogFocus"
 import { EXPORT_FORMATS, buildExport } from "./exportFormats"
 import "./dataTransfer.css"
@@ -31,6 +32,8 @@ export default function DataTransfer({ onImported, onClose }) {
   const [choosingFormat, setChoosingFormat] = useState(false)
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState(null)
+  // A CSV file, read and waiting for the person to confirm what it will do.
+  const [plan, setPlan] = useState(null)
 
   // The backdrop click and the Close button only clear the local
   // summary/error state (onClose closes the *parent* account dropdown, a
@@ -39,9 +42,10 @@ export default function DataTransfer({ onImported, onClose }) {
   const closeDialog = () => {
     setSummary(null)
     setError(null)
+    setPlan(null)
     onClose?.()
   }
-  const dialogRef = useDialogFocus(Boolean(summary || error), closeDialog)
+  const dialogRef = useDialogFocus(Boolean(summary || error || plan), closeDialog)
 
   const handleExport = async (formatId) => {
     setBusy("export")
@@ -71,6 +75,15 @@ export default function DataTransfer({ onImported, onClose }) {
     try {
       const text = await file.text()
 
+      // A spreadsheet is read into a plan first, so nothing is imported until it is confirmed.
+      if (/\.csv$/i.test(file.name) || file.type === "text/csv") {
+        const existing = await fetchProjects().catch(() => [])
+        const read = csvToDocument(text, { fileName: file.name, existingProjects: existing })
+        if (read.summary.problem) throw new Error(read.summary.problem)
+        setPlan(read)
+        return
+      }
+
       let parsed
       try {
         parsed = JSON.parse(text)
@@ -83,6 +96,22 @@ export default function DataTransfer({ onImported, onClose }) {
 
       // Announced rather than passed up through the menu: this component is
       // rendered several levels below the state that needs refreshing.
+      window.dispatchEvent(new Event("chronicles-imported"))
+      onImported?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const confirmCsv = async () => {
+    const chosen = plan
+    setPlan(null)
+    setBusy("import")
+    try {
+      const result = await importLogbook(chosen.document)
+      setSummary(result)
       window.dispatchEvent(new Event("chronicles-imported"))
       onImported?.()
     } catch (err) {
@@ -140,11 +169,52 @@ export default function DataTransfer({ onImported, onClose }) {
       <input
         ref={fileInput}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,text/csv,.json,.csv"
         onChange={handleFileChosen}
         className="sr-only"
         aria-label="Choose an exported Chronicles file"
       />
+
+      {plan && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setPlan(null)}>
+          <div
+            ref={dialogRef}
+            className="modal-card transfer-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transfer-title"
+            onClick={(event) => event.stopPropagation()}
+            tabIndex={-1}
+          >
+            <h2 id="transfer-title">Import this CSV?</h2>
+            <p className="hint">
+              {plan.summary.entries} {plan.summary.entries === 1 ? "entry" : "entries"} and {plan.summary.tasks} {plan.summary.tasks === 1 ? "task" : "tasks"} will be added.
+              Nothing you already have is changed or removed.
+            </p>
+            <ul className="transfer-summary" role="list">
+              {plan.summary.projects.map((project) => (
+                <li key={project.name}>
+                  <strong>{project.name}</strong>{" "}
+                  {project.isNew ? `: a new project with ${project.fields} ${project.fields === 1 ? "field" : "fields"}` : ": added to the project you already have"}
+                  {` (${project.entries} ${project.entries === 1 ? "entry" : "entries"}, ${project.tasks} ${project.tasks === 1 ? "task" : "tasks"})`}
+                </li>
+              ))}
+            </ul>
+            {plan.summary.warnings.length > 0 && (
+              <div className="transfer-issues">
+                <h3>Worth knowing</h3>
+                <ul role="list">
+                  {plan.summary.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => setPlan(null)}>Cancel</button>
+              <button type="button" className="btn-primary" onClick={confirmCsv}>Import</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(summary || error) && (
         <div

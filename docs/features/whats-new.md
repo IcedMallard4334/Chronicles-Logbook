@@ -259,3 +259,24 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
   The reports name every project, its fields and statuses, each entry (title, status, deadline, time, every value) and each
   task with its checklist. The JSON now carries titles, statuses, deadlines and tasks too, and importing restores them.
 - **Chronicle Master**, a platinum trophy for earning every other badge. See [Achievements](achievements.md).
+
+## Importing from a CSV file
+
+**Import** now takes a `.csv` as well as a Chronicles `.json` backup. The file is read in the browser into the same document
+the JSON import takes, and the person sees what it will do before anything is added: how many entries and tasks, which
+projects are new, and what will be skipped. *Cancel* imports nothing.
+
+- **Columns with a meaning:** `Kind` (Entry or Task), `Project`, `Title`, `Status`, `Due` (date, optionally with a time),
+  `Time spent (minutes)` or `Time spent` (such as `2h 15m`), `Captured`, `Notes` (a task's description and `[x] item` checklist).
+  Chronicles' own CSV export uses exactly these, so it reads straight back in.
+- **Every other column is a field.** In a new project each becomes a number, date or text field according to what it holds.
+- **Projects.** Rows go to the project in their `Project` column, or to one named after the file. A project you own with that
+  name is *added to* using the fields it already has (never reshaped; columns it doesn't have are left out and listed); anything
+  else becomes a new project. Projects shared with you are never added to.
+- **Honest about gaps.** A date or time that can't be read, or more than 10,000 hours, is left blank and counted. A project
+  you already have asks for a value in almost every field, so rows lacking one are named in the preview and listed after the
+  import rather than quietly dropped.
+- Each import adds new entries, so importing the same CSV twice makes two copies. (The JSON backup does not: it matches by id.)
+
+Local development databases from older releases are also brought up to date at startup now: missing columns are added to an
+existing SQLite file instead of failing the first query that names them.
