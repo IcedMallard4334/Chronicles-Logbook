@@ -487,6 +487,15 @@ export default function ProfilePage() {
               </div>
               <div className="profile-row">
                 <div className="profile-row-text">
+                  <span className="profile-row-label">Learning Chronicles</span>
+                  <span className="profile-row-value">Short guides on logbooks, entries and getting the most out of Chronicles.</span>
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => navigate("/learning", { state: { from: "/profile" } })}>
+                  Open Learning Chronicles
+                </button>
+              </div>
+              <div className="profile-row">
+                <div className="profile-row-text">
                   <span className="profile-row-label">Help manual</span>
                   <span className="profile-row-value">Search how-to guides for every feature and field type.</span>
                 </div>

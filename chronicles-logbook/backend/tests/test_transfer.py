@@ -102,6 +102,7 @@ async def test_round_trip_restores_a_deleted_project(
         "projects_created": 1,
         "projects_reused": 0,
         "entries_created": 2,
+        "tasks_created": 0,
         "entries_skipped": 0,
         "issues": [],
     }
@@ -285,3 +286,37 @@ async def test_csv_export_is_scoped_to_the_owner(
 async def test_csv_export_of_an_unknown_project_is_404(authenticated_client):
     response = await authenticated_client.get(f"/projects/{uuid4()}/export.csv")
     assert response.status_code == 404
+
+
+async def test_the_export_carries_titles_statuses_due_dates_and_tasks_and_import_restores_them(
+    authenticated_client, second_authenticated_client
+):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Detail", "entry_schema": [], "statuses": [{"name": "Backlog", "done": False}, {"name": "Shipped", "done": True}]},
+        )
+    ).json()
+    pid = project["id"]
+    await authenticated_client.post(
+        f"/projects/{pid}/entries",
+        json={"title": "Parser", "data": {}, "status": "Backlog", "due_date": "2026-10-05", "due_time": "09:30"},
+    )
+    await authenticated_client.post(f"/projects/{pid}/tasks", json={"title": "Write up", "due_date": "2026-10-06"})
+
+    exported = (await authenticated_client.get("/export")).json()
+    detail = next(item for item in exported["projects"] if item["id"] == pid)
+    assert [s["name"] for s in detail["statuses"]] == ["Backlog", "Shipped"]
+    assert detail["entries"][0]["title"] == "Parser" and detail["entries"][0]["status"] == "Backlog"
+    assert detail["entries"][0]["due_date"] == "2026-10-05" and detail["entries"][0]["todo"] is True
+    assert [t["title"] for t in detail["tasks"]] == ["Write up"]
+
+    summary = (await second_authenticated_client.post("/import", json=exported)).json()
+    assert summary["tasks_created"] == 1
+
+    # The second account's copy has an id of its own.
+    mine = next(p for p in (await second_authenticated_client.get("/projects")).json() if p["name"] == "Detail")
+    restored = (await second_authenticated_client.get(f"/projects/{mine['id']}/entries")).json()
+    assert restored[0]["title"] == "Parser" and restored[0]["status"] == "Backlog"
+    tasks = (await second_authenticated_client.get(f"/projects/{mine['id']}/tasks")).json()
+    assert [t["title"] for t in tasks] == ["Write up"]

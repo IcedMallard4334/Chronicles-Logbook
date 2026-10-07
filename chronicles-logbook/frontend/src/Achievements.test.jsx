@@ -53,6 +53,10 @@ afterEach(() => {
 
 describe("BadgeArt", () => {
   it("is decorative, coloured by tier, and stars mark the tier", () => {
+    const { container: platinum } = render(<BadgeArt badge={badge({ tier: "platinum", category: "mastery" })} />)
+    expect(platinum.querySelector("svg")).toHaveClass("badge-art-platinum", "is-earned")
+    expect(platinum.querySelectorAll("svg circle")).toHaveLength(5)
+    expect(TIER_LABELS.platinum).toBe("Platinum")
     const { container } = render(<BadgeArt badge={badge({ tier: "legendary" })} />)
     const svg = container.querySelector("svg")
     expect(svg).toHaveAttribute("aria-hidden", "true")

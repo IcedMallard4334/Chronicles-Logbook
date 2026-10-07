@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Entry, Project, User
+from app.models import Entry, Project, Task, User
 from app.routers.auth import get_current_user
 from app.routers.projects import (
     _get_user_project,
@@ -34,8 +34,10 @@ from app.schemas import (
     ExportDocument,
     ExportedEntry,
     ExportedProject,
+    ExportedTask,
     ImportSummary,
 )
+from app.statuses import names_of, statuses_of
 
 router = APIRouter(tags=["Export and import"])
 
@@ -71,6 +73,18 @@ async def export_logbook(
     for entry in entries:
         by_project.setdefault(entry.project_id, []).append(entry)
 
+    tasks = (
+        await db.execute(
+            select(Task)
+            .join(Project, Task.project_id == Project.id)
+            .where(Project.user_id == user.id)
+            .order_by(Task.created_at.asc())
+        )
+    ).scalars().all()
+    tasks_by_project: dict[UUID, list[Task]] = {}
+    for task in tasks:
+        tasks_by_project.setdefault(task.project_id, []).append(task)
+
     return ExportDocument(
         exported_at=datetime.now(timezone.utc),
         projects=[
@@ -82,9 +96,14 @@ async def export_logbook(
                 entry_schema=project.entry_schema,
                 retired_schema=project.retired_schema,
                 created_at=project.created_at,
+                statuses=list(project.statuses or []),
                 entries=[
                     ExportedEntry.model_validate(entry)
                     for entry in by_project.get(project.id, [])
+                ],
+                tasks=[
+                    ExportedTask.model_validate(task)
+                    for task in tasks_by_project.get(project.id, [])
                 ],
             )
             for project in projects
@@ -176,6 +195,7 @@ async def _resolve_project(
         archived=exported.archived,
         entry_schema=[field.model_dump(mode="json") for field in exported.entry_schema],
         retired_schema=[field.model_dump(mode="json") for field in exported.retired_schema],
+        statuses=list(exported.statuses or []),
     )
 
     # The original creation date is part of the record and is kept either way.
@@ -257,17 +277,44 @@ async def import_logbook(
             else:
                 entry_id = exported_entry.id
 
+            # A status only comes back if the project still has it.
+            known = names_of(statuses_of(project.statuses))
             entry = Entry(
                 id=entry_id,
                 project_id=project.id,
+                title=exported_entry.title,
                 data=exported_entry.data,
                 retired_data=exported_entry.retired_data,
                 time_spent=exported_entry.time_spent,
+                todo=exported_entry.todo,
+                status=exported_entry.status if exported_entry.status in known else None,
+                due_date=exported_entry.due_date,
+                due_time=exported_entry.due_time if exported_entry.due_date else None,
                 created_at=exported_entry.created_at,
             )
             db.add(entry)
             imported.append(entry)
             summary.entries_created += 1
+
+        for exported_task in exported.tasks:
+            existing_task = await db.get(Task, exported_task.id)
+            if existing_task is not None and existing_task.project_id == project.id:
+                continue  # already restored by an earlier import of this file
+            db.add(
+                Task(
+                    # An id somebody else holds means this copy needs one of its own.
+                    id=exported_task.id if existing_task is None else uuid4(),
+                    project_id=project.id,
+                    title=exported_task.title,
+                    description=exported_task.description,
+                    due_date=exported_task.due_date,
+                    due_time=exported_task.due_time if exported_task.due_date else None,
+                    completed=exported_task.completed,
+                    checklist=exported_task.checklist,
+                    created_by=user.id,
+                )
+            )
+            summary.tasks_created += 1
 
     # Flushed first so column defaults (schema version, todo) are in place
     # before each first version copies them.

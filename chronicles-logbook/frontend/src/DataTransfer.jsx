@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 import { fetchExportDocument, importLogbook } from "./api"
 import { useDialogFocus } from "./useDialogFocus"
+import { EXPORT_FORMATS, buildExport } from "./exportFormats"
 import "./dataTransfer.css"
 
 /**
@@ -24,14 +25,10 @@ function download(filename, contents, type) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-function exportFilename() {
-  const today = new Date().toISOString().slice(0, 10)
-  return `chronicles-export-${today}.json`
-}
-
 export default function DataTransfer({ onImported, onClose }) {
   const fileInput = useRef(null)
   const [busy, setBusy] = useState(null)
+  const [choosingFormat, setChoosingFormat] = useState(false)
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState(null)
 
@@ -46,12 +43,14 @@ export default function DataTransfer({ onImported, onClose }) {
   }
   const dialogRef = useDialogFocus(Boolean(summary || error), closeDialog)
 
-  const handleExport = async () => {
+  const handleExport = async (formatId) => {
     setBusy("export")
     setError(null)
+    setChoosingFormat(false)
     try {
       const document_ = await fetchExportDocument()
-      download(exportFilename(), JSON.stringify(document_, null, 2), "application/json")
+      const file = buildExport(formatId, document_)
+      download(file.filename, file.contents, file.type)
       onClose?.()
     } catch (err) {
       setError(err.message)
@@ -99,7 +98,9 @@ export default function DataTransfer({ onImported, onClose }) {
         type="button"
         className="user-dropdown-item"
         role="menuitem"
-        onClick={handleExport}
+        aria-expanded={choosingFormat}
+        aria-haspopup="true"
+        onClick={() => setChoosingFormat((open) => !open)}
         disabled={busy !== null}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -109,6 +110,17 @@ export default function DataTransfer({ onImported, onClose }) {
         </svg>
         <span>{busy === "export" ? "Preparing…" : "Export"}</span>
       </button>
+
+      {choosingFormat && (
+        <div className="export-formats" role="group" aria-label="Export format">
+          {EXPORT_FORMATS.map((format) => (
+            <button key={format.id} type="button" role="menuitem" className="export-format" onClick={() => handleExport(format.id)}>
+              <strong>{format.label}</strong>
+              <span>{format.detail}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <button
         type="button"
@@ -171,6 +183,12 @@ export default function DataTransfer({ onImported, onClose }) {
                     <strong>{summary.entries_created}</strong> entr
                     {summary.entries_created === 1 ? "y" : "ies"} restored
                   </li>
+                  {summary.tasks_created > 0 && (
+                    <li>
+                      <strong>{summary.tasks_created}</strong> task
+                      {summary.tasks_created === 1 ? "" : "s"} restored
+                    </li>
+                  )}
                   <li>
                     <strong>{summary.entries_skipped}</strong> skipped
                   </li>

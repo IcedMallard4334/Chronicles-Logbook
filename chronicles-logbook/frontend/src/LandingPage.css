@@ -24,8 +24,9 @@
   overflow-x: clip;
 }
 .lp a { color: inherit; text-decoration: none; }
-.lp h1, .lp h2, .lp h3, .lp p, .lp ul, .lp ol { margin: 0; }
-.lp ul, .lp ol { padding: 0; list-style: none; }
+/* :where() keeps these resets at zero specificity, so a class like .lp-lead can set its own margin. */
+.lp :where(h1, h2, h3, p, ul, ol) { margin: 0; }
+.lp :where(ul, ol) { padding: 0; list-style: none; }
 
 /* ── Navigation ── */
 .lp-nav {
@@ -156,9 +157,19 @@
 .lp-show.is-flipped .lp-show-copy { order: 2; }
 .lp-show-copy > p:not(.lp-eyebrow) { margin-top: 16px; color: var(--lp-muted); font-size: 1.05rem; line-height: 1.65; }
 .lp-show-copy ul { margin-top: 20px; display: grid; gap: 10px; }
-.lp-show-copy li { position: relative; padding-left: 28px; color: var(--lp-text); font-weight: 600; font-size: 0.95rem; }
-.lp-show-copy li::before { content: ""; position: absolute; left: 0; top: 0.3em; width: 16px; height: 16px; border-radius: 50%; background: var(--lp-green); box-shadow: 0 0 0 4px rgba(53, 214, 176, 0.18); }
-.lp-show-copy li::after { content: ""; position: absolute; left: 5px; top: calc(0.3em + 4px); width: 5px; height: 8px; border: solid #08110f; border-width: 0 2px 2px 0; transform: rotate(45deg) scale(0.9); transform-origin: center; }
+.lp-show-copy li { position: relative; padding-left: 32px; color: var(--lp-text); font-weight: 600; font-size: 0.95rem; line-height: 1.45; }
+/* The tick is drawn as one centred image inside the circle, so it cannot sit off to one side. */
+.lp-show-copy li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc((1.45em - 20px) / 2);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--lp-green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2308110f' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.2 4.2L18.5 8'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+  box-shadow: 0 0 0 4px rgba(53, 214, 176, 0.18);
+}
 .lp-art { padding: 22px; border: 1px solid var(--lp-line); border-radius: 20px; background: linear-gradient(160deg, var(--lp-surface-2), var(--lp-surface)); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35); }
 .lp-art-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lp-art-fields p { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--lp-line); border-radius: 12px; background: var(--lp-bg); }

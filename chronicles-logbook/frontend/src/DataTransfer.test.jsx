@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./api", () => ({
@@ -56,11 +56,28 @@ describe("export", () => {
     fetchExportDocument.mockResolvedValue(exportDocument)
 
     render(<DataTransfer />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     await waitFor(() => expect(clickedLink).not.toBeNull())
     expect(clickedLink.download).toMatch(/^chronicles-export-\d{4}-\d{2}-\d{2}\.json$/)
     expect(createdBlob.type).toBe("application/json")
+  })
+
+  it("offers every format and names the file for the one chosen", async () => {
+    fetchExportDocument.mockResolvedValue(exportDocument)
+    render(<DataTransfer />)
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+
+    const group = screen.getByRole("group", { name: "Export format" })
+    for (const label of ["JSON", "CSV", "PDF", "Markdown", "Web page", "Plain text"]) {
+      expect(within(group).getByRole("menuitem", { name: new RegExp(label) })).toBeInTheDocument()
+    }
+
+    fireEvent.click(within(group).getByRole("menuitem", { name: /PDF/ }))
+    await waitFor(() => expect(clickedLink).not.toBeNull())
+    expect(clickedLink.download).toMatch(/\.pdf$/)
+    expect(createdBlob.type).toBe("application/pdf")
   })
 
   it("closes the menu once the download starts", async () => {
@@ -68,7 +85,8 @@ describe("export", () => {
     const onClose = vi.fn()
 
     render(<DataTransfer onClose={onClose} />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
@@ -77,7 +95,8 @@ describe("export", () => {
     fetchExportDocument.mockRejectedValue(new Error("Cannot reach the Chronicles API."))
 
     render(<DataTransfer />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     expect(await screen.findByText("Cannot reach the Chronicles API.")).toBeInTheDocument()
     expect(clickedLink).toBeNull()

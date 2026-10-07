@@ -42,11 +42,8 @@ it("still lets someone start a project from the welcome", () => {
   expect(create).toHaveBeenCalledOnce()
 })
 
-it("shows a clearly separate Learning Chronicles section below the dashboard", () => {
+it("no longer carries a Learning Chronicles section: that is a button under Mira", () => {
   renderHome()
 
-  expect(
-    screen.getByText("Learn how to get the most out of your digital logbook")
-  ).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: /Explore all Learning Chronicles/ })).toBeInTheDocument()
+  expect(screen.queryByText("Learn how to get the most out of your digital logbook")).not.toBeInTheDocument()
 })

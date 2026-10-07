@@ -2,7 +2,7 @@
 
 Chronicles recognises milestones with **badges**: a hexagonal medal with a name, a
 rarity and a short explanation, collected on the **Profile** page. Earning one
-triggers a celebration with confetti. There are 34 badges in seven areas.
+triggers a celebration with confetti. There are 35 badges: 34 everyday ones in seven areas, and one platinum trophy for earning them all.
 
 The API behind this is in [Streaks and achievements](../api/progress.md).
 
@@ -94,7 +94,15 @@ From then on, every badge earned is celebrated.
 | Time Traveller | Silver | Exploring | Revert an entry to an earlier version. |
 | Tidy Mind | Bronze | Exploring | Archive a project. |
 
-That is 11 bronze, 13 silver, 6 gold and 4 legendary.
+That is 11 bronze, 13 silver, 6 gold and 4 legendary, plus the platinum trophy:
+
+| Badge | Rarity | Area | How to earn it |
+|---|---|---|---|
+| Chronicle Master | Platinum | Mastery | Earn all 34 other badges. |
+
+The trophy watches a *count of the other badges*, not a figure from the logbook, so it is worked out last, after any
+badge earned in the same check. It is drawn in an icy white with five stars and a trophy glyph, shimmers when earned, and
+its celebration fires three times as much confetti as an ordinary badge.
 
 ## On the Profile page
 

@@ -240,3 +240,22 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
 - **Very small phones.** The page no longer forces a 320px minimum width (which pushed a 70mm-wide phone sideways); below
   340px everything steps down once more: smaller type, a one-column filter bar, one-column dashboard panels. The sign-in
   page shows its form first.
+
+## A round of fixes and a platinum trophy
+
+- **The top bar owns the top edge.** It sits at the very top of the screen with a solid strip behind it, so nothing
+  scrolling past shows above or around it.
+- **Getting started.** The first paragraph has its breathing room back (a reset rule was overriding it), the ticks are
+  centred in their circles, the *Recommended* tag keeps its own colour when you try other accents, and the last step has a
+  **Back** button. The steps are numbered "Step 2 of 3" and "Step 3 of 3".
+- **Learning Chronicles is a button.** It sits under Mira on the home views instead of a section at the bottom of the
+  dashboard, and the Profile has a row for it.
+- **Project dialogs.** The edit window is wider with room between its fields. Pressing *Create* or *Save* shows what is
+  wrong on the dialog itself: a missing name, a name over 255 characters or a description over 4000, with a running count
+  under each field.
+- **Time on an entry.** Minutes can be at most 59 and an entry at most 10,000 hours, checked in the form and by the server.
+- **A loader on Scheduled activities**, and no more grey slab when you hover a bar in the statistics.
+- **Export in six formats.** *Export* now asks for JSON (the restorable backup), CSV, PDF, Markdown, a web page or plain text.
+  The reports name every project, its fields and statuses, each entry (title, status, deadline, time, every value) and each
+  task with its checklist. The JSON now carries titles, statuses, deadlines and tasks too, and importing restores them.
+- **Chronicle Master**, a platinum trophy for earning every other badge. See [Achievements](achievements.md).

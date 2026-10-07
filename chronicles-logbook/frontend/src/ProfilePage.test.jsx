@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import HelpPage from "./HelpPage"
+import LearningHubPage from "./LearningHubPage"
 import ProfilePage from "./ProfilePage"
 import { deleteAccount, fetchCurrentUser } from "./api"
 
@@ -22,6 +23,7 @@ function renderPage() {
       <Routes>
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/help" element={<HelpPage />} />
+        <Route path="/learning" element={<LearningHubPage />} />
         <Route path="/app" element={<p>Workspace</p>} />
         <Route path="/" element={<p>Landing page</p>} />
       </Routes>
@@ -264,4 +266,15 @@ it("returns to the profile from help opened on the profile", async () => {
 
   expect(await screen.findByRole("button", { name: "Open help" })).toBeInTheDocument()
   expect(screen.queryByText("Workspace")).not.toBeInTheDocument()
+})
+
+it("opens Learning Chronicles from the profile and comes back to it", async () => {
+  renderPage()
+
+  fireEvent.click(await screen.findByRole("button", { name: "Open Learning Chronicles" }))
+  expect(await screen.findByRole("heading", { name: "Learning Chronicles" })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole("button", { name: "Back to profile" }))
+
+  expect(await screen.findByRole("button", { name: "Open Learning Chronicles" })).toBeInTheDocument()
 })

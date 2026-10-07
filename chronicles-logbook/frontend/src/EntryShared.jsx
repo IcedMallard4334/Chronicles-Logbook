@@ -4,6 +4,7 @@ import { createPortal } from "react-dom"
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
 import EntryHistory from "./EntryHistory"
 import { suggestedTitle } from "./entryNames"
+import { timeSpentProblem } from "./timeSpent"
 import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
 import { useDialogFocus } from "./useDialogFocus"
 import RecurrenceControl from "./RecurrenceControl"
@@ -700,6 +701,12 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         if (field.type === "checklist" && payload[field.id] === undefined) payload[field.id] = []
         if (field.type === "link" && payload[field.id] === undefined) payload[field.id] = ""
       }
+      const timeProblem = timeSpentProblem(hoursSpent, minutesSpent)
+      if (timeProblem) {
+        setError(timeProblem)
+        setIsSaving(false)
+        return
+      }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
       const minutes = minutesSpent === "" ? 0 : Number(minutesSpent)
       const timeSpent = hours * 60 + minutes
@@ -928,15 +935,16 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
             <div className="form-grid time-tracking">
               <label className="field-label">
                 Hours spent
-                <input type="number" min={0} value={hoursSpent} onChange={(event) => setHoursSpent(event.target.value)} />
+                <input type="number" min={0} step={1} value={hoursSpent} aria-invalid={timeSpentProblem(hoursSpent, "") ? "true" : undefined} onChange={(event) => setHoursSpent(event.target.value)} />
               </label>
               <label className="field-label">
                 Minutes spent
                 <input
                   type="number"
                   min={0}
-                  max={59}
+                  step={1}
                   value={minutesSpent}
+                  aria-invalid={timeSpentProblem("", minutesSpent) ? "true" : undefined}
                   onChange={(event) => setMinutesSpent(event.target.value)}
                 />
               </label>

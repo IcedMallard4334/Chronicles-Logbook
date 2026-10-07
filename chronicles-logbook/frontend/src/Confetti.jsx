@@ -10,8 +10,8 @@ export function prefersReducedMotion() {
 }
 
 /** Pieces shot up from the two bottom corners, with a fan falling from the top middle. */
-export function makePieces(width, height, random = Math.random) {
-  return Array.from({ length: PIECES }, (_, index) => {
+export function makePieces(width, height, random = Math.random, total = PIECES) {
+  return Array.from({ length: total }, (_, index) => {
     const source = index % 3 // 0: left cannon, 1: right cannon, 2: top fan
     const speed = 8 + random() * 9
     let x = 0
@@ -46,7 +46,7 @@ export function makePieces(width, height, random = Math.random) {
 }
 
 /** A burst of confetti across the whole window. Draws nothing for people who asked for less motion. */
-export default function Confetti({ onDone }) {
+export default function Confetti({ onDone, big = false }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function Confetti({ onDone }) {
 
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
-    const pieces = makePieces(canvas.width, canvas.height)
+    const pieces = makePieces(canvas.width, canvas.height, Math.random, big ? PIECES * 3 : PIECES)
     const started = performance.now()
     let frame = 0
 

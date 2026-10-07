@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import LogoIcon from "./ChroniclesLogo"
 import LearningChronicles from "./LearningChronicles"
 import "./App.css"
@@ -10,6 +10,9 @@ import "./MobileLayout.css"
 /** The full Learning Chronicles hub, at /learning — every guide, not just the Home preview. */
 export default function LearningHubPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // Opened from the Profile, Back returns there; otherwise it goes to the workspace.
+  const backTo = location.state?.from === "/profile" ? "/profile" : "/app"
 
   return (
     <div className="app-shell">
@@ -17,7 +20,7 @@ export default function LearningHubPage() {
         <nav className="nav-pill">
           <div className="nav-flow" aria-hidden="true"><svg viewBox="0 0 1400 70" preserveAspectRatio="none"><path d="M-100 55 C180 -20 330 100 600 35 S1000 0 1500 45" /><path d="M-100 15 C250 90 420 -25 740 40 S1100 80 1500 10" /><path d="M-100 60 C350 20 500 80 900 15 S1200 65 1500 35" /></svg></div>
           <div className="nav-pill-left">
-            <button type="button" className="nav-item" onClick={() => navigate("/app")} aria-label="Back to workspace">
+            <button type="button" className="nav-item" onClick={() => navigate(backTo)} aria-label={backTo === "/profile" ? "Back to profile" : "Back to workspace"}>
               <span aria-hidden="true">←</span>
               <span>Back</span>
             </button>

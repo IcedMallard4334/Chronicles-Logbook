@@ -359,6 +359,44 @@ describe("App workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
     await waitFor(() => expect(createProject).toHaveBeenCalledWith({ name: "Field Notes", description: null, entry_schema: [] }))
   })
+
+  it("tells the person what is wrong, on the dialog, when they press Create", async () => {
+    fetchProjects.mockResolvedValue([])
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }))
+
+    // No name at all.
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
+    expect(await screen.findByText("Give the project a name.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Project name")).toHaveAttribute("aria-invalid", "true")
+
+    // A name and a description that are both too long.
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "n".repeat(256) } })
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: "d".repeat(4001) } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
+
+    expect(await screen.findByText("A name can be at most 255 characters. This one is 256.")).toBeInTheDocument()
+    expect(screen.getByText("A description can be at most 4000 characters. This one is 4001.")).toBeInTheDocument()
+    expect(createProject).not.toHaveBeenCalled()
+
+    // Fixing it clears the complaint and creates the project.
+    createProject.mockResolvedValue(fieldNotes)
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Field Notes" } })
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: "Short" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
+    await waitFor(() => expect(createProject).toHaveBeenCalled())
+  })
+
+  it("shows how much of each cap is used", async () => {
+    fetchProjects.mockResolvedValue([])
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }))
+
+    expect(screen.getByText("0 / 255")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Field" } })
+    expect(screen.getByText("5 / 255")).toBeInTheDocument()
+    expect(screen.getByText("0 / 4000")).toBeInTheDocument()
+  })
 })
 
 describe("guided tour (US-3.23)", () => {

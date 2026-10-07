@@ -1269,3 +1269,39 @@ describe("reading rich values back", () => {
     ).toHaveTextContent("An entry that is no longer there")
   })
 })
+
+describe("the time an entry records", () => {
+  async function openNewEntry() {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [HOURS] }, otherProject])
+    createEntry.mockResolvedValue({ id: "e1", data: {}, created_at: "2026-09-12T10:00:00Z" })
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Timed entry" } })
+    fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "3" } })
+  }
+
+  it("refuses minutes above 59 and more than 10,000 hours, saying so", async () => {
+    await openNewEntry()
+
+    fireEvent.change(screen.getByLabelText("Minutes spent"), { target: { value: "75" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+    expect(await screen.findByText(/Minutes can be at most 59/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Minutes spent"), { target: { value: "5" } })
+    fireEvent.change(screen.getByLabelText("Hours spent"), { target: { value: "10001" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+    expect(await screen.findByText(/at most 10,000 hours/)).toBeInTheDocument()
+    expect(createEntry).not.toHaveBeenCalled()
+  })
+
+  it("saves a valid time as minutes", async () => {
+    await openNewEntry()
+    fireEvent.change(screen.getByLabelText("Hours spent"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Minutes spent"), { target: { value: "30" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    await waitFor(() => expect(createEntry).toHaveBeenCalled())
+    expect(createEntry.mock.calls[0][1].time_spent).toBe(150)
+  })
+})

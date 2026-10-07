@@ -622,3 +622,38 @@
   .app-shell .nav-pill-center .nav-item { padding-inline: 8px; gap: 5px; font-size: 0.78rem; }
   .app-shell .nav-pill-left .brand-name { display: none; }
 }
+
+/* The top bar owns the whole top edge: it sits at the very top of the screen, and a solid
+   strip behind it means nothing scrolling past can be seen above or around it. */
+.topbar { top: 0 !important; padding-top: 12px; }
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: calc(12px + 26px);
+  background: var(--bg);
+  z-index: -1;
+  pointer-events: none;
+}
+.topbar .nav-pill { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.app-shell-workspace .topbar::before { display: none; }
+@media (max-width: 720px) {
+  .app-shell > .topbar { top: 0 !important; padding-top: 6px; }
+  .topbar::before { height: calc(6px + 24px); }
+  .app-shell { padding-top: 66px; }
+}
+
+/* Project dialogs: breathing room between fields, a wider edit window, and the cap shown under each field. */
+.modal-card form { display: grid; gap: 18px; }
+.modal-card form .field-label { gap: 8px; margin: 0; }
+.modal-card form .modal-actions { margin-top: 6px; }
+.modal-card-wide { width: min(680px, 100%); padding: 36px 40px; }
+.modal-card-wide .status-editor { margin: 0; padding: 16px 18px; }
+.modal-card-wide .status-editor ul { gap: 10px; margin: 12px 0; }
+.modal-card-wide .status-editor-actions { gap: 14px; margin-top: 4px; }
+.field-note { font-size: 0.74rem; font-weight: 600; color: var(--muted); text-align: right; }
+.field-note.is-error { color: var(--error, #e5484d); text-align: left; }
+.field-label input[aria-invalid="true"], .field-label textarea[aria-invalid="true"] { border-color: var(--error, #e5484d); }
+@media (max-width: 720px) { .modal-card-wide { padding: 24px 18px; } }
+.field-group { display: grid; gap: 6px; }
+.modal-card form .field-group .field-label { margin: 0; }

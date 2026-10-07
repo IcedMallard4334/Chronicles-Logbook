@@ -1369,3 +1369,17 @@ async def test_create_entry_rejects_an_unknown_top_level_field(authenticated_cli
         json={"data": {}, "todoo": True},
     )
     assert response.status_code == 422
+
+
+async def test_an_entry_cannot_record_more_than_ten_thousand_hours(authenticated_client):
+    project = (await authenticated_client.post("/projects", json={"name": "Time", "entry_schema": []})).json()
+    base = f"/projects/{project['id']}/entries"
+
+    over = await authenticated_client.post(base, json={"data": {}, "time_spent": 10000 * 60 + 1})
+    assert over.status_code == 422
+
+    top = await authenticated_client.post(base, json={"data": {}, "time_spent": 10000 * 60})
+    assert top.status_code == 201
+
+    edit = await authenticated_client.put(f"{base}/{top.json()['id']}", json={"time_spent": 10000 * 60 + 1})
+    assert edit.status_code == 422

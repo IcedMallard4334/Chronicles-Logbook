@@ -55,7 +55,7 @@ target has just been reached.
 {
   "earned": 3,
   "total": 34,
-  "by_tier":     { "bronze": { "earned": 3, "total": 11 }, "silver": { "earned": 0, "total": 13 }, "gold": {...}, "legendary": {...} },
+  "by_tier":     { "bronze": { "earned": 3, "total": 11 }, "silver": { "earned": 0, "total": 13 }, "gold": {...}, "legendary": {...}, "platinum": { "earned": 0, "total": 1 } },
   "by_category": { "projects": { "name": "Projects", "earned": 1, "total": 3 }, "...": {} },
   "badges": [
     {
