@@ -317,9 +317,10 @@
   .detail-description-toggle { display: inline-block; padding: 0; }
   .project-title-row h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
   .detail-meta { font-size: 0.74rem; }
-  .tab-switch { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .tab-switch::-webkit-scrollbar { display: none; }
-  .tab-switch button { flex: 0 0 auto; }
+  /* The four project tabs share the screen's width equally, so Automation
+     stays on screen instead of scrolling out of sight sideways. */
+  .tab-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .tab-switch button { min-width: 0; padding: 6px 2px; font-size: 0.72rem; }
 
   /* Home: the welcome is a line, not a hero. */
   .home-hub-welcome { flex-wrap: wrap; align-items: center; }
@@ -505,6 +506,7 @@
   .field-card:has(> .field-row) { grid-template-columns: minmax(0, 1fr); }
   .field-card:has(> .field-row) > .btn-trash { grid-column: 1; grid-row: auto; justify-self: end; }
   .detail-actions button { flex: 1 1 auto; }
+  .tab-switch button { font-size: 0.66rem; padding-inline: 0; }
   .dashboard-panel-grid { grid-template-columns: 1fr !important; }
   .dashboard-panel { grid-column: 1 / -1 !important; }
   .mira-composer-actions { gap: 6px; }
