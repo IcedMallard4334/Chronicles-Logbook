@@ -77,4 +77,11 @@
 @media (max-width: 680px) { .setup-header, .setup-section, .setup-footer { padding-inline: 0; } .two-up, .accent-grid, .setup-options { grid-template-columns: 1fr 1fr; } .setup-footer { flex-direction: column-reverse; } .setup-footer button { width: 100%; } }
 @media (max-width: 420px) { .two-up, .accent-grid, .setup-options { grid-template-columns: 1fr; } }
 
-.setup-back { margin-right: auto; }
+/* Back sits at the far left of the footer, in the same shape as the other secondary button. */
+.setup-footer .setup-back { margin-right: auto; }
+
+/* Three buttons in one footer: keep each on one line and let the row wrap, not squash. */
+.setup-footer { flex-wrap: wrap; justify-content: space-between; align-items: center; row-gap: 10px; }
+.setup-footer button { white-space: nowrap; }
+.setup-choices { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-left: auto; }
+@media (max-width: 680px) { .setup-choices { width: 100%; flex-direction: column-reverse; } }

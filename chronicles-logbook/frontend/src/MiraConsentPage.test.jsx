@@ -29,3 +29,15 @@ it('routes undecided accounts to the notice', async () => {
   expect(await screen.findByText('Review permission')).toBeInTheDocument()
   expect(screen.queryByText('Private workspace')).not.toBeInTheDocument()
 })
+
+it("has a Back button, styled like the other footer buttons, that returns to the preferences", async () => {
+  const { container } = render(<MemoryRouter initialEntries={['/mira-permissions']}><Routes><Route path='/mira-permissions' element={<MiraConsentPage />} /><Route path='/setup' element={<p>Preferences step</p>} /></Routes></MemoryRouter>)
+
+  const back = screen.getByRole("button", { name: /Back/ })
+  expect(back).toHaveClass("btn-secondary", "setup-back")
+  expect(container.querySelector(".setup-footer")).toContainElement(back)
+
+  fireEvent.click(back)
+
+  expect(await screen.findByText("Preferences step")).toBeInTheDocument()
+})
