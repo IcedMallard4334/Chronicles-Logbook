@@ -107,7 +107,7 @@ async def test_without_consent_nothing_reaches_the_provider(authenticated_client
     assert "limited mode" in "".join(e.get("text", "") for e in events)
 
 
-async def test_a_provider_failure_is_reported_and_the_reply_is_not_saved(
+async def test_a_provider_failure_is_reported_and_nothing_is_saved(
     authenticated_client, consenting, monkeypatch
 ):
     def failing(message, history=(), context=""):
@@ -123,8 +123,32 @@ async def test_a_provider_failure_is_reported_and_the_reply_is_not_saved(
 
     events = parse_events(response.text)
     assert events[-2]["type"] == "error" and events[-1]["type"] == "done"
+    # The question is rolled back with the reply it never got, so a retry is
+    # not saved next to the attempt that failed.
     saved = (await authenticated_client.get(f"/ai/conversations/{conversation_id}")).json()
-    assert [m["role"] for m in saved["messages"]] == ["user"]
+    assert saved["messages"] == []
+
+
+async def test_an_unconfigured_assistant_leaves_the_conversation_as_it_was(
+    authenticated_client, consenting, monkeypatch
+):
+    # The real service raises before its first event when no key is set, which
+    # is what production does whenever the credential is missing.
+    monkeypatch.setattr(gemini_service.config, "GEMINI_API_KEY", "")
+
+    conversation_id = await new_conversation(authenticated_client)
+
+    response = await authenticated_client.post(
+        f"/ai/conversations/{conversation_id}/stream", json={"message": "Hello"}
+    )
+
+    events = parse_events(response.text)
+    assert [e["type"] for e in events] == ["start", "error", "done"]
+    assert events[1]["detail"] == "The AI assistant is not configured."
+
+    saved = (await authenticated_client.get(f"/ai/conversations/{conversation_id}")).json()
+    assert saved["title"] == "New conversation"
+    assert saved["messages"] == []
 
 
 async def test_conversations_are_listed_newest_first_and_can_be_deleted(authenticated_client):

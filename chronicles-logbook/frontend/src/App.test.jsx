@@ -541,6 +541,37 @@ describe("Mira proposals", () => {
   })
 })
 
+describe("Mira failures", () => {
+  async function ask(text = "Help me create a project") {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: text } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+  }
+
+  it("shows the reason the backend gave, and retrying does not duplicate the question", async () => {
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      onEvent({ type: "error", detail: "The AI assistant is not configured." })
+      onEvent({ type: "done" })
+    })
+    await ask()
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The AI assistant is not configured.")
+    // The failed exchange is taken back with the reply it never got, so a
+    // retry cannot leave the question beside a copy of itself.
+    expect(screen.queryByText("Help me create a project")).not.toBeInTheDocument()
+
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      onEvent({ type: "delta", text: "Happy to help." })
+      onEvent({ type: "done" })
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+
+    expect(await screen.findByText("Happy to help.")).toBeInTheDocument()
+    expect(screen.getAllByText("Help me create a project")).toHaveLength(1)
+  })
+})
+
 describe("account menu navigation", () => {
   // The bug this replaces: Profile and Help used window.location.assign, a
   // full page reload that re-ran session restoration and every top-level
