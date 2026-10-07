@@ -201,6 +201,31 @@ describe("EntryDetailModal", () => {
     expect(payload.migrateToCurrentSchema).toBe(true)
   })
 
+  it("saves an entry whose recorded time is above the ceiling, as long as the time is left alone", async () => {
+    updateEntry.mockResolvedValue(upToDateEntry())
+    const old = upToDateEntry({ time_spent: 20000 * 60 })
+    render(<EntryDetailModal project={project} entry={old} onClose={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Renamed" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => expect(updateEntry).toHaveBeenCalled())
+    expect(updateEntry.mock.calls[0][2].time_spent).toBe(20000 * 60)
+  })
+
+  it("refuses raising an over-ceiling time even higher", async () => {
+    const old = upToDateEntry({ time_spent: 20000 * 60 })
+    render(<EntryDetailModal project={project} entry={old} onClose={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.change(screen.getByLabelText("Hours spent"), { target: { value: "20001" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    expect(await screen.findByText(/at most 10,000 hours/)).toBeInTheDocument()
+    expect(updateEntry).not.toHaveBeenCalled()
+  })
+
   it("deletes an entry only after the confirm step", async () => {
     deleteEntry.mockResolvedValue(null)
     const onDeleted = vi.fn()

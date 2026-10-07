@@ -296,6 +296,7 @@ export default function StatisticsPage({ projects, onNavigate }) {
                       tickFormatter={(name) => (name.length > 20 ? `${name.slice(0, 19)}…` : name)}
                     />
                     <Tooltip
+                      cursor={false}
                       contentStyle={chartTooltipStyle}
                       labelStyle={{ color: "var(--muted)" }}
                       formatter={(value) => [formatDuration(value), "Time logged"]}
@@ -347,6 +348,7 @@ export default function StatisticsPage({ projects, onNavigate }) {
                 <XAxis dataKey="label" stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 11 }} />
                 <YAxis allowDecimals={false} stroke="var(--line)" tick={{ fill: "var(--muted)", fontSize: 12 }} />
                 <Tooltip
+                  cursor={false}
                   contentStyle={chartTooltipStyle}
                   labelStyle={{ color: "var(--muted)" }}
                   formatter={(value) => [value, "Entries"]}

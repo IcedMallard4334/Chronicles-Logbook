@@ -1,6 +1,8 @@
 import { useRef, useState } from "react"
-import { fetchExportDocument, importLogbook } from "./api"
+import { fetchExportDocument, fetchProjects, importLogbook } from "./api"
+import { csvToDocument } from "./csvImport"
 import { useDialogFocus } from "./useDialogFocus"
+import { EXPORT_FORMATS, buildExport } from "./exportFormats"
 import "./dataTransfer.css"
 
 /**
@@ -24,16 +26,14 @@ function download(filename, contents, type) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-function exportFilename() {
-  const today = new Date().toISOString().slice(0, 10)
-  return `chronicles-export-${today}.json`
-}
-
 export default function DataTransfer({ onImported, onClose }) {
   const fileInput = useRef(null)
   const [busy, setBusy] = useState(null)
+  const [choosingFormat, setChoosingFormat] = useState(false)
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState(null)
+  // A CSV file, read and waiting for the person to confirm what it will do.
+  const [plan, setPlan] = useState(null)
 
   // The backdrop click and the Close button only clear the local
   // summary/error state (onClose closes the *parent* account dropdown, a
@@ -42,16 +42,19 @@ export default function DataTransfer({ onImported, onClose }) {
   const closeDialog = () => {
     setSummary(null)
     setError(null)
+    setPlan(null)
     onClose?.()
   }
-  const dialogRef = useDialogFocus(Boolean(summary || error), closeDialog)
+  const dialogRef = useDialogFocus(Boolean(summary || error || plan), closeDialog)
 
-  const handleExport = async () => {
+  const handleExport = async (formatId) => {
     setBusy("export")
     setError(null)
+    setChoosingFormat(false)
     try {
       const document_ = await fetchExportDocument()
-      download(exportFilename(), JSON.stringify(document_, null, 2), "application/json")
+      const file = buildExport(formatId, document_)
+      download(file.filename, file.contents, file.type)
       onClose?.()
     } catch (err) {
       setError(err.message)
@@ -71,6 +74,15 @@ export default function DataTransfer({ onImported, onClose }) {
 
     try {
       const text = await file.text()
+
+      // A spreadsheet is read into a plan first, so nothing is imported until it is confirmed.
+      if (/\.csv$/i.test(file.name) || file.type === "text/csv") {
+        const existing = await fetchProjects().catch(() => [])
+        const read = csvToDocument(text, { fileName: file.name, existingProjects: existing })
+        if (read.summary.problem) throw new Error(read.summary.problem)
+        setPlan(read)
+        return
+      }
 
       let parsed
       try {
@@ -93,13 +105,31 @@ export default function DataTransfer({ onImported, onClose }) {
     }
   }
 
+  const confirmCsv = async () => {
+    const chosen = plan
+    setPlan(null)
+    setBusy("import")
+    try {
+      const result = await importLogbook(chosen.document)
+      setSummary(result)
+      window.dispatchEvent(new Event("chronicles-imported"))
+      onImported?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <>
       <button
         type="button"
         className="user-dropdown-item"
         role="menuitem"
-        onClick={handleExport}
+        aria-expanded={choosingFormat}
+        aria-haspopup="true"
+        onClick={() => setChoosingFormat((open) => !open)}
         disabled={busy !== null}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -109,6 +139,17 @@ export default function DataTransfer({ onImported, onClose }) {
         </svg>
         <span>{busy === "export" ? "Preparing…" : "Export"}</span>
       </button>
+
+      {choosingFormat && (
+        <div className="export-formats" role="group" aria-label="Export format">
+          {EXPORT_FORMATS.map((format) => (
+            <button key={format.id} type="button" role="menuitem" className="export-format" onClick={() => handleExport(format.id)}>
+              <strong>{format.label}</strong>
+              <span>{format.detail}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <button
         type="button"
@@ -128,11 +169,52 @@ export default function DataTransfer({ onImported, onClose }) {
       <input
         ref={fileInput}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,text/csv,.json,.csv"
         onChange={handleFileChosen}
         className="sr-only"
         aria-label="Choose an exported Chronicles file"
       />
+
+      {plan && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setPlan(null)}>
+          <div
+            ref={dialogRef}
+            className="modal-card transfer-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transfer-title"
+            onClick={(event) => event.stopPropagation()}
+            tabIndex={-1}
+          >
+            <h2 id="transfer-title">Import this CSV?</h2>
+            <p className="hint">
+              {plan.summary.entries} {plan.summary.entries === 1 ? "entry" : "entries"} and {plan.summary.tasks} {plan.summary.tasks === 1 ? "task" : "tasks"} will be added.
+              Nothing you already have is changed or removed.
+            </p>
+            <ul className="transfer-summary" role="list">
+              {plan.summary.projects.map((project) => (
+                <li key={project.name}>
+                  <strong>{project.name}</strong>{" "}
+                  {project.isNew ? `: a new project with ${project.fields} ${project.fields === 1 ? "field" : "fields"}` : ": added to the project you already have"}
+                  {` (${project.entries} ${project.entries === 1 ? "entry" : "entries"}, ${project.tasks} ${project.tasks === 1 ? "task" : "tasks"})`}
+                </li>
+              ))}
+            </ul>
+            {plan.summary.warnings.length > 0 && (
+              <div className="transfer-issues">
+                <h3>Worth knowing</h3>
+                <ul role="list">
+                  {plan.summary.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => setPlan(null)}>Cancel</button>
+              <button type="button" className="btn-primary" onClick={confirmCsv}>Import</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(summary || error) && (
         <div
@@ -171,6 +253,12 @@ export default function DataTransfer({ onImported, onClose }) {
                     <strong>{summary.entries_created}</strong> entr
                     {summary.entries_created === 1 ? "y" : "ies"} restored
                   </li>
+                  {summary.tasks_created > 0 && (
+                    <li>
+                      <strong>{summary.tasks_created}</strong> task
+                      {summary.tasks_created === 1 ? "" : "s"} restored
+                    </li>
+                  )}
                   <li>
                     <strong>{summary.entries_skipped}</strong> skipped
                   </li>

@@ -32,7 +32,9 @@
 .setup-choice strong { font-size: .84rem; }
 .setup-choice span { margin-top: 4px; color: var(--muted); font-size: .72rem; line-height: 1.35; }
 .accent-choice i { display: block; width: 26px; height: 8px; margin-bottom: 9px; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--mauve)); }
-.accent-choice em { display: inline-block; margin-left: 5px; color: var(--blue); font-size: .62rem; font-style: normal; }
+/* The tag belongs to the Chronicles choice, not to whatever accent is being tried, so it keeps its own colour. */
+.accent-choice em { display: inline-block; margin-left: 5px; color: #4fd6a0; font-size: .62rem; font-weight: 700; font-style: normal; }
+:root[data-theme="light"] .accent-choice em { color: #0f7a55; }
 .accent-chronicles i { background: linear-gradient(90deg, #5b5ce2, #7653c8); }
 .accent-ocean i { background: linear-gradient(90deg, #1686c8, #1aa98d); }.accent-forest i { background: linear-gradient(90deg, #27855a, #637c5b); }.accent-rose i { background: linear-gradient(90deg, #b34b7d, #7356bc); }
 .setup-options { grid-template-columns: 1fr 1fr; align-items: end; }.setup-options > div { grid-column: 1 / -1; }
@@ -74,3 +76,5 @@
 @media (max-width: 820px) { .setup-shell { height: auto; overflow: visible; } .setup-panel { padding: 32px 20px; overflow: visible; } .setup-card { margin: 0 auto; } }
 @media (max-width: 680px) { .setup-header, .setup-section, .setup-footer { padding-inline: 0; } .two-up, .accent-grid, .setup-options { grid-template-columns: 1fr 1fr; } .setup-footer { flex-direction: column-reverse; } .setup-footer button { width: 100%; } }
 @media (max-width: 420px) { .two-up, .accent-grid, .setup-options { grid-template-columns: 1fr; } }
+
+.setup-back { margin-right: auto; }

@@ -2,7 +2,7 @@ import BadgeArt, { TIER_LABELS } from "./BadgeArt"
 import { useDialogFocus } from "./useDialogFocus"
 import "./Achievements.css"
 
-export const TIER_ORDER = ["bronze", "silver", "gold", "legendary"]
+export const TIER_ORDER = ["bronze", "silver", "gold", "legendary", "platinum"]
 export const FILTERS = [
   { id: "all", label: "All" },
   { id: "earned", label: "Earned" },
@@ -109,7 +109,7 @@ export function AchievementSummary({ summary }) {
       <ProgressRing earned={summary.earned} total={summary.total} />
       <div className="achievement-breakdown">
         <h3>By rarity</h3>
-        {TIER_ORDER.map((tier) => (
+        {TIER_ORDER.filter((tier) => summary.by_tier[tier]).map((tier) => (
           <Bar key={tier} label={TIER_LABELS[tier]} earned={summary.by_tier[tier].earned} total={summary.by_tier[tier].total} className={`tier-${tier}`} />
         ))}
       </div>

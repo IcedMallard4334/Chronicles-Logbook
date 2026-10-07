@@ -1,13 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./api", () => ({
   fetchExportDocument: vi.fn(),
+  fetchProjects: vi.fn(),
   importLogbook: vi.fn(),
 }))
 
 import DataTransfer from "./DataTransfer"
-import { fetchExportDocument, importLogbook } from "./api"
+import { fetchExportDocument, fetchProjects, importLogbook } from "./api"
 
 const exportDocument = {
   format: "chronicles-export",
@@ -56,11 +57,28 @@ describe("export", () => {
     fetchExportDocument.mockResolvedValue(exportDocument)
 
     render(<DataTransfer />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     await waitFor(() => expect(clickedLink).not.toBeNull())
     expect(clickedLink.download).toMatch(/^chronicles-export-\d{4}-\d{2}-\d{2}\.json$/)
     expect(createdBlob.type).toBe("application/json")
+  })
+
+  it("offers every format and names the file for the one chosen", async () => {
+    fetchExportDocument.mockResolvedValue(exportDocument)
+    render(<DataTransfer />)
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+
+    const group = screen.getByRole("group", { name: "Export format" })
+    for (const label of ["JSON", "CSV", "PDF", "Markdown", "Web page", "Plain text"]) {
+      expect(within(group).getByRole("menuitem", { name: new RegExp(label) })).toBeInTheDocument()
+    }
+
+    fireEvent.click(within(group).getByRole("menuitem", { name: /PDF/ }))
+    await waitFor(() => expect(clickedLink).not.toBeNull())
+    expect(clickedLink.download).toMatch(/\.pdf$/)
+    expect(createdBlob.type).toBe("application/pdf")
   })
 
   it("closes the menu once the download starts", async () => {
@@ -68,7 +86,8 @@ describe("export", () => {
     const onClose = vi.fn()
 
     render(<DataTransfer onClose={onClose} />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
@@ -77,7 +96,8 @@ describe("export", () => {
     fetchExportDocument.mockRejectedValue(new Error("Cannot reach the Chronicles API."))
 
     render(<DataTransfer />)
-    fireEvent.click(screen.getByRole("menuitem", { name: /Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Export/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /JSON/ }))
 
     expect(await screen.findByText("Cannot reach the Chronicles API.")).toBeInTheDocument()
     expect(clickedLink).toBeNull()
@@ -162,5 +182,71 @@ describe("import", () => {
     expect(
       screen.getByText("Entry from 2026-03-02 in 'Field Notes': Unknown field: topic")
     ).toBeInTheDocument()
+  })
+})
+
+describe("import from a CSV file", () => {
+  const chooseCsv = (contents, name = "my-logbook.csv") => {
+    const input = screen.getByLabelText("Choose an exported Chronicles file")
+    const file = new File([contents], name, { type: "text/csv" })
+    file.text = () => Promise.resolve(contents)
+    fireEvent.change(input, { target: { files: [file] } })
+  }
+
+  it("accepts CSV as well as JSON", () => {
+    render(<DataTransfer />)
+
+    expect(screen.getByLabelText("Choose an exported Chronicles file").accept).toContain(".csv")
+  })
+
+  it("shows what a CSV will do, and imports only once that is confirmed", async () => {
+    fetchProjects.mockResolvedValue([])
+    importLogbook.mockResolvedValue(summary)
+    render(<DataTransfer />)
+
+    chooseCsv("Project,Title,Hours\nOperating Systems,Lab 4,3\nOperating Systems,Lab 5,2\nGym,Legs,")
+
+    expect(await screen.findByRole("heading", { name: "Import this CSV?" })).toBeInTheDocument()
+    expect(screen.getByText(/3 entries and 0 tasks will be added/)).toBeInTheDocument()
+    expect(screen.getByText("Operating Systems", { selector: "strong" })).toBeInTheDocument()
+    expect(importLogbook).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Import" }))
+
+    await waitFor(() => expect(importLogbook).toHaveBeenCalledTimes(1))
+    const sent = importLogbook.mock.calls[0][0]
+    expect(sent.format).toBe("chronicles-export")
+    expect(sent.projects.map((project) => project.name)).toEqual(["Operating Systems", "Gym"])
+    expect(await screen.findByRole("heading", { name: "Import complete" })).toBeInTheDocument()
+  })
+
+  it("imports nothing when the plan is cancelled", async () => {
+    fetchProjects.mockResolvedValue([])
+    render(<DataTransfer />)
+
+    chooseCsv("Title\nA")
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
+
+    expect(importLogbook).not.toHaveBeenCalled()
+    expect(screen.queryByRole("heading", { name: "Import this CSV?" })).not.toBeInTheDocument()
+  })
+
+  it("explains a CSV with no rows instead of importing it", async () => {
+    fetchProjects.mockResolvedValue([])
+    render(<DataTransfer />)
+
+    chooseCsv("Title\n")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("no rows to import")
+    expect(importLogbook).not.toHaveBeenCalled()
+  })
+
+  it("reads the file in against the projects already there", async () => {
+    fetchProjects.mockResolvedValue([{ id: "p1", name: "Gym", shared: false, entry_schema: [], statuses: [] }])
+    render(<DataTransfer />)
+
+    chooseCsv("Project,Title\nGym,Legs")
+
+    expect(await screen.findByText(/added to the project you already have/)).toBeInTheDocument()
   })
 })

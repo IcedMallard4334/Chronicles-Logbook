@@ -23,6 +23,11 @@
 .achievement-bar.tier-silver .achievement-bar-fill { background: linear-gradient(90deg, #f4f6fb, #8d97a8); }
 .achievement-bar.tier-gold .achievement-bar-fill { background: linear-gradient(90deg, #ffe27a, #c78a00); }
 .achievement-bar.tier-legendary .achievement-bar-fill { background: linear-gradient(90deg, #3ee7ff, #9b5cff, #ff5ca8); }
+.achievement-bar.tier-platinum .achievement-bar-fill { background: linear-gradient(90deg, #ffffff, #bfe6ff, #9fb4e8, #e9d5ff); }
+/* The platinum trophy shimmers, and glows when it is earned. */
+.badge-art-platinum.is-earned { filter: drop-shadow(0 0 10px rgba(191, 230, 255, 0.55)); animation: badge-shimmer 3.2s ease-in-out infinite; }
+@keyframes badge-shimmer { 0%, 100% { filter: drop-shadow(0 0 8px rgba(191, 230, 255, 0.4)); } 50% { filter: drop-shadow(0 0 18px rgba(233, 213, 255, 0.85)); } }
+@media (prefers-reduced-motion: reduce) { .badge-art-platinum.is-earned { animation: none; } }
 
 .achievement-filters { display: inline-flex; gap: 0.25rem; padding: 0.2rem; border: 1px solid var(--line, rgba(127, 127, 127, 0.3)); border-radius: 999px; margin-bottom: 0.75rem; }
 .achievement-filters button { border: 0; border-radius: 999px; padding: 0.3rem 0.8rem; background: transparent; color: var(--muted); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }

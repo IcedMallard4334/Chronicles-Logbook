@@ -51,3 +51,9 @@
   color: var(--muted);
   font-size: 0.78rem;
 }
+
+.export-formats { display: grid; gap: 2px; margin: 2px 8px 6px 28px; padding-left: 8px; border-left: 2px solid var(--line); }
+.export-format { display: grid; gap: 1px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.export-format:hover, .export-format:focus-visible { background: var(--blue-bg, rgba(107, 91, 255, 0.12)); }
+.export-format strong { font-size: 0.82rem; }
+.export-format span { color: var(--muted); font-size: 0.7rem; line-height: 1.3; }

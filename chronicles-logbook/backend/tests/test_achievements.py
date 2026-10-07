@@ -207,3 +207,41 @@ async def test_marking_badges_seen_ignores_unknown_keys_and_other_peoples_badges
 async def test_marking_seen_needs_some_keys_and_nothing_else(authenticated_client):
     assert (await authenticated_client.post("/achievements/seen", json={"keys": []})).status_code == 422
     assert (await authenticated_client.post("/achievements/seen", json={"keys": ["x"], "extra": 1})).status_code == 422
+
+
+# ── the platinum trophy ────────────────────────────────────────────
+
+
+def test_platinum_asks_for_every_other_badge():
+    platinum = BY_KEY["platinum_trophy"]
+
+    assert platinum.tier == "platinum" and platinum.metric == "badges"
+    assert platinum.target == len(CATALOGUE) - 1
+    assert sum(1 for item in CATALOGUE if item.tier == "platinum") == 1
+
+
+async def test_platinum_is_awarded_after_the_last_other_badge(authenticated_client, db_session, test_user):
+    from app.models import UserAchievement
+
+    first = (await authenticated_client.get("/achievements")).json()
+    assert next(b for b in first["badges"] if b["key"] == "platinum_trophy")["earned"] is False
+
+    user = test_user
+    others = [item for item in CATALOGUE if item.tier != "platinum"]
+    from datetime import datetime, timezone
+
+    for item in others[:-1]:
+        db_session.add(UserAchievement(user_id=user.id, key=item.key, earned_at=datetime.now(timezone.utc), seen=True))
+    await db_session.commit()
+
+    almost = (await authenticated_client.get("/achievements")).json()
+    platinum = next(b for b in almost["badges"] if b["key"] == "platinum_trophy")
+    assert platinum["earned"] is False and platinum["progress"] == len(others) - 1
+
+    db_session.add(UserAchievement(user_id=user.id, key=others[-1].key, earned_at=datetime.now(timezone.utc), seen=True))
+    await db_session.commit()
+
+    done = (await authenticated_client.get("/achievements")).json()
+    platinum = next(b for b in done["badges"] if b["key"] == "platinum_trophy")
+    assert platinum["earned"] is True
+    assert done["by_tier"]["platinum"]["total"] == 1

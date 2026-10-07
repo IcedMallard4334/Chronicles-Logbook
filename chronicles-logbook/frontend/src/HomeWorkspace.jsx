@@ -1,12 +1,10 @@
 import DashboardPage from "./DashboardPage"
-import LearningChronicles from "./LearningChronicles"
 import "./HomeWorkspace.css"
 
 /**
  * The Dashboard: a welcome that says where you stand and lets you start a
- * project, with your own arrangement of panels underneath, and — clearly
- * separated below that, so it never competes with your actual logbooks for
- * attention — a way into Learning Chronicles, the app's learning centre.
+ * project, with your own arrangement of panels underneath. Learning
+ * Chronicles has its own button under Mira (LearningLauncher), not a section here.
  */
 export default function HomeWorkspace({ projects, onCreateProject }) {
   const activeProjects = projects.filter((project) => !project.archived)
@@ -34,9 +32,6 @@ export default function HomeWorkspace({ projects, onCreateProject }) {
         <DashboardPage projects={projects} embedded />
       </section>
 
-      <section className="home-hub home-hub-learning-wrap">
-        <LearningChronicles variant="home" />
-      </section>
     </div>
   )
 }

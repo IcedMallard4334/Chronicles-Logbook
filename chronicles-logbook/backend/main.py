@@ -76,6 +76,38 @@ _ADDED_COLUMNS = (
     ("entry_revisions", "reverted_to", "INTEGER"),
 )
 
+def _sqlite_definition(definition: str) -> str:
+    """A Postgres column definition spelled the way SQLite accepts it."""
+    return (
+        definition.replace("::jsonb", "")
+        .replace("JSONB", "JSON")
+        .replace("TIMESTAMPTZ NOT NULL DEFAULT NOW()", "TIMESTAMPTZ")
+        .replace("DEFAULT false", "DEFAULT 0")
+        .replace("UUID", "CHAR(32)")
+    )
+
+
+async def add_missing_sqlite_columns(conn) -> list[str]:
+    """Bring an older local SQLite file up to date, returning the columns it added.
+
+    ``create_all`` never adds a column to a table that already exists, so a
+    development database created a few releases ago would fail on the first query
+    that names a newer column. Postgres gets the same fix from ``_ADDED_COLUMNS``;
+    this applies it to the local file too, so nobody has to delete their data.
+    """
+    added: list[str] = []
+    present: dict[str, set[str]] = {}
+    for table, column, definition in _ADDED_COLUMNS:
+        if table not in present:
+            rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).all()
+            present[table] = {row[1] for row in rows}
+        if present[table] and column not in present[table]:
+            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {_sqlite_definition(definition)}"))
+            present[table].add(column)
+            added.append(f"{table}.{column}")
+    return added
+
+
 # Entries saved before entry_revisions existed (or by a path that didn't
 # record one) get their current state as v1, so a first correction can't
 # overwrite the only copy of what they said. Idempotent; see migration 014.
@@ -126,6 +158,8 @@ async def lifespan(app: FastAPI):
             await conn.execute(
                 text("UPDATE entry_revisions SET action = 'created' WHERE revision = 1 AND action = 'edited'")
             )
+        elif async_engine.dialect.name == "sqlite":
+            await add_missing_sqlite_columns(conn)
     yield
 
 
