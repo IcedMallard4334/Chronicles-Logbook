@@ -1183,6 +1183,21 @@ async def update_entry(
     else:
         will_be_todo = entry.todo
 
+    # Finishing planned work, from the Board or Outstanding say, sends no field values, but
+    # the entry still has to be complete once it is done: say what is missing.
+    if entry.todo and not will_be_todo and payload.data is None and not payload.migrate_to_current_schema:
+        held = entry.data or {}
+        lacking = [
+            field["name"]
+            for field in (entry.schema_snapshot or [])
+            if field["id"] not in held and field.get("type") not in _OPTIONAL_TYPES
+        ]
+        if lacking:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Fill in {', '.join(lacking)} before finishing this entry.",
+            )
+
     # A ceiling for new figures only: an entry already above it keeps its time, and an
     # edit that leaves the time alone is fine.
     if (

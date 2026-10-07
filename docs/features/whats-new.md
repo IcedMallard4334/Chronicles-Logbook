@@ -288,6 +288,7 @@ existing SQLite file instead of failing the first query that names them.
   over-the-ceiling time, is refused. (Importing a backup restores times as they were.)
 - **Fields are required once an entry is done, not while it is still to do.** Planned work (an entry marked *still to do*, or in
   a status that is not finished) may leave fields empty; the form says so in each field and the server accepts it. What is
-  filled in is still checked, and finishing the entry through the form asks for the rest. Moving an entry to a finished
-  status from the Board or Outstanding, which sends no field values, does not re-check them. A CSV import applies the same
-  rule: only rows that are finished are warned about missing values.
+  filled in is still checked, and finishing the entry asks for the rest, wherever it is finished from: the form, a drag to
+  a finished status on the Board, or *Mark done* on Outstanding. Those last two send no field values, so the server checks
+  what the entry already holds and refuses with "Fill in Hours before finishing this entry", leaving it where it was. A CSV
+  import applies the same rule: only rows that are finished are warned about missing values.

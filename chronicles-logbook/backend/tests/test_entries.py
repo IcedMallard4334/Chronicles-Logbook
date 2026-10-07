@@ -1441,3 +1441,42 @@ async def test_fields_are_only_required_once_an_entry_is_done(authenticated_clie
     # And an entry still to do can be edited with fields left empty.
     again = await authenticated_client.put(f"{base}/{entry_id}", json={"todo": True, "data": {}})
     assert again.status_code == 200
+
+
+async def test_a_planned_entry_cannot_be_finished_without_its_fields_but_can_once_they_are_filled(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Finish", "entry_schema": [{"id": "f-hours", "name": "Hours", "type": "number"}, {"id": "f-note", "name": "Note", "type": "text"}]},
+        )
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+    entry = (await authenticated_client.post(base, json={"data": {"f-note": "x"}, "todo": True, "title": "Later"})).json()
+
+    # Moved to Done with nothing else sent, as the Board and Outstanding do.
+    refused = await authenticated_client.put(f"{base}/{entry['id']}", json={"status": "Done"})
+    assert refused.status_code == 422 and "Fill in Hours before finishing this entry" in refused.text
+    refused_todo = await authenticated_client.put(f"{base}/{entry['id']}", json={"todo": False})
+    assert refused_todo.status_code == 422
+
+    # It stays planned, and other edits to a planned entry are untouched.
+    still = (await authenticated_client.get(base)).json()[0]
+    assert still["todo"] is True
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"title": "Later still"})).status_code == 200
+
+    # Once the field is filled in, finishing works.
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"data": {"f-hours": 2, "f-note": "x"}})).status_code == 200
+    done = await authenticated_client.put(f"{base}/{entry['id']}", json={"status": "Done"})
+    assert done.status_code == 200 and done.json()["todo"] is False
+
+
+async def test_finishing_a_complete_planned_entry_or_editing_a_finished_one_is_not_blocked(authenticated_client):
+    project = (
+        await authenticated_client.post("/projects", json={"name": "Ok", "entry_schema": [{"id": "f-note", "name": "Note", "type": "text"}]})
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+    planned = (await authenticated_client.post(base, json={"data": {"f-note": "x"}, "todo": True})).json()
+
+    assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"todo": False})).status_code == 200
+    # Already finished: a later edit with no field values does not re-judge it.
+    assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"title": "Renamed"})).status_code == 200
