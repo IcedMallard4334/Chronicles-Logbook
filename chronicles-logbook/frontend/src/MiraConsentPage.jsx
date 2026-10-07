@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { fetchMiraConsent, saveMiraConsent } from './api'
 import OnboardingLayout from './OnboardingLayout'
 import { readPreference } from './preferences'
@@ -61,7 +61,7 @@ export default function MiraConsentPage() {
     <section className="setup-section"><h2>If you decline</h2><p>Chronicles remains available. Mira offers basic local guidance only: no messages or workspace details are sent to Gemini and no AI proposals are generated.</p><p>You can change this choice through “Mira permissions” on the Mira page. Withdrawing permission stops future AI requests; it cannot recall messages already sent. We save your choice, its date, and the notice version to your account.</p></section>
     </details>
     {error && <p role="alert">{error}</p>}
-    <footer className="setup-footer"><button type="button" className="btn-text setup-back" disabled={saving} onClick={() => navigate('/setup')}>← Back</button><button className="btn-secondary" disabled={saving} onClick={() => choose(false)}>Decline · use limited Mira</button><button className="btn-primary" disabled={saving} onClick={() => choose(true)}>{saving ? 'Saving…' : 'Accept · enable Mira'}</button></footer>
-    <p className="mira-footnote">Mira notice version 2026-09-30. <Link to="/setup">Back to preferences</Link></p>
+    <footer className="setup-footer"><button type="button" className="btn-secondary setup-back" disabled={saving} onClick={() => navigate('/setup')}>← Back</button><span className="setup-choices"><button className="btn-secondary" disabled={saving} onClick={() => choose(false)}>Decline · use limited Mira</button><button className="btn-primary" disabled={saving} onClick={() => choose(true)}>{saving ? 'Saving…' : 'Accept · enable Mira'}</button></span></footer>
+    <p className="mira-footnote">Mira notice version 2026-09-30.</p>
   </section>
 }
