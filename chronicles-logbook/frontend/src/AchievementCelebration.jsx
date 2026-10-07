@@ -76,7 +76,7 @@ export default function AchievementCelebration() {
   const remaining = queue.length - 1
   return (
     <>
-      <Confetti key={burst} />
+      <Confetti key={burst} big={current.tier === "platinum"} />
       <div className="modal-backdrop achievement-backdrop" role="presentation">
         <div
           ref={dialogRef}

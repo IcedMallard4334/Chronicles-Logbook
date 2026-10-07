@@ -240,3 +240,55 @@ Below 720px the app is arranged for one hand rather than squeezed from the deskt
 - **Very small phones.** The page no longer forces a 320px minimum width (which pushed a 70mm-wide phone sideways); below
   340px everything steps down once more: smaller type, a one-column filter bar, one-column dashboard panels. The sign-in
   page shows its form first.
+
+## A round of fixes and a platinum trophy
+
+- **The top bar owns the top edge.** It sits at the very top of the screen with a solid strip behind it, so nothing
+  scrolling past shows above or around it.
+- **Getting started.** The first paragraph has its breathing room back (a reset rule was overriding it), the ticks are
+  centred in their circles, the *Recommended* tag keeps its own colour when you try other accents, and the last step has a
+  **Back** button. The steps are numbered "Step 2 of 3" and "Step 3 of 3".
+- **Learning Chronicles is a button.** It sits under Mira on the home views instead of a section at the bottom of the
+  dashboard, and the Profile has a row for it.
+- **Project dialogs.** The edit window is wider with room between its fields. Pressing *Create* or *Save* shows what is
+  wrong on the dialog itself: a missing name, a name over 255 characters or a description over 4000, with a running count
+  under each field.
+- **Time on an entry.** Minutes can be at most 59 and an entry at most 10,000 hours, checked in the form and by the server.
+- **A loader on Scheduled activities**, and no more grey slab when you hover a bar in the statistics.
+- **Export in six formats.** *Export* now asks for JSON (the restorable backup), CSV, PDF, Markdown, a web page or plain text.
+  The reports name every project, its fields and statuses, each entry (title, status, deadline, time, every value) and each
+  task with its checklist. The JSON now carries titles, statuses, deadlines and tasks too, and importing restores them.
+- **Chronicle Master**, a platinum trophy for earning every other badge. See [Achievements](achievements.md).
+
+## Importing from a CSV file
+
+**Import** now takes a `.csv` as well as a Chronicles `.json` backup. The file is read in the browser into the same document
+the JSON import takes, and the person sees what it will do before anything is added: how many entries and tasks, which
+projects are new, and what will be skipped. *Cancel* imports nothing.
+
+- **Columns with a meaning:** `Kind` (Entry or Task), `Project`, `Title`, `Status`, `Due` (date, optionally with a time),
+  `Time spent (minutes)` or `Time spent` (such as `2h 15m`), `Captured`, `Notes` (a task's description and `[x] item` checklist).
+  Chronicles' own CSV export uses exactly these, so it reads straight back in.
+- **Every other column is a field.** In a new project each becomes a number, date or text field according to what it holds.
+- **Projects.** Rows go to the project in their `Project` column, or to one named after the file. A project you own with that
+  name is *added to* using the fields it already has (never reshaped; columns it doesn't have are left out and listed); anything
+  else becomes a new project. Projects shared with you are never added to.
+- **Honest about gaps.** A date or time that can't be read, or more than 10,000 hours, is left blank and counted. A project
+  you already have asks for a value in almost every field, so rows lacking one are named in the preview and listed after the
+  import rather than quietly dropped.
+- Each import adds new entries, so importing the same CSV twice makes two copies. (The JSON backup does not: it matches by id.)
+
+Local development databases from older releases are also brought up to date at startup now: missing columns are added to an
+existing SQLite file instead of failing the first query that names them.
+
+## Time caps for old entries, and planned work
+
+- **The 10,000-hour ceiling is for new figures.** An entry that already recorded more keeps its time exactly as it was:
+  editing its title or anything else is fine, and so is lowering the time. Only a new entry, or a change that raises an
+  over-the-ceiling time, is refused. (Importing a backup restores times as they were.)
+- **Fields are required once an entry is done, not while it is still to do.** Planned work (an entry marked *still to do*, or in
+  a status that is not finished) may leave fields empty; the form says so in each field and the server accepts it. What is
+  filled in is still checked, and finishing the entry asks for the rest, wherever it is finished from: the form, a drag to
+  a finished status on the Board, or *Mark done* on Outstanding. Those last two send no field values, so the server checks
+  what the entry already holds and refuses with "Fill in Hours before finishing this entry", leaving it where it was. A CSV
+  import applies the same rule: only rows that are finished are warned about missing values.

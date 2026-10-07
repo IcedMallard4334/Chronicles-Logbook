@@ -5,6 +5,7 @@ import { dateKey } from "./calendarDates"
 import "./ActivitiesPage.css"
 import { TrashButton } from "./TrashIcon"
 import { EditButton } from "./EditIcon"
+import { SkeletonRows } from "./ViewTransition"
 
 const SPAN_DAYS = 183
 
@@ -114,7 +115,12 @@ export default function ActivitiesPage() {
         </div>
       )}
 
-      {loading ? <p role="status">Loading your activities…</p> : (
+      {loading ? (
+        <div className="activities-loading">
+          <p className="activities-loading-note"><span className="activities-spinner" aria-hidden="true" />Loading your activities…</p>
+          <SkeletonRows rows={3} height={64} label="Loading your activities" />
+        </div>
+      ) : (
         <>
           {section("Upcoming", upcoming, "Nothing scheduled. Add an activity to plan your time.")}
           {section("Earlier", earlier, "No activities in the past six months.")}

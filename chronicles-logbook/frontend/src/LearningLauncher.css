@@ -1,0 +1,29 @@
+/* Under Mira, bottom right, on the home views only. Mira rises to make room for it. */
+.learning-launcher {
+  position: fixed;
+  z-index: 30;
+  right: 24px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.learning-launcher:hover, .learning-launcher:focus-visible { border-color: var(--blue); transform: translateY(-2px); }
+.learning-launcher svg { width: 16px; height: 16px; color: var(--blue); }
+.app-shell:has(.learning-launcher) .mira-launcher { bottom: 72px; }
+@media (max-width: 720px) {
+  /* Above Mira, which already rides above the bottom bar. */
+  .learning-launcher { right: 12px; bottom: 132px; padding: 6px 12px; font-size: 0.74rem; }
+  .app-shell:has(.learning-launcher) .mira-launcher { bottom: 80px; }
+}

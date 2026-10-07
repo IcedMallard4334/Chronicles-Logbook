@@ -4,16 +4,17 @@ import { useId } from "react"
 // category. A badge not yet earned is drawn in grey with a ring showing how far
 // along it is.
 
-export const TIER_LABELS = { bronze: "Bronze", silver: "Silver", gold: "Gold", legendary: "Legendary" }
+export const TIER_LABELS = { bronze: "Bronze", silver: "Silver", gold: "Gold", legendary: "Legendary", platinum: "Platinum" }
 
 const TIER_COLOURS = {
   bronze: ["#f0b27a", "#a05a2c"],
   silver: ["#f4f6fb", "#8d97a8"],
   gold: ["#ffe27a", "#c78a00"],
   legendary: ["#3ee7ff", "#9b5cff", "#ff5ca8"],
+  platinum: ["#ffffff", "#bfe6ff", "#9fb4e8", "#e9d5ff"],
 }
 
-const STARS = { bronze: 1, silver: 2, gold: 3, legendary: 4 }
+const STARS = { bronze: 1, silver: 2, gold: 3, legendary: 4, platinum: 5 }
 
 // Simple line glyphs on a 24 x 24 grid.
 const GLYPHS = {
@@ -24,6 +25,8 @@ const GLYPHS = {
   activity: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
   tasks: <><circle cx="12" cy="12" r="9" /><path d="M8 12.5l3 3 5-6" /></>,
   explorer: <path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z" />,
+  // A trophy: cup, handles, stem and base.
+  mastery: <><path d="M7 4h10v5a5 5 0 0 1-10 0z" /><path d="M7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5" /><path d="M12 14v4M8.5 20h7" /></>,
 }
 
 const HEXAGON = "M50 4 L90 27 L90 73 L50 96 L10 73 L10 27 Z"

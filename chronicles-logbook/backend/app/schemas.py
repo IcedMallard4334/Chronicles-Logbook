@@ -66,6 +66,9 @@ MAX_TAG_LENGTH = 30
 MAX_CHECKLIST_ITEMS = 20
 MAX_CHECKLIST_ITEM_LENGTH = 30
 
+# The most time one entry can record: 10,000 hours, in minutes.
+MAX_TIME_SPENT_MINUTES = 10000 * 60
+
 
 class BaseFieldDefinition(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -411,7 +414,7 @@ class EntryCreate(BaseModel):
     # from its data when there is nothing else to show.
     title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any]
-    time_spent: int | None = Field(default=None, ge=0)
+    time_spent: int | None = Field(default=None, ge=0, le=MAX_TIME_SPENT_MINUTES)
 
     # US-2.15: an entry can be logged as work still to do, with an optional
     # deadline, so it can be surfaced in the outstanding-work view.
@@ -461,6 +464,7 @@ class EntryUpdate(BaseModel):
 
     title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any] | None = None
+    # No ceiling here: the route refuses a new figure above 10,000 hours but lets an existing one stand.
     time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
@@ -779,6 +783,25 @@ class ExportedEntry(BaseModel):
     retired_data: dict[str, Any] = Field(default_factory=dict)
     time_spent: int | None = None
     created_at: datetime
+    # Added after the first release of the format: files without them still import.
+    title: str | None = None
+    status: str | None = None
+    todo: bool = False
+    due_date: date | None = None
+    due_time: time_of_day | None = None
+
+
+class ExportedTask(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    description: str | None = None
+    due_date: date | None = None
+    due_time: time_of_day | None = None
+    completed: bool = False
+    checklist: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime | None = None
 
 
 class ExportedProject(BaseModel):
@@ -791,7 +814,9 @@ class ExportedProject(BaseModel):
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
     retired_schema: list[FieldDefinition] = Field(default_factory=list)
     created_at: datetime
+    statuses: list[dict[str, Any]] = Field(default_factory=list)
     entries: list[ExportedEntry] = Field(default_factory=list)
+    tasks: list[ExportedTask] = Field(default_factory=list)
 
 
 class ExportDocument(BaseModel):
@@ -806,6 +831,7 @@ class ImportSummary(BaseModel):
     projects_reused: int = 0
     entries_created: int = 0
     entries_skipped: int = 0
+    tasks_created: int = 0
     # Entries that could not be restored, each with the reason. Reported
     # rather than silently dropped, for the same reason offline sync surfaces
     # rejections: the user needs to know what did not come back.

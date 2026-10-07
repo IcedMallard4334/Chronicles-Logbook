@@ -35,7 +35,7 @@ from app.models import (
 )
 from app.routers.streaks import summarise
 
-TIERS = ("bronze", "silver", "gold", "legendary")
+TIERS = ("bronze", "silver", "gold", "legendary", "platinum")
 
 # Stored once per person, so the first check can tell "this is a new account" from
 # "this is an existing account meeting the badges for the first time".
@@ -62,9 +62,10 @@ CATEGORIES = {
     "activity": "Keeping busy",
     "tasks": "Tasks",
     "explorer": "Exploring",
+    "mastery": "Mastery",
 }
 
-CATALOGUE: tuple[Badge, ...] = (
+_EVERYDAY: tuple[Badge, ...] = (
     # Projects
     Badge("first_project", "First Chapter", "projects", "bronze", "projects", 1,
           "Every logbook starts with a single page. You opened yours.", "Create your first project."),
@@ -142,6 +143,14 @@ CATALOGUE: tuple[Badge, ...] = (
           "Finished work, put away properly and kept on record.", "Archive a project."),
 )
 
+# The platinum trophy: every other badge, earned. It watches a count of those rather than
+# a figure from the logbook, so it is the one badge worked out after all the rest.
+PLATINUM = Badge(
+    "platinum_trophy", "Chronicle Master", "mastery", "platinum", "badges", len(_EVERYDAY),
+    "Every badge in the logbook, earned. Few get here.", f"Earn all {len(_EVERYDAY)} other badges.",
+)
+CATALOGUE: tuple[Badge, ...] = (*_EVERYDAY, PLATINUM)
+
 BY_KEY = {badge.key: badge for badge in CATALOGUE}
 
 
@@ -217,6 +226,7 @@ def badge_view(badge: Badge, figures: dict[str, int], earned_at: datetime | None
 async def evaluate(user: User, db: AsyncSession) -> list[dict]:
     """Award any badge now reached, and return the whole catalogue for this person."""
     figures = await measure(user, db)
+    figures["badges"] = 0
     rows = (await db.scalars(select(UserAchievement).where(UserAchievement.user_id == user.id))).all()
     held = {row.key: row for row in rows}
     first_check = INITIALISED not in held
@@ -227,6 +237,9 @@ async def evaluate(user: User, db: AsyncSession) -> list[dict]:
         db.add(UserAchievement(user_id=user.id, key=INITIALISED, earned_at=now, seen=True))
         changed = True
     for badge in CATALOGUE:
+        if badge.metric == "badges":
+            # Counted only once every other badge has been settled, including any awarded just now.
+            figures["badges"] = sum(1 for other in _EVERYDAY if other.key in held)
         if badge.key not in held and figures.get(badge.metric, 0) >= badge.target:
             # Badges an existing account already qualifies for are awarded quietly:
             # celebrating twenty of them at once would be noise, not a celebration.
@@ -237,6 +250,7 @@ async def evaluate(user: User, db: AsyncSession) -> list[dict]:
     if changed:
         await db.commit()
 
+    figures["badges"] = sum(1 for other in _EVERYDAY if other.key in held)
     return [
         badge_view(badge, figures, held[badge.key].earned_at if badge.key in held else None, held[badge.key].seen if badge.key in held else True)
         for badge in CATALOGUE

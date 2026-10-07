@@ -29,7 +29,7 @@ export default function SetupPage() {
   return (
       <section className="setup-card view-transition" aria-labelledby="setup-title">
         <header className="setup-header">
-          <div><p className="setup-eyebrow">WELCOME TO CHRONICLES</p><h1 id="setup-title">Make it yours</h1><p>Choose a calm starting point. You can change every option later from your profile.</p></div>
+          <div><p className="setup-eyebrow">STEP 2 OF 3 · WELCOME TO CHRONICLES</p><h1 id="setup-title">Make it yours</h1><p>Choose a calm starting point. You can change every option later from your profile.</p></div>
         </header>
 
         <section className="setup-section" aria-labelledby="theme-title">

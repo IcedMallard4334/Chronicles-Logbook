@@ -93,6 +93,8 @@ import "./Dropdowns.css"
 import "./Motion.css"
 import "./MobileLayout.css"
 import { PencilIcon } from "./EditIcon"
+import LearningLauncher from "./LearningLauncher"
+import { timeSpentProblem } from "./timeSpent"
 import { TrashButton } from "./TrashIcon"
 
 function generateId() {
@@ -410,13 +412,43 @@ function EmptyState({ onCreate, onSeedDemoData }) {
 
 
 
+// The most a project's name and description can hold (the server enforces the same).
+const PROJECT_NAME_MAX = 255
+const PROJECT_DESCRIPTION_MAX = 4000
+
+/** What is wrong with a project's name and description, as sentences, keyed by field. */
+function projectFieldErrors(name, description) {
+  const errors = {}
+  const trimmedName = name.trim()
+  if (!trimmedName) errors.name = "Give the project a name."
+  else if (trimmedName.length > PROJECT_NAME_MAX) {
+    errors.name = `A name can be at most ${PROJECT_NAME_MAX} characters. This one is ${trimmedName.length}.`
+  }
+  const trimmedDescription = description.trim()
+  if (trimmedDescription.length > PROJECT_DESCRIPTION_MAX) {
+    errors.description = `A description can be at most ${PROJECT_DESCRIPTION_MAX} characters. This one is ${trimmedDescription.length}.`
+  }
+  return errors
+}
+
+/** The note under a field: how much of the cap is used, or what is wrong. */
+function FieldNote({ id, error, length, max }) {
+  return (
+    <span id={id} className={`field-note${error ? " is-error" : ""}`} role={error ? "alert" : undefined}>
+      {error || `${length} / ${max}`}
+    </span>
+  )
+}
+
 function CreateProjectModal({ isOpen, onClose, onCreate }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [errors, setErrors] = useState({})
 
   const handleCancel = () => {
     setName("")
     setDescription("")
+    setErrors({})
     onClose()
   }
 
@@ -426,9 +458,10 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
-    onCreate({ name: trimmed, description: description.trim() || null })
+    const found = projectFieldErrors(name, description)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+    onCreate({ name: name.trim(), description: description.trim() || null })
     setName("")
     setDescription("")
   }
@@ -447,25 +480,35 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
         <LogoIcon className="modal-character" size={90} />
         <h2 id="create-project-title">Start a new project</h2>
         <p>What would you like to call your logbook?</p>
-        <form onSubmit={handleSubmit}>
-          <label className="field-label full">
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="field-group">
+            <label className="field-label full">
             Project name
             <input
               type="text"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              aria-invalid={errors.name ? "true" : undefined}
+              aria-describedby="create-project-name-note"
+              onChange={(event) => { setName(event.target.value); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
               placeholder="e.g. Field Notes"
             />
-          </label>
-          <label className="field-label full">
+            </label>
+            <FieldNote id="create-project-name-note" error={errors.name} length={name.trim().length} max={PROJECT_NAME_MAX} />
+          </div>
+          <div className="field-group">
+            <label className="field-label full">
             Description (optional)
             <textarea
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              aria-invalid={errors.description ? "true" : undefined}
+              aria-describedby="create-project-description-note"
+              onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
               placeholder="What is this project for?"
               rows={3}
             />
-          </label>
+            </label>
+            <FieldNote id="create-project-description-note" error={errors.description} length={description.trim().length} max={PROJECT_DESCRIPTION_MAX} />
+          </div>
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={handleCancel}>
               Cancel
@@ -486,6 +529,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   const [statuses, setStatuses] = useState(() => projectStatuses(null).map((item) => ({ ...item })))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (isOpen && project) {
@@ -493,6 +537,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
       setDescription(project.description || "")
       setStatuses(projectStatuses(project).map((item) => ({ ...item })))
       setError(null)
+      setErrors({})
     }
   }, [isOpen, project])
 
@@ -508,8 +553,10 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed) {
-      setError("Project name can't be empty.")
+    const found = projectFieldErrors(name, description)
+    setErrors(found)
+    if (Object.keys(found).length > 0) {
+      setError(null)
       return
     }
     const problem = statusProblem(statuses)
@@ -537,7 +584,7 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     <div className="modal-backdrop" onClick={handleCancel} role="presentation">
       <div
         ref={dialogRef}
-        className="modal-card"
+        className="modal-card modal-card-wide"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -547,25 +594,35 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
         <LogoIcon className="modal-character" size={90} />
         <h2 id="edit-project-title">Edit project</h2>
         <p>Update the name and description for this logbook.</p>
-        <form onSubmit={handleSubmit}>
-          <label className="field-label full">
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="field-group">
+            <label className="field-label full">
             Project name
             <input
               type="text"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              aria-invalid={errors.name ? "true" : undefined}
+              aria-describedby="edit-project-name-note"
+              onChange={(event) => { setName(event.target.value); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
               placeholder="e.g. Field Notes"
             />
-          </label>
-          <label className="field-label full">
+            </label>
+            <FieldNote id="edit-project-name-note" error={errors.name} length={name.trim().length} max={PROJECT_NAME_MAX} />
+          </div>
+          <div className="field-group">
+            <label className="field-label full">
             Description (optional)
             <textarea
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              aria-invalid={errors.description ? "true" : undefined}
+              aria-describedby="edit-project-description-note"
+              onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
               placeholder="What is this project for?"
-              rows={3}
+              rows={4}
             />
-          </label>
+            </label>
+            <FieldNote id="edit-project-description-note" error={errors.description} length={description.trim().length} max={PROJECT_DESCRIPTION_MAX} />
+          </div>
           <StatusEditor statuses={statuses} onChange={setStatuses} />
           {error && <p className="error" role="alert">{error}</p>}
           <div className="modal-actions">
@@ -1535,9 +1592,16 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           payload[field.id] = ""
         }
       }
-      const problem = richFieldProblem(schema, payload, ruleFillable)
+      // Planned work may leave any field empty, so nothing is demanded of its tags either.
+      const problem = richFieldProblem(schema, payload, todo ? new Set(schema.map((field) => field.id)) : ruleFillable)
       if (problem) {
         setError(problem)
+        return
+      }
+      const timeProblem = timeSpentProblem(hoursSpent, minutesSpent)
+      if (timeProblem) {
+        setError(timeProblem)
+        setIsSaving(false)
         return
       }
       const hours = hoursSpent === "" ? 0 : Number(hoursSpent)
@@ -1616,6 +1680,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
             onOpenProject={onOpenProject}
             onChange={handleChange}
             ruleCanFill={ruleFillable.has(field.id)}
+            optional={todo}
           />
         ))}
       </div>
@@ -1625,7 +1690,9 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           <input
             type="number"
             min={0}
+            step={1}
             value={hoursSpent}
+            aria-invalid={timeSpentProblem(hoursSpent, "") ? "true" : undefined}
             onChange={(e) => setHoursSpent(e.target.value)}
             placeholder="0"
           />
@@ -1635,8 +1702,9 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           <input
             type="number"
             min={0}
-            max={59}
+            step={1}
             value={minutesSpent}
+            aria-invalid={timeSpentProblem("", minutesSpent) ? "true" : undefined}
             onChange={(e) => setMinutesSpent(e.target.value)}
             placeholder="0"
           />
@@ -3444,6 +3512,7 @@ function App() {
           else setCurrentView(view)
         }}
       />
+      {currentView === "home" && !selectedProject && <LearningLauncher />}
       {currentView !== "assistant" && <MiraLauncher conversation={miraConversation} open={miraOpen} onToggle={() => setMiraOpen(value => !value)} onOpenFull={() => { setMiraOpen(false); setCurrentView("assistant") }} />}
     </div>
   )
