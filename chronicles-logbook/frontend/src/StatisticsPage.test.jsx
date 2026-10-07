@@ -116,6 +116,10 @@ beforeEach(() => {
   deleteCustomStatistic.mockResolvedValue(null)
 })
 
+// Figures are written in the reader's own locale (2.5 or 2,5), so the tests expect the same
+// thing the page does rather than assuming English.
+const shown = (value) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)
+
 describe("StatisticsPage", () => {
   it("shows the headline numbers, with time in hours and minutes", async () => {
     render(<StatisticsPage projects={[project]} onNavigate={vi.fn()} />)
@@ -242,7 +246,7 @@ describe("StatisticsPage", () => {
     const panel = await screen.findByLabelText("My stats")
     await within(panel).findByText("Average of Hours · Lab practicals")
     expect(within(panel).getByText("Average hours")).toBeInTheDocument()
-    expect(within(panel).getByText("2.5")).toBeInTheDocument()
+    expect(within(panel).getByText(shown(2.5))).toBeInTheDocument()
     expect(within(panel).getByText("—")).toBeInTheDocument()
     expect(within(panel).getByText("There's no field called 'hours' in Lab practicals.")).toBeInTheDocument()
   })
@@ -270,7 +274,7 @@ describe("StatisticsPage", () => {
     await waitFor(() =>
       expect(previewCustomStatistic).toHaveBeenCalledWith("proj-1", "avg({Hours})"),
     )
-    expect(await within(dialog).findByText("2.5")).toBeInTheDocument()
+    expect(await within(dialog).findByText(shown(2.5))).toBeInTheDocument()
     expect(within(dialog).getByText("across 128 entries")).toBeInTheDocument()
 
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Average hours" } })
@@ -376,5 +380,21 @@ describe("StatisticsPage", () => {
     await waitFor(() =>
       expect(screen.queryByText("Average of Hours · Lab practicals")).not.toBeInTheDocument(),
     )
+  })
+})
+
+describe("figures in another locale", () => {
+  it("writes a saved stat with the reader's decimal mark", async () => {
+    const RealNumberFormat = Intl.NumberFormat
+    const spy = vi.spyOn(Intl, "NumberFormat").mockImplementation(function (_locale, options) { return new RealNumberFormat("de-DE", options) })
+    try {
+      fetchCustomStatistics.mockResolvedValue([savedStat])
+      render(<StatisticsPage projects={[project]} onNavigate={vi.fn()} />)
+      const panel = await screen.findByRole("region", { name: "My stats" })
+      await within(panel).findByText("Average of Hours · Lab practicals")
+      expect(within(panel).getByText("2,5")).toBeInTheDocument()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
