@@ -27,3 +27,14 @@ describe("timeSpentProblem", () => {
     expect(timeSpentProblem("", "2.5")).toMatch(/Minutes must be a whole number/)
   })
 })
+
+describe("an entry recorded above the ceiling before it existed", () => {
+  it("keeps its time, but nothing else may go over", () => {
+    const stored = 20000 * 60 + 30
+
+    expect(timeSpentProblem("20000", "30", { allowTotal: stored })).toBeNull()
+    expect(timeSpentProblem("20001", "0", { allowTotal: stored })).toMatch(/at most 10,000 hours/)
+    expect(timeSpentProblem("20000", "75", { allowTotal: stored })).toMatch(/at most 59/)
+    expect(timeSpentProblem("10001", "", { allowTotal: null })).toMatch(/at most 10,000 hours/)
+  })
+})

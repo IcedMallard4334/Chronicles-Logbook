@@ -249,7 +249,9 @@ async def import_logbook(
 
         for exported_entry in exported.entries:
             try:
-                await _validate_entry_data(exported_entry.data, project.entry_schema)
+                await _validate_entry_data(
+                    exported_entry.data, project.entry_schema, require_values=not exported_entry.todo
+                )
             except HTTPException as error:
                 # The project was reused and its schema has moved on since the
                 # export. Record which entry and why rather than dropping it

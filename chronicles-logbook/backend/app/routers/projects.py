@@ -30,6 +30,7 @@ from app.schemas import (
     MAX_CHECKLIST_ITEMS,
     MAX_TAG_LENGTH,
     MAX_TAGS,
+    MAX_TIME_SPENT_MINUTES,
     EntryCreate,
     EntryMigrationPreview,
     EntryResponse,
@@ -150,8 +151,13 @@ async def _validate_entry_data(
     user: User | None = None,
     project_id: UUID | None = None,
     self_id: UUID | None = None,
+    require_values: bool = True,
 ) -> None:
     """Validate entry field values against the project's entry_schema.
+
+    ``require_values`` is False for an entry that is still to do: planned work
+    has not happened yet, so it may leave fields empty. Whatever *is* given is
+    still checked. Once the entry is done it must be complete.
 
     ``known_project_ids`` is the set of project ids a reference field is
     allowed to name — the caller's own projects. It is optional because the
@@ -170,7 +176,7 @@ async def _validate_entry_data(
 
     for field in entry_schema:
         field_id = field["id"]
-        if field_id not in data and field.get("type") not in _OPTIONAL_TYPES:
+        if require_values and field_id not in data and field.get("type") not in _OPTIONAL_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Missing required field: {field['name']}",
@@ -901,18 +907,6 @@ async def create_entry(
     rules = await apply_entry_rules(db, project, payload_data)
     payload_data = rules.data
 
-    await _validate_entry_data(
-        payload_data,
-        project.entry_schema,
-        await _reference_scope(project.entry_schema, user, db),
-        db=db,
-        user=user,
-        project_id=project_id,
-        # The caller may have chosen the id already (offline sync, import),
-        # which is the only way a brand-new entry could link to itself.
-        self_id=data.id,
-    )
-
     statuses = statuses_of(project.statuses)
     todo = data.todo or rules.mark_todo
     # A status a rule chose stands in for one the author left out.
@@ -927,6 +921,20 @@ async def create_entry(
             )
         # The status the author chose decides whether the entry is outstanding.
         todo = not is_done(statuses, chosen_status)
+
+    await _validate_entry_data(
+        payload_data,
+        project.entry_schema,
+        await _reference_scope(project.entry_schema, user, db),
+        db=db,
+        user=user,
+        project_id=project_id,
+        # The caller may have chosen the id already (offline sync, import),
+        # which is the only way a brand-new entry could link to itself.
+        self_id=data.id,
+        # Planned work may leave fields empty; finished work may not.
+        require_values=not todo,
+    )
 
     entry = Entry(
         project_id=project_id,
@@ -1165,6 +1173,29 @@ async def update_entry(
     latest_revision = await _ensure_history(entry, db)
     previous = _entry_state(entry)
 
+    # Whether the entry will be outstanding once this save is applied, which decides
+    # whether its fields must all be filled in (planned work may leave them empty).
+    project_statuses = statuses_of(project.statuses)
+    if "status" in payload.model_fields_set and payload.status in names_of(project_statuses):
+        will_be_todo = not is_done(project_statuses, payload.status)
+    elif "todo" in payload.model_fields_set and payload.todo is not None:
+        will_be_todo = payload.todo
+    else:
+        will_be_todo = entry.todo
+
+    # A ceiling for new figures only: an entry already above it keeps its time, and an
+    # edit that leaves the time alone is fine.
+    if (
+        "time_spent" in payload.model_fields_set
+        and payload.time_spent is not None
+        and payload.time_spent > MAX_TIME_SPENT_MINUTES
+        and payload.time_spent != entry.time_spent
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An entry can record at most 10,000 hours.",
+        )
+
     if "title" in payload.model_fields_set:
         entry.title = (payload.title or "").strip() or None
 
@@ -1181,7 +1212,9 @@ async def update_entry(
         )
         merged_data = {**baseline_data, **(payload.data or {})}
         payload_data = _apply_project_references(merged_data, target_schema)
-        await _validate_entry_data(payload_data, target_schema, known_project_ids, db=db, user=user)
+        await _validate_entry_data(
+            payload_data, target_schema, known_project_ids, db=db, user=user, require_values=not will_be_todo
+        )
         entry.data = apply_computed_fields(payload_data, target_schema)
         entry.retired_data = baseline_retired
         entry.schema_version = project.schema_version
@@ -1197,6 +1230,7 @@ async def update_entry(
             user=user,
             project_id=project_id,
             self_id=entry_id,
+            require_values=not will_be_todo,
         )
         entry.data = apply_computed_fields(payload_data, entry_schema)
 

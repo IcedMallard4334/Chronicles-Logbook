@@ -1592,7 +1592,8 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           payload[field.id] = ""
         }
       }
-      const problem = richFieldProblem(schema, payload, ruleFillable)
+      // Planned work may leave any field empty, so nothing is demanded of its tags either.
+      const problem = richFieldProblem(schema, payload, todo ? new Set(schema.map((field) => field.id)) : ruleFillable)
       if (problem) {
         setError(problem)
         return
@@ -1679,6 +1680,7 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
             onOpenProject={onOpenProject}
             onChange={handleChange}
             ruleCanFill={ruleFillable.has(field.id)}
+            optional={todo}
           />
         ))}
       </div>

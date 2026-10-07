@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest_asyncio
 
@@ -1383,3 +1383,61 @@ async def test_an_entry_cannot_record_more_than_ten_thousand_hours(authenticated
 
     edit = await authenticated_client.put(f"{base}/{top.json()['id']}", json={"time_spent": 10000 * 60 + 1})
     assert edit.status_code == 422
+
+
+async def test_an_entry_already_above_the_ceiling_keeps_its_time_but_new_ones_cannot_exceed_it(
+    authenticated_client, db_session
+):
+    from sqlalchemy import update
+
+    from app.models import Entry
+
+    project = (await authenticated_client.post("/projects", json={"name": "Old", "entry_schema": []})).json()
+    base = f"/projects/{project['id']}/entries"
+    entry = (await authenticated_client.post(base, json={"data": {}, "time_spent": 60})).json()
+
+    # An entry recorded before the ceiling existed.
+    await db_session.execute(update(Entry).where(Entry.id == UUID(entry["id"])).values(time_spent=20000 * 60))
+    await db_session.commit()
+
+    # Editing something else, or sending the same time back, is fine.
+    renamed = await authenticated_client.put(f"{base}/{entry['id']}", json={"title": "Renamed", "time_spent": 20000 * 60})
+    assert renamed.status_code == 200 and renamed.json()["time_spent"] == 20000 * 60
+
+    # So is lowering it, but not raising it, and a new entry cannot start above the ceiling.
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"time_spent": 20001 * 60})).status_code == 422
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"time_spent": 5000 * 60})).status_code == 200
+    assert (await authenticated_client.post(base, json={"data": {}, "time_spent": 10001 * 60})).status_code == 422
+
+
+async def test_fields_are_only_required_once_an_entry_is_done(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Plan", "entry_schema": [{"id": "f-hours", "name": "Hours", "type": "number"}, {"id": "f-note", "name": "Note", "type": "text"}]},
+        )
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+
+    # Finished work must be complete.
+    refused = await authenticated_client.post(base, json={"data": {}})
+    assert refused.status_code == 422 and "Missing required field" in refused.text
+
+    # Planned work need not be.
+    planned = await authenticated_client.post(base, json={"data": {}, "todo": True, "title": "Later"})
+    assert planned.status_code == 201
+
+    # What is given is still checked.
+    wrong = await authenticated_client.post(base, json={"data": {"f-hours": "lots"}, "todo": True})
+    assert wrong.status_code == 422
+
+    # Finishing it through the form (which sends the data) means it must be complete.
+    entry_id = planned.json()["id"]
+    incomplete = await authenticated_client.put(f"{base}/{entry_id}", json={"todo": False, "data": {"f-hours": 2}})
+    assert incomplete.status_code == 422 and "Note" in incomplete.text
+    done = await authenticated_client.put(f"{base}/{entry_id}", json={"todo": False, "data": {"f-hours": 2, "f-note": "ok"}})
+    assert done.status_code == 200 and done.json()["todo"] is False
+
+    # And an entry still to do can be edited with fields left empty.
+    again = await authenticated_client.put(f"{base}/{entry_id}", json={"todo": True, "data": {}})
+    assert again.status_code == 200

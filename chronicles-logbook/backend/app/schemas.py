@@ -464,7 +464,8 @@ class EntryUpdate(BaseModel):
 
     title: str | None = Field(default=None, max_length=255)
     data: dict[str, Any] | None = None
-    time_spent: int | None = Field(default=None, ge=0, le=MAX_TIME_SPENT_MINUTES)
+    # No ceiling here: the route refuses a new figure above 10,000 hours but lets an existing one stand.
+    time_spent: int | None = Field(default=None, ge=0)
     todo: bool | None = None
     due_date: date | None = None
     due_time: time_of_day | None = None

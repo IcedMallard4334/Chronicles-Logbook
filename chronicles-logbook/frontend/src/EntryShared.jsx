@@ -411,7 +411,7 @@ function RuleFillHint({ show }) {
   return <span className="rule-fill-hint">Leave blank and a rule can fill this in.</span>
 }
 
-export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange, ruleCanFill = false }) {
+export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange, ruleCanFill = false, optional = false }) {
   if (field.type === "computed") {
     // The badge's word and colour come from the field-type registry, so the
     // form, the table and the schema view can never disagree about what a
@@ -505,9 +505,9 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
     <label className="field-label">
       {field.name}
       {field.type === "dropdown" ? (
-        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required={!ruleCanFill}>
-          <option value="" disabled={!ruleCanFill}>
-            {ruleCanFill ? "Leave for the rule…" : "Select…"}
+        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required={!ruleCanFill && !optional}>
+          <option value="" disabled={!ruleCanFill && !optional}>
+            {ruleCanFill ? "Leave for the rule…" : optional ? "Leave empty for now" : "Select…"}
           </option>
           {(field.options || []).map((option) => (
             <option key={option} value={option}>
@@ -520,7 +520,7 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
           type={field.type}
           value={value || ""}
           onChange={(e) => onChange(field.id, e.target.value)}
-          placeholder={field.name}
+          placeholder={optional ? `${field.name} (optional while this is still to do)` : field.name}
         />
       )}
       <RuleFillHint show={ruleCanFill && field.type !== "dropdown"} />
@@ -701,7 +701,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         if (field.type === "checklist" && payload[field.id] === undefined) payload[field.id] = []
         if (field.type === "link" && payload[field.id] === undefined) payload[field.id] = ""
       }
-      const timeProblem = timeSpentProblem(hoursSpent, minutesSpent)
+      const timeProblem = timeSpentProblem(hoursSpent, minutesSpent, { allowTotal: entry.time_spent })
       if (timeProblem) {
         setError(timeProblem)
         setIsSaving(false)
@@ -922,6 +922,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 <EntryFieldInput
                   key={field.id}
                   field={field}
+                  optional={todo}
                   value={data[field.id]}
                   computed={withComputedValues(data, activeSchema)[field.id]}
                   projects={linkable}
@@ -935,7 +936,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
             <div className="form-grid time-tracking">
               <label className="field-label">
                 Hours spent
-                <input type="number" min={0} step={1} value={hoursSpent} aria-invalid={timeSpentProblem(hoursSpent, "") ? "true" : undefined} onChange={(event) => setHoursSpent(event.target.value)} />
+                <input type="number" min={0} step={1} value={hoursSpent} aria-invalid={timeSpentProblem(hoursSpent, "", { allowTotal: entry.time_spent }) ? "true" : undefined} onChange={(event) => setHoursSpent(event.target.value)} />
               </label>
               <label className="field-label">
                 Minutes spent

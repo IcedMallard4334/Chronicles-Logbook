@@ -280,3 +280,14 @@ projects are new, and what will be skipped. *Cancel* imports nothing.
 
 Local development databases from older releases are also brought up to date at startup now: missing columns are added to an
 existing SQLite file instead of failing the first query that names them.
+
+## Time caps for old entries, and planned work
+
+- **The 10,000-hour ceiling is for new figures.** An entry that already recorded more keeps its time exactly as it was:
+  editing its title or anything else is fine, and so is lowering the time. Only a new entry, or a change that raises an
+  over-the-ceiling time, is refused. (Importing a backup restores times as they were.)
+- **Fields are required once an entry is done, not while it is still to do.** Planned work (an entry marked *still to do*, or in
+  a status that is not finished) may leave fields empty; the form says so in each field and the server accepts it. What is
+  filled in is still checked, and finishing the entry through the form asks for the rest. Moving an entry to a finished
+  status from the Board or Outstanding, which sends no field values, does not re-check them. A CSV import applies the same
+  rule: only rows that are finished are warned about missing values.

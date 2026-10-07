@@ -1305,3 +1305,37 @@ describe("the time an entry records", () => {
     expect(createEntry.mock.calls[0][1].time_spent).toBe(150)
   })
 })
+
+describe("planned work and finished work", () => {
+  const KIND = { id: "f-kind", name: "Kind", type: "dropdown", options: ["Lab", "Reading"] }
+  const LABELS = { id: "f-labels", name: "Labels", type: "tags" }
+
+  async function openForm() {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [HOURS, KIND, LABELS] }, otherProject])
+    createEntry.mockResolvedValue({ id: "e1", data: {}, created_at: "2026-09-12T10:00:00Z" })
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Plan the lab" } })
+  }
+
+  it("asks for every field when the entry is finished", async () => {
+    await openForm()
+
+    expect(screen.getByLabelText("Kind")).toBeRequired()
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+    expect(createEntry).not.toHaveBeenCalled()
+  })
+
+  it("lets fields stay empty while the entry is still to do", async () => {
+    await openForm()
+    fireEvent.click(screen.getByLabelText(/This is still to do/))
+
+    expect(screen.getByLabelText("Kind")).not.toBeRequired()
+    expect(screen.getByPlaceholderText(/Hours \(optional while this is still to do\)/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
+
+    await waitFor(() => expect(createEntry).toHaveBeenCalled())
+    expect(createEntry.mock.calls[0][1]).toMatchObject({ todo: true, title: "Plan the lab" })
+  })
+})

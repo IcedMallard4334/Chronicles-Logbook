@@ -96,6 +96,15 @@ describe("csvToDocument", () => {
     expect(summary.warnings.join(" ")).toMatch(/1 entry has no value for Reps.*skipped/)
   })
 
+  it("does not hold planned work to a project's required fields", () => {
+    const existing = [{ id: "p1", name: "Gym", shared: false, statuses: [], entry_schema: [{ id: "f-reps", name: "Reps", type: "number" }] }]
+
+    const { summary } = csvToDocument("Project,Title,Status,Reps\nGym,Squats,Still to do,\nGym,Lunges,Done,", { existingProjects: existing, now: NOW })
+
+    // The planned one may be empty; the finished one may not.
+    expect(summary.projects[0]).toMatchObject({ unfit: 1, lacking: ["Reps"] })
+  })
+
   it("does not add to a project somebody else shared", () => {
     const shared = [{ id: "p-shared", name: "Gym", shared: true, entry_schema: [] }]
 

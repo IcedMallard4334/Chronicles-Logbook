@@ -262,7 +262,7 @@ export function csvToDocument(text, { fileName = "Imported CSV", existingProject
     let unfit = 0
     const lacking = new Set()
     if (existing) {
-      for (const entry of entries) {
+      for (const entry of entries.filter((item) => !item.todo)) {
         const missing = schema.filter((field) => !["computed", "project_reference"].includes(field.type) && entry.data[field.id] === undefined)
         if (missing.length) { unfit += 1; missing.forEach((field) => lacking.add(field.name)) }
       }
