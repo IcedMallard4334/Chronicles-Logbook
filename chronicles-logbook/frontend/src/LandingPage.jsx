@@ -201,14 +201,46 @@ function useReveal() {
   return ref
 }
 
+const THEME_KEY = "chronicles-landing-theme"
+
+function readLandingTheme() {
+  try {
+    return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"
+  } catch {
+    return "dark"
+  }
+}
+
+/** Moon / sun for the theme toggle. It shows the mode a click switches to: a moon in light mode, a sun in dark mode. */
+function ThemeIcon({ theme }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {theme === "light"
+        ? <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        : <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>}
+    </svg>
+  )
+}
+
 export default function LandingPage() {
   const [useCase, setUseCase] = useState(USE_CASES[0].id)
+  const [theme, setTheme] = useState(readLandingTheme)
   const active = USE_CASES.find((item) => item.id === useCase)
   const pageRef = useReveal()
   const start = getGoogleLoginUrl()
 
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark"
+    setTheme(next)
+    try {
+      window.localStorage.setItem(THEME_KEY, next)
+    } catch {
+      // Storage can be unavailable (private mode); the choice then lasts for this visit only.
+    }
+  }
+
   return (
-    <div className="lp" ref={pageRef}>
+    <div className="lp" data-lp-theme={theme} ref={pageRef}>
       <header className="lp-nav">
         <Link className="lp-brand" to="/" aria-label="Chronicles home">
           <ChroniclesLogo size={34} />
@@ -221,6 +253,15 @@ export default function LandingPage() {
           <a href="#faq">FAQ</a>
         </nav>
         <div className="lp-nav-actions">
+          <button
+            type="button"
+            className="lp-theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <ThemeIcon theme={theme} />
+          </button>
           <Link className="lp-link" to="/signin">Sign in</Link>
           <a className="lp-button" href={start}>Get started</a>
         </div>

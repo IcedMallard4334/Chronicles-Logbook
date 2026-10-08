@@ -549,6 +549,37 @@ describe("Mira proposals", () => {
   })
 })
 
+describe("Mira failures", () => {
+  async function ask(text = "Help me create a project") {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
+    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: text } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+  }
+
+  it("shows the reason the backend gave, and retrying does not duplicate the question", async () => {
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      onEvent({ type: "error", detail: "The AI assistant is not configured." })
+      onEvent({ type: "done" })
+    })
+    await ask()
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The AI assistant is not configured.")
+    // The failed exchange is taken back with the reply it never got, so a
+    // retry cannot leave the question beside a copy of itself.
+    expect(screen.queryByText("Help me create a project")).not.toBeInTheDocument()
+
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      onEvent({ type: "delta", text: "Happy to help." })
+      onEvent({ type: "done" })
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+
+    expect(await screen.findByText("Happy to help.")).toBeInTheDocument()
+    expect(screen.getAllByText("Help me create a project")).toHaveLength(1)
+  })
+})
+
 describe("account menu navigation", () => {
   // The bug this replaces: Profile and Help used window.location.assign, a
   // full page reload that re-ran session restoration and every top-level
@@ -608,6 +639,19 @@ describe("entry rules in a project (US-3.12)", () => {
 
     expect(await screen.findByText("Default kind")).toBeInTheDocument()
     expect(screen.getByText("For every new entry: fill in Kind with Bug.")).toBeInTheDocument()
+  })
+
+  // Phones used to scroll the tab bar sideways with the tabs at a fixed
+  // width, which pushed Automation off the screen's edge. The four tabs now
+  // share the row equally (a four-column grid in MobileLayout.css); this pins
+  // the four tabs that layout relies on.
+  it("shows all four project tabs in the tab list", async () => {
+    await openBugLog()
+
+    const tabList = screen.getByRole("tablist", { name: "Project tabs" })
+    expect(within(tabList).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Entries", "Schema", "Tasks", "Automation",
+    ])
   })
 
   it("lets a field a rule fills be left blank, and says which rule applied", async () => {

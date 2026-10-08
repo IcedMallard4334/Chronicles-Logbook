@@ -14,6 +14,9 @@
   --lp-accent-strong: #5b4bf0;
   --lp-pink: #ff7eae;
   --lp-green: #35d6b0;
+  --lp-orange: #ffb066;
+  --lp-icon: #9a98b8;
+  color-scheme: dark;
   min-height: 100svh;
   background:
     radial-gradient(60rem 30rem at 85% -10%, rgba(107, 91, 255, 0.28), transparent 60%),
@@ -27,6 +30,35 @@
 /* :where() keeps these resets at zero specificity, so a class like .lp-lead can set its own margin. */
 .lp :where(h1, h2, h3, p, ul, ol) { margin: 0; }
 .lp :where(ul, ol) { padding: 0; list-style: none; }
+/* index.css colours headings with the app theme token; the landing page has its own palette. */
+.lp h1, .lp h2, .lp h3 { color: var(--lp-text); }
+
+/* ── Light mode: same layout, a light palette ── */
+.lp[data-lp-theme="light"] {
+  --lp-bg: #f7f6fb;
+  --lp-surface: #ffffff;
+  --lp-surface-2: #efedf8;
+  --lp-line: #d9d6ea;
+  --lp-text: #1b1930;
+  --lp-muted: #5a5775;
+  --lp-accent: #5b4bf0;
+  --lp-accent-strong: #5b4bf0;
+  --lp-pink: #d6336c;
+  --lp-green: #0b8f6f;
+  --lp-orange: #e07a12;
+  --lp-icon: #6b6880;
+  color-scheme: light;
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgba(107, 91, 255, 0.14), transparent 60%),
+    radial-gradient(50rem 28rem at -10% 20%, rgba(255, 107, 157, 0.1), transparent 60%),
+    var(--lp-bg);
+}
+.lp[data-lp-theme="light"] .lp-mock { box-shadow: 0 30px 60px rgba(40, 30, 100, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.6) inset; }
+.lp[data-lp-theme="light"] .lp-mock-bar i { background: #cfcbe6; }
+.lp[data-lp-theme="light"] .lp-mock-badge { background: #fff3dc; border-color: #e0a548; color: #8a5a00; box-shadow: 0 10px 24px rgba(40, 30, 100, 0.14); }
+.lp[data-lp-theme="light"] .lp-mock-mira { box-shadow: 0 14px 30px rgba(40, 30, 100, 0.16); }
+.lp[data-lp-theme="light"] .lp-art { box-shadow: 0 24px 48px rgba(40, 30, 100, 0.12); }
+.lp[data-lp-theme="light"] .lp-final { background: radial-gradient(40rem 20rem at 50% 0%, rgba(107, 91, 255, 0.2), transparent 65%), linear-gradient(135deg, #ece9ff, #f7e9f4); }
 
 /* ── Navigation ── */
 .lp-nav {
@@ -50,6 +82,8 @@
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-link { color: var(--lp-text); font-weight: 700; font-size: 0.92rem; padding: 8px 12px; border-radius: 10px; }
 .lp-link:hover, .lp-link:focus-visible { background: var(--lp-surface-2); }
+.lp-theme-toggle { display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--lp-icon); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.lp-theme-toggle:hover, .lp-theme-toggle:focus-visible { background: var(--lp-surface-2); color: var(--lp-text); }
 
 .lp-button {
   display: inline-flex;
@@ -92,7 +126,7 @@
 .lp-hero h1 { font-size: clamp(2.1rem, 5.4vw, 4rem); line-height: 1.05; letter-spacing: -0.03em; font-weight: 850; }
 .lp-hero h1 em {
   font-style: normal;
-  background: linear-gradient(100deg, var(--lp-accent), var(--lp-pink) 55%, #ffb066);
+  background: linear-gradient(100deg, var(--lp-accent), var(--lp-pink) 55%, var(--lp-orange));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
