@@ -654,7 +654,15 @@ export async function deleteMiraConversation(id) {
  * Sends a message and reads Mira's reply as it is written. `onEvent` gets each
  * server-sent event (start, thought, delta, action, error, done) in order.
  */
-export async function streamMiraReply(conversationId, message, onEvent, retried = false) {
+/**
+ * Sends a message and reads Mira's reply as it is written.
+ *
+ * `options.kind` is "message" (what the person typed) or "results" (how the actions Mira ran went,
+ * sent back so she can fix a failure or ask for what is missing). `options.signal` lets the person stop
+ * the reply: it ends quietly, with whatever had arrived.
+ */
+export async function streamMiraReply(conversationId, message, onEvent, options = {}) {
+  const { kind = "message", signal, retried = false } = options
   const token = window.localStorage.getItem("chronicles_token")
   let response
   try {
@@ -666,9 +674,11 @@ export async function streamMiraReply(conversationId, message, onEvent, retried 
         Accept: "text/event-stream",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ message, today: localDateString() }),
+      body: JSON.stringify({ message, today: localDateString(), ...(kind === "results" ? { kind } : {}) }),
+      signal,
     })
-  } catch {
+  } catch (caught) {
+    if (caught?.name === "AbortError") return
     const error = new Error("Cannot reach the Chronicles API.")
     error.offline = true
     throw error
@@ -676,7 +686,7 @@ export async function streamMiraReply(conversationId, message, onEvent, retried 
 
   if (response.status === 401 && !retried && !window.localStorage.getItem("chronicles_signed_out")) {
     await refreshSession()
-    return streamMiraReply(conversationId, message, onEvent, true)
+    return streamMiraReply(conversationId, message, onEvent, { ...options, retried: true })
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
@@ -704,10 +714,16 @@ export async function streamMiraReply(conversationId, message, onEvent, retried 
     }
     return rest
   }
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer = flush(buffer + decoder.decode(value, { stream: true }))
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer = flush(buffer + decoder.decode(value, { stream: true }))
+    }
+  } catch (caught) {
+    // Stopped by the person: what has been read is kept, and that is the end of it.
+    if (caught?.name === "AbortError") return
+    throw caught
   }
   flush(`${buffer}\n\n`)
 }

@@ -143,16 +143,18 @@ describe("Mira assistant interfaces", () => {
     expect(onToggle).toHaveBeenCalledTimes(2)
   })
 
-  it("lists what Mira proposes and waits for confirmation", () => {
-    const state = conversation({
-      pendingActions: [
-        { type: "create_project", summary: "Create project “Research notes” with 2 fields", destructive: false },
-        { type: "create_task", summary: "Add the task “Outline” to “Research notes”", destructive: false },
-      ],
-      onRunActions: vi.fn(),
-      onCancelActions: vi.fn(),
-      actionsRunning: false,
+  const step = (summary, state = "pending", extra = {}) => ({ action: { type: "create_task", summary, destructive: false }, state, ...extra })
+  const withBatch = (batch, overrides = {}) =>
+    conversation({
+      messages: [{ id: "m1", role: "assistant", content: "On it.", batchId: "b1" }],
+      batches: [{ id: "b1", ...batch }],
+      onRunBatch: vi.fn(),
+      onCancelBatch: vi.fn(),
+      ...overrides,
     })
+
+  it("lists what Mira proposes under her reply and waits for confirmation when asked to", () => {
+    const state = withBatch({ status: "awaiting", items: [step("Create project “Research notes” with 2 fields"), step("Add the task “Outline” to “Research notes”")] })
     render(<MiraAssistantPage conversation={state} />)
 
     const card = screen.getByRole("region", { name: "Proposed actions" })
@@ -160,35 +162,108 @@ describe("Mira assistant interfaces", () => {
     expect(within(card).getByText("Create project “Research notes” with 2 fields")).toBeInTheDocument()
     expect(within(card).getByText("Nothing has changed yet. Review this before confirming.")).toBeInTheDocument()
     fireEvent.click(within(card).getByRole("button", { name: "Cancel" }))
-    expect(state.onCancelActions).toHaveBeenCalledTimes(1)
+    expect(state.onCancelBatch).toHaveBeenCalledWith("b1")
     fireEvent.click(within(card).getByRole("button", { name: "Do all 2" }))
-    expect(state.onRunActions).toHaveBeenCalledTimes(1)
+    expect(state.onRunBatch).toHaveBeenCalledWith("b1")
   })
 
-  it("says plainly when an action can't be undone, and disables the buttons while working", () => {
-    const state = conversation({
-      pendingActions: [{ type: "delete_task", summary: "Delete a task", destructive: true }],
-      onRunActions: vi.fn(),
-      onCancelActions: vi.fn(),
-      actionsRunning: true,
+  it("offers a single action as 'Do it'", () => {
+    render(<MiraAssistantPage conversation={withBatch({ status: "awaiting", items: [step("Add a task")] })} />)
+
+    expect(screen.getByText("Mira would like to")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Do it" })).toBeInTheDocument()
+  })
+
+  it("says plainly when an action can't be undone, and that Mira needs the OK", () => {
+    const destructive = { action: { type: "delete_task", summary: "Delete a task", destructive: true }, state: "pending" }
+    render(<MiraAssistantPage conversation={withBatch({ status: "awaiting", items: [destructive] })} />)
+
+    expect(screen.getByText(/this can’t be undone/)).toBeInTheDocument()
+    expect(screen.getByText("Mira needs your OK")).toBeInTheDocument()
+  })
+
+  it("shows each step as it runs: done steps say what was done, the one in progress is marked busy, the rest wait", () => {
+    const state = withBatch({
+      status: "running",
+      items: [step("Create project “Garden”", "done", { detail: "Created project “Garden”" }), step("Add the task “Dig”", "running"), step("Add the task “Plant”")],
     })
     render(<MiraAssistantPage conversation={state} />)
 
-    expect(screen.getByText(/this can’t be undone/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Working…" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    const card = screen.getByRole("region", { name: "Proposed actions" })
+    expect(card).toHaveAttribute("aria-busy", "true")
+    expect(within(card).getByText("Working on it…")).toBeInTheDocument()
+    expect(within(card).getByText("Created project “Garden”")).toBeInTheDocument()
+    expect(within(card).getByText("Done:")).toBeInTheDocument()
+    expect(within(card).getByText("Working on it:")).toBeInTheDocument()
+    expect(within(card).getByText("Waiting:")).toBeInTheDocument()
+    expect(within(card).queryByRole("button")).not.toBeInTheDocument()
   })
 
-  it("offers action-oriented starting points, and an opt-in to run simple changes straight away", () => {
-    const state = conversation({ autoRun: false, onToggleAutoRun: vi.fn() })
+  it("says which step didn't work and why, and which were not run", () => {
+    const state = withBatch({
+      status: "finished",
+      failed: true,
+      items: [
+        step("Create project “Garden”", "done", { detail: "Created project “Garden”" }),
+        step("Log an entry in “Garden”", "failed", { detail: "“Garden” needs Place before this entry can be logged." }),
+        step("Add the task “Dig”", "skipped"),
+      ],
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    const card = screen.getByRole("region", { name: "Proposed actions" })
+    expect(within(card).getByText("Part of that didn’t work")).toBeInTheDocument()
+    expect(within(card).getByText("“Garden” needs Place before this entry can be logged.")).toBeInTheDocument()
+    expect(within(card).getByText("Didn't work:")).toBeInTheDocument()
+    expect(within(card).getByText("Not run:")).toBeInTheDocument()
+  })
+
+  it("says everything is done when it is, and shows a cancelled batch as cancelled", () => {
+    const { unmount } = render(<MiraAssistantPage conversation={withBatch({ status: "finished", items: [step("A", "done", { detail: "Did A" }), step("B", "done", { detail: "Did B" })] })} />)
+    expect(screen.getByText("All done")).toBeInTheDocument()
+    unmount()
+
+    render(<MiraAssistantPage conversation={withBatch({ status: "cancelled", items: [step("A")] })} />)
+    expect(screen.getByText("Cancelled")).toBeInTheDocument()
+  })
+
+  it("keeps the steps under the reply that proposed them, and hides how Mira's actions went (that is for her)", () => {
+    const state = conversation({
+      messages: [
+        { id: "u1", role: "user", content: "Make a garden" },
+        { id: "m1", role: "assistant", content: "On it.", batchId: "b1" },
+        { id: "t1", role: "tool", content: "- ✓ Created project “Garden”" },
+        { id: "m2", role: "assistant", content: "All set." },
+      ],
+      batches: [{ id: "b1", status: "finished", items: [step("Create project “Garden”", "done", { detail: "Created project “Garden”" })] }],
+    })
+    render(<MiraAssistantPage conversation={state} />)
+
+    const text = screen.getByLabelText("Mira conversation").textContent
+    expect(text.indexOf("On it.")).toBeLessThan(text.indexOf("Created project “Garden”"))
+    expect(text.indexOf("Created project “Garden”")).toBeLessThan(text.indexOf("All set."))
+    expect(text).not.toContain("- ✓")
+  })
+
+  it("turns Send into Stop while Mira is replying", () => {
+    const state = conversation({ sending: true, onStop: vi.fn() })
+    render(<MiraAssistantPage conversation={state} />)
+
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }))
+    expect(state.onStop).toHaveBeenCalledTimes(1)
+  })
+
+  it("offers action-oriented starting points, and an opt-in to be asked before anything changes", () => {
+    const state = conversation({ autoRun: true, onToggleAutoRun: vi.fn() })
     render(<MiraAssistantPage conversation={state} />)
 
     expect(screen.getByText("Set up a project")).toBeInTheDocument()
     expect(screen.getByText("Schedule something")).toBeInTheDocument()
-    const toggle = screen.getByLabelText(/Run simple changes straight away/)
+    const toggle = screen.getByLabelText(/Ask me before Mira changes anything/)
     expect(toggle).not.toBeChecked()
     fireEvent.click(toggle)
-    expect(state.onToggleAutoRun).toHaveBeenCalledWith(true)
+    expect(state.onToggleAutoRun).toHaveBeenCalledWith(false)
   })
 })
 

@@ -1,0 +1,120 @@
+/* --------------------------------------------------
+   WALKTHROUGH
+   A silent how-to video, drawn from a script. The picture is built in
+   ems from one font size that follows the width of its frame, so it scales
+   like a video would, and it uses the app's own colours so it follows the
+   person's theme.
+   -------------------------------------------------- */
+
+.walkthrough { margin: 20px 0 24px; }
+
+.wt-frame {
+  position: relative;
+  container-type: inline-size;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.wt-stage {
+  position: relative;
+  aspect-ratio: 1200 / 750;
+  overflow: hidden;
+  background: var(--bg);
+  user-select: none;
+}
+.wt-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* What is drawn inside the frame (the frame gets a copy of these rules). */
+.wt-scene { position: relative; min-height: 100vh; }
+.wt-scene .nav-pill-right[data-compact] { gap: 8px; }
+.wt-group { border-radius: 14px; transition: box-shadow 0.3s ease; }
+.wt-group.is-lit { box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 45%, transparent); }
+.wt-cursor {
+  position: fixed;
+  z-index: 99999;
+  width: 28px;
+  height: 28px;
+  margin: -4px 0 0 -6px;
+  transition: left 1.05s cubic-bezier(0.45, 0.05, 0.25, 1), top 1.05s cubic-bezier(0.45, 0.05, 0.25, 1);
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9.4 19z' fill='%23fff' stroke='%23111' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+.wt-cursor::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid var(--blue);
+  opacity: 0;
+  transform: scale(0.3);
+}
+.wt-cursor.is-clicking::after { animation: wt-ripple 0.5s ease-out; }
+
+/* The narration sits under the picture, not over it, so it never hides what the cursor is pointing at. */
+.wt-caption {
+  display: grid;
+  place-items: center;
+  min-height: 3.4em;
+  padding: 0.7em 1.2em;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: clamp(0.82rem, 2.3cqw, 1.05rem);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.wt-poster {
+  position: absolute; inset: 0; z-index: 8;
+  display: grid; place-content: center; justify-items: center; gap: 0.5em;
+  border: 0; background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(4px);
+  color: var(--text); cursor: pointer;
+}
+.wt-poster strong { font-size: 1.15rem; }
+.wt-poster small { color: var(--muted); font-size: 0.82rem; }
+.wt-play {
+  display: grid; place-items: center; width: 4.2rem; height: 4.2rem;
+  border-radius: 50%; background: var(--blue); color: #fff; font-size: 1.4rem; padding-left: 0.2rem;
+  box-shadow: 0 0.6rem 1.6rem color-mix(in srgb, var(--blue) 45%, transparent);
+  transition: transform 0.2s ease;
+}
+.wt-poster:hover .wt-play, .wt-poster:focus-visible .wt-play { transform: scale(1.08); }
+
+.wt-controls { display: flex; align-items: center; gap: 12px; padding: 10px 2px 0; }
+.wt-control {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--surface);
+  color: var(--text); font-size: 0.8rem; cursor: pointer;
+}
+.wt-control:hover { border-color: var(--blue); color: var(--blue); }
+.wt-scrub { flex: 1; min-width: 0; accent-color: var(--blue); cursor: pointer; }
+.wt-time { flex: none; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+.wt-transcript { margin-top: 8px; color: var(--muted); font-size: 0.86rem; }
+.wt-transcript summary { cursor: pointer; color: var(--blue); font-weight: 600; }
+.wt-transcript ol { margin: 8px 0 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+
+@keyframes wt-ripple { 0% { opacity: 0.9; transform: scale(0.3); } 100% { opacity: 0; transform: scale(1.6); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wt-cursor { transition-duration: 0.01s; }
+}
+
+@media (max-width: 560px) {
+  .wt-time { display: none; }
+}

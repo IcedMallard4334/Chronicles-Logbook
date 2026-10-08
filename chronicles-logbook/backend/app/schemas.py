@@ -259,6 +259,15 @@ def _validate_statuses(statuses: list["StatusDefinition"]) -> None:
         raise ValueError("Include at least one status that counts as done and one that does not.")
 
 
+def _clean_project_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        raise ValueError("A project needs a name.")
+    return value
+
+
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -266,6 +275,8 @@ class ProjectCreate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] = Field(default_factory=list)
     statuses: list[StatusDefinition] | None = None
+
+    _strip_name = field_validator("name")(_clean_project_name)
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):
@@ -282,6 +293,8 @@ class ProjectUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     entry_schema: list[FieldDefinition] | None = None
     statuses: list[StatusDefinition] | None = None
+
+    _strip_name = field_validator("name")(_clean_project_name)
 
     @model_validator(mode="after")
     def validate_schema_integrity(self):

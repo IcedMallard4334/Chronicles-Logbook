@@ -213,7 +213,7 @@ async def test_the_context_lists_projects_tasks_entries_and_activities(authentic
 
     assert "Today is 2026-09-30." in text
     assert f"- {project['id']} | Bug Log" in text
-    assert "Hours (number); Kind (dropdown: Bug, Feature)" in text
+    assert "Hours (number, required); Kind (dropdown, required; one of: Bug, Feature)" in text
     assert "statuses: Open, Closed [finished]" in text
     assert "| Bug Log | Fix login | 2026-10-02" in text
     assert '| Bug Log | Closed | "Fixed the parser"' in text or '| Bug Log | Open | "Fixed the parser"' in text
@@ -275,7 +275,7 @@ async def test_the_streaming_endpoint_sends_context_today_and_saves_the_proposal
     assert "Today is 2026-09-30." in seen["context"] and "Bug Log" in seen["context"]
     assert '"type": "action"' in response.text
     saved = (await authenticated_client.get(f"/ai/conversations/{conversation}")).json()["messages"][-1]["content"]
-    assert "Proposed for your approval" in saved and "Add the task “Ship” to “Bug Log”" in saved
+    assert "Mira's actions" in saved and "Add the task “Ship” to “Bug Log”" in saved
 
 
 async def test_without_consent_the_workspace_is_never_read(authenticated_client, monkeypatch):
@@ -330,3 +330,89 @@ def test_an_unclear_detail_is_asked_about_in_plain_words():
     with pytest.raises(InvalidProposal) as unknown:
         validate_call("drop_database", {})
     assert unknown.value.question == ""
+
+
+# ── what Mira is told about a project, and how results come back ───────
+
+
+async def test_the_context_says_which_fields_are_required_and_how_big_text_may_be(authenticated_client, test_user, db_session):
+    from app.mira_context import build_context
+
+    await authenticated_client.post(
+        "/projects",
+        json={"name": "Garden", "entry_schema": [
+            {"id": "a", "name": "Place", "type": "text"},
+            {"id": "b", "name": "Notes", "type": "long_text", "required": False},
+            {"id": "c", "name": "When", "type": "date", "required": False},
+            {"id": "d", "name": "Total", "type": "computed", "expression": "1 + 1"},
+        ]},
+    )
+
+    text = await build_context(test_user, db_session, date(2026, 9, 30))
+
+    assert "Place (short text, up to 255 characters, required)" in text
+    assert "Notes (long text, up to 5000 characters, optional)" in text
+    assert "When (date, YYYY-MM-DD, optional)" in text
+    assert "Total (calculated, never filled in)" in text
+    assert "title (required)" in text and "time_spent_minutes" in text
+
+
+def test_a_project_proposal_can_say_which_fields_are_optional_and_use_long_text():
+    proposal = validate_call("create_project", {
+        "name": "Garden",
+        "fields": [{"name": "Notes", "type": "long_text", "required": False}, {"name": "Place"}],
+    })
+
+    assert proposal["payload"]["fields"] == [{"name": "Notes", "type": "long_text", "required": False}, {"name": "Place", "type": "text"}]
+
+
+async def test_results_go_back_to_mira_as_a_turn_of_their_own_and_never_retitle_the_chat(authenticated_client, monkeypatch):
+    await authenticated_client.put("/ai/consent", json={"accepted": True})
+    seen = {}
+
+    def fake(message, history=(), context=""):
+        seen["message"] = message
+        seen["history"] = list(history)
+        yield {"type": "delta", "text": "Which place was it?"}
+
+    monkeypatch.setattr(ai_router, "stream_response", fake)
+    conversation = (await authenticated_client.post("/ai/conversations")).json()["id"]
+    note = "- ✓ Created project “Garden”\n- ✗ Log an entry: needs a value for Place"
+
+    response = await authenticated_client.post(
+        f"/ai/conversations/{conversation}/stream", json={"message": note, "kind": "results"}
+    )
+
+    assert "Which place was it?" in response.text
+    # Mira is told what happened, and what is expected of her.
+    assert "results of the actions you just called" in seen["message"] and "needs a value for Place" in seen["message"]
+    saved = (await authenticated_client.get(f"/ai/conversations/{conversation}")).json()
+    assert [m["role"] for m in saved["messages"]] == ["tool", "assistant"]
+    assert saved["messages"][0]["content"] == note
+    # A results turn is not what the person said, so it does not name the conversation.
+    assert saved["title"] != note[:60]
+
+
+async def test_an_earlier_results_turn_is_part_of_what_mira_remembers(authenticated_client, monkeypatch):
+    await authenticated_client.put("/ai/consent", json={"accepted": True})
+    seen = {}
+
+    def fake(message, history=(), context=""):
+        seen["history"] = list(history)
+        yield {"type": "delta", "text": "ok"}
+
+    monkeypatch.setattr(ai_router, "stream_response", fake)
+    conversation = (await authenticated_client.post("/ai/conversations")).json()["id"]
+    await authenticated_client.post(f"/ai/conversations/{conversation}/stream", json={"message": "Make a project"})
+    await authenticated_client.post(f"/ai/conversations/{conversation}/stream", json={"message": "- ✗ failed", "kind": "results"})
+    await authenticated_client.post(f"/ai/conversations/{conversation}/stream", json={"message": "Thanks"})
+
+    assert [role for role, _content in seen["history"]] == ["user", "assistant", "tool", "assistant"]
+
+
+def test_the_history_names_the_results_of_mira_s_actions_for_what_they_are():
+    from app.services.gemini_service import _prompt_with_history
+
+    prompt = _prompt_with_history("And now?", [("user", "Make it"), ("assistant", "Done."), ("tool", "- ✗ failed")])
+
+    assert "Results of Mira's actions: - ✗ failed" in prompt and "User: Make it" in prompt and "Mira: Done." in prompt

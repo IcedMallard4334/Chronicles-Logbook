@@ -121,6 +121,7 @@ export const CHRONICLES = [
       {
         title: "Starting a new logbook",
         blocks: [
+          { type: "walkthrough", id: "first-logbook" },
           { type: "p", text: "In Chronicles, a logbook is called a project — one project per thing you're keeping track of. You can start one from two places:" },
           {
             type: "ul",
@@ -129,20 +130,21 @@ export const CHRONICLES = [
               "“Create your first project” on the welcome screen, if this is your very first one.",
             ],
           },
-          { type: "p", text: "Either one opens the same small form: a name, and an optional description." },
+          { type: "p", text: "Either one opens a panel from the side, so you can still see the page behind it. Give the project a name and, if you like, a description. Drag the panel's left edge to make it wider or narrower." },
         ],
       },
       {
         title: "Deciding what to record",
         blocks: [
-          { type: "p", text: "A brand-new project has no fields yet — nothing to fill in on an entry until you decide what belongs there. Open the project's Schema tab and add a field for each piece of information you want every entry to capture, such as a status, a duration, or a note." },
+          { type: "p", text: "The same panel shows the form every entry in the project will use. Three fields are built in, greyed out because every entry has them: a Title, and the Hours and Minutes it took. A Description and a Date are added to start you off, and you can rename, change or remove them." },
+          { type: "p", text: "Press “Add field” for anything else you want to track. Each field has a type, shown beside its name: short text for a name or a line, long text for notes, number, date, or a choice from a list. You can mark a field as not required, so a finished entry may leave it empty." },
           { type: "callout", text: "This step is what makes the logbook yours. The next chronicle, Designing Your Logbook, goes deeper into choosing good fields." },
         ],
       },
       {
         title: "Logging your first entry",
         blocks: [
-          { type: "p", text: "Once your project has at least one field, switch to its Entries tab. Fill in the fields you defined, optionally record time spent and a due date, and save. That's your first entry — and the start of your history." },
+          { type: "p", text: "Open the project and switch to its Entries tab. Fill in the title, the time it took, and the fields you added, then press “Save entry”. A field marked with an asterisk is needed before it will save; for work you have not done yet, tick “This is still to do” and nothing is needed. The entry appears in your history straight away." },
         ],
       },
     ],
@@ -159,6 +161,7 @@ export const CHRONICLES = [
       {
         title: "You choose what to capture",
         blocks: [
+          { type: "walkthrough", id: "design-fields" },
           { type: "p", text: "Chronicles doesn't come with a fixed form for you to fill in. Instead, you decide what information each entry in a project should contain — a short list of fields, defined once, then asked for on every entry after that." },
           { type: "callout", text: "Decide what information you want to capture each time you make an entry. That decision is the whole design." },
         ],
@@ -193,12 +196,14 @@ export const CHRONICLES = [
       {
         title: "Adding an entry",
         blocks: [
+          { type: "walkthrough", id: "add-entry" },
           { type: "p", text: "Open a project and switch to its Entries tab. Fill in the fields it asks for, optionally add how long the activity took and a due date if it's something still to do, then save." },
         ],
       },
       {
         title: "Viewing what you've recorded",
         blocks: [
+          { type: "walkthrough", id: "views" },
           { type: "p", text: "Entries don't just sit in one list. Chronicles gives you several ways to look at the same information, depending on what you're trying to see:" },
           {
             type: "dl",
@@ -214,6 +219,7 @@ export const CHRONICLES = [
       {
         title: "Editing and navigating",
         blocks: [
+          { type: "walkthrough", id: "edit-entry" },
           { type: "p", text: "Click any entry to open it. From there you can change its fields and save, or delete it if it was a mistake. Earlier versions of an edited entry are kept, so a correction never quietly erases what the entry used to say." },
         ],
       },
@@ -241,6 +247,7 @@ export const CHRONICLES = [
       {
         title: "Why the timeline matters",
         blocks: [
+          { type: "walkthrough", id: "build-history" },
           { type: "p", text: "Taken together, those three entries create a timeline of what happened — not just that maintenance occurred, but when, in what order, and how it followed from the inspection before it. No single entry could tell you that." },
           { type: "callout", text: "Information becomes more valuable when it builds a history over time." },
         ],
@@ -262,11 +269,11 @@ export const CHRONICLES = [
           {
             type: "dl",
             items: [
-              { term: "🧪 Research & experiments", detail: "Record experiments, observations, measurements, and results." },
-              { term: "🚗 Vehicle & equipment maintenance", detail: "Record inspections, servicing, repairs, and maintenance history." },
-              { term: "💻 Software development", detail: "Record development activity, testing, issues, and technical work." },
-              { term: "🏋️ Training & fitness", detail: "Record workouts, exercises, performance, and progress." },
-              { term: "🏗️ Fieldwork & projects", detail: "Record activities, observations, events, and work completed." },
+              { icon: "flask", term: "Research & experiments", detail: "Record experiments, observations, measurements, and results." },
+              { icon: "wrench", term: "Vehicle & equipment maintenance", detail: "Record inspections, servicing, repairs, and maintenance history." },
+              { icon: "code", term: "Software development", detail: "Record development activity, testing, issues, and technical work." },
+              { icon: "dumbbell", term: "Training & fitness", detail: "Record workouts, exercises, performance, and progress." },
+              { icon: "map-pin", term: "Fieldwork & projects", detail: "Record activities, observations, events, and work completed." },
             ],
           },
         ],

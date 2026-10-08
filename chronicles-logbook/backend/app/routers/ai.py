@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -127,9 +128,20 @@ class ConversationDetail(ConversationSummary):
     messages: list[MessageOut]
 
 
+RESULTS_PROMPT = (
+    "These are the results of the actions you just called, run for the person:\n{results}\n\n"
+    "If something failed, fix it yourself with what you know by calling again, or ask for exactly what is "
+    "missing in one short question. If everything worked, reply with one short sentence at most."
+)
+
+
 class StreamRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=2000)
+    # "results" is not something the person typed: it is how the actions Mira ran for them went,
+    # sent back so she can put a failure right or ask for what is missing. It is kept in the
+    # conversation (as role "tool") but never retitles it.
+    kind: Literal["message", "results"] = "message"
     # The person's own date, since the server runs on UTC and "tomorrow" should
     # mean their tomorrow.
     today: date | None = None
@@ -228,11 +240,13 @@ async def stream_reply(
     ).all()
     history = [(m.role, m.content) for m in earlier]
     # Remembered so a failed reply can leave the conversation exactly as it was.
-    retitled = not earlier
+    retitled = not earlier and payload.kind == "message"
     title_before = conversation.title
     if retitled:
         conversation.title = message[:60] + ("…" if len(message) > 60 else "")
-    user_message = MiraMessage(conversation_id=conversation.id, role="user", content=message)
+    user_message = MiraMessage(
+        conversation_id=conversation.id, role="user" if payload.kind == "message" else "tool", content=message
+    )
     db.add(user_message)
     conversation.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -254,7 +268,8 @@ async def stream_reply(
                 reply_parts.append(LIMITED_MODE_REPLY)
                 yield _sse({"type": "delta", "text": LIMITED_MODE_REPLY})
             else:
-                async for event in iterate_in_threadpool(iter(stream_response(message, history, context))):
+                prompt = message if payload.kind == "message" else RESULTS_PROMPT.format(results=message)
+                async for event in iterate_in_threadpool(iter(stream_response(prompt, history, context))):
                     if event["type"] == "delta":
                         reply_parts.append(event["text"])
                     elif event["type"] == "thought":
@@ -265,7 +280,7 @@ async def stream_reply(
                 if proposed:
                     # Kept in the saved conversation so a reopened chat still says what was proposed.
                     reply_parts.append(
-                        "\n\n**Proposed for your approval:**\n" + "\n".join(f"- {line}" for line in proposed)
+                        "\n\n**Mira's actions:**\n" + "\n".join(f"- {line}" for line in proposed)
                     )
         except GeminiNotConfiguredError:
             failed = True

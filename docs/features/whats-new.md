@@ -324,3 +324,71 @@ Chronicles.)
   tests were removed. Voice *dictation* for Mira is a different feature and stays.
 
 Tests: 728 backend tests at 95% coverage; 876 frontend tests at 83% statement coverage.
+
+## Lecturer feedback, phase 2: Mira that works like Claude
+
+The lecturer found Mira crashed or failed when making a project or an entry, and asked for
+her to be quick and easy to use, with the output you expect. Mira's flow was reworked (see
+[Mira actions](mira-actions.md#how-she-works-act-show-check) for the whole of it):
+
+- **She acts straight away** instead of showing a card to confirm every time; deleting
+  always asks first, and *Ask me before Mira changes anything* brings the card back for
+  everything.
+- **Each step is shown in the chat as it happens** (waiting, spinning, done, or not working
+  with the reason), under the reply that asked for it.
+- **She is told how it went and responds.** A failure goes back to her, so she corrects it or
+  asks for exactly what is missing (a required field, say) instead of leaving a raw error.
+- **Stop** a reply part-way with the Stop button.
+- **Entries and projects are made in the project's own terms.** She sees which fields are
+  required and the limits of text, treats title and time as the entry's own, and a new
+  project gets the same default form (Description and Date) as one made by hand. A missing
+  required field, over-long text, a bad date or a value that is not a choice is refused in a
+  sentence naming the field, before the server is asked. Nothing in the batch can throw: a
+  failure is an outcome in the chat, not a crash.
+- **The server is stricter where it let junk through.** A project name of only spaces is
+  refused (and names are trimmed), a date field needs a real `YYYY-MM-DD` day (a value stored
+  earlier in another form is left alone), and a number must be finite.
+- Mira's state moved out of `App.jsx` into the `useMira` hook.
+
+## Lecturer feedback, phase 2: walkthrough videos (first one)
+
+Learning Chronicles can now show a short, silent video of a process. The first is in
+*Creating Your First Logbook*: about a minute long, making a project from the side panel,
+looking at the built-in fields, adding a field and logging an entry.
+
+- **Played from a script, not recorded.** A walkthrough is a list of timed steps (a caption, where
+  the cursor goes, what changes on screen, text being typed) in `walkthroughs.js`, drawn by a scene
+  in `WalkthroughScenes.jsx`. It is a few kilobytes, follows the person's theme, and when the app
+  changes the script is edited instead of a video being re-shot.
+- **It is the real app, not a drawing of it.** The picture is a frame laid out at a fixed screen size
+  with the app's own stylesheets and drawn with its own components (the top bar, the sidebar, the
+  new-project panel, the schema field editor, the entry form), so it looks exactly like the app, follows
+  the person's theme, and stays right when the app's styling changes. The panel opens beside the page and
+  the top bar shrinks, as they do for real, and the cursor scrolls the panel and the page to reach what
+  it points at (the form of a new project, and *Add field* at the bottom of it, are further down, as in
+  the app). The frame is why it looks the same at any size, phones included.
+- **Controls like a video's.** It waits to be played (never autoplays), and has play, pause, replay and
+  a bar to move through it. Moving the bar, or replaying, shows exactly what was on screen at that
+  moment, because the picture is always worked out from the time.
+- **No sound, captions below the picture** so they never cover what the cursor points at, and the same
+  words under *Read it instead* for anyone who would rather read. The picture is hidden from screen
+  readers; the controls and the words are not. With reduced motion the cursor and panel don't animate.
+- **Six walkthroughs so far**, each in the lesson it belongs to:
+
+  | Walkthrough | Where | What it shows |
+  |---|---|---|
+  | Making your first logbook | Creating Your First Logbook | The new-project panel, the built-in fields, adding a field, logging a first entry |
+  | Choosing what your logbook records | Designing Your Logbook | The Schema tab: Edit schema, adding a Choice field, making a field optional, saving |
+  | Adding an entry | Adding and Managing Entries | Log entry, filling the form, planned work with a due date, saving |
+  | Four ways to look at your entries | Adding and Managing Entries | The entry list, Activity timeline, Board and Calendar |
+  | Opening and editing an entry | Adding and Managing Entries | The side panel, Edit, a reason for the change, the version history |
+  | How entries become a history | Building a History | Entries joining the Activity timeline, then searching it |
+
+  The lessons that are ideas rather than steps (what a logbook is, what an entry is, use cases, how a logbook
+  differs from other tools, habits, tips) have no video, because there is nothing to click through.
+- **Every cursor stop is checked.** A test plays each walkthrough and fails if any point the cursor goes to is not on
+  screen at that moment, so a change to the app that breaks a video is caught.
+- **Adding one** is a script in `WALKTHROUGHS`, a scene in `SCENES`, and a
+  `{ type: "walkthrough", id }` block in a lesson in `learningContent.js`.
+- The lessons in *Creating Your First Logbook* were rewritten to describe the side panel, the built-in
+  fields and the default form.

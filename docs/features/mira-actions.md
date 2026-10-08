@@ -75,34 +75,59 @@ version no longer counts. The permission page lists exactly the snapshot above.
 Declining keeps Chronicles fully usable with basic local guidance: nothing is sent
 to Gemini and no proposals are generated.
 
-## Confirming: one click, never silent
+## How she works: act, show, check
 
-Every proposal appears as a card listing what she would do in plain sentences, for
-example:
+Mira is meant to feel like talking to Claude: say what you want and she does it,
+and you can see what is happening.
 
-> **Mira would like to do 3 things**
-> 1. Create project “Launch” with 2 fields
-> 2. Add the task “Write copy” to “Launch”, due 2026-10-05
-> 3. Schedule “Launch review” on 2026-10-08
->
-> *Nothing has changed yet.* **[Cancel] [Do all 3]**
+1. **She acts straight away.** A request that only adds or edits runs as soon as she
+   has written her reply. She says at most one short sentence and does not narrate.
+2. **Every step is in the chat.** Under her reply is a card with one row per step, each
+   with its own status: waiting, spinning, done (in the past tense: *Created project
+   “Launch”*) or not working (with the reason, in red), and any that were not run.
 
-Deletions are flagged *"this can't be undone"*. Confirming runs the actions **in
-order** through the same authenticated calls a manual edit makes, so every ordinary
-permission and validation rule applies: she can't do anything you couldn't.
+   > **All done**
+   > ✓ Created project “Launch”
+   > ✓ Added the task “Write copy” to “Launch”, due 2026-10-05
 
-- Each action resolves names against what exists *at that moment*, so a later
-  action can use something an earlier one created.
-- It **stops at the first failure**, because later actions may depend on it, and
-  reports what was done, what failed and why, and how many were not run.
-- The outcome is posted in the chat (`✓ Created project “Launch”`).
+3. **She is told how it went.** When a step fails, how every step went is sent back to
+   her (as a turn of its own, kept in the conversation but not shown as a chat bubble).
+   She then puts it right herself (a different name, a corrected value) or asks for
+   *exactly* what is missing, in one short question. She answers her own failures at
+   most twice in a row, so it can never loop.
+4. **She can be stopped.** While she is replying, *Send* becomes *Stop*. What she has
+   written stays, and nothing she proposed in a stopped reply is run.
 
-### The fast path
+**Deleting always asks.** A reply that contains any deletion waits for a click on its
+card (*Mira needs your OK*, with *this can't be undone* on the step). Under the message
+box, **Ask me before Mira changes anything** turns the same card on for every change
+(it is off by default and remembered per browser).
 
-For speed there's an opt-in under the message box, **Run simple changes straight
-away**. With it on, a reply whose actions only *add or edit* runs immediately after
-she finishes, with no card. A reply that contains **any deletion** always waits
-for a click, whatever the setting. It is off by default and remembered per browser.
+Actions run **in order** through the same authenticated calls a manual edit makes, so
+every ordinary permission and validation rule applies: she can't do anything you
+couldn't. Each action resolves names against what exists *at that moment*, so a later
+one can use something an earlier one created. A batch **stops at the first failure**,
+because later steps may depend on it, and the steps after it are shown as not run. A
+batch never throws: if your workspace cannot even be read, that is reported as a failed
+step, not a crash.
+
+### Entries and projects, in the project's own terms
+
+- **She knows what is required.** The context lists each project's fields with their
+  type, whether they are required or optional, the choices of a dropdown and the size
+  of text (short up to 255 characters, long up to 5,000), and says that every entry has
+  a title and a time of its own. A finished entry needs every required field; planned
+  work (`todo`) needs none.
+- **Title and time are the entry's own.** `title` and `time_spent_minutes` are never
+  put in `values`. If she keys a value *Title*, *Hours* or *Minutes* anyway, it goes to
+  the right place unless the project has a field of that name.
+- **Refused in words you can read, before the server is asked.** A required field left
+  empty (*“Garden” needs Place and Labels before this entry can be logged*), text over
+  its limit, a date that is not `YYYY-MM-DD`, a dropdown value that is not a choice
+  (case is forgiven) and a number that is not one each give a plain sentence naming the
+  field, which is what she is then sent.
+- **A new project starts from the default form** (a Description and a Date) unless she
+  names the fields; she can also say a field is `required: false` or `long_text`.
 
 ## Quick starts
 
@@ -144,10 +169,13 @@ servers never receive audio.
   truncation, "nothing yet"); the endpoint end to end; consent versioning.
 - `backend/tests/test_mira_conversations.py`: streaming, persistence, ordering,
   isolation, history.
-- `frontend/src/miraActions.test.js`: every handler, name resolution, batching, failure
-  and skipping.
-- `frontend/src/App.test.jsx`, `MiraAssistant.test.jsx`: the proposal card, confirming,
-  cancelling, stopping at a failure, and the fast path (and that deletions bypass it).
+- `frontend/src/miraActions.test.js`: every handler, name resolution, batching, progress,
+  failure and skipping, the built-in title and time, required fields, limits, dates and
+  choices, the default form of a new project, and that a batch never throws.
+- `frontend/src/App.test.jsx`, `MiraAssistant.test.jsx`: the step card in each state, acting
+  straight away, asking first, deleting always asking, Mira being told about a failure
+  and answering it (twice at most), stopping a reply, and the remembered setting.
+- `frontend/src/api.test.js`: the results turn and the stop signal.
 
 ## Limits
 

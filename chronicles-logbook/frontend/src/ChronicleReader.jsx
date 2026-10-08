@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import LogoIcon from "./ChroniclesLogo"
 import LearningIcon from "./LearningIcons"
 import { CHRONICLES, getChronicle } from "./learningContent"
+import Walkthrough from "./Walkthrough"
 import "./App.css"
 import "./HelpPage.css"
 import "./ChronicleReader.css"
@@ -12,6 +13,8 @@ import "./MobileLayout.css"
 /** One block of lesson content, in the small vocabulary learningContent.js uses. */
 function LessonBlock({ block }) {
   if (block.type === "p") return <p>{block.text}</p>
+
+  if (block.type === "walkthrough") return <Walkthrough id={block.id} />
 
   if (block.type === "ul") {
     return (
@@ -34,7 +37,10 @@ function LessonBlock({ block }) {
       <dl className="help-glossary">
         {block.items.map((item) => (
           <div className="help-glossary-item" key={item.term}>
-            <dt>{item.term}</dt>
+            <dt>
+              {item.icon && <span className="help-glossary-icon"><LearningIcon name={item.icon} /></span>}
+              {item.term}
+            </dt>
             <dd>{item.detail}</dd>
           </div>
         ))}
