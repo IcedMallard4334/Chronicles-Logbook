@@ -82,6 +82,48 @@ describe("api", () => {
     expect(fetch.mock.calls[0][0]).toBe("http://localhost:8000/ai/conversations/conv-1/stream")
   })
 
+  it("sends how Mira's actions went as a results turn, and says nothing about the kind of an ordinary message", async () => {
+    const empty = { ok: true, status: 200, body: { getReader: () => ({ read: async () => ({ done: true }) }) } }
+    fetch.mockResolvedValueOnce(empty).mockResolvedValueOnce(empty)
+
+    await streamMiraReply("conv-1", "- ✗ failed", () => {}, { kind: "results" })
+    await streamMiraReply("conv-1", "Hello", () => {})
+
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ message: "- ✗ failed", kind: "results" })
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).not.toHaveProperty("kind")
+  })
+
+  it("passes the stop signal to the request, and ends quietly when the person stops the reply", async () => {
+    const controller = new AbortController()
+    fetch.mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "AbortError" }))
+    await expect(streamMiraReply("conv-1", "Hello", () => {}, { signal: controller.signal })).resolves.toBeUndefined()
+    expect(fetch.mock.calls[0][1].signal).toBe(controller.signal)
+
+    // Stopped part-way through reading: what arrived is kept and nothing is thrown.
+    const events = []
+    let calls = 0
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { getReader: () => ({ read: async () => {
+        if (calls++ === 0) return { done: false, value: new TextEncoder().encode('data: {"type":"delta","text":"Hi"}\n\n') }
+        throw Object.assign(new Error("aborted"), { name: "AbortError" })
+      } }) },
+    })
+    await expect(streamMiraReply("conv-1", "Hello", (event) => events.push(event))).resolves.toBeUndefined()
+    expect(events).toEqual([{ type: "delta", text: "Hi" }])
+  })
+
+  it("rethrows a read that fails for any other reason", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { getReader: () => ({ read: async () => { throw new Error("network") } }) },
+    })
+
+    await expect(streamMiraReply("conv-1", "Hello", () => {})).rejects.toThrow("network")
+  })
+
   it("reports a refused stream request with the server's message", async () => {
     fetch.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ detail: "Conversation not found." }) })
 

@@ -45,11 +45,16 @@ def _preview(entry: Entry) -> str:
 
 def _describe_field(field: dict) -> str:
     kind = field.get("type", "text")
-    if kind == "dropdown":
-        return f"{field['name']} (dropdown: {', '.join(field.get('options', []))})"
+    name = field["name"]
     if kind == "computed":
-        return f"{field['name']} (computed)"
-    return f"{field['name']} ({kind})"
+        return f"{name} (calculated, never filled in)"
+    if kind == "project_reference":
+        return f"{name} (link to a project, never filled in)"
+    need = "required" if field.get("required", True) else "optional"
+    if kind == "dropdown":
+        return f"{name} (dropdown, {need}; one of: {', '.join(field.get('options', []))})"
+    limits = {"text": "short text, up to 255 characters", "long_text": "long text, up to 5000 characters", "date": "date, YYYY-MM-DD"}
+    return f"{name} ({limits.get(kind, kind)}, {need})"
 
 
 async def build_context(user: User, db: AsyncSession, today: date) -> str:
@@ -67,11 +72,17 @@ async def build_context(user: User, db: AsyncSession, today: date) -> str:
     names = {project.id: project.name for project in projects}
     ids = list(names)
 
-    lines = [f"Today is {today.isoformat()}.", "", "PROJECTS (id | name):"]
+    lines = [
+        f"Today is {today.isoformat()}.",
+        "",
+        "Every entry also has a title (required) and a time spent, which go in title and time_spent_minutes.",
+        "",
+        "PROJECTS (id | name):",
+    ]
     if not projects:
         lines.append("(none yet)")
     for project in projects:
-        fields = "; ".join(_describe_field(f) for f in project.entry_schema or []) or "no fields yet"
+        fields = "; ".join(_describe_field(f) for f in project.entry_schema or []) or "no fields of its own"
         statuses = ", ".join(
             f"{s['name']}{' [finished]' if s['done'] else ''}" for s in statuses_of(project.statuses)
         )

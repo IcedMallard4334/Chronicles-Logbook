@@ -444,7 +444,7 @@ describe("guided tour (US-3.23)", () => {
   })
 })
 
-describe("Mira proposals", () => {
+describe("Mira acting", () => {
   const action = (type, payload, summary, destructive = false) => ({ type, payload, summary, destructive, requires_confirmation: true })
   const createProposal = action("create_project", { name: "Research notes", description: "Weekly findings", fields: [{ name: "Hours", type: "number" }] }, "Create project “Research notes” with 1 field")
 
@@ -461,16 +461,9 @@ describe("Mira proposals", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
   }
 
-  it("shows what Mira proposes and changes nothing before confirmation", async () => {
-    replyWith(createProposal)
-    await ask()
+  const askFirst = () => window.localStorage.setItem("chronicles-mira-auto-run", "off")
 
-    const card = await screen.findByRole("region", { name: "Proposed actions" })
-    expect(within(card).getByText("Create project “Research notes” with 1 field")).toBeInTheDocument()
-    expect(createProject).not.toHaveBeenCalled()
-  })
-
-  it("runs several confirmed actions in order, each seeing what the one before created", async () => {
+  it("does what is asked straight away, showing each step as it happens", async () => {
     const created = { ...fieldNotes, id: "proj-new", name: "Research notes", entry_schema: [] }
     replyWith(createProposal, action("create_task", { project: "Research notes", title: "Outline", due_date: "2026-10-05" }, "Add the task “Outline” to “Research notes”, due 2026-10-05"))
     createProject.mockResolvedValue(created)
@@ -479,37 +472,86 @@ describe("Mira proposals", () => {
     fetchProjects.mockResolvedValue([fieldNotes])
     await ask()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Do all 2" }))
-
     await waitFor(() => expect(createTask).toHaveBeenCalledTimes(1))
     expect(createProject).toHaveBeenCalledTimes(1)
     const [sent] = createProject.mock.calls[0]
     expect(sent).toMatchObject({ name: "Research notes", description: "Weekly findings" })
     expect(sent.entry_schema).toEqual([expect.objectContaining({ name: "Hours", type: "number", id: expect.any(String) })])
     expect(createTask).toHaveBeenCalledWith("proj-new", expect.objectContaining({ title: "Outline", due_date: "2026-10-05" }))
-    expect(await screen.findByText(/✓ Created project “Research notes”/)).toBeInTheDocument()
-    expect(screen.getByText(/✓ Added the task “Outline” to “Research notes”/)).toBeInTheDocument()
-    expect(screen.queryByRole("region", { name: "Proposed actions" })).not.toBeInTheDocument()
+    const card = await screen.findByRole("region", { name: "Proposed actions" })
+    expect(await within(card).findByText("All done")).toBeInTheDocument()
+    expect(within(card).getByText("Created project “Research notes”")).toBeInTheDocument()
+    expect(within(card).getByText(/Added the task “Outline” to “Research notes”/)).toBeInTheDocument()
+  })
+
+  it("asks first when the person has asked to be asked, and changes nothing until confirmed", async () => {
+    askFirst()
+    replyWith(createProposal)
+    createProject.mockResolvedValue({ ...fieldNotes, id: "proj-new", name: "Research notes" })
+    fetchProjects.mockResolvedValue([fieldNotes])
+    await ask()
+
+    const card = await screen.findByRole("region", { name: "Proposed actions" })
+    expect(within(card).getByText("Create project “Research notes” with 1 field")).toBeInTheDocument()
+    expect(createProject).not.toHaveBeenCalled()
+
+    fireEvent.click(within(card).getByRole("button", { name: "Do it" }))
+    await waitFor(() => expect(createProject).toHaveBeenCalledTimes(1))
+    expect(await within(card).findByText("Done")).toBeInTheDocument()
   })
 
   it("does nothing when a proposal is cancelled", async () => {
+    askFirst()
     replyWith(createProposal)
     await ask()
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
 
     expect(createProject).not.toHaveBeenCalled()
-    expect(screen.queryByRole("region", { name: "Proposed actions" })).not.toBeInTheDocument()
+    expect(screen.getByText("Cancelled")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Do it" })).not.toBeInTheDocument()
   })
 
-  it("reports a duplicate project name instead of creating it", async () => {
+  it("always asks before deleting, even when it acts on its own otherwise", async () => {
+    replyWith(action("delete_task", { task: "proj-1/t1" }, "Delete a task", true))
+    await ask("delete it")
+
+    const card = await screen.findByRole("region", { name: "Proposed actions" })
+    expect(card).toHaveTextContent("Delete a task")
+    expect(within(card).getByText("Mira needs your OK")).toBeInTheDocument()
+  })
+
+  it("says a duplicate project name didn't work, and tells Mira so she can put it right", async () => {
     replyWith(action("create_project", { name: "Field Notes" }, "Create project “Field Notes”"))
     fetchProjects.mockResolvedValue([fieldNotes])
     await ask()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Do it" }))
-
-    expect(await screen.findByText(/A project called “Field Notes” already exists/)).toBeInTheDocument()
+    expect((await screen.findAllByText(/A project called “Field Notes” already exists/)).length).toBeGreaterThan(0)
     expect(createProject).not.toHaveBeenCalled()
+    // Mira is sent how it went, as a turn of its own and not as something the person said.
+    await waitFor(() => expect(streamMiraReply.mock.calls.length).toBeGreaterThanOrEqual(2))
+    const [, note, , options] = streamMiraReply.mock.calls[1]
+    expect(options).toMatchObject({ kind: "results" })
+    expect(note).toContain("✗ Create project “Field Notes”: A project called “Field Notes” already exists.")
+  })
+
+  it("shows Mira's answer to a failure, and runs what she then proposes", async () => {
+    fetchProjects.mockResolvedValue([fieldNotes])
+    createProject.mockResolvedValue({ ...fieldNotes, id: "proj-new", name: "Field Notes 2" })
+    let turn = 0
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      turn += 1
+      if (turn === 1) onEvent({ type: "action", action: action("create_project", { name: "Field Notes" }, "Create project “Field Notes”") })
+      else if (turn === 2) {
+        onEvent({ type: "delta", text: "That name is taken, so I'll use another." })
+        onEvent({ type: "action", action: action("create_project", { name: "Field Notes 2" }, "Create project “Field Notes 2”") })
+      }
+      onEvent({ type: "done" })
+    })
+    await ask()
+
+    expect(await screen.findByText("That name is taken, so I'll use another.")).toBeInTheDocument()
+    await waitFor(() => expect(createProject).toHaveBeenCalledTimes(1))
+    expect(createProject.mock.calls[0][0]).toMatchObject({ name: "Field Notes 2" })
   })
 
   it("stops at the first action that fails and says how many were left undone", async () => {
@@ -520,32 +562,77 @@ describe("Mira proposals", () => {
     fetchProjects.mockResolvedValue([fieldNotes])
     await ask()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Do all 2" }))
-
-    expect(await screen.findByText(/I couldn't find a project called “No such project”/)).toBeInTheDocument()
-    expect(screen.getByText(/1 more action was not run/)).toBeInTheDocument()
+    expect((await screen.findAllByText(/I couldn't find a project called “No such project”/)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Part of that didn’t work").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Not run:").length).toBeGreaterThan(0)
     expect(createTask).not.toHaveBeenCalled()
   })
 
-  it("runs simple changes at once when the person has opted in, but never a deletion", async () => {
+  it("does not keep answering its own failures: two follow-ups at most", async () => {
     fetchProjects.mockResolvedValue([fieldNotes])
-    createTask.mockResolvedValue({ id: "t1" })
-    fetchProject.mockResolvedValue(fieldNotes)
-    replyWith(action("create_task", { project: "Field Notes", title: "Quick one" }, "Add the task “Quick one”"))
+    streamMiraReply.mockImplementation(async (_id, _message, onEvent) => {
+      onEvent({ type: "action", action: action("create_project", { name: "Field Notes" }, "Create project “Field Notes”") })
+      onEvent({ type: "done" })
+    })
     await ask()
-    await screen.findByRole("region", { name: "Proposed actions" })
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
-    fireEvent.click(screen.getByLabelText(/Run simple changes straight away/))
-    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "again" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
-    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText(/✓ Added the task “Quick one” to “Field Notes”/)).toBeInTheDocument()
+    await waitFor(() => expect(streamMiraReply).toHaveBeenCalledTimes(3))
+    await screen.findAllByRole("region", { name: "Proposed actions" })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(streamMiraReply).toHaveBeenCalledTimes(3)
+  })
 
-    replyWith(action("delete_task", { task: "proj-1/t1" }, "Delete a task", true))
-    fireEvent.change(screen.getByLabelText("Message Mira"), { target: { value: "delete it" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send" }))
-    expect(await screen.findByRole("region", { name: "Proposed actions" })).toHaveTextContent("Delete a task")
+  it("lets the person stop a reply that is being written", async () => {
+    let signal
+    streamMiraReply.mockImplementation(
+      (_id, _message, onEvent, options) =>
+        new Promise((resolve) => {
+          signal = options.signal
+          onEvent({ type: "delta", text: "Let me think" })
+          signal.addEventListener("abort", () => resolve())
+        })
+    )
+    await ask()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+
+    await waitFor(() => expect(signal.aborted).toBe(true))
+    // What had been written stays, and the person can ask again.
+    expect(await screen.findByText("Let me think")).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Send" })).toBeInTheDocument()
+  })
+
+  it("does not run what Mira proposed in a reply the person stopped", async () => {
+    let signal
+    streamMiraReply.mockImplementation(
+      (_id, _message, onEvent, options) =>
+        new Promise((resolve) => {
+          signal = options.signal
+          onEvent({ type: "action", action: createProposal })
+          signal.addEventListener("abort", () => resolve())
+        })
+    )
+    await ask()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+
+    await waitFor(() => expect(signal.aborted).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(createProject).not.toHaveBeenCalled()
+  })
+
+  it("remembers the choice to be asked first", async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole("button", { name: "Mira" }))
+
+    const toggle = screen.getByLabelText(/Ask me before Mira changes anything/)
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+
+    expect(toggle).toBeChecked()
+    expect(window.localStorage.getItem("chronicles-mira-auto-run")).toBe("off")
+    fireEvent.click(toggle)
+    expect(window.localStorage.getItem("chronicles-mira-auto-run")).toBe("on")
   })
 })
 

@@ -148,6 +148,7 @@ npm run test -- --run   # Single run
 | `AuthCallback.test.jsx` | OAuth callback token handling |
 | `fieldTypes.test.js` | Field-type catalogue, expression parsing and evaluation, computed values |
 | `SchemaEditor.test.jsx` | Schema view/edit/review modes, change preview, reference and computed fields on an entry |
+| `walkthroughs.test.js`, `Walkthrough.test.jsx` | The walkthrough timeline (what is on screen at any time, typing, clicks, order) and the player (poster, play, pause, scrub, replay, transcript, accessibility) |
 | `ProjectForms.test.jsx` | Built-in fields in the schema, the required switch, short and long text in an entry, and the new-project drawer with its default form |
 | `Drawer.test.jsx`, `FormField.test.jsx`, `formFields.test.js` | The drawer (docking, focus, Escape, resizing by pointer and keyboard, remembered width), one form question, and the built-in and required-field rules |
 | `TaskPanel.test.jsx` | Task list, filters, checklist creation and toggling |

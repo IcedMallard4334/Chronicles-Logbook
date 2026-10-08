@@ -73,3 +73,34 @@
 
 .mira-prompts-toggle { justify-self: start; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--blue); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
 .mira-prompts-toggle:hover { background: var(--blue-bg); }
+
+/* The steps Mira takes: one row each, with a status that changes as it runs. */
+.mira-batch .mira-action-list { list-style: none; padding-left: 0; gap: 0.5rem; }
+.mira-batch .mira-action-list li { display: flex; align-items: flex-start; gap: 0.6rem; }
+.mira-step-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.mira-step-icon.is-done { border-color: var(--success); background: var(--success); color: #fff; }
+.mira-step-icon.is-failed { border-color: var(--error); background: var(--error); color: #fff; }
+.mira-step-icon.is-skipped { opacity: 0.55; }
+.mira-step-icon.is-running { border-color: var(--blue-soft); border-top-color: var(--blue); animation: mira-step-spin 0.8s linear infinite; }
+@keyframes mira-step-spin { to { transform: rotate(360deg); } }
+.mira-step-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.mira-step-reason { color: var(--error); font-size: 0.78rem; }
+.mira-actions .is-skipped .mira-step-text,
+.mira-actions .is-pending .mira-step-text { color: var(--muted); }
+.mira-batch.is-finished { background: var(--surface-soft); border-color: var(--line); }
+.mira-batch.is-cancelled { opacity: 0.7; }
+.mira-stop { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .mira-step-icon.is-running { animation-duration: 3s; } }

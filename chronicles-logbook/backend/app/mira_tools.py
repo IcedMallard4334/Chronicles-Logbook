@@ -49,6 +49,8 @@ class FieldSpec(_Args):
         default=None, max_length=30
     )
     expression: str | None = Field(default=None, max_length=500)
+    # Whether a finished entry must fill this in. Left out, the field is required.
+    required: bool | None = None
 
 
 class StatusSpec(_Args):
@@ -297,6 +299,7 @@ _FIELD_SPEC = _obj(
         "type": _s("Field type.", enum=list(FIELD_TYPES)),
         "options": _arr({"type": "string"}, "Choices, for a dropdown field."),
         "expression": _s("For a computed field: arithmetic over other fields, each written as {Field name}."),
+        "required": _b("False when a finished entry may leave this empty. Defaults to true."),
     },
     ["name"],
 )
@@ -353,9 +356,14 @@ _register(_tool("rename_field", "Rename a field in a project's schema.", {
 _register(_tool("remove_field", "Remove a field from a project's schema. Values already recorded are kept.", {
     "project": _PROJECT, "field": _s("The field's name."),
 }, ["project", "field"]), RemoveField)
-_register(_tool("create_entry", "Log an entry in a project. Use values for the project's fields, keyed by field name.", {
+_register(_tool("create_entry", (
+    "Log an entry in a project. Every entry has a title and a time of its own, so those go in title and "
+    "time_spent_minutes, never in values. values holds the project's other fields, keyed by field name. "
+    "A finished entry needs a value for every required field (see the project's fields in your context); "
+    "work that is still to do (todo=true) needs none. If a required value is unknown, ask instead of calling."
+), {
     "project": _PROJECT,
-    "values": {"type": "object", "description": "Field name to value. Tags are a list of strings."},
+    "values": {"type": "object", "description": "Field name to value, for the project's own fields only. Tags are a list of strings; dates are YYYY-MM-DD."},
     **_ENTRY_EXTRAS,
 }, ["project", "title"]), CreateEntry)
 _register(_tool("update_entry", "Change an existing entry (id from your context).", {

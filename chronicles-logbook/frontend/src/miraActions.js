@@ -28,7 +28,10 @@ import {
   updateDashboardPanels,
   updateTask,
 } from "./api"
+import { TEXT_LIMITS } from "./fieldTypes"
+import { defaultSchemaFields } from "./formFields"
 import { applyPreferences, readPreference } from "./preferences"
+import { projectStatuses } from "./statuses"
 
 // What Mira proposes runs here, only after the person confirms, through the same
 // authenticated calls a manual action uses. Every action resolves the names it
@@ -71,6 +74,8 @@ export function resolveExpression(expression, fields) {
 
 export function buildField(spec, existing = []) {
   const field = { id: newId(), name: spec.name.trim(), type: spec.type || "text" }
+  // Required is the default, so only a field that is not required says so.
+  if (spec.required === false) field.required = false
   if (field.type === "dropdown") {
     if (!spec.options?.length) throw new Error(`The dropdown “${field.name}” needs at least one option.`)
     field.options = spec.options
@@ -88,15 +93,56 @@ function buildSchema(specs = []) {
   return fields
 }
 
-/** {Field name: value} becomes {field-id: value}, coercing what the field type expects. */
+const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/
+const NOT_ASKED_FOR = new Set(["computed", "project_reference"])
+const thousands = (count) => count.toLocaleString("en")
+
+/**
+ * Every entry has a title and a time of its own, so a value Mira keyed "Title", "Hours" or "Minutes"
+ * belongs to those, not to a field of the project, unless the project has a field of that name.
+ */
+export function takeBuiltIns(project, values = {}) {
+  const own = new Set((project.entry_schema || []).map((field) => String(field.name).trim().toLocaleLowerCase()))
+  const built = {}
+  const rest = {}
+  for (const [label, raw] of Object.entries(values)) {
+    const key = String(label).trim().toLocaleLowerCase()
+    if (!own.has(key) && key === "title") built.title = String(raw).trim()
+    else if (!own.has(key) && (key === "hours" || key === "hours spent")) built.hours = Number(raw)
+    else if (!own.has(key) && (key === "minutes" || key === "minutes spent")) built.minutes = Number(raw)
+    else rest[label] = raw
+  }
+  return { built, rest }
+}
+
+/**
+ * {Field name: value} becomes {field-id: value}, coercing what the field type expects and saying,
+ * in the field's own words, what is wrong with a value instead of leaving it to be refused later.
+ */
 export function mapValues(project, values = {}) {
   const data = {}
   for (const [label, raw] of Object.entries(values)) {
     const field = findField(project, label)
+    if (NOT_ASKED_FOR.has(field.type)) continue
     let value = raw
     if (field.type === "number") {
       value = Number(raw)
-      if (Number.isNaN(value)) throw new Error(`“${field.name}” needs a number, not “${raw}”.`)
+      if (raw === "" || raw === null || !Number.isFinite(value)) throw new Error(`“${field.name}” needs a number, not “${raw}”.`)
+    } else if (field.type === "text" || field.type === "long_text") {
+      value = String(raw)
+      const limit = TEXT_LIMITS[field.type]
+      if (value.length > limit) {
+        throw new Error(`“${field.name}” can hold at most ${thousands(limit)} characters, and this is ${thousands(value.length)}.`)
+      }
+    } else if (field.type === "date") {
+      value = String(raw).trim()
+      if (!DATE_SHAPE.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+        throw new Error(`“${field.name}” needs a date written like 2026-10-31, not “${raw}”.`)
+      }
+    } else if (field.type === "dropdown") {
+      const choice = (field.options || []).find((option) => same(option, raw))
+      if (choice === undefined) throw new Error(`“${field.name}” must be one of: ${(field.options || []).join(", ")}.`)
+      value = choice
     } else if (field.type === "tags") {
       value = (Array.isArray(raw) ? raw : String(raw).split(",")).map((tag) => String(tag).trim()).filter(Boolean)
     } else if (field.type === "checklist") {
@@ -105,6 +151,53 @@ export function mapValues(project, values = {}) {
     data[field.id] = value
   }
   return data
+}
+
+const isFinishedStatus = (project, name) => {
+  const status = projectStatuses(project).find((item) => same(item.name, name))
+  return status ? Boolean(status.done) : true
+}
+
+/** The names of the required fields a finished entry has not been given a value for. */
+export function missingRequiredFields(project, data, { todo, status } = {}) {
+  if (todo === true || (status && !isFinishedStatus(project, status))) return []
+  return (project.entry_schema || [])
+    .filter((field) => field.required !== false && !NOT_ASKED_FOR.has(field.type) && field.type !== "link" && field.type !== "checklist")
+    .filter((field) => {
+      const value = data[field.id]
+      return value === undefined || value === null || (typeof value === "string" && !value.trim()) || (Array.isArray(value) && value.length === 0)
+    })
+    .map((field) => field.name)
+}
+
+const listOf = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`)
+
+/**
+ * What Mira proposed for an entry, made ready to send: the project's values by field id, the title
+ * and time from wherever she put them, and a plain refusal (naming exactly what is missing) when a
+ * finished entry could not be saved.
+ */
+export function prepareEntry(project, p) {
+  const { built, rest } = takeBuiltIns(project, p.values)
+  const extras = entryExtras({
+    ...p,
+    title: p.title ?? built.title,
+    ...(p.time_spent_minutes === undefined && (Number.isFinite(built.hours) || Number.isFinite(built.minutes))
+      ? { time_spent_minutes: (Number.isFinite(built.hours) ? built.hours : 0) * 60 + (Number.isFinite(built.minutes) ? built.minutes : 0) }
+      : {}),
+  })
+  if (!String(extras.title ?? "").trim()) throw new Error("This entry needs a title.")
+  const data = mapValues(project, rest)
+  // The form sends these two empty when they are left alone; so does Mira.
+  for (const field of project.entry_schema || []) {
+    if (field.type === "checklist" && data[field.id] === undefined) data[field.id] = []
+    if (field.type === "link" && data[field.id] === undefined) data[field.id] = ""
+  }
+  const missing = missingRequiredFields(project, data, { todo: p.todo, status: p.status })
+  if (missing.length) {
+    throw new Error(`“${project.name}” needs ${listOf(missing)} before this entry can be logged. Those fields are required.`)
+  }
+  return { data, extras }
 }
 
 const splitRef = (reference) => {
@@ -157,7 +250,8 @@ const HANDLERS = {
     const created = await createProject({
       name: p.name,
       description: p.description || null,
-      entry_schema: buildSchema(p.fields),
+      // No fields named: it starts from the same default form as one made by hand.
+      entry_schema: p.fields?.length ? buildSchema(p.fields) : defaultSchemaFields(newId),
       ...(p.statuses?.length ? { statuses: p.statuses } : {}),
     })
     workspace.projects.push(created)
@@ -212,16 +306,24 @@ const HANDLERS = {
   },
   async create_entry(p, workspace) {
     const project = await currentProject(p.project, workspace)
-    await createEntry(project.id, { data: mapValues(project, p.values), ...entryExtras(p) })
-    return `Logged an entry in “${project.name}”`
+    const { data, extras } = prepareEntry(project, p)
+    await createEntry(project.id, { data, ...extras })
+    return `Logged “${extras.title}” in “${project.name}”`
   },
   async update_entry(p, workspace) {
     const [projectId, entryId] = splitRef(p.entry)
     const project = findProject(projectId, workspace.projects)
-    const patch = entryExtras(p)
-    if (p.values && Object.keys(p.values).length) {
+    const { built, rest } = takeBuiltIns(project, p.values)
+    const patch = entryExtras({
+      ...p,
+      title: p.title ?? built.title,
+      ...(p.time_spent_minutes === undefined && (Number.isFinite(built.hours) || Number.isFinite(built.minutes))
+        ? { time_spent_minutes: (Number.isFinite(built.hours) ? built.hours : 0) * 60 + (Number.isFinite(built.minutes) ? built.minutes : 0) }
+        : {}),
+    })
+    if (Object.keys(rest).length) {
       const entry = await fetchEntry(projectId, entryId)
-      patch.data = { ...(entry.data || {}), ...mapValues(project, p.values) }
+      patch.data = { ...(entry.data || {}), ...mapValues(project, rest) }
     }
     await updateEntry(projectId, entryId, patch)
     return "Updated an entry"
@@ -394,36 +496,59 @@ export function pageToView(page) {
 }
 
 /**
- * Runs confirmed actions in order. Stops at the first one that fails, since the
- * later ones may depend on it, and says what got done and what didn't.
+ * Runs actions in order, reporting each one's progress through `onProgress(index, state, detail)`
+ * (state is "running", "done", "failed" or "skipped"). It stops at the first one that fails, since
+ * the later ones may depend on it, and it never throws: a problem is an outcome, not a crash.
  */
-export async function runActions(actions, { navigate } = {}) {
-  const workspace = { projects: await fetchProjects(), navigate }
+export async function runActions(actions, { navigate, onProgress } = {}) {
   const done = []
-  let failed = null
-  for (const [index, action] of actions.entries()) {
-    const handler = HANDLERS[action.type]
+  const report = (index, state, detail) => {
     try {
-      if (!handler) throw new Error("Mira can't do that yet.")
-      done.push(await handler(action.payload || {}, workspace))
-    } catch (error) {
-      failed = { summary: action.summary || action.type, error: error instanceof Error ? error.message : "Something went wrong." }
-      return { done, failed, skipped: actions.length - index - 1 }
+      onProgress?.(index, state, detail)
+    } catch {
+      // A display problem must never stop the work.
     }
   }
-  return { done, failed, skipped: 0 }
+  const stopAt = (index, error, summary) => {
+    const reason = error instanceof Error && error.message ? error.message : "Something went wrong."
+    report(index, "failed", reason)
+    for (let later = index + 1; later < actions.length; later += 1) report(later, "skipped")
+    return { done, failed: { summary: summary || actions[index]?.summary || actions[index]?.type, error: reason }, skipped: actions.length - index - 1 }
+  }
+
+  let workspace
+  try {
+    workspace = { projects: await fetchProjects(), navigate }
+  } catch {
+    return stopAt(0, new Error("I couldn't reach your workspace just now. Check your connection and try again."))
+  }
+
+  for (const [index, action] of actions.entries()) {
+    const handler = HANDLERS[action.type]
+    report(index, "running")
+    try {
+      if (!handler) throw new Error("Mira can't do that yet.")
+      const line = await handler(action.payload || {}, workspace)
+      done.push(line)
+      report(index, "done", line)
+    } catch (error) {
+      return stopAt(index, error)
+    }
+  }
+  return { done, failed: null, skipped: 0 }
 }
 
-/** Markdown for the chat, describing how a batch went. */
-export function describeOutcome({ done, failed, skipped }) {
-  const lines = done.map((line) => `- ✓ ${line}`)
-  if (failed) {
-    // The server's wording, without its technical prefix, then an invitation to put it right.
-    const reason = String(failed.error).replace(/^(Value error|Assertion error),?\s*/i, "")
-    lines.push(`- ✗ ${failed.summary}: ${reason}`)
-    if (skipped) lines.push(`- ${skipped} more ${skipped === 1 ? "action was" : "actions were"} not run.`)
+/**
+ * How a batch went, in words Mira can read: what worked, what didn't and why. It is sent back to her
+ * so she can put a failure right or ask for exactly what is missing.
+ */
+export function outcomeNote(outcome) {
+  const lines = outcome.done.map((line) => `- ✓ ${line}`)
+  if (outcome.failed) {
+    // The server's wording, without its technical prefix.
+    const reason = String(outcome.failed.error).replace(/^(Value error|Assertion error),?\s*/i, "")
+    lines.push(`- ✗ ${outcome.failed.summary}: ${reason}`)
+    if (outcome.skipped) lines.push(`- ${outcome.skipped} more ${outcome.skipped === 1 ? "action was" : "actions were"} not run.`)
   }
-  const heading = failed ? (done.length ? "**Part of that is done.**" : "**That didn't work.**") : "**Done.**"
-  const next = failed ? "\n\nTell me what to change and I'll try again." : ""
-  return `${heading}\n${lines.join("\n")}${next}`
+  return lines.join("\n").slice(0, 1900)
 }

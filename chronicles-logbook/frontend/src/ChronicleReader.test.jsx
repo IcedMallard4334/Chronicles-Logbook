@@ -93,3 +93,37 @@ describe("ChronicleReader", () => {
     expect(screen.getByText("We couldn't find that guide")).toBeInTheDocument()
   })
 })
+
+describe("icons, not emoji", () => {
+  const EMOJI = /[\u{1F300}-\u{1FAFF}\u{1F000}-\u{1F2FF}\u{2600}-\u{27BF}\u{2B50}\u{FE0F}]/u
+
+  it("writes none of the guides with an emoji in them", () => {
+    expect(JSON.stringify(CHRONICLES).match(EMOJI)).toBeNull()
+  })
+
+  it("shows each example of what a logbook is for with an icon of the app's own drawing", () => {
+    const useCases = CHRONICLES.find((item) => item.id === "logbook-use-cases")
+    renderReader(useCases.id)
+
+    const terms = [...document.querySelectorAll(".help-glossary-item dt")]
+    expect(terms.map((term) => term.textContent)).toEqual([
+      "Research & experiments",
+      "Vehicle & equipment maintenance",
+      "Software development",
+      "Training & fitness",
+      "Fieldwork & projects",
+    ])
+    for (const term of terms) expect(term.querySelector(".help-glossary-icon svg")).not.toBeNull()
+    // Five different pictures, not one repeated.
+    expect(new Set(terms.map((term) => term.querySelector("svg").innerHTML)).size).toBe(5)
+  })
+
+  it("leaves a plain glossary term without an icon box", () => {
+    // "The core idea" is the second lesson of the first guide, and lists terms with no icons.
+    renderReader(CHRONICLES[0].id)
+    fireEvent.click(screen.getByRole("button", { name: "Next →" }))
+
+    expect(document.querySelectorAll(".help-glossary-item dt").length).toBeGreaterThan(0)
+    expect(document.querySelector(".help-glossary-icon")).toBeNull()
+  })
+})

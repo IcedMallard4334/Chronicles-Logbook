@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom"
-import { createMiraConversation, deleteMiraConversation, fetchMiraConversation, fetchMiraConversations, signOut, streamMiraReply } from "./api"
-import { describeOutcome, pageToView, runActions } from "./miraActions"
+import { signOut } from "./api"
+import { pageToView } from "./miraActions"
+import useMira from "./useMira"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
   EntryBasics,
@@ -74,16 +75,11 @@ import {
 import {
   CHECKLIST_LIMIT,
   FIELD_TYPE_META,
-  FIELD_TYPES,
   TAGS_LIMIT,
-  describeExpression,
   expressionCanonical,
   expressionError,
   expressionToDisplay,
-  fieldTypeLabel,
   isNumericField,
-  previewExpressionValue,
-  referencedFieldIds,
   renameFieldInExpression,
   withComputedValues,
 } from "./fieldTypes"
@@ -97,8 +93,9 @@ import { PencilIcon } from "./EditIcon"
 import LearningLauncher from "./LearningLauncher"
 import { timeSpentProblem } from "./timeSpent"
 import Drawer from "./Drawer"
+import { BuiltInFieldCards, SchemaFieldEditor, SchemaFieldSummary } from "./SchemaParts"
 import FormField, { ShortTextBox } from "./FormField"
-import { BUILT_IN_FIELDS, defaultSchemaFields, isBuiltInName, missingRequired, missingRequiredMessage } from "./formFields"
+import { defaultSchemaFields, isBuiltInName, missingRequired, missingRequiredMessage } from "./formFields"
 import { TrashButton } from "./TrashIcon"
 
 function generateId() {
@@ -693,44 +690,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   )
 }
 
-/** The fields every entry has, greyed out: shown so it is clear they are there, but not editable. */
-function BuiltInFieldCards({ editing = false }) {
-  return (
-    <div className="field-list built-in-fields" role="group" aria-label="Built-in fields">
-      {BUILT_IN_FIELDS.map((field) => (
-        <div key={field.key} className="field-card is-locked">
-          {editing ? (
-            <div className="field-row">
-              <div className="field-label">
-                <span>Name</span>
-                <input type="text" value={field.name} disabled readOnly aria-label={`${field.name} (built-in field name)`} />
-              </div>
-              <div className="field-label">
-                <span>Type</span>
-                <select value={field.type} disabled aria-label={`${field.name} (built-in field type)`}>
-                  <option value={field.type}>{field.typeLabel}</option>
-                </select>
-              </div>
-            </div>
-          ) : (
-            <div className="field-summary">
-              <span className="field-summary-name">{field.name}</span>
-              <span className="field-summary-type">{field.typeLabel}</span>
-            </div>
-          )}
-          <p className="field-lock-note">
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-              <rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" />
-              <path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-            Built in. {field.note}
-          </p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /**
  * The fields being edited, with the three things every schema editor needs: add one,
  * remove one, change one. Renaming a field renames it in every calculation that uses
@@ -1100,206 +1059,6 @@ function SchemaChangeReview({ preview, onApply, onKeepEditing, isSaving }) {
 }
 
 /** One field as it reads when the schema is not being edited. */
-function SchemaFieldSummary({ field, schema, projects }) {
-  const target = projects.find((project) => project.id === field.linked_project_id)
-
-  return (
-    <div className="field-card is-readonly">
-      <div className="field-summary">
-        <span className="field-summary-name">{field.name}</span>
-        <span className="field-summary-type">{fieldTypeLabel(field.type)}</span>
-        {field.required === false && field.type !== "computed" && field.type !== "project_reference" && (
-          <span className="field-summary-flag">Optional</span>
-        )}
-      </div>
-      {field.type === "dropdown" && (
-        <p className="field-summary-detail">{(field.options || []).join(" · ")}</p>
-      )}
-      {field.type === "computed" && (
-        <p className="field-summary-detail">
-          = {describeExpression(field.expression, schema)}
-        </p>
-      )}
-      {field.type === "project_reference" && (
-        // Three different states, which all used to read as the middle one:
-        // a link that was never pointed anywhere is not the same as one whose
-        // target has since been deleted, and saying so sends the owner to the
-        // wrong place to fix it.
-        <p className="field-summary-detail">
-          {!field.linked_project_id
-            ? "Not pointed at a project yet — choose one in Edit schema."
-            : target
-              ? `Links to ${target.name}`
-              : "Links to a project you no longer have"}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** One field while the schema is being edited. */
-function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChange, onRemove }) {
-  // A calculation can only read figures, and only from fields other than
-  // itself, so those are the only ones offered as sources.
-  const sources = schema.filter((other) => isNumericField(other) && other.id !== field.id)
-  const problem =
-    field.type === "computed" ? expressionError(field.expression, field, schema) : null
-
-  // A formula is easier to trust once it has produced a number. The project's
-  // latest entry answers it when it can, so what gets checked is a figure the
-  // owner recognises rather than an abstract example.
-  const preview =
-    field.type === "computed" && !problem
-      ? previewExpressionValue(field.expression, latestData, schema)
-      : null
-
-  return (
-    <div className="field-card">
-      <div className="field-row">
-        <label className="field-label">
-          Name
-          <input
-            type="text"
-            value={field.name}
-            onChange={(event) => onChange(index, { name: event.target.value })}
-            placeholder="Field name"
-          />
-        </label>
-        <label className="field-label">
-          Type
-          <select
-            value={field.type}
-            onChange={(event) =>
-              onChange(index, {
-                type: event.target.value,
-                options: event.target.value === "dropdown" ? field.options || [""] : field.options,
-                expression:
-                  event.target.value === "computed" ? field.expression || "" : field.expression,
-              })
-            }
-          >
-            {FIELD_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="field-type-hint">
-        {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
-      </p>
-      {field.type !== "computed" && field.type !== "project_reference" && (
-        <label className="field-required-toggle">
-          <input
-            type="checkbox"
-            checked={field.required !== false}
-            onChange={(event) => onChange(index, { required: event.target.checked })}
-          />
-          <span>Required</span>
-          <small>A finished entry must fill this in. Planned work never has to.</small>
-        </label>
-      )}
-      {field.type === "dropdown" && (
-        <label className="field-label full">
-          Options (comma-separated)
-          <input
-            type="text"
-            value={(field.options || []).join(", ")}
-            onChange={(event) =>
-              onChange(index, {
-                options: event.target.value
-                  .split(",")
-                  .map((option) => option.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="Option 1, Option 2, Option 3"
-          />
-        </label>
-      )}
-      {field.type === "computed" && (
-        <>
-          <label className="field-label full">
-            Calculation
-            <input
-              type="text"
-              value={field.expression || ""}
-              onChange={(event) => onChange(index, { expression: event.target.value })}
-              placeholder="e.g. {Hours} * 60 — or click a field below"
-            />
-          </label>
-          {sources.length > 0 ? (
-            <div className="expression-sources">
-              <span className="hint">Add a field:</span>
-              {sources.map((source) => (
-                <button
-                  key={source.id}
-                  type="button"
-                  className="btn-chip"
-                  onClick={() =>
-                    onChange(index, {
-                      expression: `${field.expression || ""}${
-                        field.expression ? " " : ""
-                      }{${source.name}}`,
-                    })
-                  }
-                >
-                  {source.name || "Unnamed field"}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="hint">
-              Add a number field first — a calculation needs figures to work from.
-            </p>
-          )}
-          {field.expression && !problem && (
-            <p className="field-summary-detail">
-              = {describeExpression(field.expression, schema)}
-            </p>
-          )}
-          {preview && (
-            <p className="expression-preview">
-              Preview: {preview.value}
-              {preview.fromEntry
-                ? " — from your latest entry"
-                : referencedFieldIds(field.expression).length > 0
-                  ? " — with every field as 2"
-                  : ""}
-            </p>
-          )}
-          {problem && <p className="error">{problem}</p>}
-        </>
-      )}
-      {field.type === "project_reference" &&
-        (linkable.length > 0 ? (
-          <label className="field-label full">
-            Links to
-            <select
-              value={field.linked_project_id || ""}
-              onChange={(event) =>
-                onChange(index, { linked_project_id: event.target.value || null })
-              }
-            >
-              <option value="">Choose a project…</option>
-              {linkable.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <p className="hint">
-            A link needs somewhere to point — create another project first.
-          </p>
-        ))}
-      <TrashButton label="Remove field" onClick={() => onRemove(index)} />
-    </div>
-  )
-}
-
 /**
  * Define a project's fields, and change them once entries exist.
  *
@@ -2747,18 +2506,8 @@ function App() {
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [miraMessages, setMiraMessages] = useState([])
-  const [miraSending, setMiraSending] = useState(false)
-  const [miraError, setMiraError] = useState(null)
-  const [miraActions, setMiraActions] = useState([])
-  const [miraActionsRunning, setMiraActionsRunning] = useState(false)
-  const [miraAutoRun, setMiraAutoRun] = useState(() => window.localStorage.getItem("chronicles-mira-auto-run") === "on")
   const appNavigate = useNavigate()
   const [miraOpen, setMiraOpen] = useState(false)
-  const [miraConversationId, setMiraConversationId] = useState(null)
-  const [miraConversations, setMiraConversations] = useState([])
-  const miraSequence = useRef(0)
-  const miraRunningRef = useRef(false)
   // On a phone the seven tabs can be folded away, leaving just the logo and the
   // controls on the right. Remembered, and ignored on wide screens.
   const [navCollapsed, setNavCollapsed] = useState(() => {
@@ -2819,120 +2568,6 @@ function App() {
   const showPageHint =
     !loading && !showWelcome && pageTour && !seenTours().includes(pageTour.id)
 
-  const refreshMiraConversations = useCallback(async () => {
-    try {
-      setMiraConversations(await fetchMiraConversations())
-    } catch {
-      // History is a convenience; a failed refresh must not interrupt the chat.
-    }
-  }, [])
-
-  // Runs what Mira proposed, now that it has been confirmed (or is safe to run
-  // straight away), and reports in the chat how it went.
-  const runMiraActions = useCallback(async (actions) => {
-    if (miraRunningRef.current || !actions.length) return
-    miraRunningRef.current = true
-    setMiraActionsRunning(true)
-    setMiraError(null)
-    try {
-      const outcome = await runActions(actions, {
-        navigate: (page) => {
-          const target = pageToView(page)
-          if (target) setCurrentView(target)
-          else appNavigate(`/${page}`)
-        },
-      })
-      setMiraMessages(previous => [...previous, { id: `mira-outcome-${Date.now()}`, role: "assistant", content: describeOutcome(outcome) }])
-      setMiraActions([])
-      try {
-        setProjects(await fetchProjects())
-      } catch {
-        // The chat already says what happened; the list catches up on the next load.
-      }
-    } finally {
-      miraRunningRef.current = false
-      setMiraActionsRunning(false)
-    }
-  }, [appNavigate])
-
-  const sendMiraMessage = useCallback(async (message) => {
-    const trimmed = message.trim()
-    if (!trimmed || miraSending) return
-    const id = ++miraSequence.current
-    const replyId = `mira-${id}`
-    const upsertReply = (change) => setMiraMessages(previous => previous.some(item => item.id === replyId)
-      ? previous.map(item => item.id === replyId ? change(item) : item)
-      : [...previous, change({ id: replyId, role: "assistant", content: "", thinking: "", streaming: true })])
-    setMiraMessages(previous => [...previous, { id: `user-${id}`, role: "user", content: trimmed }])
-    setMiraSending(true)
-    setMiraError(null)
-    try {
-      let conversationId = miraConversationId
-      if (!conversationId) {
-        conversationId = (await createMiraConversation()).id
-        setMiraConversationId(conversationId)
-      }
-      let failure = null
-      const proposed = []
-      await streamMiraReply(conversationId, trimmed, (event) => {
-        if (event.type === "thought") upsertReply(item => ({ ...item, thinking: `${item.thinking}${event.text}` }))
-        else if (event.type === "delta") upsertReply(item => ({ ...item, content: `${item.content}${event.text}` }))
-        else if (event.type === "action") {
-          proposed.push(event.action)
-          setMiraActions(previous => [...previous, event.action])
-        } else if (event.type === "error") failure = event.detail || "Mira could not reply just now. Please try again."
-      })
-      if (failure) throw new Error(failure)
-      if (proposed.length) {
-        const list = proposed.map(action => `- ${action.summary}`).join("\n")
-        upsertReply(item => ({ ...item, content: `${item.content}\n\n**Proposed for your approval:**\n${list}` }))
-      }
-      upsertReply(item => ({ ...item, streaming: false }))
-      // Quick path: when the person has opted in, anything that only adds or changes runs at once.
-      if (proposed.length && miraAutoRun && !proposed.some(action => action.destructive)) runMiraActions(proposed)
-    } catch (error) {
-      // The failed exchange leaves nothing behind — the question is dropped with
-      // the reply it never got, so a retry cannot duplicate it — and whatever the
-      // backend said about the failure is what the person reads.
-      setMiraMessages(previous => previous.filter(item => item.id !== replyId && item.id !== `user-${id}`))
-      setMiraError({ message: error?.message || "Mira could not reply just now. Please try again.", retryMessage: trimmed })
-    } finally {
-      setMiraMessages(previous => previous.map(item => item.id === replyId ? { ...item, streaming: false } : item))
-      setMiraSending(false)
-      refreshMiraConversations()
-    }
-  }, [miraSending, miraConversationId, refreshMiraConversations, miraAutoRun, runMiraActions])
-
-  const startNewMiraConversation = useCallback(() => {
-    setMiraConversationId(null)
-    setMiraMessages([])
-    setMiraError(null)
-    setMiraActions([])
-  }, [])
-
-  const openMiraConversation = useCallback(async (conversationId) => {
-    if (miraSending) return
-    try {
-      const conversation = await fetchMiraConversation(conversationId)
-      setMiraConversationId(conversation.id)
-      setMiraMessages(conversation.messages.map(item => ({ id: item.id, role: item.role, content: item.content, thinking: item.thinking || "" })))
-      setMiraError(null)
-      setMiraActions([])
-    } catch {
-      setMiraError({ message: "That conversation could not be opened.", retryMessage: null })
-    }
-  }, [miraSending])
-
-  const removeMiraConversation = useCallback(async (conversationId) => {
-    try {
-      await deleteMiraConversation(conversationId)
-      if (conversationId === miraConversationId) startNewMiraConversation()
-      await refreshMiraConversations()
-    } catch {
-      setMiraError({ message: "That conversation could not be deleted.", retryMessage: null })
-    }
-  }, [miraConversationId, refreshMiraConversations, startNewMiraConversation])
-
   const loadProjects = useCallback(async () => {
     try {
       const data = await fetchProjects()
@@ -2950,37 +2585,22 @@ function App() {
     setCurrentView("home")
   }, [])
 
-  const miraConversation = {
-    messages: miraMessages,
-    sending: miraSending,
-    error: miraError,
-    pendingActions: miraActions,
-    actionsRunning: miraActionsRunning,
-    autoRun: miraAutoRun,
-    onToggleAutoRun: (on) => {
-      setMiraAutoRun(on)
-      window.localStorage.setItem("chronicles-mira-auto-run", on ? "on" : "off")
+  // Mira's conversation: what she is asked, what she does, and how it went. After she changes
+  // something the project list is read again so the app shows it.
+  const miraConversation = useMira({
+    active: miraOpen || currentView === "assistant",
+    onProjectsChanged: async () => setProjects(await fetchProjects()),
+    navigate: (page) => {
+      const target = pageToView(page)
+      if (target) setCurrentView(target)
+      else appNavigate(`/${page}`)
     },
-    onSend: sendMiraMessage,
-    onRunActions: () => runMiraActions(miraActions),
-    onCancelActions: () => { setMiraActions([]); setMiraError(null) },
-    onOpenProject: openMiraProject,
-    onClear: startNewMiraConversation,
-    conversations: miraConversations,
-    activeConversationId: miraConversationId,
-    onSelectConversation: openMiraConversation,
-    onNewConversation: startNewMiraConversation,
-    onDeleteConversation: removeMiraConversation,
-  }
+    openProject: openMiraProject,
+  })
 
   useEffect(() => {
     loadProjects()
   }, [loadProjects])
-
-  useEffect(() => {
-    if (miraOpen || currentView === "assistant") refreshMiraConversations()
-  }, [miraOpen, currentView, refreshMiraConversations])
-
 
   // Totals come from the server rather than being counted in the browser.
   // Counting locally was wrong: `entries` is only ever loaded for the project

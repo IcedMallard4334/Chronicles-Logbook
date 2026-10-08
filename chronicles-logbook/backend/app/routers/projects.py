@@ -1,3 +1,4 @@
+import math
 from datetime import date, datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -220,7 +221,7 @@ async def _validate_entry_data(
                     detail=f"Field '{field_name}' can hold at most {limit:,} characters",
                 )
         elif field_type == "number":
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be a number",
@@ -231,6 +232,15 @@ async def _validate_entry_data(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be a date string",
                 )
+            # A real day, written YYYY-MM-DD. One already stored in some other form is left alone.
+            if not (previous and previous.get(field_id) == value):
+                try:
+                    date.fromisoformat(value)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Field '{field_name}' needs a date written like 2026-10-31",
+                    ) from None
         elif field_type == "dropdown":
             options = field.get("options", [])
             if value not in options:

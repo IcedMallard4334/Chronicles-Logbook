@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import MiraMarkdown from "./MiraMarkdown"
 import { appendDictation, dictationSupported, startDictation } from "./speech"
 import { TrashButton } from "./TrashIcon"
@@ -20,21 +20,48 @@ function MiraMark() {
   return <span className="mira-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17V7l8 8 8-8v10" /><path d="M12 3v3M10.5 4.5h3" /></svg></span>
 }
 
-function ActionProposals({ actions, running, onRun, onCancel }) {
-  if (!actions?.length) return null
-  const count = actions.length
-  return <section className="mira-project-proposal mira-actions" aria-label="Proposed actions">
-    <span className="mira-message-label">{count === 1 ? "Mira would like to" : `Mira would like to do ${count} things`}</span>
+const STATE_WORDS = { pending: "Waiting", running: "Working on it", done: "Done", failed: "Didn't work", skipped: "Not run" }
+
+function StepIcon({ state }) {
+  if (state === "running") return <span className="mira-step-icon is-running" aria-hidden="true" />
+  return <span className={`mira-step-icon is-${state}`} aria-hidden="true">{{ done: "✓", failed: "✗", skipped: "–", pending: "○" }[state]}</span>
+}
+
+/**
+ * What Mira is doing, as steps in the chat: each one waiting, in progress, done, or not working, with the
+ * reason. Changes that only add or edit run by themselves; anything that deletes (or every change, if the
+ * person asked to be asked first) waits here for a click.
+ */
+function ActionBatch({ batch, onRun, onCancel }) {
+  const count = batch.items.length
+  const awaiting = batch.status === "awaiting"
+  const destructive = batch.items.some((item) => item.action.destructive)
+  const heading = {
+    awaiting: destructive ? "Mira needs your OK" : count === 1 ? "Mira would like to" : `Mira would like to do ${count} things`,
+    running: "Working on it…",
+    finished: batch.failed ? "Part of that didn’t work" : count === 1 ? "Done" : "All done",
+    cancelled: "Cancelled",
+  }[batch.status]
+  return <section className={`mira-project-proposal mira-actions mira-batch is-${batch.status}`} aria-label="Proposed actions" aria-busy={batch.status === "running"}>
+    <span className="mira-message-label">{heading}</span>
     <ol className="mira-action-list">
-      {actions.map((action, index) => <li key={index} className={action.destructive ? "is-destructive" : undefined}>
-        {action.summary}{action.destructive && <em> — this can’t be undone</em>}
+      {batch.items.map((item, index) => <li key={index} className={`is-${item.state}${item.action.destructive ? " is-destructive" : ""}`}>
+        <StepIcon state={batch.status === "cancelled" ? "skipped" : item.state} />
+        <span className="mira-step-text">
+          <span className="sr-only">{STATE_WORDS[batch.status === "cancelled" ? "skipped" : item.state]}: </span>
+          {item.state === "done" && item.detail ? item.detail : item.action.summary}
+          {item.action.destructive && item.state === "pending" && <em> — this can’t be undone</em>}
+          {item.state === "failed" && item.detail && <small className="mira-step-reason">{item.detail}</small>}
+        </span>
       </li>)}
     </ol>
-    <p className="mira-proposal-note">Nothing has changed yet. Review this before confirming.</p>
-    <div className="mira-proposal-actions">
-      <button type="button" className="btn-secondary" onClick={onCancel} disabled={running}>Cancel</button>
-      <button type="button" className="btn-primary" onClick={onRun} disabled={running}>{running ? "Working…" : count === 1 ? "Do it" : `Do all ${count}`}</button>
-    </div>
+    {awaiting && <>
+      <p className="mira-proposal-note">Nothing has changed yet. Review this before confirming.</p>
+      <div className="mira-proposal-actions">
+        <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn-primary" onClick={onRun}>{count === 1 ? "Do it" : `Do all ${count}`}</button>
+      </div>
+    </>}
   </section>
 }
 
@@ -55,7 +82,7 @@ function ConversationHistory({ conversations = [], activeId, onSelect, onNew, on
   </div>
 }
 
-function Conversation({ messages, sending, error, onSend, onClear, pendingActions, actionsRunning, onRunActions, onCancelActions, autoRun, onToggleAutoRun, onOpenProject, conversations, activeConversationId, onSelectConversation, onNewConversation, onDeleteConversation, compact = false }) {
+function Conversation({ messages, batches = [], sending, error, onSend, onStop, onClear, onRunBatch, onCancelBatch, autoRun, onToggleAutoRun, onOpenProject, conversations, activeConversationId, onSelectConversation, onNewConversation, onDeleteConversation, compact = false }) {
   // The suggestions are a convenience; on a phone they would push the message box
   // off the screen, so they start folded there and open from a button.
   const [promptsOpen, setPromptsOpen] = useState(() => !(typeof window !== "undefined" && window.matchMedia?.("(max-width: 720px)").matches))
@@ -120,7 +147,7 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
           {[...ACTION_PROMPTS, ...PROMPTS].map(({ title, detail, prompt }, index) => <button type="button" key={title} onClick={() => { setDraft(prompt); document.getElementById(compact ? "mira-compact-input" : "mira-full-input")?.focus() }}><span className="mira-prompt-number" aria-hidden="true">0{index + 1}</span><strong>{title}</strong><span>{detail}</span><span className="mira-prompt-arrow" aria-hidden="true">↗</span></button>)}
         </div>}
       </div>}
-      {messages.map(message => <article className={`mira-message mira-message-${message.role}`} key={message.id}>
+      {messages.filter(message => message.role !== "tool").map(message => <Fragment key={message.id}><article className={`mira-message mira-message-${message.role}`}>
         <span className="mira-message-label">{message.role === "user" ? "You" : "Mira"}</span>
         {message.role === "user" ? <p>{message.content}</p> : <>
           {message.thinking && <details className="mira-thinking" open={Boolean(message.streaming)}><summary>{message.streaming && !message.content ? "Mira is thinking…" : "How Mira approached this"}</summary><p>{message.thinking}</p></details>}
@@ -128,8 +155,9 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
           {message.streaming && <span className="mira-caret" aria-hidden="true" />}
         </>}
         {message.projectId && <button type="button" className="mira-open-project" onClick={() => onOpenProject(message.projectId)}>Open project →</button>}
-      </article>)}
-      <ActionProposals actions={pendingActions} running={actionsRunning} onRun={onRunActions} onCancel={onCancelActions} />
+      </article>
+      {message.batchId && batches.filter(batch => batch.id === message.batchId).map(batch => <ActionBatch key={batch.id} batch={batch} onRun={() => onRunBatch(batch.id)} onCancel={() => onCancelBatch(batch.id)} />)}
+      </Fragment>)}
       {waiting && !streaming?.thinking && <div className="mira-typing" role="status"><MiraMark /> <span>Mira is thinking<span className="mira-dots">…</span></span></div>}
       {error && <div className="mira-error" role="alert"><span>{error.message}</span>{error.retryMessage && <button type="button" onClick={() => onSend(error.retryMessage)}>Retry</button>}</div>}
     </div>
@@ -141,9 +169,11 @@ function Conversation({ messages, sending, error, onSend, onClear, pendingAction
       <div className="mira-composer-actions">
         {canDictate && <button type="button" className={`mira-mic${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} title={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
         <span className="mira-composer-hint"><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
-        <button className="btn-primary" type="submit" disabled={!draft.trim() || sending}>Send</button></div>
-      {onToggleAutoRun && <label className="mira-autorun"><input type="checkbox" checked={Boolean(autoRun)} onChange={(event) => onToggleAutoRun(event.target.checked)} />Run simple changes straight away (deleting always asks)</label>}
-      <p className="mira-footnote">Review Mira’s suggestions. Project creation always needs your confirmation. Conversations are saved to your account; delete any from History.</p>
+        {sending
+          ? <button className="btn-secondary mira-stop" type="button" onClick={() => onStop?.()}>Stop</button>
+          : <button className="btn-primary" type="submit" disabled={!draft.trim()}>Send</button>}</div>
+      {onToggleAutoRun && <label className="mira-autorun"><input type="checkbox" checked={!autoRun} onChange={(event) => onToggleAutoRun(!event.target.checked)} />Ask me before Mira changes anything (deleting always asks)</label>}
+      <p className="mira-footnote">Mira acts as soon as you ask, and shows each step. Check what she does; she can only change what you could change yourself. Conversations are saved to your account; delete any from History.</p>
     </form>
     {messages.length > 0 && <button type="button" className="mira-clear" onClick={onClear}>New conversation</button>}
   </>

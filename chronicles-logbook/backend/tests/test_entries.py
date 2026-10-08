@@ -1547,3 +1547,38 @@ async def test_a_field_marked_not_required_may_stay_empty_on_a_finished_entry(au
     # Finishing planned work only asks for the fields that are required.
     planned = (await authenticated_client.post(base, json={"title": "Later", "todo": True, "data": {"f-need": "x"}})).json()
     assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"todo": False})).status_code == 200
+
+
+async def test_a_project_name_that_is_only_space_is_refused_and_others_are_trimmed(authenticated_client):
+    blank = await authenticated_client.post("/projects", json={"name": "   "})
+    assert blank.status_code == 422
+
+    made = await authenticated_client.post("/projects", json={"name": "  Garden  "})
+    assert made.status_code == 201 and made.json()["name"] == "Garden"
+    renamed = await authenticated_client.put(f"/projects/{made.json()['id']}", json={"name": "  Yard "})
+    assert renamed.status_code == 200 and renamed.json()["name"] == "Yard"
+    assert (await authenticated_client.put(f"/projects/{made.json()['id']}", json={"name": " "})).status_code == 422
+
+
+async def test_a_date_field_needs_a_real_day_and_a_number_field_a_finite_number(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Strict", "entry_schema": [
+                {"id": "f-when", "name": "When", "type": "date"},
+                {"id": "f-count", "name": "Count", "type": "number"},
+            ]},
+        )
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+
+    for junk in ("tomorrow", "2026-13-40", "31/10/2026", ""):
+        refused = await authenticated_client.post(base, json={"title": "t", "data": {"f-when": junk, "f-count": 1}})
+        assert refused.status_code == 422 and "written like 2026-10-31" in refused.text
+    infinite = await authenticated_client.post(
+        base, content='{"title": "t", "data": {"f-when": "2026-10-31", "f-count": 1e999}}', headers={"Content-Type": "application/json"}
+    )
+    assert infinite.status_code == 422 and "must be a number" in infinite.text
+
+    ok = await authenticated_client.post(base, json={"title": "t", "data": {"f-when": "2026-10-31", "f-count": 2.5}})
+    assert ok.status_code == 201

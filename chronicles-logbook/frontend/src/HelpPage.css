@@ -201,6 +201,20 @@
   font-size: 0.95rem;
 }
 
+/* A glossary term can carry an icon, drawn like the rest of the app's, in the accent colour. */
+.help-glossary-item dt:has(.help-glossary-icon) { display: flex; align-items: center; gap: 10px; }
+.help-glossary-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.help-glossary-icon svg { width: 18px; height: 18px; }
+
 .help-glossary-item dd {
   margin: 0;
   color: var(--text);

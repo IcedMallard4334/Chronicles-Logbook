@@ -115,6 +115,53 @@ function SparkIcon() {
   )
 }
 
+/** A flask: research and experiments. */
+function FlaskIcon() {
+  return (
+    <svg {...props}>
+      <path d="M9 3h6M10 3v6.2L4.6 18.1A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-2.9L14 9.2V3" />
+      <path d="M7.4 14.5h9.2" />
+    </svg>
+  )
+}
+
+/** A spanner: maintenance and repairs. */
+function WrenchIcon() {
+  return (
+    <svg {...props}>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.6 17.1a2 2 0 0 0 2.8 2.8l5.7-5.7a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4Z" />
+    </svg>
+  )
+}
+
+/** Angle brackets: writing software. */
+function CodeIcon() {
+  return (
+    <svg {...props}>
+      <path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16" />
+    </svg>
+  )
+}
+
+/** A dumbbell: training and fitness. */
+function DumbbellIcon() {
+  return (
+    <svg {...props}>
+      <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />
+    </svg>
+  )
+}
+
+/** A map pin: fieldwork, work done somewhere. */
+function MapPinIcon() {
+  return (
+    <svg {...props}>
+      <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  )
+}
+
 export const LEARNING_ICONS = {
   book: BookIcon,
   pencil: PencilIcon,
@@ -126,6 +173,11 @@ export const LEARNING_ICONS = {
   "trending-up": TrendingUpIcon,
   checklist: ChecklistIcon,
   spark: SparkIcon,
+  flask: FlaskIcon,
+  wrench: WrenchIcon,
+  code: CodeIcon,
+  dumbbell: DumbbellIcon,
+  "map-pin": MapPinIcon,
 }
 
 /** Renders the icon named by `name`, falling back to the book icon. */

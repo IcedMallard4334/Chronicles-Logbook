@@ -46,6 +46,7 @@ graph TB
 | File | Responsibility |
 |---|---|
 | `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views, schema builder and editor |
+| `Walkthrough.jsx`, `walkthroughs.js`, `WalkthroughFrame.jsx`, `WalkthroughScenes.jsx`, `SceneKit.jsx`, `SchemaParts.jsx` | Silent, scripted how-to videos in Learning Chronicles: the player (play, pause, scrub, captions, transcript), the timeline logic (`stateAt`), the fixed-size frame that carries the app's stylesheets, and the scenes drawn in it from the app's real components (`SceneKit.jsx` holds the shared top bar, sidebar, project page and forms) |
 | `Drawer.jsx`, `Drawer.css` | The side drawer forms open in: docked to the right edge, resizable by dragging (or arrow keys), width remembered, page beside it stays usable |
 | `FormField.jsx`, `FormField.css` | One question in a form: name with its type beside it, hint, box sized for the answer, character count, error; also the schema editor's greyed-out built-in rows |
 | `formFields.js` | The built-in fields (title, hours, minutes), the default fields of a new project, and the required-field check shared by the new-entry and edit forms |

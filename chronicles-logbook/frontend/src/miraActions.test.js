@@ -12,7 +12,8 @@ vi.mock("./api", () => {
 
 import * as api from "./api"
 import {
-  SUPPORTED_ACTIONS, activityTimes, buildField, describeOutcome, findField, findProject, mapValues, pageToView, resolveExpression, runActions,
+  SUPPORTED_ACTIONS, activityTimes, buildField, findField, findProject, mapValues, missingRequiredFields, outcomeNote, pageToView,
+  prepareEntry, resolveExpression, runActions, takeBuiltIns,
 } from "./miraActions"
 
 const HOURS = { id: "f-hours", name: "Hours", type: "number" }
@@ -164,7 +165,7 @@ describe("running actions", () => {
     ])
 
     expect(api.createEntry).toHaveBeenCalledWith("p1", {
-      data: { "f-hours": 2, "f-kind": "Feature" }, title: "Parser", time_spent: 90, todo: true, status: "Still to do", due_date: "2026-10-01", due_time: "09:30",
+      data: { "f-hours": 2, "f-kind": "Feature", "f-list": [] }, title: "Parser", time_spent: 90, todo: true, status: "Still to do", due_date: "2026-10-01", due_time: "09:30",
     })
     expect(api.updateEntry).toHaveBeenCalledWith("p1", "e1", { status: "Done", data: { "f-hours": 4, "f-kind": "Bug" } })
     expect(api.deleteEntry).toHaveBeenCalledWith("p1", "e1")
@@ -335,18 +336,164 @@ describe("running actions", () => {
   })
 })
 
-describe("describing how it went", () => {
+describe("telling Mira how it went", () => {
   it("lists what was done", () => {
-    expect(describeOutcome({ done: ["Made A", "Made B"], failed: null, skipped: 0 })).toBe("**Done.**\n- ✓ Made A\n- ✓ Made B")
+    expect(outcomeNote({ done: ["Made A", "Made B"], failed: null, skipped: 0 })).toBe("- ✓ Made A\n- ✓ Made B")
   })
 
-  it("separates partial success from total failure and mentions what was skipped", () => {
-    expect(describeOutcome({ done: ["Made A"], failed: { summary: "Make B", error: "No." }, skipped: 2 })).toBe(
-      "**Part of that is done.**\n- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run.\n\nTell me what to change and I'll try again."
+  it("says what failed and why, without the server's technical prefix, and how many were left", () => {
+    expect(outcomeNote({ done: ["Made A"], failed: { summary: "Make B", error: "Value error, No." }, skipped: 2 })).toBe(
+      "- ✓ Made A\n- ✗ Make B: No.\n- 2 more actions were not run."
     )
-    expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "Value error, End time must be after start time." }, skipped: 0 })).toContain("Make A: End time must be after start time.")
-    expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("**That didn't work.**")
-    expect(describeOutcome({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("1 more action was not run.")
+    expect(outcomeNote({ done: [], failed: { summary: "Make A", error: "No." }, skipped: 1 })).toContain("1 more action was not run.")
+  })
+
+  it("stays within what the server accepts as a message", () => {
+    expect(outcomeNote({ done: Array.from({ length: 200 }, (_, i) => `Made number ${i}`), failed: null, skipped: 0 }).length).toBeLessThanOrEqual(1900)
+  })
+})
+
+describe("entries, in the project's own terms", () => {
+  const PLACE = { id: "f-place", name: "Place", type: "text" }
+  const STORY = { id: "f-story", name: "Story", type: "long_text", required: false }
+  const WHEN = { id: "f-when", name: "When", type: "date", required: false }
+  const garden = {
+    id: "p9", name: "Garden", shared: false,
+    entry_schema: [PLACE, STORY, WHEN, KIND, TAGS, LIST, { id: "f-total", name: "Total", type: "computed", expression: "1" }],
+  }
+
+  it("treats a title, hours or minutes keyed like a field as the entry's own, unless the project has a field of that name", () => {
+    expect(takeBuiltIns(garden, { Title: "Weeding", Hours: "2", "Minutes spent": 30, Place: "Back" })).toEqual({
+      built: { title: "Weeding", hours: 2, minutes: 30 }, rest: { Place: "Back" },
+    })
+    const hoursProject = { entry_schema: [HOURS] }
+    expect(takeBuiltIns(hoursProject, { Hours: 3 })).toEqual({ built: {}, rest: { Hours: 3 } })
+  })
+
+  it("logs the title and time from wherever Mira put them", () => {
+    const { data, extras } = prepareEntry(garden, {
+      values: { Title: "Weeding", Hours: 1, Minutes: 15, Place: "Back", Labels: "a, b", Kind: "bug" },
+    })
+
+    expect(extras).toEqual({ title: "Weeding", time_spent: 75 })
+    expect(data).toMatchObject({ "f-place": "Back", "f-tags": ["a", "b"], "f-kind": "Bug", "f-list": [] })
+  })
+
+  it("prefers the title and minutes she gave outright", () => {
+    const { extras } = prepareEntry(garden, { title: "Real", time_spent_minutes: 10, values: { Title: "Other", Hours: 5, Place: "x", Kind: "Bug", Labels: ["t"] } })
+
+    expect(extras).toEqual({ title: "Real", time_spent: 10 })
+  })
+
+  it("asks for exactly the required fields that are empty, and only for a finished entry", () => {
+    expect(() => prepareEntry(garden, { title: "Weeding", values: { Kind: "Bug" } })).toThrow(
+      "“Garden” needs Place and Labels before this entry can be logged."
+    )
+    expect(missingRequiredFields(garden, {}, { todo: true })).toEqual([])
+    expect(missingRequiredFields(garden, {}, { status: "Still to do" })).toEqual([])
+    expect(missingRequiredFields(garden, {}, {})).toEqual(["Place", "Kind", "Labels"])
+    // A field marked optional, a calculation, a link and a checklist are never asked for.
+    expect(missingRequiredFields(garden, { "f-place": "x", "f-kind": "Bug", "f-tags": ["t"] }, {})).toEqual([])
+  })
+
+  it("lets planned work through with nothing filled in", () => {
+    expect(prepareEntry(garden, { title: "Later", todo: true, values: {} }).data).toEqual({ "f-list": [] })
+  })
+
+  it("needs a title", () => {
+    expect(() => prepareEntry(garden, { values: { Place: "x", Kind: "Bug", Labels: ["t"] } })).toThrow("This entry needs a title.")
+  })
+
+  it("says what is wrong with a value in the field's own words", () => {
+    expect(() => mapValues(garden, { Place: "x".repeat(256) })).toThrow("“Place” can hold at most 255 characters, and this is 256.")
+    expect(() => mapValues(garden, { Story: "x".repeat(5001) })).toThrow("“Story” can hold at most 5,000 characters, and this is 5,001.")
+    expect(() => mapValues(garden, { When: "tomorrow" })).toThrow("“When” needs a date written like 2026-10-31, not “tomorrow”.")
+    expect(() => mapValues(garden, { When: "2026-13-45" })).toThrow("needs a date")
+    expect(() => mapValues(garden, { Kind: "Chore" })).toThrow("“Kind” must be one of: Bug, Feature.")
+    expect(() => mapValues(bugLog, { Hours: "lots" })).toThrow("“Hours” needs a number, not “lots”.")
+    expect(() => mapValues(bugLog, { Hours: "" })).toThrow("needs a number")
+  })
+
+  it("accepts long text in a long text field, a real date, and ignores a calculation she tried to fill", () => {
+    expect(mapValues(garden, { Story: "x".repeat(4000), When: "2026-10-31", Total: 5 })).toEqual({ "f-story": "x".repeat(4000), "f-when": "2026-10-31" })
+  })
+
+  it("refuses to log through the whole flow and says what is missing, so Mira can ask for it", async () => {
+    api.fetchProjects.mockResolvedValue([structuredClone(garden)])
+    api.fetchProject.mockResolvedValue(structuredClone(garden))
+
+    const outcome = await runActions([act("create_entry", { project: "Garden", title: "Weeding", values: {} }, "Log an entry in “Garden”")])
+
+    expect(api.createEntry).not.toHaveBeenCalled()
+    expect(outcome.failed.error).toContain("needs Place, Kind and Labels")
+    expect(outcomeNote(outcome)).toContain("✗ Log an entry in “Garden”: “Garden” needs Place, Kind and Labels")
+  })
+
+  it("updates an entry's title and time from built-in names, keeping its other values", async () => {
+    api.fetchProjects.mockResolvedValue([structuredClone(garden)])
+    api.updateEntry.mockResolvedValue({})
+    api.fetchEntry.mockResolvedValue({ data: { "f-place": "Old" } })
+
+    await runActions([act("update_entry", { entry: "p9/e1", values: { Title: "Renamed", Hours: 2, Place: "New" } })])
+
+    expect(api.updateEntry).toHaveBeenCalledWith("p9", "e1", { title: "Renamed", time_spent: 120, data: { "f-place": "New" } })
+  })
+})
+
+describe("a project Mira makes", () => {
+  it("starts from the same default form as one made by hand when she names no fields", async () => {
+    api.createProject.mockResolvedValue({ id: "n", name: "Weekly Planning" })
+
+    await runActions([act("create_project", { name: "Weekly Planning" })])
+
+    const schema = api.createProject.mock.calls[0][0].entry_schema
+    expect(schema.map((field) => [field.name, field.type, field.required])).toEqual([["Description", "long_text", false], ["Date", "date", false]])
+  })
+
+  it("uses only the fields she names, and honours long text and optional fields", async () => {
+    api.createProject.mockResolvedValue({ id: "n", name: "Garden" })
+
+    await runActions([act("create_project", { name: "Garden", fields: [{ name: "Notes", type: "long_text", required: false }, { name: "Place" }] })])
+
+    const schema = api.createProject.mock.calls[0][0].entry_schema
+    expect(schema.map((field) => [field.name, field.type, field.required])).toEqual([["Notes", "long_text", false], ["Place", "text", undefined]])
+  })
+})
+
+describe("a batch never crashes the chat", () => {
+  it("reports each action's progress, and marks what was not run as skipped", async () => {
+    api.createTask.mockResolvedValue({})
+    const seen = []
+
+    const outcome = await runActions(
+      [act("create_task", { project: "Bug Log", title: "A" }), act("delete_task", { task: "bad" }), act("create_task", { project: "Bug Log", title: "C" })],
+      { onProgress: (index, state, detail) => seen.push([index, state, detail]) }
+    )
+
+    expect(seen.map(([index, state]) => `${index}:${state}`)).toEqual(["0:running", "0:done", "1:running", "1:failed", "2:skipped"])
+    expect(seen[1][2]).toContain("Added the task")
+    expect(seen[3][2]).toContain("project-id/item-id")
+    expect(outcome.skipped).toBe(1)
+  })
+
+  it("says so, instead of throwing, when the workspace cannot be read", async () => {
+    api.fetchProjects.mockRejectedValue(new Error("offline"))
+    const seen = []
+
+    const outcome = await runActions([act("create_task", { project: "x", title: "A" }, "Add a task")], { onProgress: (i, state) => seen.push(state) })
+
+    expect(outcome.failed).toMatchObject({ summary: "Add a task" })
+    expect(outcome.failed.error).toContain("couldn't reach your workspace")
+    expect(seen).toEqual(["failed"])
+  })
+
+  it("is not stopped by a progress display that throws", async () => {
+    api.createTask.mockResolvedValue({})
+
+    const outcome = await runActions([act("create_task", { project: "Bug Log", title: "A" })], { onProgress: () => { throw new Error("render") } })
+
+    expect(outcome.failed).toBeNull()
+    expect(outcome.done).toHaveLength(1)
   })
 })
 
