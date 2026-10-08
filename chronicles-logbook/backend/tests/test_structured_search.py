@@ -463,3 +463,24 @@ async def test_keyword_search_matches_an_entrys_title(authenticated_client, sear
     assert response.status_code == 200
     ids = {entry["id"] for entry in response.json()}
     assert named["id"] in ids
+
+async def test_long_text_is_searched_like_text(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Long", "entry_schema": [{"id": "f-story", "name": "Story", "type": FieldType.LONG_TEXT.value}]},
+        )
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+    first = (await authenticated_client.post(base, json={"title": "A", "data": {"f-story": "We walked round the lake at dawn."}})).json()
+    await authenticated_client.post(base, json={"title": "B", "data": {"f-story": "Stayed in and read."}})
+
+    found = await _search(authenticated_client, project["id"], [_condition("f-story", "contains", "LAKE")])
+    assert [entry["id"] for entry in found.json()] == [first["id"]]
+
+    exact = await _search(authenticated_client, project["id"], [_condition("f-story", "equals", "Stayed in and read.")])
+    assert len(exact.json()) == 1
+
+    # A number operator makes no sense for text and is refused.
+    refused = await _search(authenticated_client, project["id"], [_condition("f-story", "gt", 3)])
+    assert refused.status_code == 422

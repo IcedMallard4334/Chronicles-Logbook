@@ -29,7 +29,8 @@
  * renaming a badge or adding a type is one edit rather than a hunt.
  */
 export const FIELD_TYPE_META = {
-  text: { label: "Text", hint: "A line of writing.", badge: null },
+  text: { label: "Short text", hint: "A name, a place or a line of writing, up to 255 characters.", badge: null },
+  long_text: { label: "Long text", hint: "Notes, a description or a paragraph, up to 5,000 characters.", badge: null },
   number: { label: "Number", hint: "A figure you can add up.", badge: null },
   date: { label: "Date", hint: "A calendar day.", badge: null },
   dropdown: { label: "Choice", hint: "One option from a fixed list.", badge: null },
@@ -55,6 +56,17 @@ export const FIELD_TYPES = Object.entries(FIELD_TYPE_META).map(([value, meta]) =
   value,
   ...meta,
 }))
+
+/**
+ * How much each kind of text holds. The server enforces the same numbers (a value
+ * already stored above its limit is left alone); the form quotes them while you type.
+ */
+export const TEXT_LIMITS = { text: 255, long_text: 5000 }
+
+/** Either kind of text: short text or long text. */
+export function isTextField(field) {
+  return field?.type === "text" || field?.type === "long_text"
+}
 
 /** Types a calculation is allowed to read. */
 export const NUMERIC_FIELD_TYPES = ["number", "computed"]
@@ -116,6 +128,10 @@ export function isNumericField(field) {
  */
 export const SEARCH_OPERATORS_BY_TYPE = {
   text: [
+    { value: "contains", label: "contains" },
+    { value: "equals", label: "is exactly" },
+  ],
+  long_text: [
     { value: "contains", label: "contains" },
     { value: "equals", label: "is exactly" },
   ],

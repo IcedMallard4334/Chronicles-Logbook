@@ -43,6 +43,8 @@ class DevLoginRequest(BaseModel):
 
 class FieldType(str, Enum):
     TEXT = "text"
+    # A paragraph: same kind of value as TEXT, with a roomier limit and box.
+    LONG_TEXT = "long_text"
     NUMBER = "number"
     DATE = "date"
     DROPDOWN = "dropdown"
@@ -66,6 +68,12 @@ MAX_TAG_LENGTH = 30
 MAX_CHECKLIST_ITEMS = 20
 MAX_CHECKLIST_ITEM_LENGTH = 30
 
+# How much a text field holds. "Text" is the short kind (a name, a place, a
+# line); "long_text" is for paragraphs. A value already stored above its limit
+# is left alone: the limit applies to what is typed from now on.
+MAX_SHORT_TEXT_LENGTH = 255
+MAX_LONG_TEXT_LENGTH = 5000
+
 # The most time one entry can record: 10,000 hours, in minutes.
 MAX_TIME_SPENT_MINUTES = 10000 * 60
 
@@ -73,10 +81,17 @@ MAX_TIME_SPENT_MINUTES = 10000 * 60
 class BaseFieldDefinition(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., min_length=1, max_length=100, description="Display label for the field")
+    # Whether a finished entry must give this field a value. Planned (to do)
+    # entries never have to. Fields saved before this existed were all required.
+    required: bool = True
 
 
 class TextFieldDefinition(BaseFieldDefinition):
     type: Literal[FieldType.TEXT] = FieldType.TEXT
+
+
+class LongTextFieldDefinition(BaseFieldDefinition):
+    type: Literal[FieldType.LONG_TEXT] = FieldType.LONG_TEXT
 
 
 class NumberFieldDefinition(BaseFieldDefinition):
@@ -155,6 +170,7 @@ class ComputedFieldDefinition(BaseFieldDefinition):
 
 FieldDefinition = Annotated[
     TextFieldDefinition
+    | LongTextFieldDefinition
     | NumberFieldDefinition
     | DateFieldDefinition
     | DropdownFieldDefinition

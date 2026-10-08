@@ -937,12 +937,12 @@ export const HELP_SECTIONS = [
       },
       {
         id: "voice-and-colours",
-        title: "Voice, reading aloud and your own colours",
-        keywords: ["voice", "dictation", "microphone", "speech", "read aloud", "screen reader", "blind", "visually impaired", "accessibility", "colour", "color", "theme", "background", "wheel"],
+        title: "Voice and your own colours",
+        keywords: ["voice", "dictation", "microphone", "speech", "accessibility", "colour", "color", "theme", "background", "wheel"],
         blocks: [
           {
             type: "p",
-            text: "The microphone in Mira's message box dictates what you say (in browsers that support it, such as Chrome and Edge). It puts in commas and full stops from your pauses, understands \u201ccomma\u201d, \u201cfull stop\u201d, \u201cquestion mark\u201d and \u201cnew line\u201d, and knows Mira's name. In Profile you can turn on the screen reader, which reads each control as you reach it, announces dialogs and alerts, echoes your typing and lets you move around with Alt+Shift+arrow keys (Alt+Shift+? lists them all).",
+            text: "The microphone in Mira's message box dictates what you say (in browsers that support it, such as Chrome and Edge). It puts in commas and full stops from your pauses, understands \u201ccomma\u201d, \u201cfull stop\u201d, \u201cquestion mark\u201d and \u201cnew line\u201d, and knows Mira's name. Chronicles is built to work with the screen reader that comes with your device or browser (NVDA, JAWS, VoiceOver, TalkBack), so it doesn’t bring its own.",
           },
           {
             type: "p",

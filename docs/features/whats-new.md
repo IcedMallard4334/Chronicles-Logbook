@@ -16,7 +16,7 @@ performance, 100 accessibility, 96 best practices, 100 SEO**. See
 | # | Change | Where | How it is checked |
 |---|---|---|---|
 | 1 | **Entry history keeps the original, and any version can be restored.** The first state of an entry is version 1 (including entries saved before history existed); every version records which values changed and what they were; *Revert to this version* adds a new version matching the old one, so nothing is lost; deleted entries keep a final "deleted" version and can be restored from **Deleted entries**. | `routers/projects.py`, `EntryHistory.jsx`, `DeletedEntries.jsx`, migration `014` | `test_entry_history.py`, `EntryHistory.test.jsx` |
-| 2 | **Voice dictation for Mira, and a screen reader.** A microphone button dictates into Mira's message box, with punctuation and Mira's name handled (see [Dictation](#dictation-and-the-screen-reader) below). Profile has an opt-in **screen reader** that speaks what you land on and lets you move around by keyboard. Both use the browser's own speech features. | `speech.js`, `ScreenReader.jsx`, `readerDescribe.js` | `speech.test.js`, `ScreenReader.test.jsx`, `readerDescribe.test.js` |
+| 2 | **Voice dictation for Mira.** A microphone button dictates into Mira's message box, with punctuation and Mira's name handled (see [Dictation](#dictation) below). It uses the browser's own speech recognition. (An in-app screen reader was also built here and later removed; see [Phase 1 of the lecturer's feedback](#lecturer-feedback-phase-1).) | `speech.js` | `speech.test.js` |
 | 3 | **Google Calendar no longer falls back to localhost.** The Calendar redirect is derived from the sign-in redirect when not set, and the backend warns at startup if a live deployment still points any URL at localhost. | `config.py` | [Deployment](../development/deployment.md) |
 | 4 | **A "Get started" tour on the landing page.** Four plain steps explaining projects, entries, tasks and insight, for people who haven't signed in yet. | `AuthPage.jsx` | `AuthPage.test.jsx` |
 | 5 | **A time of day for to-do entries.** Optional, alongside the due date, in the new-entry and edit forms, through offline capture and sync, in history and revert, and on Outstanding. | `Entry.due_time`, migration `015` | `test_entries.py`, `offlineSync.test.js` |
@@ -64,7 +64,7 @@ performance, 100 accessibility, 96 best practices, 100 SEO**. See
 
 Using the result turned up seven things to improve; each is now done.
 
-### Dictation and the screen reader
+### Dictation
 
 **Dictation** ("Mira" was typed as "mirror", and nothing was punctuated). The browser turns
 speech into words but not into writing, so `speech.js` adds what a person would:
@@ -80,23 +80,6 @@ speech into words but not into writing, so `speech.js` adds what a person would:
   pause gives a comma (and a lower-case next word), a long one a full stop and a capital, a
   phrase that opens like a question gets a question mark, and stopping dictation closes the
   last sentence. "I" and proper names keep their capitals.
-
-**Screen reader** (replaces the earlier "page reader", which only read the page out). It is for
-people who can't see the screen, and works like one:
-
-- Every control is read as you reach it: its name, what it is and its state and value
-  (*"Hours, edit text, 3"*, *"Bold, button, pressed"*, *"Entries, tab, selected, 1 of 4"*).
-  Passwords are never read.
-- Dialogs are announced when you enter them; alerts interrupt and status messages wait their
-  turn; a change of page is announced; typing is echoed.
-- It is usable from the keyboard: **Alt+Shift+↓/↑** next and previous item, **Alt+Shift+H/J**
-  next and previous heading, **Alt+Shift+R** read on, **Alt+Shift+T** page title,
-  **Alt+Shift+plus/minus** speed, **Esc** or **Ctrl** stop, **Alt+Shift+?** help. A visible
-  outline follows the reading position for sighted helpers.
-- Turn it on and set the speaking speed under **Profile > Screen reader**. It uses the
-  browser's voice, so nothing is installed and nothing leaves the device. A full screen reader
-  (NVDA, JAWS, VoiceOver) does more for someone who depends on one daily, and the page's own
-  markup is left alone so those keep working.
 
 ### Colours
 
@@ -292,3 +275,52 @@ existing SQLite file instead of failing the first query that names them.
   a finished status on the Board, or *Mark done* on Outstanding. Those last two send no field values, so the server checks
   what the entry already holds and refuses with "Fill in Hours before finishing this entry", leaving it where it was. A CSV
   import applies the same rule: only rows that are finished are warned about missing values.
+
+## Lecturer feedback, phase 1
+
+After a review with the lecturer, phase 1 is the forms and the way they open. (Phase 2 is Mira's
+reliability when making projects and entries, and short silent walkthrough videos in Learning
+Chronicles.)
+
+- **Every entry has a title and the time it took, and the schema says so.** *Title*, *Hours spent*
+  and *Minutes spent* lead every entry form. In the schema they are listed first, greyed out with
+  their default type and a "Built in" note, and cannot be renamed, retyped or removed; a schema adds
+  fields on top. They are not part of `entry_schema` (they are columns of the entry), so existing
+  projects, entries, imports and exports are unchanged, and a project with no fields of its own can
+  now log entries straight away. A new field may not take one of their names (a field that already
+  had it keeps it).
+- **A new project starts from a default form you can see and change.** The new-project drawer shows
+  the built-in fields and, to start you off, a long-text **Description** and a **Date**; rename,
+  retype or remove them, add your own, then create the project. They are optional, so they never
+  hold up saving an entry.
+- **Short text and long text.** The *Text* type is now **Short text** (255 characters) and a new
+  **Long text** type holds up to 5,000. The answer box matches: a line for short text, a tall box
+  that can be dragged taller for long text, a character count under each, and long text takes a
+  whole row in the entry list and shows its first lines. A value saved before the limits existed is
+  never refused for its length when left as it was. The limits are enforced by the server too
+  (`MAX_SHORT_TEXT_LENGTH`, `MAX_LONG_TEXT_LENGTH`), and CSV import makes a column of paragraphs a
+  long-text field and trims values to their field's limit.
+- **Required or not, per field.** Each field has a *Required* switch (on by default, so nothing
+  changes for existing schemas). A required field is marked with an asterisk, and a finished entry
+  must fill it in: the form says which field is empty ("Fill in Place before saving.") instead of
+  sending it, and the server enforces the same rule. Planned work never has to. An entry that was
+  saved with a field empty is not blocked from being edited because of it.
+- **Forms read like a form builder's.** One question per row, vertically, so a long name or answer
+  wraps. The field's name has its type beside it (*Short text*, *Number*, *Date*, *Choice*...), then
+  a hint, then the box, sized for the answer (a number or a date is narrow). The same layout is used
+  for the new-entry form, the edit form, the project forms and the due date and time.
+- **Edit screens are resizable drawers, not windows.** Opening an entry, creating a project and
+  editing a project now slide in from the right like a side panel. The page beside them stays
+  usable (nothing is dimmed and focus is not trapped), so you can read, scroll or open another entry
+  while one is open. Drag the left edge to resize (double-click to reset); with the edge focused,
+  the arrow keys resize and Home and End go widest and narrowest. The width is remembered. Escape
+  closes it while you are inside it, but never from elsewhere on the page. The top bar shrinks to
+  icons while a drawer leaves little room, and on a phone the drawer takes the whole screen. It
+  shows a progress bar while saving, slides in, and gives focus back to what opened it. The calendar's
+  day view is still a window, since it is a day's agenda rather than an edit screen.
+- **The in-app screen reader is gone.** Browsers and devices already have good ones (NVDA, JAWS,
+  VoiceOver, TalkBack), and Chronicles' job is to work with them: labels, roles, live regions and
+  focus handling stay as they were. The Profile setting, its settings and speaking code, and its
+  tests were removed. Voice *dictation* for Mira is a different feature and stays.
+
+Tests: 728 backend tests at 95% coverage; 876 frontend tests at 83% statement coverage.

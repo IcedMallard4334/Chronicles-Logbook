@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom"
 import { deleteAccount, fetchCurrentUser } from "./api"
 import { ACCENTS, applyPreferences, clearAccentCustoms, hasAccentCustoms, readCustomColors, saveCustomColors } from "./preferences"
 import AchievementsSection from "./AchievementsSection"
-import { readAloudSupported, readerRate, screenReaderEnabled, setReaderRate, setScreenReaderEnabled } from "./speech"
 import { resetTours } from "./tourSteps"
 import { useDialogFocus } from "./useDialogFocus"
 import "./App.css"
@@ -144,8 +143,6 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const [theme, setTheme] = useTheme()
   const [density, setDensity] = useDensity()
-  const [screenReader, setScreenReader] = useState(screenReaderEnabled)
-  const [speed, setSpeed] = useState(readerRate)
   const [custom, setCustom] = useState(readCustomColors)
   // Advanced opens by itself if any of its pieces is already in use.
   const [colourMode, setColourMode] = useState(() => {
@@ -422,43 +419,6 @@ export default function ProfilePage() {
                       Reset colours
                     </button>
                   </div>
-                </div>
-              </div>
-              <div className="profile-row profile-screen-reader">
-                <div className="profile-row-text">
-                  <span className="profile-row-label">Screen reader</span>
-                  <span className="profile-row-value">
-                    {readAloudSupported()
-                      ? "Speaks each control as you reach it, announces dialogs, alerts and new pages, echoes what you type, and lets you move around the page from the keyboard."
-                      : "Your browser doesn't support speech."}
-                  </span>
-                  {readAloudSupported() && (
-                    <details className="screen-reader-help">
-                      <summary>Keyboard shortcuts</summary>
-                      <ul>
-                        <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd>: move between controls; each is read as you arrive</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> / <kbd>↑</kbd>: next / previous item on the page</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> / <kbd>J</kbd>: next / previous heading</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>: read on from where you are</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>: read the page title</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>+</kbd> / <kbd>-</kbd>: faster / slower</li>
-                        <li><kbd>Esc</kbd> or <kbd>Ctrl</kbd>: stop speaking</li>
-                        <li><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>?</kbd>: hear these again</li>
-                      </ul>
-                    </details>
-                  )}
-                </div>
-                <div className="colour-controls">
-                  <div className="density-toggle" role="group" aria-label="Screen reader">
-                    <button type="button" className={screenReader ? "" : "is-selected"} aria-pressed={!screenReader} disabled={!readAloudSupported()} onClick={() => { setScreenReader(false); setScreenReaderEnabled(false) }}>Off</button>
-                    <button type="button" className={screenReader ? "is-selected" : ""} aria-pressed={screenReader} disabled={!readAloudSupported()} onClick={() => { setScreenReader(true); setScreenReaderEnabled(true) }}>On</button>
-                  </div>
-                  <label className="colour-picker">
-                    <span>Speaking speed</span>
-                    <select className="profile-select" aria-label="Speaking speed" value={speed} disabled={!readAloudSupported()} onChange={(event) => setSpeed(setReaderRate(event.target.value))}>
-                      {[0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2].map((value) => <option key={value} value={value}>{value === 1 ? "Normal" : `${value}×`}</option>)}
-                    </select>
-                  </label>
                 </div>
               </div>
             </section>

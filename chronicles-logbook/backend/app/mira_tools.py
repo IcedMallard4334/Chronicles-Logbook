@@ -30,7 +30,7 @@ Ref = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)]
 Clock = Annotated[str, StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 
-FIELD_TYPES = ("text", "number", "date", "dropdown", "tags", "checklist", "computed")
+FIELD_TYPES = ("text", "long_text", "number", "date", "dropdown", "tags", "checklist", "computed")
 
 PAGES = (
     "home", "today", "outstanding", "activities", "entries", "tasks", "board",
@@ -44,7 +44,7 @@ class _Args(BaseModel):
 
 class FieldSpec(_Args):
     name: Name
-    type: Literal["text", "number", "date", "dropdown", "tags", "checklist", "computed"] = "text"
+    type: Literal["text", "long_text", "number", "date", "dropdown", "tags", "checklist", "computed"] = "text"
     options: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]] | None = Field(
         default=None, max_length=30
     )

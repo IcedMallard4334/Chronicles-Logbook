@@ -1,64 +1,8 @@
-// Browser speech features. Dictation and speaking both run on the device (or the
-// browser vendor's own speech service); nothing is sent to Chronicles' servers.
-
-const READER_KEY = "chronicles-screen-reader"
-const RATE_KEY = "chronicles-screen-reader-rate"
-export const READER_EVENT = "chronicles-screen-reader-change"
-
-export const MIN_RATE = 0.6
-export const MAX_RATE = 2
-export const DEFAULT_RATE = 1
+// Voice dictation for Mira's message box. It runs on the device (or the browser
+// vendor's own speech service); nothing is sent to Chronicles' servers.
 
 export function dictationSupported() {
   return typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
-}
-
-export function readAloudSupported() {
-  return typeof window !== "undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function"
-}
-
-// ── The screen reader's settings ─────────────────────────────────────
-
-export function screenReaderEnabled() {
-  try {
-    return window.localStorage.getItem(READER_KEY) === "on"
-  } catch {
-    return false
-  }
-}
-
-export function setScreenReaderEnabled(enabled) {
-  try {
-    window.localStorage.setItem(READER_KEY, enabled ? "on" : "off")
-  } catch {
-    // Storage blocked: the preference just won't persist past this page.
-  }
-  window.dispatchEvent(new CustomEvent(READER_EVENT, { detail: { enabled } }))
-}
-
-export function clampRate(value) {
-  const rate = Number(value)
-  if (!Number.isFinite(rate)) return DEFAULT_RATE
-  return Math.min(MAX_RATE, Math.max(MIN_RATE, Math.round(rate * 10) / 10))
-}
-
-export function readerRate() {
-  try {
-    return clampRate(window.localStorage.getItem(RATE_KEY) ?? DEFAULT_RATE)
-  } catch {
-    return DEFAULT_RATE
-  }
-}
-
-export function setReaderRate(value) {
-  const rate = clampRate(value)
-  try {
-    window.localStorage.setItem(RATE_KEY, String(rate))
-  } catch {
-    // As above.
-  }
-  window.dispatchEvent(new CustomEvent(READER_EVENT, { detail: { rate } }))
-  return rate
 }
 
 // ── Dictation ────────────────────────────────────────────────────────
@@ -276,60 +220,4 @@ export function startDictation({ onFinal, onInterim, onEnd, onError, lang, initi
   }
   recognition.start()
   return { stop: () => recognition.stop() }
-}
-
-// ── Speaking ─────────────────────────────────────────────────────────
-
-// Chrome silently drops utterances longer than ~15 s, so long text is spoken
-// as sentence-sized pieces queued one after another.
-export function splitForSpeech(text, maxLength = 220) {
-  const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?\n]+[.!?]*\s*/g) || []
-  const chunks = []
-  let current = ""
-  for (const sentence of sentences) {
-    if (current && current.length + sentence.length > maxLength) {
-      chunks.push(current.trim())
-      current = ""
-    }
-    current += sentence
-    while (current.length > maxLength * 1.5) {
-      const cut = current.lastIndexOf(" ", maxLength) > 0 ? current.lastIndexOf(" ", maxLength) : maxLength
-      chunks.push(current.slice(0, cut).trim())
-      current = current.slice(cut)
-    }
-  }
-  if (current.trim()) chunks.push(current.trim())
-  return chunks.filter(Boolean)
-}
-
-/**
- * Speaks text. By default it interrupts whatever is being said; `queue: true`
- * adds to the end instead (for live announcements). `rate` is 0.6 to 2.
- */
-export function speak(text, { onEnd, onError, rate = DEFAULT_RATE, queue = false } = {}) {
-  const chunks = splitForSpeech(text)
-  const synth = window.speechSynthesis
-  if (!queue) synth.cancel()
-  let cancelled = false
-  chunks.forEach((chunk, index) => {
-    const utterance = new window.SpeechSynthesisUtterance(chunk)
-    utterance.lang = navigator.language || "en-US"
-    utterance.rate = clampRate(rate)
-    if (index === chunks.length - 1) utterance.onend = () => { if (!cancelled) onEnd?.() }
-    utterance.onerror = (event) => {
-      if (cancelled || event.error === "canceled" || event.error === "interrupted") return
-      onError?.()
-    }
-    synth.speak(utterance)
-  })
-  if (!chunks.length) onEnd?.()
-  return {
-    pause: () => synth.pause(),
-    resume: () => synth.resume(),
-    stop: () => { cancelled = true; synth.cancel() },
-  }
-}
-
-export function stopSpeaking() {
-  if (readAloudSupported()) window.speechSynthesis.cancel()
 }

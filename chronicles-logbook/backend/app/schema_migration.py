@@ -120,7 +120,7 @@ def _coerce(
     if value is None:
         return None, False
 
-    if field_type == "text":
+    if field_type in ("text", "long_text"):
         # Anything can be written down, so a change to text never loses data.
         return (value, True) if isinstance(value, str) else (_as_text(value), True)
 
@@ -173,7 +173,7 @@ def _default_value(field: dict[str, Any], captured_at: datetime) -> Any:
     """
     field_type = field.get("type")
 
-    if field_type == "text":
+    if field_type in ("text", "long_text"):
         return ""
     if field_type == "number":
         return 0
@@ -331,7 +331,8 @@ def describe_changes(
 def _type_label(field_type: str | None) -> str:
     """The name for a field type as the builder shows it."""
     return {
-        "text": "text",
+        "text": "short text",
+        "long_text": "long text",
         "number": "number",
         "date": "date",
         "dropdown": "a list of choices",

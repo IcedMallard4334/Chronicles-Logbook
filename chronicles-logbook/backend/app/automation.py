@@ -39,6 +39,8 @@ from app.models import (
 )
 from app.schemas import (
     MAX_CATCH_UP_OCCURRENCES,
+    MAX_LONG_TEXT_LENGTH,
+    MAX_SHORT_TEXT_LENGTH,
     MAX_TAG_LENGTH,
     MAX_TAGS,
     AddTagsAction,
@@ -55,7 +57,7 @@ from app.search import SearchQueryError, conditions_match, validate_conditions_a
 # Field types a rule may fill in. Computed fields are derived by the server,
 # and links, references, tags and checklists have their own rules about what a
 # valid value is that a fixed value in a rule could not keep up with.
-SETTABLE_TYPES = frozenset({"text", "number", "date", "dropdown"})
+SETTABLE_TYPES = frozenset({"text", "long_text", "number", "date", "dropdown"})
 
 
 def _unprocessable(detail: str) -> HTTPException:
@@ -143,11 +145,12 @@ def _value_problem(field_def: dict[str, Any], value: Any) -> str | None:
     """Why ``value`` can't go in this field, or None if it can."""
     field_type = field_def.get("type")
     name = field_def.get("name", field_def.get("id"))
-    if field_type == "text":
+    if field_type in ("text", "long_text"):
         if not isinstance(value, str) or not value.strip():
             return f"'{name}' needs non-empty text."
-        if len(value) > 1000:
-            return f"The value for '{name}' must be 1000 characters or fewer."
+        limit = MAX_LONG_TEXT_LENGTH if field_type == "long_text" else MAX_SHORT_TEXT_LENGTH
+        if len(value) > limit:
+            return f"The value for '{name}' must be {limit:,} characters or fewer."
     elif field_type == "number":
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             return f"'{name}' needs a number."

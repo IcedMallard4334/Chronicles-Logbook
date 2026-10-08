@@ -46,6 +46,9 @@ graph TB
 | File | Responsibility |
 |---|---|
 | `App.jsx` | Auth-aware app shell, navigation, project sidebar, project dashboard, Today/Tasks/Entries views, schema builder and editor |
+| `Drawer.jsx`, `Drawer.css` | The side drawer forms open in: docked to the right edge, resizable by dragging (or arrow keys), width remembered, page beside it stays usable |
+| `FormField.jsx`, `FormField.css` | One question in a form: name with its type beside it, hint, box sized for the answer, character count, error; also the schema editor's greyed-out built-in rows |
+| `formFields.js` | The built-in fields (title, hours, minutes), the default fields of a new project, and the required-field check shared by the new-entry and edit forms |
 | `AuthPage.jsx` | Google sign-in page with "Continue with Google" button |
 | `AuthCallback.jsx` | Handles OAuth callback token exchange |
 | `ProfilePage.jsx` | Account details, theme switcher, sign-out, delete-account confirmation |
@@ -86,7 +89,6 @@ view switch, not from the diagram's Sprint 1/2 shell):
 | `MiraAssistant.jsx`, `MiraMarkdown.jsx` | Mira's panel: streaming, Markdown, history, proposal cards |
 | `miraActions.js` | Runs confirmed Mira proposals through the ordinary API (26 handlers) |
 | `speech.js` | Dictation (alternatives, vocabulary, spoken punctuation, pause-based punctuation) and speaking |
-| `ScreenReader.jsx`, `readerDescribe.js` | The opt-in screen reader: announces focus, dialogs, live regions and pages, keyboard navigation; and how an element is named and described |
 | `Streaks.jsx` | The two streak counters in the top bar |
 | `AchievementsSection.jsx`, `AchievementsPage.jsx`, `AchievementParts.jsx` | The profile summary, the page of every badge, and the shared ring, bars and detail card |
 | `AchievementCelebration.jsx`, `BadgeArt.jsx`, `Confetti.jsx` | The celebration dialog, badge art and confetti |

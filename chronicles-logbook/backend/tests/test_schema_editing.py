@@ -919,3 +919,41 @@ async def test_migration_preview_needs_the_project_to_be_readable(
         f"/projects/{project_id}/entries/00000000-0000-0000-0000-000000000000/migration-preview"
     )
     assert response.status_code == 404
+
+
+async def test_retyping_between_short_and_long_text_keeps_what_was_written(authenticated_client):
+    project = await _create_project(authenticated_client, "Retype", [{"id": "f-note", "name": "Note", "type": FieldType.TEXT.value}])
+    entry = await _create_entry(authenticated_client, project["id"], {"f-note": "A short note"})
+
+    preview = await authenticated_client.post(
+        f"/projects/{project['id']}/schema/preview",
+        json={"entry_schema": [{"id": "f-note", "name": "Note", "type": FieldType.LONG_TEXT.value}]},
+    )
+    assert preview.status_code == 200, preview.text
+    change = preview.json()["changes"][0]
+    assert change["kind"] == "retyped"
+    assert "short text" in change["description"] and "long text" in change["description"]
+
+    saved = await authenticated_client.put(
+        f"/projects/{project['id']}", json={"entry_schema": [{"id": "f-note", "name": "Note", "type": FieldType.LONG_TEXT.value}]}
+    )
+    assert saved.status_code == 200
+    migrated = await authenticated_client.put(
+        f"/projects/{project['id']}/entries/{entry['id']}", json={"migrate_to_current_schema": True}
+    )
+    assert migrated.status_code == 200
+    assert migrated.json()["data"] == {"f-note": "A short note"}
+
+
+async def test_a_field_added_later_defaults_to_empty_text_whichever_kind(authenticated_client):
+    project = await _create_project(authenticated_client, "Later", [HOURS])
+    entry = await _create_entry(authenticated_client, project["id"], {"field-hours": 2})
+    schema = [HOURS, {"id": "f-story", "name": "Story", "type": FieldType.LONG_TEXT.value}]
+    assert (await authenticated_client.put(f"/projects/{project['id']}", json={"entry_schema": schema})).status_code == 200
+
+    migrated = await authenticated_client.put(
+        f"/projects/{project['id']}/entries/{entry['id']}", json={"migrate_to_current_schema": True}
+    )
+
+    assert migrated.status_code == 200
+    assert migrated.json()["data"]["f-story"] == ""

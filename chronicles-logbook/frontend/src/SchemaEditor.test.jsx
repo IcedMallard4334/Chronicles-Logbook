@@ -190,7 +190,7 @@ describe("editing a schema", () => {
 
     const options = within(screen.getAllByLabelText("Type")[0]).getAllByRole("option")
     expect(options.map((option) => option.textContent)).toEqual([
-      "Text", "Number", "Date", "Choice", "Tags", "Checklist", "Entry link",
+      "Short text", "Long text", "Number", "Date", "Choice", "Tags", "Checklist", "Entry link",
       "Project link", "Calculation",
     ])
   })
@@ -624,7 +624,9 @@ describe("filling in an entry", () => {
     await openProject()
 
     const form = await screen.findByRole("heading", { name: "New entry" })
-    expect(screen.queryByLabelText("Cost")).not.toBeInTheDocument()
+    // Nothing to type into: the figure is shown, marked as calculated.
+    expect(screen.queryByRole("textbox", { name: "Cost" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("spinbutton", { name: "Cost" })).not.toBeInTheDocument()
     expect(within(form.closest("form")).getByText("Calculated")).toBeInTheDocument()
   })
 
@@ -1331,7 +1333,8 @@ describe("planned work and finished work", () => {
     fireEvent.click(screen.getByLabelText(/This is still to do/))
 
     expect(screen.getByLabelText("Kind")).not.toBeRequired()
-    expect(screen.getByPlaceholderText(/Hours \(optional while this is still to do\)/)).toBeInTheDocument()
+    // Each field says it may wait; the type is still shown beside the name.
+    expect(screen.getAllByText("Optional while this is still to do.").length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 
