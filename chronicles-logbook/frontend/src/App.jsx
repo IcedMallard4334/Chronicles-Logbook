@@ -3,6 +3,7 @@ import { createMiraConversation, deleteMiraConversation, fetchMiraConversation, 
 import { describeOutcome, pageToView, runActions } from "./miraActions"
 import { EntriesPage, TasksPage } from "./WorkspacePages"
 import {
+  EntryBasics,
   EntryDetailModal,
   EntryFieldInput,
   InfoTip,
@@ -49,7 +50,7 @@ import { PAGE_TOURS, PROJECT_TOURS, WELCOME_TOUR, seenTours } from "./tourSteps"
 import DataTransfer from "./DataTransfer"
 import { REJECTED, offlineQueue } from "./offlineQueue"
 import { syncEngine } from "./offlineSync"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   archiveProject,
   createEntry,
@@ -95,6 +96,9 @@ import "./MobileLayout.css"
 import { PencilIcon } from "./EditIcon"
 import LearningLauncher from "./LearningLauncher"
 import { timeSpentProblem } from "./timeSpent"
+import Drawer from "./Drawer"
+import FormField, { ShortTextBox } from "./FormField"
+import { BUILT_IN_FIELDS, defaultSchemaFields, isBuiltInName, missingRequired, missingRequiredMessage } from "./formFields"
 import { TrashButton } from "./TrashIcon"
 
 function generateId() {
@@ -431,95 +435,145 @@ function projectFieldErrors(name, description) {
   return errors
 }
 
-/** The note under a field: how much of the cap is used, or what is wrong. */
-function FieldNote({ id, error, length, max }) {
-  return (
-    <span id={id} className={`field-note${error ? " is-error" : ""}`} role={error ? "alert" : undefined}>
-      {error || `${length} / ${max}`}
-    </span>
-  )
-}
-
-function CreateProjectModal({ isOpen, onClose, onCreate }) {
+function CreateProjectModal({ isOpen, onClose, onCreate, projects = [] }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [errors, setErrors] = useState({})
+  const [error, setError] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const draft = useSchemaDraft(() => defaultSchemaFields(generateId))
+  const formId = useId()
 
-  const handleCancel = () => {
+  const reset = () => {
     setName("")
     setDescription("")
     setErrors({})
+    setError(null)
+    draft.setFields(defaultSchemaFields(generateId))
+  }
+
+  const handleCancel = () => {
+    reset()
     onClose()
   }
 
-  const dialogRef = useDialogFocus(isOpen, handleCancel)
-
   if (!isOpen) return null
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     const found = projectFieldErrors(name, description)
     setErrors(found)
-    if (Object.keys(found).length > 0) return
-    onCreate({ name: name.trim(), description: description.trim() || null })
-    setName("")
-    setDescription("")
+    if (Object.keys(found).length > 0) {
+      setError(null)
+      return
+    }
+    const problem = schemaProblem(draft.fields)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      await onCreate({
+        name: name.trim(),
+        description: description.trim() || null,
+        entry_schema: draft.fields.map((field) => cleanField(field, draft.fields)),
+      })
+      reset()
+    } catch (err) {
+      setError(formatError(err))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
-    <div className="modal-backdrop" onClick={handleCancel} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal-card"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-project-title"
-        tabIndex={-1}
-      >
-        <LogoIcon className="modal-character" size={90} />
-        <h2 id="create-project-title">Start a new project</h2>
-        <p>What would you like to call your logbook?</p>
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="field-group">
-            <label className="field-label full">
-            Project name
-            <input
-              type="text"
-              value={name}
-              aria-invalid={errors.name ? "true" : undefined}
-              aria-describedby="create-project-name-note"
-              onChange={(event) => { setName(event.target.value); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
-              placeholder="e.g. Field Notes"
-            />
-            </label>
-            <FieldNote id="create-project-name-note" error={errors.name} length={name.trim().length} max={PROJECT_NAME_MAX} />
+    <Drawer
+      title="Start a new project"
+      subtitle="Name your logbook, then look over the form its entries will use."
+      onClose={handleCancel}
+      closeLabel="Close new project"
+      busy={isSaving}
+      className="project-drawer"
+    >
+      <form id={formId} onSubmit={handleSubmit} noValidate>
+        <div className="form-fields">
+          <FormField
+            label="Project name"
+            typeLabel="Short text"
+            required
+            size="short"
+            error={errors.name}
+            count={{ length: name.trim().length, max: PROJECT_NAME_MAX }}
+          >
+            {(controlProps) => (
+              <ShortTextBox
+                {...controlProps}
+                value={name}
+                onValueChange={(next) => { setName(next); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
+                placeholder="e.g. Field Notes"
+              />
+            )}
+          </FormField>
+          <FormField
+            label="Description (optional)"
+            typeLabel="Long text"
+            size="long"
+            error={errors.description}
+            count={{ length: description.trim().length, max: PROJECT_DESCRIPTION_MAX }}
+          >
+            {(controlProps) => (
+              <textarea
+                {...controlProps}
+                value={description}
+                onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
+                placeholder="What is this project for?"
+                rows={4}
+              />
+            )}
+          </FormField>
+        </div>
+
+        <section className="form-section" aria-labelledby={`${formId}-entry-form`}>
+          <h3 className="form-section-title" id={`${formId}-entry-form`}>Entry form</h3>
+          <p className="form-section-note">
+            Every entry asks for a title and the time it took. A description and a date are added
+            to start you off; change them, add more, or take them out.
+          </p>
+          <BuiltInFieldCards editing />
+          <div className="field-list">
+            {draft.fields.map((field, index) => (
+              <SchemaFieldEditor
+                key={field.id}
+                field={field}
+                index={index}
+                schema={draft.fields}
+                latestData={null}
+                linkable={projects}
+                onChange={draft.updateField}
+                onRemove={draft.removeField}
+              />
+            ))}
           </div>
-          <div className="field-group">
-            <label className="field-label full">
-            Description (optional)
-            <textarea
-              value={description}
-              aria-invalid={errors.description ? "true" : undefined}
-              aria-describedby="create-project-description-note"
-              onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
-              placeholder="What is this project for?"
-              rows={3}
-            />
-            </label>
-            <FieldNote id="create-project-description-note" error={errors.description} length={description.trim().length} max={PROJECT_DESCRIPTION_MAX} />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
+          <div className="actions">
+            <button type="button" className="btn-secondary" onClick={draft.addField}>
+              Add field
             </button>
-            <button type="submit" className="btn-primary" aria-label="Confirm create project">
-              Create project
-            </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </section>
+
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="modal-actions drawer-actions">
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" aria-label="Confirm create project" disabled={isSaving}>
+            {isSaving ? "Creating…" : "Create project"}
+          </button>
+        </div>
+      </form>
+    </Drawer>
   )
 }
 
@@ -545,8 +599,6 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
     setError(null)
     onClose()
   }
-
-  const dialogRef = useDialogFocus(isOpen, handleCancel)
 
   if (!isOpen) return null
 
@@ -581,62 +633,176 @@ function EditProjectModal({ isOpen, onClose, project, onSave }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={handleCancel} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal-card modal-card-wide"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-project-title"
-        tabIndex={-1}
-      >
-        <LogoIcon className="modal-character" size={90} />
-        <h2 id="edit-project-title">Edit project</h2>
-        <p>Update the name and description for this logbook.</p>
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="field-group">
-            <label className="field-label full">
-            Project name
-            <input
-              type="text"
-              value={name}
-              aria-invalid={errors.name ? "true" : undefined}
-              aria-describedby="edit-project-name-note"
-              onChange={(event) => { setName(event.target.value); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
-              placeholder="e.g. Field Notes"
-            />
-            </label>
-            <FieldNote id="edit-project-name-note" error={errors.name} length={name.trim().length} max={PROJECT_NAME_MAX} />
-          </div>
-          <div className="field-group">
-            <label className="field-label full">
-            Description (optional)
-            <textarea
-              value={description}
-              aria-invalid={errors.description ? "true" : undefined}
-              aria-describedby="edit-project-description-note"
-              onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
-              placeholder="What is this project for?"
-              rows={4}
-            />
-            </label>
-            <FieldNote id="edit-project-description-note" error={errors.description} length={description.trim().length} max={PROJECT_DESCRIPTION_MAX} />
-          </div>
-          <StatusEditor statuses={statuses} onChange={setStatuses} />
-          {error && <p className="error" role="alert">{error}</p>}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </form>
-      </div>
+    <Drawer
+      title="Edit project"
+      subtitle="Update the name, description and statuses for this logbook."
+      onClose={handleCancel}
+      closeLabel="Close edit project"
+      busy={isSaving}
+      className="project-drawer"
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="form-fields">
+          <FormField
+            label="Project name"
+            typeLabel="Short text"
+            required
+            size="short"
+            error={errors.name}
+            count={{ length: name.trim().length, max: PROJECT_NAME_MAX }}
+          >
+            {(controlProps) => (
+              <ShortTextBox
+                {...controlProps}
+                value={name}
+                onValueChange={(next) => { setName(next); if (errors.name) setErrors((current) => ({ ...current, name: undefined })) }}
+                placeholder="e.g. Field Notes"
+              />
+            )}
+          </FormField>
+          <FormField
+            label="Description (optional)"
+            typeLabel="Long text"
+            size="long"
+            error={errors.description}
+            count={{ length: description.trim().length, max: PROJECT_DESCRIPTION_MAX }}
+          >
+            {(controlProps) => (
+              <textarea
+                {...controlProps}
+                value={description}
+                onChange={(event) => { setDescription(event.target.value); if (errors.description) setErrors((current) => ({ ...current, description: undefined })) }}
+                placeholder="What is this project for?"
+                rows={4}
+              />
+            )}
+          </FormField>
+        </div>
+        <StatusEditor statuses={statuses} onChange={setStatuses} />
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="modal-actions drawer-actions">
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </Drawer>
+  )
+}
+
+/** The fields every entry has, greyed out: shown so it is clear they are there, but not editable. */
+function BuiltInFieldCards({ editing = false }) {
+  return (
+    <div className="field-list built-in-fields" role="group" aria-label="Built-in fields">
+      {BUILT_IN_FIELDS.map((field) => (
+        <div key={field.key} className="field-card is-locked">
+          {editing ? (
+            <div className="field-row">
+              <div className="field-label">
+                <span>Name</span>
+                <input type="text" value={field.name} disabled readOnly aria-label={`${field.name} (built-in field name)`} />
+              </div>
+              <div className="field-label">
+                <span>Type</span>
+                <select value={field.type} disabled aria-label={`${field.name} (built-in field type)`}>
+                  <option value={field.type}>{field.typeLabel}</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="field-summary">
+              <span className="field-summary-name">{field.name}</span>
+              <span className="field-summary-type">{field.typeLabel}</span>
+            </div>
+          )}
+          <p className="field-lock-note">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+              <rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" />
+              <path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+            Built in. {field.note}
+          </p>
+        </div>
+      ))}
     </div>
   )
+}
+
+/**
+ * The fields being edited, with the three things every schema editor needs: add one,
+ * remove one, change one. Renaming a field renames it in every calculation that uses
+ * it, so a calculation keeps naming a field that exists.
+ */
+function useSchemaDraft(initial) {
+  const [fields, setFields] = useState(initial)
+
+  const addField = () => {
+    setFields((prev) => [...prev, { id: generateId(), name: "", type: "text", options: [], required: true }])
+  }
+
+  const removeField = (index) => {
+    setFields((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateField = (index, patch) => {
+    setFields((prev) => {
+      const next = prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
+      if (patch.name !== undefined) {
+        const oldName = (prev[index].name || "").trim()
+        const newName = (patch.name || "").trim()
+        if (oldName && newName && oldName !== newName) {
+          return next.map((field) =>
+            field.type === "computed"
+              ? { ...field, expression: renameFieldInExpression(field.expression, oldName, newName) }
+              : field
+          )
+        }
+      }
+      return next
+    })
+  }
+
+  return { fields, setFields, addField, removeField, updateField }
+}
+
+/**
+ * The same rules the server enforces, checked here so a mistake is pointed out beside
+ * the field rather than after a failed save. `saved` is the schema as it stands now:
+ * a field that already has a built-in field's name keeps it, but a new one may not.
+ */
+function schemaProblem(fields, saved = []) {
+  const names = new Set()
+  for (const field of fields) {
+    const name = (field.name || "").trim()
+    if (!name) return "Every field needs a name."
+    if (names.has(name.toLowerCase())) return `Two fields are both called "${name}".`
+    names.add(name.toLowerCase())
+
+    const alreadyNamedSo = saved.some((old) => old.id === field.id && (old.name || "").trim().toLowerCase() === name.toLowerCase())
+    if (isBuiltInName(name) && !alreadyNamedSo) {
+      return `"${name}" is already built in to every entry, so choose another name.`
+    }
+
+    // A calculation refers to a field by its name, so a brace in a name
+    // would be read as half a reference, the same line the server holds.
+    if (/{|}/.test(name)) {
+      return `"${name}" cannot contain braces, because a calculation refers to a field by its name.`
+    }
+    if (field.type === "dropdown" && (field.options || []).length === 0) {
+      return `"${name}" needs at least one option.`
+    }
+    if (field.type === "project_reference" && !field.linked_project_id) {
+      return `"${name}" needs to say which project it links to.`
+    }
+    if (field.type === "computed") {
+      const problem = expressionError(field.expression, field, fields)
+      if (problem) return `"${name}": ${problem}`
+    }
+  }
+  return null
 }
 
 function ProjectList({
@@ -826,6 +992,8 @@ function ProjectList({
  */
 function cleanField(field, schema) {
   const cleaned = { id: field.id, name: (field.name || "").trim(), type: field.type }
+  // Required is the default, so only a field that is not required says so.
+  if (field.required === false) cleaned.required = false
   if (field.type === "dropdown") cleaned.options = field.options || []
   if (field.type === "computed") {
     cleaned.expression = expressionCanonical((field.expression || "").trim(), schema)
@@ -940,6 +1108,9 @@ function SchemaFieldSummary({ field, schema, projects }) {
       <div className="field-summary">
         <span className="field-summary-name">{field.name}</span>
         <span className="field-summary-type">{fieldTypeLabel(field.type)}</span>
+        {field.required === false && field.type !== "computed" && field.type !== "project_reference" && (
+          <span className="field-summary-flag">Optional</span>
+        )}
       </div>
       {field.type === "dropdown" && (
         <p className="field-summary-detail">{(field.options || []).join(" · ")}</p>
@@ -1018,6 +1189,17 @@ function SchemaFieldEditor({ field, index, schema, latestData, linkable, onChang
       <p className="field-type-hint">
         {FIELD_TYPES.find((type) => type.value === field.type)?.hint}
       </p>
+      {field.type !== "computed" && field.type !== "project_reference" && (
+        <label className="field-required-toggle">
+          <input
+            type="checkbox"
+            checked={field.required !== false}
+            onChange={(event) => onChange(index, { required: event.target.checked })}
+          />
+          <span>Required</span>
+          <small>A finished entry must fill this in. Planned work never has to.</small>
+        </label>
+      )}
       {field.type === "dropdown" && (
         <label className="field-label full">
           Options (comma-separated)
@@ -1149,7 +1331,7 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
   }, [project.entries])
 
   const [mode, setMode] = useState("view")
-  const [fields, setFields] = useState(savedFields)
+  const { fields, setFields, addField, removeField, updateField } = useSchemaDraft(savedFields)
   const [preview, setPreview] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -1170,7 +1352,7 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
     setFields(savedFields)
     setPreview(null)
     setError(null)
-  }, [project.id, savedFields])
+  }, [project.id, savedFields, setFields])
 
   useEffect(() => {
     setSavedResult(null)
@@ -1199,69 +1381,7 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
     setError(null)
   }
 
-  const addField = () => {
-    setFields((prev) => [...prev, { id: generateId(), name: "", type: "text", options: [] }])
-  }
-
-  const removeField = (index) => {
-    setFields((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const updateField = (index, patch) => {
-    setFields((prev) => {
-      const next = prev.map((field, i) => (i === index ? { ...field, ...patch } : field))
-
-      // Renaming a field renames it in every calculation that refers to it,
-      // so a calculation keeps naming a field that exists rather than
-      // quietly breaking the moment its source is renamed.
-      if (patch.name !== undefined) {
-        const oldName = (prev[index].name || "").trim()
-        const newName = (patch.name || "").trim()
-        if (oldName && newName && oldName !== newName) {
-          return next.map((field) =>
-            field.type === "computed"
-              ? {
-                  ...field,
-                  expression: renameFieldInExpression(field.expression, oldName, newName),
-                }
-              : field
-          )
-        }
-      }
-      return next
-    })
-  }
-
-  /**
-   * The same rules the server enforces, checked here so a mistake is pointed
-   * out beside the field rather than after a failed save.
-   */
-  const validateSchema = () => {
-    const names = new Set()
-    for (const field of fields) {
-      const name = (field.name || "").trim()
-      if (!name) return "Every field needs a name."
-      if (names.has(name.toLowerCase())) return `Two fields are both called "${name}".`
-      names.add(name.toLowerCase())
-
-      // A calculation refers to a field by its name, so a brace in a name
-      // would be read as half a reference — the same line the server holds.
-      if (/{|}/.test(name)) {
-        return `"${name}" cannot contain braces, because a calculation refers to a field by its name.`
-      }
-      if (field.type === "dropdown" && (field.options || []).length === 0) {
-        return `"${name}" needs at least one option.`
-      }
-      if (field.type === "project_reference" && !field.linked_project_id) {
-        return `"${name}" needs to say which project it links to.`
-      }
-      if (field.type === "computed") {
-        const problem = expressionError(field.expression, field, fields)
-        if (problem) return `"${name}": ${problem}`
-      }
-    }
-    return null
-  }
+  const validateSchema = () => schemaProblem(fields, savedFields)
 
   const applyChanges = async () => {
     setIsSaving(true)
@@ -1342,9 +1462,10 @@ function SchemaBuilder({ project, projects, onPreview, onSave, disabled, onSwitc
             : "The fields this logbook asks for."}
         </p>
       </div>
+      <BuiltInFieldCards editing={isEditing} />
       {fields.length === 0 ? (
         <p className="hint">
-          {isEditing ? "No fields yet. Add one to get started." : "No fields defined yet."}
+          {isEditing ? "Nothing added on top yet. Add a field to ask for more." : "Nothing added on top of these yet."}
         </p>
       ) : (
         <div className="field-list">
@@ -1555,12 +1676,13 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (schema.length === 0) {
-      setError("Define an entry schema before adding entries.")
-      return
-    }
     if (!title.trim()) {
       setError("Give this entry a title so it can be found again.")
+      return
+    }
+    const missing = missingRequiredMessage(missingRequired(schema, data, { todo, ruleFillable }))
+    if (missing) {
+      setError(missing)
       return
     }
     setIsSaving(true)
@@ -1590,6 +1712,10 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         }
         if (field.type === "link" && payload[field.id] === undefined) {
           payload[field.id] = ""
+        }
+        // A tags field this entry does not need to fill in is left out when it has no tags.
+        if (field.type === "tags" && (todo || field.required === false) && payload[field.id]?.length === 0) {
+          delete payload[field.id]
         }
       }
       // Planned work may leave any field empty, so nothing is demanded of its tags either.
@@ -1640,33 +1766,23 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
     }
   }
 
-  if (schema.length === 0) {
-    return (
-      <div className="hint-card">
-        <p>This project has no entry schema yet.</p>
-        <p>
-          Switch to the <strong>Schema</strong> tab to define fields.
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <form className="entry-form" onSubmit={handleSubmit}>
+    <form className="entry-form" onSubmit={handleSubmit} noValidate>
       <div className="panel-head">
         <h3>New entry</h3>
+        <p>The fields marked * are needed to save it.</p>
       </div>
-      <label className="field-label">
-        Title
-        <input
-          type="text"
-          required
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Give this entry a name so it's easy to find later"
+      <div className="form-fields">
+        <EntryBasics
+          title={title}
+          onTitle={setTitle}
+          hours={hoursSpent}
+          onHours={setHoursSpent}
+          minutes={minutesSpent}
+          onMinutes={setMinutesSpent}
+          hoursInvalid={Boolean(timeSpentProblem(hoursSpent, ""))}
+          minutesInvalid={Boolean(timeSpentProblem("", minutesSpent))}
         />
-      </label>
-      <div className="form-grid">
         {schema.map((field) => (
           <EntryFieldInput
             key={field.id}
@@ -1684,35 +1800,10 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
           />
         ))}
       </div>
-      <div className="form-grid time-tracking">
-        <label className="field-label">
-          Hours spent
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={hoursSpent}
-            aria-invalid={timeSpentProblem(hoursSpent, "") ? "true" : undefined}
-            onChange={(e) => setHoursSpent(e.target.value)}
-            placeholder="0"
-          />
-        </label>
-        <label className="field-label">
-          Minutes spent
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={minutesSpent}
-            aria-invalid={timeSpentProblem("", minutesSpent) ? "true" : undefined}
-            onChange={(e) => setMinutesSpent(e.target.value)}
-            placeholder="0"
-          />
-        </label>
-      </div>
       {/* Logging something that has not happened yet: it is planned work, so it
           belongs in the outstanding view rather than the record of what was done. */}
-      <div className="form-grid entry-outstanding">
+      <section className="form-section entry-outstanding" aria-label="Progress">
+        <h3 className="form-section-title">Progress</h3>
         {customStatuses ? (
           <StatusPicker
             project={project}
@@ -1741,26 +1832,19 @@ function EntryForm({ project, projects = [], entries = [], onCreated, onOpenProj
         )}
         {todo && (
           <>
-            <label className="field-label due-date-field">
-              Due date
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </label>
-            <label className="field-label due-date-field">
-              Time of day (optional)
-              <input
-                type="time"
-                value={dueTime}
-                disabled={!dueDate}
-                onChange={(e) => setDueTime(e.target.value)}
-              />
-            </label>
+            <FormField label="Due date" typeLabel="Date" size="narrow">
+              {(controlProps) => (
+                <input {...controlProps} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              )}
+            </FormField>
+            <FormField label="Time of day (optional)" typeLabel="Time" size="narrow">
+              {(controlProps) => (
+                <input {...controlProps} type="time" value={dueTime} disabled={!dueDate} onChange={(e) => setDueTime(e.target.value)} />
+              )}
+            </FormField>
           </>
         )}
-      </div>
+      </section>
       {error && <p className="error" role="alert">{error}</p>}
       {ruleNotice && <p className="rule-applied-notice" role="status">{ruleNotice}</p>}
       <div className="actions">
@@ -1943,7 +2027,7 @@ function EntryList({
                   return (
                     <div
                       key={field.id}
-                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}`}
+                      className={`log-field ${isNumericField(field) ? "is-numeric" : ""}${field.type === "long_text" ? " is-long" : ""}`}
                     >
                       <span className="log-label" title={field.name}>
                         {shortLabel(field.name)}
@@ -2983,16 +3067,13 @@ function App() {
   }, [refreshQueued])
 
 
-  const handleCreateProject = async ({ name, description }) => {
-    try {
-      const project = await createProject({ name, description, entry_schema: [] })
-      setProjects((prev) => [...prev, project])
-      setView("project")
-      setSelectedId(project.id)
-      setIsModalOpen(false)
-    } catch (err) {
-      setError(formatError(err))
-    }
+  // Throws on failure so the new-project drawer can say what went wrong beside the form.
+  const handleCreateProject = async ({ name, description, entry_schema }) => {
+    const project = await createProject({ name, description, entry_schema })
+    setProjects((prev) => [...prev, project])
+    setView("project")
+    setSelectedId(project.id)
+    setIsModalOpen(false)
   }
 
   const handleSelectProject = (id) => {
@@ -3482,6 +3563,7 @@ function App() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreate={handleCreateProject}
+        projects={projects}
       />
       <EditProjectModal
         isOpen={isEditModalOpen}

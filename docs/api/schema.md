@@ -8,7 +8,8 @@ already exist.
 
 | Type | Value in `data` | Required on create | Extra keys |
 |---|---|---|---|
-| `text` | string | Yes | — |
+| `text` (short text) | string, up to 255 characters | Yes | — |
+| `long_text` (long text) | string, up to 5,000 characters | Yes | — |
 | `number` | integer or float | Yes | — |
 | `date` | ISO date string (`YYYY-MM-DD`) | Yes | — |
 | `dropdown` | one of `options` | Yes | `options` (non-empty array of strings) |
@@ -16,8 +17,27 @@ already exist.
 | `computed` | number or `null` | Never — server-derived | `expression` |
 
 A field definition is `{ "id": "...", "name": "...", "type": "..." }` plus the
-extra keys its type requires. Field names must be unique within a schema
+extra keys its type requires, and an optional `"required": false`. Field names must be unique within a schema
 (case-insensitively); ids must be unique and are how values in `data` are keyed.
+
+**Required.** Every field is `required: true` unless it says otherwise (the default, and what
+every schema saved before the flag existed means). A *finished* entry must give a required field
+a value; a field with `required: false` may be left out. A planned entry (to do) never has to fill
+in anything. `computed` and `project_reference` fields are never asked for.
+
+**Short and long text.** The two are the same kind of value with different room: `text` is for a
+name, a place or a line (255 characters), `long_text` for notes and descriptions (5,000). A value
+over the limit is refused with `Field 'Place' can hold at most 255 characters`. A value that was
+stored before the limit existed, and is sent back unchanged, is not refused, so an older entry can
+still be saved. Changing a field between the two keeps what was written.
+
+### What every entry has
+
+`title` and `time_spent` (hours and minutes in the forms) are columns of the entry, not entries in
+`entry_schema`: every entry has them whatever the schema says. The app shows them as greyed-out
+built-in fields at the top of the schema, and a schema edit can add fields on top but never rename,
+retype or remove them. A new project made in the app starts with a long-text `Description` and a
+`Date` (both `required: false`) in its `entry_schema`.
 
 ---
 

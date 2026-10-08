@@ -19,8 +19,8 @@ Covers **US-3.15** (API robustness), **US-3.16** (latency & hosting), **US-3.17*
     50 ms, Cumulative Layout Shift 0.08.
 
     Performance varies with how busy the machine is: repeated runs on 1 October 2026, after
-    the screen reader and the new colour code were added, scored between 90 and 98 (LCP 1.8 to
-    2.7 s). The screen reader is loaded only when someone switches it on, so it adds nothing to
+    the in-app screen reader (since removed, in favour of the browser's own) and the new colour code were added, scored between 90 and 98 (LCP 1.8 to
+    2.7 s). The screen reader was loaded only when someone switched it on, so it added nothing to
     the landing page's critical path; accessibility stayed at 100 on every run. Two notes: best practices reads 96 here only
     because the local run has no backend, so the page's session check logs one
     failed request to the console (the deployed site, with its API, scored 100); and

@@ -28,6 +28,8 @@ from app.schema_migration import Simulation, migrate_entry_data, simulate, simul
 from app.schemas import (
     MAX_CHECKLIST_ITEM_LENGTH,
     MAX_CHECKLIST_ITEMS,
+    MAX_LONG_TEXT_LENGTH,
+    MAX_SHORT_TEXT_LENGTH,
     MAX_TAG_LENGTH,
     MAX_TAGS,
     MAX_TIME_SPENT_MINUTES,
@@ -152,12 +154,18 @@ async def _validate_entry_data(
     project_id: UUID | None = None,
     self_id: UUID | None = None,
     require_values: bool = True,
+    previous: dict[str, Any] | None = None,
 ) -> None:
     """Validate entry field values against the project's entry_schema.
 
     ``require_values`` is False for an entry that is still to do: planned work
     has not happened yet, so it may leave fields empty. Whatever *is* given is
-    still checked. Once the entry is done it must be complete.
+    still checked. Once the entry is done it must give every field marked
+    required a value (a field with ``required: false`` may stay empty).
+
+    ``previous`` is what the entry held before this write. A text value that
+    is unchanged is not held to the length limit, so an entry written when
+    there was no limit can still be saved.
 
     ``known_project_ids`` is the set of project ids a reference field is
     allowed to name — the caller's own projects. It is optional because the
@@ -176,7 +184,12 @@ async def _validate_entry_data(
 
     for field in entry_schema:
         field_id = field["id"]
-        if require_values and field_id not in data and field.get("type") not in _OPTIONAL_TYPES:
+        if (
+            require_values
+            and field_id not in data
+            and field.get("type") not in _OPTIONAL_TYPES
+            and field.get("required", True)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Missing required field: {field['name']}",
@@ -194,11 +207,17 @@ async def _validate_entry_data(
         field_type = field.get("type")
         field_name = field.get("name", field_id)
 
-        if field_type == "text":
+        if field_type in ("text", "long_text"):
             if not isinstance(value, str):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Field '{field_name}' must be text",
+                )
+            limit = MAX_LONG_TEXT_LENGTH if field_type == "long_text" else MAX_SHORT_TEXT_LENGTH
+            if len(value) > limit and not (previous and previous.get(field_id) == value):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Field '{field_name}' can hold at most {limit:,} characters",
                 )
         elif field_type == "number":
             if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -1190,7 +1209,9 @@ async def update_entry(
         lacking = [
             field["name"]
             for field in (entry.schema_snapshot or [])
-            if field["id"] not in held and field.get("type") not in _OPTIONAL_TYPES
+            if field["id"] not in held
+            and field.get("type") not in _OPTIONAL_TYPES
+            and field.get("required", True)
         ]
         if lacking:
             raise HTTPException(
@@ -1228,7 +1249,13 @@ async def update_entry(
         merged_data = {**baseline_data, **(payload.data or {})}
         payload_data = _apply_project_references(merged_data, target_schema)
         await _validate_entry_data(
-            payload_data, target_schema, known_project_ids, db=db, user=user, require_values=not will_be_todo
+            payload_data,
+            target_schema,
+            known_project_ids,
+            db=db,
+            user=user,
+            require_values=not will_be_todo,
+            previous=entry.data or {},
         )
         entry.data = apply_computed_fields(payload_data, target_schema)
         entry.retired_data = baseline_retired
@@ -1246,6 +1273,7 @@ async def update_entry(
             project_id=project_id,
             self_id=entry_id,
             require_values=not will_be_todo,
+            previous=entry.data or {},
         )
         entry.data = apply_computed_fields(payload_data, entry_schema)
 

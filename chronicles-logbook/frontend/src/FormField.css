@@ -1,0 +1,270 @@
+/* --------------------------------------------------
+   FORM FIELDS
+   One question per row. The name sits on top with its type beside it, the
+   answer box underneath. The box is sized for the answer: a number or a date is
+   narrow, a line of text is a line, a paragraph is a tall box.
+   -------------------------------------------------- */
+
+.form-fields {
+  display: grid;
+  gap: 22px;
+}
+
+.form-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+
+.form-field-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.form-field-name {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.form-field-required {
+  margin-left: -4px;
+  color: var(--error);
+  font-weight: 700;
+}
+
+.form-field-type {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.form-field-hint {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  background: var(--bg);
+  font: inherit;
+  font-size: 0.92rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent);
+  outline: none;
+}
+.form-field input::placeholder,
+.form-field textarea::placeholder { color: var(--muted); opacity: 0.6; }
+.form-field input:disabled,
+.form-field select:disabled,
+.form-field textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* The box fits the answer. */
+.form-field.is-narrow input:not([type="checkbox"]),
+.form-field.is-narrow select { max-width: 14rem; }
+.form-field.is-short input:not([type="checkbox"]),
+.form-field.is-short select { max-width: 32rem; }
+.form-field.is-long textarea {
+  min-height: 9rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.form-field.has-error input,
+.form-field.has-error select,
+.form-field.has-error textarea { border-color: var(--error); }
+
+.form-field-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 1em;
+}
+.form-field-error { color: var(--error); font-size: 0.8rem; font-weight: 600; }
+.form-field-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.form-field-count.is-near { color: var(--warning); }
+.form-field-count.is-over { color: var(--error); }
+
+/* A read-only answer (a calculation, a link) wears the same frame as a box. */
+.form-field .computed-value { margin: 0; }
+
+/* Built in to every entry: shown, but not editable. */
+.form-field.is-built-in .form-field-type { background: var(--surface-soft); color: var(--muted); }
+
+/* A group of fields under one heading, like "When" or "Fields". */
+.form-section {
+  display: grid;
+  gap: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.form-section:first-child { padding-top: 0; border-top: 0; }
+.form-section-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.form-section-note {
+  margin: -8px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* --------------------------------------------------
+   SCHEMA EDITOR — built-in fields, the required switch
+   -------------------------------------------------- */
+
+/* A field every entry has: shown, greyed, never editable. */
+.field-card.is-locked {
+  gap: 8px;
+  border-style: dashed;
+  background: var(--surface-soft);
+  opacity: 0.78;
+}
+.field-card.is-locked input,
+.field-card.is-locked select { cursor: not-allowed; }
+.field-card.is-locked .field-summary-name { color: var(--muted); }
+.field-card.is-locked .field-summary-type { background: var(--surface); color: var(--muted); }
+.field-lock-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.field-lock-note svg { flex: none; }
+.built-in-fields { margin-bottom: 0; }
+
+.field-required-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 9px;
+  row-gap: 2px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.field-required-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--blue); }
+.field-required-toggle small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.field-summary-flag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------
+   DRAWERS — what sits inside
+   -------------------------------------------------- */
+
+/* In a drawer an entry reads as a list, one field per row, so long answers wrap. */
+.entry-drawer .entry-detail-fields {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.entry-drawer .entry-detail-field {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.entry-drawer .entry-detail-field:last-child { border-bottom: 0; }
+.entry-drawer .entry-detail-field dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.drawer-body .field-list { margin: 0; }
+.drawer-body .field-card { background: var(--bg); }
+.drawer-body .field-card.is-locked { background: var(--surface-soft); }
+.drawer-body .status-editor { margin: 0; }
+.drawer-body .entry-history,
+.drawer-body .entry-recurrence { margin-top: 18px; }
+
+/* The count sits under the box it counts, not at the far edge of a wider row. */
+.form-field.is-short .form-field-foot { max-width: 32rem; }
+.entry-form .panel-head { margin-bottom: 20px; }
+
+/* In the read-only schema list the name leads and the type and flags sit together on the right. */
+.field-summary { justify-content: flex-start; align-items: center; flex-wrap: wrap; }
+.field-summary .field-summary-name { margin-right: auto; }
+
+/* A paragraph in the entry list takes a whole row and shows its first lines; the drawer has the rest. */
+.log-value { overflow-wrap: anywhere; }
+.log-field.is-long { grid-column: 1 / -1; }
+.log-field.is-long .log-value {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-line;
+}
+
+/* A short answer is one line that grows downwards when the text runs on. */
+.form-field .short-text-box {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  resize: none;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.form-field.is-short .short-text-box { max-width: 32rem; }
+
+/* The "still to do" row: close under its heading, with room before the help mark, which is not clipped. */
+.form-section .checkbox-with-tip {
+  align-self: start;
+  gap: 12px;
+  padding: 0;
+  margin-top: -6px;
+}
+.form-section.entry-outstanding { gap: 14px; }
+.form-section .info-tip-trigger { width: 22px; height: 22px; overflow: visible; }
+.form-section .info-tip-trigger svg { width: 18px; height: 18px; overflow: visible; }
+
+.entry-form > .actions { margin-top: 10px; }

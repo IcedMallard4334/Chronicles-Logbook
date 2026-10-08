@@ -28,6 +28,7 @@ describe("field types", () => {
   it("offers entry-level, link and calculation types alongside the original four", () => {
     expect(FIELD_TYPES.map((type) => type.value)).toEqual([
       "text",
+      "long_text",
       "number",
       "date",
       "dropdown",
@@ -401,5 +402,26 @@ describe("describing an expression", () => {
 
   it("copes with no expression at all", () => {
     expect(describeExpression(undefined, [hours])).toBe("")
+  })
+})
+
+describe("short text and long text", () => {
+  it("have different limits, and both count as text", async () => {
+    const { TEXT_LIMITS, isTextField, searchOperatorsFor } = await import("./fieldTypes")
+
+    expect(TEXT_LIMITS).toEqual({ text: 255, long_text: 5000 })
+    expect(isTextField({ type: "text" })).toBe(true)
+    expect(isTextField({ type: "long_text" })).toBe(true)
+    expect(isTextField({ type: "number" })).toBe(false)
+    expect(isTextField(undefined)).toBe(false)
+    // Searched the same way as short text.
+    expect(searchOperatorsFor("long_text").map((operator) => operator.value)).toEqual(["contains", "equals"])
+  })
+
+  it("are named for what goes in them", async () => {
+    const { fieldTypeLabel } = await import("./fieldTypes")
+
+    expect(fieldTypeLabel("text")).toBe("Short text")
+    expect(fieldTypeLabel("long_text")).toBe("Long text")
   })
 })

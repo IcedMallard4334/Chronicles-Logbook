@@ -1,60 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  appendDictation, applySpokenPunctuation, applyVocabulary, chooseAlternative, clampRate, createDictationFormatter,
-  dictationSupported, looksLikeQuestion, polishTranscript, READER_EVENT, readerRate, screenReaderEnabled, setReaderRate,
-  setScreenReaderEnabled, speak, splitForSpeech, startDictation, startsSentence, stopSpeaking,
+  appendDictation, applySpokenPunctuation, applyVocabulary, chooseAlternative, createDictationFormatter,
+  dictationSupported, looksLikeQuestion, polishTranscript, startDictation, startsSentence,
 } from "./speech"
 
 afterEach(() => {
   delete window.SpeechRecognition
   delete window.webkitSpeechRecognition
-  delete window.speechSynthesis
-  delete window.SpeechSynthesisUtterance
   window.localStorage.clear()
   vi.restoreAllMocks()
-})
-
-describe("splitForSpeech", () => {
-  it("keeps short text as one piece", () => {
-    expect(splitForSpeech("Hello there. How are you?")).toEqual(["Hello there. How are you?"])
-  })
-
-  it("splits long text at sentence boundaries under the limit", () => {
-    const sentence = "This is a sentence of moderate length that goes on a bit. "
-    const chunks = splitForSpeech(sentence.repeat(20))
-    expect(chunks.length).toBeGreaterThan(1)
-    chunks.forEach((chunk) => expect(chunk.length).toBeLessThanOrEqual(330))
-  })
-
-  it("breaks a single run-on sentence with no punctuation", () => {
-    expect(splitForSpeech("word ".repeat(200)).length).toBeGreaterThan(1)
-  })
-
-  it("returns nothing for blank text", () => {
-    expect(splitForSpeech("   ")).toEqual([])
-  })
-})
-
-describe("the screen reader's settings", () => {
-  it("defaults off, persists, and announces changes", () => {
-    const listener = vi.fn()
-    window.addEventListener(READER_EVENT, listener)
-    expect(screenReaderEnabled()).toBe(false)
-    setScreenReaderEnabled(true)
-    expect(screenReaderEnabled()).toBe(true)
-    expect(listener.mock.calls[0][0].detail).toEqual({ enabled: true })
-    window.removeEventListener(READER_EVENT, listener)
-  })
-
-  it("keeps the speaking speed within sensible bounds", () => {
-    expect(readerRate()).toBe(1)
-    expect(setReaderRate(1.44)).toBe(1.4)
-    expect(readerRate()).toBe(1.4)
-    expect(clampRate(9)).toBe(2)
-    expect(clampRate(0.1)).toBe(0.6)
-    expect(clampRate("fast")).toBe(1)
-  })
 })
 
 describe("recognising the words we expect", () => {
@@ -283,66 +238,5 @@ describe("dictation", () => {
     made.instance.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "hello" }], { isFinal: true })] })
 
     expect(chunks).toEqual(["Hello"])
-  })
-})
-
-describe("speaking", () => {
-  function fakeSynth() {
-    const spoken = []
-    window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text } }
-    window.speechSynthesis = {
-      speak: vi.fn((utterance) => spoken.push(utterance)),
-      cancel: vi.fn(),
-      pause: vi.fn(),
-      resume: vi.fn(),
-    }
-    return spoken
-  }
-
-  it("interrupts by default and speaks at the chosen rate", () => {
-    const spoken = fakeSynth()
-    speak("Hello there", { rate: 1.5 })
-
-    expect(window.speechSynthesis.cancel).toHaveBeenCalled()
-    expect(spoken[0].text).toBe("Hello there")
-    expect(spoken[0].rate).toBe(1.5)
-  })
-
-  it("can queue instead of interrupting", () => {
-    fakeSynth()
-    speak("Later", { queue: true })
-    expect(window.speechSynthesis.cancel).not.toHaveBeenCalled()
-  })
-
-  it("reports the end, and stops", () => {
-    const spoken = fakeSynth()
-    const onEnd = vi.fn()
-    const control = speak("Done", { onEnd })
-
-    spoken.at(-1).onend()
-    expect(onEnd).toHaveBeenCalled()
-    control.pause()
-    control.resume()
-    control.stop()
-    expect(window.speechSynthesis.pause).toHaveBeenCalled()
-    expect(window.speechSynthesis.resume).toHaveBeenCalled()
-  })
-
-  it("ignores cancellations but reports real errors", () => {
-    const spoken = fakeSynth()
-    const onError = vi.fn()
-    speak("Oops", { onError })
-
-    spoken[0].onerror({ error: "canceled" })
-    expect(onError).not.toHaveBeenCalled()
-    spoken[0].onerror({ error: "synthesis-failed" })
-    expect(onError).toHaveBeenCalled()
-  })
-
-  it("stopSpeaking cancels whatever is being said, and is harmless without speech support", () => {
-    stopSpeaking()
-    fakeSynth()
-    stopSpeaking()
-    expect(window.speechSynthesis.cancel).toHaveBeenCalled()
   })
 })

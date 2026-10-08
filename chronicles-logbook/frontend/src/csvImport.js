@@ -18,6 +18,8 @@
  * before anything is imported.
  */
 
+import { TEXT_LIMITS } from "./fieldTypes"
+
 const MAX_MINUTES = 10000 * 60
 const DONE_WORDS = /done|complete|finished|shipped|closed|resolved/i
 const KNOWN = {
@@ -100,7 +102,7 @@ function fieldType(values) {
   const filled = values.map((value) => value.trim()).filter(Boolean)
   if (filled.length && filled.every((value) => /^-?\d+(\.\d+)?$/.test(value))) return "number"
   if (filled.length && filled.every((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))) return "date"
-  return "text"
+  return filled.some((value) => value.length > TEXT_LIMITS.text) ? "long_text" : "text"
 }
 
 /** A cell as the value a field of this type holds, or undefined when it can't be. */
@@ -111,7 +113,8 @@ function valueFor(field, raw) {
   if (field.type === "date") return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : undefined
   if (field.type === "dropdown") return (field.options || []).find((option) => option.toLowerCase() === text.toLowerCase())
   if (field.type === "tags") return text.split(/[,;]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 10).map((tag) => tag.slice(0, 30))
-  if (field.type === "text") return text.slice(0, 1000)
+  if (field.type === "text") return text.slice(0, TEXT_LIMITS.text)
+  if (field.type === "long_text") return text.slice(0, TEXT_LIMITS.long_text)
   return undefined
 }
 

@@ -30,6 +30,7 @@ from app.schemas import FieldCondition
 
 OPERATORS_BY_TYPE: dict[str, set[str]] = {
     "text": {"contains", "equals"},
+    "long_text": {"contains", "equals"},
     "number": {"equals", "gt", "gte", "lt", "lte", "between"},
     "computed": {"equals", "gt", "gte", "lt", "lte", "between"},
     "date": {"on", "before", "after", "between"},
@@ -260,6 +261,7 @@ def _match_reference(value: Any, operator: str, condition: FieldCondition) -> bo
 
 _MATCHERS = {
     "text": _match_text,
+    "long_text": _match_text,
     "dropdown": _match_dropdown,
     "tags": _match_tags,
     "checklist": _match_checklist,
@@ -293,7 +295,7 @@ def condition_matches(
         return _match_number(value, condition.operator, condition)
     if field_type == "date":
         return _match_date(value, condition.operator, condition)
-    if field_type == "text":
+    if field_type in ("text", "long_text"):
         return _match_text(value, condition.operator, condition.value)
 
     matcher = _MATCHERS.get(field_type)

@@ -357,7 +357,15 @@ describe("App workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Create project" }))
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Field Notes" } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm create project" }))
-    await waitFor(() => expect(createProject).toHaveBeenCalledWith({ name: "Field Notes", description: null, entry_schema: [] }))
+    // A new project starts with a description and a date on top of the built-in title and time.
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith({
+      name: "Field Notes",
+      description: null,
+      entry_schema: [
+        expect.objectContaining({ name: "Description", type: "long_text", required: false }),
+        expect.objectContaining({ name: "Date", type: "date", required: false }),
+      ],
+    }))
   })
 
   it("tells the person what is wrong, on the dialog, when they press Create", async () => {
@@ -395,7 +403,7 @@ describe("App workspace", () => {
     expect(screen.getByText("0 / 255")).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Field" } })
     expect(screen.getByText("5 / 255")).toBeInTheDocument()
-    expect(screen.getByText("0 / 4000")).toBeInTheDocument()
+    expect(screen.getByText("0 / 4,000")).toBeInTheDocument()
   })
 })
 
@@ -659,7 +667,7 @@ describe("entry rules in a project (US-3.12)", () => {
     await waitFor(() => expect(kind).not.toBeRequired())
     expect(screen.getByText("Leave for the rule…")).toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText("Hours"), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText("Hours"), { target: { value: "2" } })
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test entry" } })
     fireEvent.click(screen.getByRole("button", { name: "Save entry" }))
 

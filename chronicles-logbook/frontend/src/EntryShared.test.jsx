@@ -76,28 +76,19 @@ describe("EntryDetailModal", () => {
   })
 
   it("renders as a direct child of <body>, not nested in the caller's tree", () => {
-    // Regression guard: this modal opens from inside ViewTransition's
-    // animated wrapper, which leaves a resolved (if visually identity)
-    // `transform` on itself even after its entrance animation finishes —
-    // any transform other than the literal `none` makes an ancestor a
-    // containing block for a `position: fixed` descendant, so without a
-    // portal this modal centers itself inside that wrapper's full
-    // scrollable height instead of the real viewport, and can render
-    // partly off whatever's currently on screen. Confirmed against the
-    // real app (not just this unit test) via a scripted Chrome session:
-    // before the portal, the modal's top could compute to a negative
-    // number (above the visible viewport); after it, top/left matched the
-    // exact centered values for the window size.
+    // The drawer is position: fixed, and it opens from inside animated wrappers that can leave
+    // a transform behind. A transform on any ancestor would make that wrapper the drawer's
+    // containing block, so it would be placed inside the wrapper instead of against the window.
     const { container } = render(
       <div id="caller-wrapper">
         <EntryDetailModal project={project} entry={upToDateEntry()} onClose={vi.fn()} />
       </div>
     )
 
-    const backdrop = document.querySelector(".modal-backdrop")
-    expect(backdrop).toBeInTheDocument()
-    expect(backdrop.parentElement).toBe(document.body)
-    expect(container.querySelector(".modal-backdrop")).not.toBeInTheDocument()
+    const drawer = document.querySelector(".drawer")
+    expect(drawer).toBeInTheDocument()
+    expect(drawer.parentElement).toBe(document.body)
+    expect(container.querySelector(".drawer")).not.toBeInTheDocument()
   })
 
   it("shows a stale entry's own field set, not the project's current one", () => {
@@ -251,12 +242,15 @@ describe("EntryDetailModal", () => {
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument()
   })
 
-  it("closes on Escape", () => {
+  it("closes on Escape pressed inside it, but not from the page beside it", () => {
     const onClose = vi.fn()
     render(<EntryDetailModal project={project} entry={upToDateEntry()} onClose={onClose} />)
 
-    fireEvent.keyDown(document, { key: "Escape" })
+    // The page stays in use while the drawer is open, so Escape there is not for the drawer.
+    fireEvent.keyDown(document.body, { key: "Escape" })
+    expect(onClose).not.toHaveBeenCalled()
 
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -360,6 +354,115 @@ describe("entryPreview", () => {
         created_at: "2026-09-26T10:00:00Z",
       })
     ).toBe(`Entry of ${new Date("2026-09-26T10:00:00Z").toLocaleDateString()}`)
+  })
+})
+
+describe("an entry in a drawer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const withText = {
+    ...project,
+    entry_schema: [
+      { id: "f-place", name: "Place", type: "text" },
+      { id: "f-story", name: "Story", type: "long_text", required: false },
+    ],
+  }
+  const textEntry = (overrides = {}) => upToDateEntry({
+    title: "Lake visit",
+    data: { "f-place": "The lake", "f-story": "Cold, bright and quiet." },
+    schema_snapshot: withText.entry_schema,
+    ...overrides,
+  })
+
+  it("is a drawer beside the page, not a window over it", () => {
+    render(<EntryDetailModal project={project} entry={upToDateEntry()} onClose={vi.fn()} />)
+
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "false")
+    expect(document.querySelector(".modal-backdrop")).not.toBeInTheDocument()
+    expect(screen.getByRole("separator", { name: "Resize panel" })).toBeInTheDocument()
+  })
+
+  it("leads the edit form with the title and the time, then the project's fields, each with its type", () => {
+    render(<EntryDetailModal project={withText} entry={textEntry()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    const labels = [...document.querySelectorAll(".form-field-name")].map((node) => node.textContent)
+    expect(labels.slice(0, 5)).toEqual(["Title", "Hours spent", "Minutes spent", "Place", "Story"])
+    const types = [...document.querySelectorAll(".form-field-type")].map((node) => node.textContent)
+    expect(types.slice(0, 5)).toEqual(["Short text", "Number", "Number", "Short text", "Long text"])
+  })
+
+  it("edits a long text in a tall box with its own limit", () => {
+    render(<EntryDetailModal project={withText} entry={textEntry()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    const story = screen.getByLabelText("Story")
+    expect(story.tagName).toBe("TEXTAREA")
+    expect(story).toHaveValue("Cold, bright and quiet.")
+    expect(screen.getByText("23 / 5,000")).toBeInTheDocument()
+  })
+
+  it("says which required field is empty instead of saving", () => {
+    render(<EntryDetailModal project={withText} entry={textEntry()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    fireEvent.change(screen.getByLabelText("Place"), { target: { value: "" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    expect(screen.getByText("Fill in Place before saving.")).toBeInTheDocument()
+    expect(updateEntry).not.toHaveBeenCalled()
+  })
+
+  it("is not stopped by a field that was already empty when the entry was saved", async () => {
+    updateEntry.mockResolvedValue(textEntry())
+    const old = textEntry({ data: { "f-place": "", "f-story": "x" } })
+    render(<EntryDetailModal project={withText} entry={old} onClose={vi.fn()} onSaved={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Renamed" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => expect(updateEntry).toHaveBeenCalled())
+  })
+
+  it("does not ask for anything while the entry is still to do", async () => {
+    updateEntry.mockResolvedValue(textEntry())
+    render(<EntryDetailModal project={withText} entry={textEntry({ todo: true })} onClose={vi.fn()} onSaved={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    fireEvent.change(screen.getByLabelText("Place"), { target: { value: "" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => expect(updateEntry).toHaveBeenCalled())
+  })
+
+  it("starts fresh on another entry when one is chosen while it is open", () => {
+    const { rerender } = render(<EntryDetailModal project={withText} entry={textEntry()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Half-typed" } })
+
+    rerender(<EntryDetailModal project={withText} entry={textEntry({ id: "e2", title: "Other visit" })} onClose={vi.fn()} />)
+
+    // Back to reading, on the other entry, with nothing carried over.
+    expect(screen.getByRole("heading", { name: "Other visit" })).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Half-typed")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument()
+  })
+
+  it("shows it is working while it saves", async () => {
+    let finish
+    updateEntry.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    render(<EntryDetailModal project={withText} entry={textEntry()} onClose={vi.fn()} onSaved={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    expect(await screen.findByRole("button", { name: "Saving…" })).toBeDisabled()
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-busy", "true")
+    finish(textEntry())
+    await waitFor(() => expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-busy"))
   })
 })
 

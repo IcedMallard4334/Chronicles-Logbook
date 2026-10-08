@@ -1,12 +1,13 @@
 import { useEffect, useId, useMemo, useState } from "react"
-import { createPortal } from "react-dom"
 
 import { deleteEntry, fetchEntryMigrationPreview, fetchTasks, updateEntry } from "./api"
 import EntryHistory from "./EntryHistory"
 import { suggestedTitle } from "./entryNames"
 import { timeSpentProblem } from "./timeSpent"
-import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, humaniseValue, withComputedValues } from "./fieldTypes"
-import { useDialogFocus } from "./useDialogFocus"
+import { CHECKLIST_LIMIT, FIELD_TYPE_META, TAGS_LIMIT, TEXT_LIMITS, fieldTypeLabel, humaniseValue, isTextField, withComputedValues } from "./fieldTypes"
+import FormField, { ShortTextBox } from "./FormField"
+import { BUILT_IN_FIELDS, TITLE_MAX, missingRequired, missingRequiredMessage } from "./formFields"
+import Drawer from "./Drawer"
 import RecurrenceControl from "./RecurrenceControl"
 import { TrashButton } from "./TrashIcon"
 import StatusPicker from "./StatusPicker"
@@ -380,9 +381,10 @@ function entryOptionLabel(entry) {
   return preview.endsWith(day) ? preview : `${preview} — ${day}`
 }
 
-function LinkInput({ value, onChange, entries }) {
+function LinkInput({ value, onChange, entries, ...controlProps }) {
   return (
     <select
+      {...controlProps}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="link-select"
@@ -404,45 +406,32 @@ function LinkInput({ value, onChange, entries }) {
  * the figures beside it, so an input would invite someone to type a value the
  * server would immediately overwrite.
  */
-// A field an entry rule can fill in (US-3.12) may be left blank: the rule
-// supplies the value when the entry is saved.
-function RuleFillHint({ show }) {
-  if (!show) return null
-  return <span className="rule-fill-hint">Leave blank and a rule can fill this in.</span>
-}
-
 export function EntryFieldInput({ field, value, computed, projects, status, entries = [], suggestions = [], onOpenProject, onChange, ruleCanFill = false, optional = false }) {
+  // Planned work (optional) and a field a rule fills in are never demanded.
+  const required = field.required !== false && !optional && !ruleCanFill
+  const ruleHint = ruleCanFill ? "Leave blank and a rule can fill this in." : null
+
   if (field.type === "computed") {
-    // The badge's word and colour come from the field-type registry, so the
-    // form, the table and the schema view can never disagree about what a
-    // type is called or how it is marked.
+    // The badge's word comes from the field-type registry, so the form, the table
+    // and the schema view can never disagree about what a type is called.
     const meta = FIELD_TYPE_META[field.type]
     return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
+      <FormField group label={field.name} typeLabel={meta.badge} className="is-computed">
         <output className="computed-value">
           {computed === null || computed === undefined ? "—" : computed}
         </output>
-      </div>
+      </FormField>
     )
   }
 
-  // A link is decided once, in the schema (US-2.4), rather than answered
-  // on every entry — so it is shown rather than asked for. The value is the
-  // same chip the entry list shows: the target's name on its status dot,
-  // clickable through to the project. A boxed read-out would read as a text
-  // box awaiting input; a chip reads as a thing you act on.
+  // A link is decided once, in the schema (US-2.4), rather than answered on every
+  // entry, so it is shown rather than asked for. The value is the same chip the
+  // entry list shows: the target's name on its status dot, clickable through to the
+  // project. A boxed read-out would read as a text box awaiting input.
   if (field.type === "project_reference") {
     const meta = FIELD_TYPE_META[field.type]
     return (
-      <div className="field-label is-computed">
-        <span className="field-label-text">
-          {field.name}
-          <span className={`field-readonly-tag is-${meta.color}`}>{meta.badge}</span>
-        </span>
+      <FormField group label={field.name} typeLabel={meta.badge} className="is-computed">
         {field.linked_project_id ? (
           <LinkChip
             targetId={field.linked_project_id}
@@ -455,76 +444,184 @@ export function EntryFieldInput({ field, value, computed, projects, status, entr
             Not pointed at a project yet
           </output>
         )}
-      </div>
+      </FormField>
     )
   }
 
+  const typeLabel = fieldTypeLabel(field.type)
+
   // Tags and checklists hold a list, not a string, and each renders several
-  // controls — so they get a div rather than a label, which would bind every
-  // click to whichever control happened to come first.
+  // controls, so they are a group rather than a single labelled box.
   if (field.type === "tags") {
     return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
+      <FormField group label={field.name} typeLabel={typeLabel} required={required} hint={ruleHint}>
         <TagsInput
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
           suggestions={suggestions}
         />
-        <RuleFillHint show={ruleCanFill} />
-      </div>
+      </FormField>
     )
   }
 
   if (field.type === "checklist") {
     return (
-      <div className="field-label">
-        <span className="field-label-text">{field.name}</span>
+      <FormField group label={field.name} typeLabel={typeLabel}>
         <ChecklistInput
           value={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(field.id, next)}
         />
-      </div>
+      </FormField>
     )
   }
 
   if (field.type === "link") {
     return (
-      <label className="field-label">
-        {field.name}
-        <LinkInput
-          value={value || ""}
-          onChange={(next) => onChange(field.id, next)}
-          entries={entries}
-        />
-      </label>
+      <FormField label={field.name} typeLabel={typeLabel} required={required} size="short">
+        {(controlProps) => (
+          <LinkInput
+            {...controlProps}
+            value={value || ""}
+            onChange={(next) => onChange(field.id, next)}
+            entries={entries}
+          />
+        )}
+      </FormField>
+    )
+  }
+
+  if (field.type === "dropdown") {
+    return (
+      <FormField label={field.name} typeLabel={typeLabel} required={required} hint={ruleHint} size="short">
+        {(controlProps) => (
+          <select {...controlProps} value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required={required}>
+            <option value="" disabled={required}>
+              {ruleCanFill ? "Leave for the rule…" : optional ? "Leave empty for now" : "Select…"}
+            </option>
+            {(field.options || []).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        )}
+      </FormField>
+    )
+  }
+
+  const hint = ruleHint || (optional ? "Optional while this is still to do." : null)
+
+  // Short text, long text, a number and a date. The box is a hint about the answer:
+  // a line for a short answer, a tall box for a paragraph, a small one for a figure.
+  if (isTextField(field)) {
+    const limit = TEXT_LIMITS[field.type]
+    const text = typeof value === "string" ? value : ""
+    const long = field.type === "long_text"
+    return (
+      <FormField
+        label={field.name}
+        typeLabel={typeLabel}
+        required={required}
+        hint={hint}
+        size={long ? "long" : "short"}
+        count={{ length: text.length, max: limit }}
+      >
+        {(controlProps) =>
+          long ? (
+            <textarea
+              {...controlProps}
+              rows={5}
+              maxLength={limit}
+              value={text}
+              onChange={(e) => onChange(field.id, e.target.value)}
+              placeholder={`Write ${field.name.toLowerCase()} here`}
+            />
+          ) : (
+            <ShortTextBox
+              {...controlProps}
+              maxLength={limit}
+              value={text}
+              onValueChange={(next) => onChange(field.id, next)}
+              placeholder={field.name}
+            />
+          )
+        }
+      </FormField>
     )
   }
 
   return (
-    <label className="field-label">
-      {field.name}
-      {field.type === "dropdown" ? (
-        <select value={value || ""} onChange={(e) => onChange(field.id, e.target.value)} required={!ruleCanFill && !optional}>
-          <option value="" disabled={!ruleCanFill && !optional}>
-            {ruleCanFill ? "Leave for the rule…" : optional ? "Leave empty for now" : "Select…"}
-          </option>
-          {(field.options || []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : (
+    <FormField label={field.name} typeLabel={typeLabel} required={required} hint={hint} size="narrow">
+      {(controlProps) => (
         <input
+          {...controlProps}
           type={field.type}
-          value={value || ""}
+          value={value ?? ""}
           onChange={(e) => onChange(field.id, e.target.value)}
-          placeholder={optional ? `${field.name} (optional while this is still to do)` : field.name}
+          placeholder={field.type === "number" ? "0" : undefined}
         />
       )}
-      <RuleFillHint show={ruleCanFill && field.type !== "dropdown"} />
-    </label>
+    </FormField>
+  )
+}
+
+/**
+ * The fields every entry has: its title and the time it took.
+ *
+ * They are not part of a project's schema, because every entry needs them, so they
+ * lead every form (the schema shows them greyed out so it is clear they are there).
+ */
+export function EntryBasics({ title, onTitle, hours, onHours, minutes, onMinutes, hoursInvalid = false, minutesInvalid = false, titlePlaceholder = "Give this entry a name so it is easy to find later" }) {
+  const [titleField, hoursField, minutesField] = BUILT_IN_FIELDS
+  return (
+    <>
+      <FormField
+        label={titleField.name}
+        typeLabel={titleField.typeLabel}
+        required
+        size="short"
+        count={{ length: title.length, max: TITLE_MAX }}
+      >
+        {(controlProps) => (
+          <ShortTextBox
+            {...controlProps}
+            required
+            maxLength={TITLE_MAX}
+            value={title}
+            onValueChange={onTitle}
+            placeholder={titlePlaceholder}
+          />
+        )}
+      </FormField>
+      <FormField label={hoursField.name} typeLabel={hoursField.typeLabel} size="narrow">
+        {(controlProps) => (
+          <input
+            {...controlProps}
+            type="number"
+            min={0}
+            step={1}
+            value={hours}
+            aria-invalid={hoursInvalid ? "true" : undefined}
+            onChange={(event) => onHours(event.target.value)}
+            placeholder="0"
+          />
+        )}
+      </FormField>
+      <FormField label={minutesField.name} typeLabel={minutesField.typeLabel} size="narrow">
+        {(controlProps) => (
+          <input
+            {...controlProps}
+            type="number"
+            min={0}
+            step={1}
+            value={minutes}
+            aria-invalid={minutesInvalid ? "true" : undefined}
+            onChange={(event) => onMinutes(event.target.value)}
+            placeholder="0"
+          />
+        )}
+      </FormField>
+    </>
   )
 }
 
@@ -579,12 +676,24 @@ export function RetiredValues({ retiredData, retiredSchema }) {
  * appears when the entry is actually stale; an entry already on the current
  * schema has nothing to choose between.
  */
-export function EntryDetailModal({ project, entry, projects = [], entries = [], canManage = true, onClose, onSaved, onDeleted }) {
+/**
+ * An entry, opened in a side drawer: read it, edit it, see its history. The page beside
+ * it stays usable, so another entry can be chosen while one is open; keyed on the entry
+ * so the drawer then starts fresh on the new one instead of showing the old one's form.
+ */
+export function EntryDetailModal(props) {
+  return <EntryDetailDrawer key={props.entry.id} {...props} />
+}
+
+function EntryDetailDrawer({ project, entry, projects = [], entries = [], canManage = true, onClose, onSaved, onDeleted }) {
   const [mode, setMode] = useState("view")
   const [migrateChosen, setMigrateChosen] = useState(false)
   const [migrationError, setMigrationError] = useState(null)
   const [title, setTitle] = useState(entry.title || suggestedTitle(entry))
   const [data, setData] = useState(entry.data || {})
+  // What the entry held when the edit began (or, once it is brought up to date, what it will hold),
+  // so a field that was empty then is not held against the entry now.
+  const [baseline, setBaseline] = useState(entry.data || {})
   const [hoursSpent, setHoursSpent] = useState(entry.time_spent ? String(Math.floor(entry.time_spent / 60)) : "")
   const [minutesSpent, setMinutesSpent] = useState(entry.time_spent ? String(entry.time_spent % 60) : "")
   const [todo, setTodo] = useState(entry.todo || false)
@@ -598,7 +707,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   const [error, setError] = useState(null)
   const [note, setNote] = useState("")
 
-  const dialogRef = useDialogFocus(true, onClose)
+  const formId = useId()
 
   const projectSchema = project.entry_schema || []
   const ownSchema = entry.schema_snapshot?.length ? entry.schema_snapshot : projectSchema
@@ -665,16 +774,19 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
   useEffect(() => {
     if (!migrateChosen) {
       setData(entry.data || {})
+      setBaseline(entry.data || {})
       setMigrationError(null)
       return undefined
     }
     let active = true
     setMigrationError(null)
     fetchEntryMigrationPreview(project.id, entry.id)
-      .then((preview) => { if (active) setData(preview.data) })
+      .then((preview) => { if (active) { setData(preview.data); setBaseline(preview.data) } })
       .catch((caught) => { if (active) setMigrationError(formatError(caught)) })
     return () => { active = false }
   }, [migrateChosen, project.id, entry.id, entry.data])
+
+  const computedValues = useMemo(() => withComputedValues(data, activeSchema), [data, activeSchema])
 
   const handleFieldChange = (fieldId, value) => setData((prev) => ({ ...prev, [fieldId]: value }))
 
@@ -682,6 +794,11 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
     event.preventDefault()
     if (!title.trim()) {
       setError("Give this entry a title so it can be found again.")
+      return
+    }
+    const missing = missingRequiredMessage(missingRequired(activeSchema, data, { todo, previous: baseline }))
+    if (missing) {
+      setError(missing)
       return
     }
     setIsSaving(true)
@@ -700,6 +817,8 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
         if (field.type === "tags" && payload[field.id] === undefined) payload[field.id] = []
         if (field.type === "checklist" && payload[field.id] === undefined) payload[field.id] = []
         if (field.type === "link" && payload[field.id] === undefined) payload[field.id] = ""
+        // A tags field the entry does not need to fill in is left out when it has no tags.
+        if (field.type === "tags" && (todo || field.required === false) && payload[field.id]?.length === 0) delete payload[field.id]
       }
       const timeProblem = timeSpentProblem(hoursSpent, minutesSpent, { allowTotal: entry.time_spent })
       if (timeProblem) {
@@ -754,34 +873,22 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
     setError(null)
   }
 
-  // Rendered through a portal, straight onto <body>: EntryDetailModal opens
-  // from inside ViewTransition's animated wrapper, whose entrance animation
-  // leaves a resolved (if visually identity) `transform` behind even after
-  // it finishes — any *other* transform value than the literal keyword
-  // `none` makes that wrapper a containing block for a `position: fixed`
-  // descendant, so without the portal this modal centers itself inside the
-  // wrapper's full scrollable height instead of the actual viewport, and
-  // can render partly above or below what's currently on screen. A portal
-  // sidesteps the whole class of ancestor-CSS problem, not just this one.
-  return createPortal(
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        ref={dialogRef}
-        className="modal-card entry-detail-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="entry-detail-heading"
-        onMouseDown={(event) => event.stopPropagation()}
-        tabIndex={-1}
-      >
-        <h2 id="entry-detail-heading">{entry.title || "Entry detail"}</h2>
-        <p className="entry-detail-meta">
+  return (
+    <Drawer
+      title={entry.title || "Entry detail"}
+      subtitle={
+        <>
           {project.name}
           {entry.created_by_name && <> · logged by {entry.created_by_name}</>}
           {" · "}
           <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>
-        </p>
-
+        </>
+      }
+      onClose={onClose}
+      closeLabel="Close entry detail"
+      busy={isSaving || isDeleting}
+      className="entry-drawer"
+    >
         {isStale && (
           <p className="hint entry-detail-stale">
             Recorded under an earlier version of this project&rsquo;s schema.
@@ -851,7 +958,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               archived={Boolean(project.archived)}
             />
             {canManage && (
-              <div className="actions">
+              <div className="actions drawer-actions">
                 {confirmingDelete ? (
                   <>
                     <span className="entry-detail-confirm-text">
@@ -885,7 +992,7 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
             )}
           </>
         ) : (
-          <form onSubmit={handleSave}>
+          <form id={formId} onSubmit={handleSave} noValidate>
             {isStale && (
               <div className="entry-detail-schema-choice" role="group" aria-label="Which shape to edit in">
                 <button
@@ -907,24 +1014,25 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
             {migrateChosen && migrationError && (
               <p className="error" role="alert">{migrationError}</p>
             )}
-            <label className="field-label">
-              Title
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Give this entry a name"
+            <div className="form-fields">
+              <EntryBasics
+                title={title}
+                onTitle={setTitle}
+                hours={hoursSpent}
+                onHours={setHoursSpent}
+                minutes={minutesSpent}
+                onMinutes={setMinutesSpent}
+                hoursInvalid={Boolean(timeSpentProblem(hoursSpent, "", { allowTotal: entry.time_spent }))}
+                minutesInvalid={Boolean(timeSpentProblem("", minutesSpent))}
+                titlePlaceholder="Give this entry a name"
               />
-            </label>
-            <div className="form-grid">
               {activeSchema.map((field) => (
                 <EntryFieldInput
                   key={field.id}
                   field={field}
                   optional={todo}
                   value={data[field.id]}
-                  computed={withComputedValues(data, activeSchema)[field.id]}
+                  computed={computedValues[field.id]}
                   projects={linkable}
                   status={statuses[field.linked_project_id]}
                   entries={linkOptions}
@@ -933,24 +1041,8 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
                 />
               ))}
             </div>
-            <div className="form-grid time-tracking">
-              <label className="field-label">
-                Hours spent
-                <input type="number" min={0} step={1} value={hoursSpent} aria-invalid={timeSpentProblem(hoursSpent, "", { allowTotal: entry.time_spent }) ? "true" : undefined} onChange={(event) => setHoursSpent(event.target.value)} />
-              </label>
-              <label className="field-label">
-                Minutes spent
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={minutesSpent}
-                  aria-invalid={timeSpentProblem("", minutesSpent) ? "true" : undefined}
-                  onChange={(event) => setMinutesSpent(event.target.value)}
-                />
-              </label>
-            </div>
-            <div className="form-grid entry-outstanding">
+            <section className="form-section entry-outstanding" aria-label="Progress">
+              <h3 className="form-section-title">Progress</h3>
               {customStatuses && (
                 <StatusPicker
                   project={project}
@@ -978,28 +1070,27 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
               </div>
               {todo && (
                 <>
-                  <label className="field-label due-date-field">
-                    Due date
-                    <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-                  </label>
-                  <label className="field-label due-date-field">
-                    Time of day (optional)
-                    <input type="time" value={dueTime} disabled={!dueDate} onChange={(event) => setDueTime(event.target.value)} />
-                  </label>
+                  <FormField label="Due date" typeLabel="Date" size="narrow">
+                    {(controlProps) => <input {...controlProps} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />}
+                  </FormField>
+                  <FormField label="Time of day (optional)" typeLabel="Time" size="narrow">
+                    {(controlProps) => <input {...controlProps} type="time" value={dueTime} disabled={!dueDate} onChange={(event) => setDueTime(event.target.value)} />}
+                  </FormField>
                 </>
               )}
-            </div>
-            <label className="field-label">
-              Reason for change (optional)
-              <input
-                type="text"
-                maxLength={500}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="e.g. Corrected the hours"
-              />
-            </label>
-            <div className="actions">
+            </section>
+            <FormField label="Reason for change (optional)" typeLabel="Short text" size="short" count={{ length: note.length, max: 500 }}>
+              {(controlProps) => (
+                <ShortTextBox
+                  {...controlProps}
+                  maxLength={500}
+                  value={note}
+                  onValueChange={setNote}
+                  placeholder="e.g. Corrected the hours"
+                />
+              )}
+            </FormField>
+            <div className="actions drawer-actions">
               <button type="button" className="btn-text" onClick={cancelEdit} disabled={isSaving}>
                 Cancel
               </button>
@@ -1009,12 +1100,6 @@ export function EntryDetailModal({ project, entry, projects = [], entries = [], 
             </div>
           </form>
         )}
-
-        <button type="button" className="modal-close" onClick={onClose} aria-label="Close entry detail">
-          ×
-        </button>
-      </div>
-    </div>,
-    document.body
+    </Drawer>
   )
 }

@@ -121,6 +121,27 @@ describe("csvToDocument", () => {
     expect(summary.warnings.join(" ")).toContain("2 date or time values could not be read")
   })
 
+  it("makes a column of paragraphs a long text field, and trims a value to its field's limit", () => {
+    const paragraph = "word ".repeat(80).trim()
+    const { document } = csvToDocument(`Title,Notes to self,Place
+A,${paragraph},${"x".repeat(300)}`, { now: NOW })
+
+    const fields = document.projects[0].entry_schema
+    expect(fields.map((field) => [field.name, field.type])).toEqual([["Notes to self", "long_text"], ["Place", "long_text"]])
+    expect(document.projects[0].entries[0].data[fields[0].id]).toHaveLength(paragraph.length)
+  })
+
+  it("keeps a short value in a short text field, and cuts it at 255 if the project's field is short", () => {
+    const existing = [{ id: "p1", name: "Gym", shared: false, statuses: [], entry_schema: [{ id: "f-place", name: "Place", type: "text" }, { id: "f-story", name: "Story", type: "long_text" }] }]
+
+    const { document } = csvToDocument(`Project,Title,Place,Story
+Gym,Squats,${"x".repeat(300)},${"y".repeat(300)}`, { existingProjects: existing, now: NOW })
+
+    const data = document.projects[0].entries[0].data
+    expect(data["f-place"]).toHaveLength(255)
+    expect(data["f-story"]).toHaveLength(300)
+  })
+
   it("explains a file with nothing in it", () => {
     expect(csvToDocument("Title\n", { now: NOW }).summary.problem).toMatch(/no rows to import/)
     expect(csvToDocument("", { now: NOW }).document).toBeNull()

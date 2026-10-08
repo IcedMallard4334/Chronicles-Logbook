@@ -125,9 +125,8 @@ recognition (Chrome and Edge; hidden where unsupported). It is tuned for writing
 transcription: it prefers the reading that contains *Mira*, corrects the ways her name is
 misheard, understands spoken punctuation ("comma", "full stop", "question mark", "new line")
 and adds commas and full stops from the length of your pauses. Details are in
-[Post-review improvements](whats-new.md#dictation-and-the-screen-reader). Profile also has an
-opt-in **screen reader** for people who can't see the screen. Both run in the browser;
-Chronicles' servers never receive audio.
+[Post-review improvements](whats-new.md#dictation). It runs in the browser; Chronicles'
+servers never receive audio.
 
 ## Adding a function
 

@@ -12,7 +12,7 @@ import { searchOperatorsFor } from "./fieldTypes"
 // What a rule may fill in. Mirrors SETTABLE_TYPES in backend/app/automation.py:
 // computed fields are derived by the server, and links, references, tags and
 // checklists have rules of their own about what a valid value is.
-export const SETTABLE_FIELD_TYPES = ["text", "number", "date", "dropdown"]
+export const SETTABLE_FIELD_TYPES = ["text", "long_text", "number", "date", "dropdown"]
 
 export const ACTION_TYPES = [
   { value: "add_tags", label: "Add tags" },
@@ -187,7 +187,7 @@ export function ruleProblem(rule, schema) {
     if (action.type === "set_field") {
       const field = byId[action.field_id]
       if (!field) return "Choose which field to fill in."
-      if (field.type === "text" && !String(action.value ?? "").trim()) {
+      if ((field.type === "text" || field.type === "long_text") && !String(action.value ?? "").trim()) {
         return `Enter the text to put in "${field.name}".`
       }
       if (field.type === "number" && (action.value === "" || Number.isNaN(Number(action.value)))) {

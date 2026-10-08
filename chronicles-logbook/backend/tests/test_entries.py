@@ -1035,7 +1035,7 @@ async def test_migrating_an_entry_updates_its_own_snapshot(
     assert migrated.status_code == 200
     body = migrated.json()
     assert body["schema_version"] == new_version
-    assert body["schema_snapshot"] == new_schema
+    assert body["schema_snapshot"] == [{**field, "required": True} for field in new_schema]
 
 
 async def test_update_entry_rejects_incomplete_data(
@@ -1480,3 +1480,70 @@ async def test_finishing_a_complete_planned_entry_or_editing_a_finished_one_is_n
     assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"todo": False})).status_code == 200
     # Already finished: a later edit with no field values does not re-judge it.
     assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"title": "Renamed"})).status_code == 200
+
+
+async def test_short_text_and_long_text_have_different_limits(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Limits", "entry_schema": [
+                {"id": "f-short", "name": "Place", "type": "text"},
+                {"id": "f-long", "name": "Story", "type": "long_text"},
+            ]},
+        )
+    ).json()
+    assert [field["type"] for field in project["entry_schema"]] == ["text", "long_text"]
+    base = f"/projects/{project['id']}/entries"
+
+    ok = await authenticated_client.post(base, json={"title": "Fits", "data": {"f-short": "x" * 255, "f-long": "y" * 5000}})
+    assert ok.status_code == 201
+
+    short_too_long = await authenticated_client.post(base, json={"title": "No", "data": {"f-short": "x" * 256, "f-long": "y"}})
+    assert short_too_long.status_code == 422 and "'Place' can hold at most 255 characters" in short_too_long.text
+    long_too_long = await authenticated_client.post(base, json={"title": "No", "data": {"f-short": "x", "f-long": "y" * 5001}})
+    assert long_too_long.status_code == 422 and "'Story' can hold at most 5,000 characters" in long_too_long.text
+    not_text = await authenticated_client.post(base, json={"title": "No", "data": {"f-short": "x", "f-long": 5}})
+    assert not_text.status_code == 422 and "must be text" in not_text.text
+
+
+async def test_text_already_over_the_limit_stays_but_a_new_long_value_is_refused(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects", json={"name": "Old", "entry_schema": [{"id": "f-note", "name": "Note", "type": "long_text"}]}
+        )
+    ).json()
+    base = f"/projects/{project['id']}/entries"
+    entry = (await authenticated_client.post(base, json={"title": "Essay", "data": {"f-note": "z" * 400}})).json()
+    # The field is now a short one; the 400 characters already written are not lost.
+    retyped = await authenticated_client.put(
+        f"/projects/{project['id']}", json={"entry_schema": [{"id": "f-note", "name": "Note", "type": "text"}]}
+    )
+    assert retyped.status_code == 200
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"migrate_to_current_schema": True})).status_code == 200
+
+    assert (await authenticated_client.put(f"{base}/{entry['id']}", json={"data": {"f-note": "z" * 400}})).status_code == 200
+    refused = await authenticated_client.put(f"{base}/{entry['id']}", json={"data": {"f-note": "q" * 400}})
+    assert refused.status_code == 422 and "255" in refused.text
+
+
+async def test_a_field_marked_not_required_may_stay_empty_on_a_finished_entry(authenticated_client):
+    project = (
+        await authenticated_client.post(
+            "/projects",
+            json={"name": "Optional", "entry_schema": [
+                {"id": "f-need", "name": "Need", "type": "text"},
+                {"id": "f-nice", "name": "Nice to have", "type": "long_text", "required": False},
+            ]},
+        )
+    ).json()
+    assert project["entry_schema"][0]["required"] is True and project["entry_schema"][1]["required"] is False
+    base = f"/projects/{project['id']}/entries"
+
+    ok = await authenticated_client.post(base, json={"title": "Fine", "data": {"f-need": "here"}})
+    assert ok.status_code == 201
+    missing = await authenticated_client.post(base, json={"title": "Bad", "data": {"f-nice": "only this"}})
+    assert missing.status_code == 422 and "Missing required field: Need" in missing.text
+
+    # Finishing planned work only asks for the fields that are required.
+    planned = (await authenticated_client.post(base, json={"title": "Later", "todo": True, "data": {"f-need": "x"}})).json()
+    assert (await authenticated_client.put(f"{base}/{planned['id']}", json={"todo": False})).status_code == 200

@@ -148,6 +148,8 @@ npm run test -- --run   # Single run
 | `AuthCallback.test.jsx` | OAuth callback token handling |
 | `fieldTypes.test.js` | Field-type catalogue, expression parsing and evaluation, computed values |
 | `SchemaEditor.test.jsx` | Schema view/edit/review modes, change preview, reference and computed fields on an entry |
+| `ProjectForms.test.jsx` | Built-in fields in the schema, the required switch, short and long text in an entry, and the new-project drawer with its default form |
+| `Drawer.test.jsx`, `FormField.test.jsx`, `formFields.test.js` | The drawer (docking, focus, Escape, resizing by pointer and keyboard, remembered width), one form question, and the built-in and required-field rules |
 | `TaskPanel.test.jsx` | Task list, filters, checklist creation and toggling |
 | `ProfilePage.test.jsx` | User display, theme cycling, sign-out, delete account |
 | `api.test.js`, `api.endpoints.test.js` | HTTP client, token injection, error handling, every endpoint wrapper |
@@ -176,9 +178,7 @@ Added after the Sprint 3 review:
 |---|---|
 | `EntryHistory.test.jsx` | Versions, reverting, "as it stood on" a date |
 | `speech.test.js` | Dictation: alternatives and vocabulary, "mirror" versus Mira, spoken punctuation, punctuation from pauses, capitals; speaking and settings |
-| `ScreenReader.test.jsx`, `readerDescribe.test.js` | The screen reader: what is said for each kind of element, focus, dialogs, keyboard navigation, live regions, typing echo, speed; names, roles, states and values |
 | `ActivityHub.test.jsx` | The Logged and Scheduled tabs |
-| `ScreenReaderGate.test.jsx` | The screen reader loads only once switched on |
 | `OfflineStatus.test.jsx` (extended) | Offline refresh warning, the field flagged in the review panel, date picker |
 | `Streaks.test.jsx` | Both streak counters and live updates |
 | `MiraMarkdown.test.jsx`, `MiraAssistant.test.jsx`, `miraActions.test.js` | Markdown rendering without HTML injection, history, streaming, proposal cards, every action handler, name resolution, batching and failure |

@@ -989,7 +989,10 @@ def test_value_checks_for_each_settable_type():
     assert _value_problem(date_field, "2026-10-01") is None
     assert "YYYY-MM-DD" in _value_problem(date_field, "next week")
     assert "YYYY-MM-DD" in _value_problem(date_field, 20261001)
-    assert "1000 characters" in _value_problem(text_field, "x" * 1001)
+    assert "255 characters" in _value_problem(text_field, "x" * 256)
+    long_field = {"id": "l", "name": "Story", "type": "long_text"}
+    assert _value_problem(long_field, "x" * 1001) is None
+    assert "5,000 characters" in _value_problem(long_field, "x" * 5001)
 
 
 def _outcome(data):
