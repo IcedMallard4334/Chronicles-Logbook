@@ -42,9 +42,12 @@ provider and no workspace snapshot is built: Mira answers from a fixed
 
 A conversation is titled from its first message (first 60 characters).
 
-Each message is `{id, role, content, thinking, created_at}`. `role` is `user`
-or `assistant`; `thinking` is Mira's own summary of how she approached an answer,
-when the model supplied one.
+Each message is `{id, role, content, thinking, created_at}`. `role` is `user`,
+`assistant` or `tool`; `thinking` is Mira's own summary of how she approached an answer,
+when the model supplied one. A `tool` message is not something anyone typed: it is how the
+actions Mira ran went, sent back to her so she can put a failure right (see `kind` below).
+It is kept in the conversation so she can see it later, is labelled "Results of Mira's
+actions" in the history she is given, and is never used as a conversation's title.
 
 ## Streaming a reply
 
@@ -56,7 +59,8 @@ when the model supplied one.
 
 | Field | Notes |
 |---|---|
-| `message` | 1 to 2000 characters. |
+| `message` | 1 to 2000 characters. For `kind: "results"` it is the plain-language account of how the actions went. |
+| `kind` | `"message"` (default: what the person typed) or `"results"` (how the actions Mira ran for them went, sent back so she can fix a failure or ask for exactly what is missing). A results turn is saved with the role `tool` and never retitles the conversation. |
 | `today` | Optional. The caller's *local* date, so "tomorrow" means theirs: the server runs on UTC. |
 
 Unknown fields are refused (`422`). The response is `text/event-stream`; each
@@ -86,14 +90,21 @@ event is one line `data: {json}` followed by a blank line.
 }
 ```
 
-An `action` is only a proposal: **the server never performs it.** The browser
-shows `summary`, and runs the action through the ordinary API (the same calls a
-manual edit makes) only when the person confirms. `destructive` is `true` for
-deletions, which are never run without an explicit confirmation.
+An `action` is only a proposal: **the server never performs it.** `requires_confirmation` is
+always `true`: it is the server's statement that *a client must carry the action out*, through
+the ordinary API (the same calls a manual edit makes, so every permission and validation rule
+applies). The browser then decides when: **a change that only adds or edits runs straight
+away**, shown as a step in the chat, unless the person turned on *Ask me before Mira changes
+anything*; `destructive` is `true` for deletions, which **always** wait for a click. (The
+flag's name predates the change to acting first; renaming it would break the stored proposals
+and the tests that pin it, so it keeps its name and this meaning.)
 
-The proposal list is also saved into the stored assistant message under
-**Proposed for your approval**, so a reopened conversation still says what was
-proposed.
+After the browser has run a batch it sends how each step went back as a `kind: "results"` turn,
+so Mira can correct a failure or ask for what is missing. She may do that at most twice in a
+row before waiting for the person.
+
+The list of what was proposed is also saved into the stored assistant message under
+**Mira's actions:**, so a reopened conversation still says what was done.
 
 ### Errors
 

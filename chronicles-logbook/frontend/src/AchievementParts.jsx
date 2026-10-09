@@ -108,13 +108,13 @@ export function AchievementSummary({ summary }) {
     <div className="achievement-summary">
       <ProgressRing earned={summary.earned} total={summary.total} />
       <div className="achievement-breakdown">
-        <h3>By rarity</h3>
+        <h2>By rarity</h2>
         {TIER_ORDER.filter((tier) => summary.by_tier[tier]).map((tier) => (
           <Bar key={tier} label={TIER_LABELS[tier]} earned={summary.by_tier[tier].earned} total={summary.by_tier[tier].total} className={`tier-${tier}`} />
         ))}
       </div>
       <div className="achievement-breakdown">
-        <h3>By area</h3>
+        <h2>By area</h2>
         {Object.entries(summary.by_category).map(([key, category]) => (
           <Bar key={key} label={category.name} earned={category.earned} total={category.total} />
         ))}

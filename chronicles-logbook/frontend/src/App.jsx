@@ -877,15 +877,14 @@ function ProjectList({
           {visibleActiveProjects.length === 0 ? (
             <p className="sidebar-empty">{query ? "No matching projects." : "No active projects."}</p>
           ) : (
-            <ul className="project-list" role="listbox" aria-label="Projects">
+            <ul className="project-list" role="list" aria-label="Projects">
               {visibleActiveProjects.sort((a, b) => Number(pinnedIds.includes(b.id)) - Number(pinnedIds.includes(a.id))).map((project) => (
                 <li key={project.id}>
                   <button
                     type="button"
                     className={`project-button ${project.id === selectedId ? "active" : ""}`}
                     onClick={() => { setProjectsOpen(false); onSelect(project.id) }}
-                    role="option"
-                    aria-selected={project.id === selectedId}
+                    aria-current={project.id === selectedId ? "true" : undefined}
                   >
                     <span className="project-name">{project.name}</span>
                     <small className={projectState[project.id] === "Needs attention" ? "project-status is-attention" : "project-status"}>{projectState[project.id] || "Checking…"}</small>
@@ -908,7 +907,7 @@ function ProjectList({
               {showArchived && (
                 <ul
                   className="project-list archived-list"
-                  role="listbox"
+                  role="list"
                   aria-label="Archived projects"
                 >
                   {visibleArchivedProjects.map((project) => (
@@ -919,8 +918,7 @@ function ProjectList({
                           project.id === selectedId ? "active" : ""
                         }`}
                         onClick={() => onSelect(project.id)}
-                        role="option"
-                        aria-selected={project.id === selectedId}
+                        aria-current={project.id === selectedId ? "true" : undefined}
                       >
                         <span className="project-name">{project.name}</span>
                         <span className="archived-badge">Archived</span>
@@ -1762,18 +1760,16 @@ function EntryList({
             <li
               key={entry.id}
               className={`log-row ${entry.pending ? "is-unsynced" : ""}`}
-              role="button"
-              tabIndex={0}
-              aria-label="Open entry detail"
               onClick={() => setSelectedEntryId(entry.id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  setSelectedEntryId(entry.id)
-                }
-              }}
             >
-              {entry.title && <p className="log-title">{entry.title}</p>}
+              {/* A real button named for the entry, stretched by CSS over the
+                  whole row: a click anywhere opens it, and a keyboard or
+                  screen reader user gets one control that says which entry. */}
+              <p className="log-title">
+                <button type="button" className="log-open">
+                  {entry.title || "Untitled entry"}
+                </button>
+              </p>
               {isStale && (
                 <p className="log-stale-note">
                   Recorded under an earlier version of this project&rsquo;s schema.
@@ -2032,7 +2028,7 @@ function ProjectDetail({
       <header className="detail-header">
         <div className="detail-title-block">
           <div className="project-title-row">
-            <h2>{project.name}</h2>
+            <h1>{project.name}</h1>
             {project.archived && <span className="status-badge archived-badge">Archived</span>}
             <button
               type="button"
@@ -2117,6 +2113,9 @@ function ProjectDetail({
         </div>
       </header>
       <div className="detail-body">
+        {/* The sections below sit one level under the project's name; this names the
+            tab they belong to, so the headings step down without skipping. */}
+        <h2 className="sr-only">{PROJECT_TAB_HEADINGS[tab]}</h2>
         {tab === "entries" ? (
           <>
             <div className="entries-toolbar">
@@ -2491,6 +2490,13 @@ async function seedDemoData() {
   })
 
   return projectsWithEntries
+}
+
+const PROJECT_TAB_HEADINGS = {
+  entries: "Project entries",
+  schema: "Project schema",
+  tasks: "Project tasks",
+  automation: "Project automation",
 }
 
 function App() {

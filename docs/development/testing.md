@@ -251,8 +251,12 @@ comfortably on their own, without needing to average up:
 
 | Codebase | Statement coverage | Tests | Measured |
 |---|---|---|---|
-| Backend (pytest + coverage.py) | **95%** | 696, across 33 test files | 30 September 2026 |
-| Frontend (Vitest + @vitest/coverage-v8) | **82.7%** (86.0% of lines) | 770, across 61 test files | 1 October 2026 |
+| Backend (pytest + coverage.py) | **95%** (4,690 statements, 238 missed) | 736, across 34 test files | 9 October 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **84.4%** (87.5% of lines) | 962, across 73 test files | 9 October 2026 |
+
+!!! warning "Targets, not gates"
+    Neither suite has a `fail-under` threshold, so CI would not fail if coverage fell. The percentages are the
+    team's own targets. See [What we do not test](../decisions/not-tested.md#the-numbers-and-what-enforces-them).
 
 Reproduce these numbers directly rather than trusting the badge:
 
@@ -321,11 +325,52 @@ Real coverage was **93%** all along. The lesson recorded here is that a coverage
 - **`generate_reply()` in `gemini_service.py`** was unreachable — nothing in the application or the tests called it. It accounted for 26 of the 32 uncovered statements in that module. It was **deleted rather than tested**: writing tests for dead code raises the percentage while testing nothing, which is worse than leaving it uncovered because it disguises the problem.
 - **The Google OAuth callback and Calendar token-refresh paths** are partly uncovered (`auth.py` 85%, `calendar.py` 84%). Exercising them means standing in a fake Google, and a mock of an OAuth provider mostly tests the mock. These paths are verified by signing in for real against the deployed app.
 - **The IndexedDB adapter in `offlineQueue.js`** (lines 40–69). `jsdom` provides no IndexedDB, so covering it needs a `fake-indexeddb` dependency. The queue's *behaviour* — ordering, per-user isolation, retry, rejection, attempt counting — is fully covered through `createMemoryAdapter`, which is the logic worth testing; the adapter itself is a thin translation to the browser API.
-- **`DayActivityDialog.jsx` has no test file (0% coverage) — a genuine, unaddressed gap**, not a considered exclusion like the ones above. It's the calendar day-detail dialog (agenda list, add/delete a local activity) and renders via a native `<dialog>`/`showModal()` rather than the app's usual `useDialogFocus` pattern, which is presumably why it was missed when the rest of the calendar UI was tested. Recorded honestly here rather than left silent; a Sprint 4 candidate.
+- **`DayActivityDialog.jsx`** had no test file when this list was written, a genuine gap rather than a considered exclusion. It has one now (`DayActivityDialog.test.jsx`). Its focus handling is the browser's own, because it is a native `<dialog>`.
+
+!!! info "The complete, current list"
+    This section is the original short list. Everything not tested, with the reason, the mitigation and the
+    risk for each, is on [What we do not test, and why](../decisions/not-tested.md). It covers Mira against the
+    real model, dictation, PostgreSQL-only behaviour, layout, real touch gestures, accessibility automation,
+    performance and cold starts, other browsers, time zones and very large logbooks.
 
 A worked example of why the *number* is not the goal: a first attempt at testing `newEntryId`'s older-browser fallback deleted `crypto.randomUUID` with `Reflect.deleteProperty`. The test passed — but `crypto`'s own properties are not configurable, so the deletion silently did nothing, the real implementation ran, and its output matched the UUID pattern being asserted. Coverage is what exposed it: the fallback's lines were still reported as unexecuted. Replacing the whole global with `vi.stubGlobal("crypto", {})` made the test real. **A passing test that never reaches the code it names is worse than no test, because it reports the opposite of the truth.**
 
 ---
+
+## Accessibility checks
+
+The landing page is audited with Lighthouse (see [API Performance](../testing/api-performance.md)), but
+Lighthouse cannot sign in, so it never sees the app itself. The signed-in screens are checked with
+**axe-core 4.10.2**, the engine inside most accessibility tools, run in the browser against the running
+app. It was run with the WCAG 2.0, 2.1 and 2.2 level A and AA rules plus axe's best-practice rules (the
+ones that cover semantic HTML and ARIA use).
+
+| | |
+|---|---|
+| **Screens** | Home, a project's Entries, Schema, Tasks and Automation tabs, the new-entry form, the entry panel (reading, editing, history), the schema editor (reading, editing, adding a field), Dashboard, Today, Outstanding, Activities, Mira, Statistics, Calendar, Board, All Entries, All Tasks, the Learning hub and its guides (with a video playing and the transcript open), Help, Profile, Achievements |
+| **Conditions** | Desktop width (1280 px) and phone width (375 px), each in the light and the dark theme. The phone passes covered the main app screens and the standalone pages, not every tab |
+| **Not covered** | The picture inside a walkthrough video (hidden from assistive technology on purpose, with the same words offered as a transcript), and anything a scan cannot judge: reading order, whether a label makes sense, how it sounds in a screen reader |
+
+The first full pass found eight real problems, all fixed:
+
+| Found | Why it matters | Fix |
+|---|---|---|
+| The entry list's rows were list items marked as buttons, every one named "Open entry detail" (critical) | A screen reader announced a broken list and the same name for every entry | A row is a plain list item; its title is a real button that CSS stretches over the row, so a click anywhere still opens it and each button is named for its entry |
+| A project's page and the calendar had no level-one heading, and the headings beneath them skipped a level | People who move by heading had nothing to start from | The project's name is now the level-one heading and a hidden heading names its tab; the calendar has a hidden one. The task list's heading was raised a level on the All Tasks page |
+| The side panel was an `<aside>` with a `<header>`, so it counted as a second banner landmark and an invalid dialog | Duplicate landmarks make the page map confusing | A dialog `<div>` with plain `<div>` parts |
+| The sidebar's project list was a listbox whose items also held a pin button (critical) | Invalid ARIA: a listbox may only hold options | A plain list; the open project is marked with `aria-current` |
+| The two statistics charts had a label but no role | A label on a bare `<div>` is ignored | `role="img"` (the same figures are in a table for screen readers) |
+| The tour's step dots had a label but no role | Same | `role="img"` |
+| The tour card and the badge summary used a heading level too low for where they sit | Skipped heading levels | Raised one level |
+| Text on the active phone tab had a contrast of 4.14:1 (needs 4.5:1) | Hard to read for low vision | The brand blue is a little darker (`#4f50d4`), which gives 4.9:1 on its tinted background and 6.1:1 on white |
+
+After the fixes every screen in the table reports no violations under each of the conditions above (and the phone layout has no sideways scroll). Tests keep the structural fixes from slipping back:
+the entry rows (a list of rows, one named button each) and the panel (no banner or complementary
+landmark) are asserted in `SchemaEditor.test.jsx` and `Drawer.test.jsx`.
+
+To repeat the check, sign in locally, then load `axe.min.js` into the page and call
+`axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"] } })`
+on each screen.
 
 ## User feedback as a testing activity
 

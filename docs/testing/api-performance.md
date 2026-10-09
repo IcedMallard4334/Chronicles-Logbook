@@ -169,6 +169,8 @@ With 2 workers × 15 connections = 30 at most, this stays under the connection l
 
 **Cold starts** were not isolated in these runs: the API had already been warmed up by earlier requests.
 
+*Spot check, 9 October 2026* (curl from Johannesburg, five requests to `/health`, each on a fresh connection): 0.95, 0.69, 0.60, 0.72 and 0.53 s to the end of the response. The API, the app and the docs site (1.6 s) all answered 200. Each request includes the TLS handshake (about 0.4 to 0.7 s of it), which a browser pays once per session. This does not isolate a cold start, because it is not known how long the API had been idle.
+
 > **TODO:** run `latency --requests 5` after the app has been idle for 30+ minutes, and compare the first request with the rest. If the App Service plan supports **Always On**, enabling it stops the app being unloaded when idle; note whether the student plan allows it.
 
 ### 3. Validation status codes (US-3.15) — decided: keeping 422

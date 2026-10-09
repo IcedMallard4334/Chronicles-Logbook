@@ -392,3 +392,36 @@ looking at the built-in fields, adding a field and logging an entry.
   `{ type: "walkthrough", id }` block in a lesson in `learningContent.js`.
 - The lessons in *Creating Your First Logbook* were rewritten to describe the side panel, the built-in
   fields and the default form.
+
+## Accessibility audit of the signed-in app
+
+Lighthouse had scored the landing page 100 for accessibility, but it cannot sign in, so the app itself had
+never been scanned. It now has been, with axe-core, on every main screen in light, dark and phone width
+(the method and the full table of findings are in [Testing](../development/testing.md#accessibility-checks)).
+
+- **Eight problems found and fixed**, including a critical one: the entry list's rows were buttons inside a
+  list, each named the same. A row is now an ordinary list item whose title is the button, so screen reader
+  users hear which entry they are opening, and a click anywhere on the row still works.
+- Every page has a level-one heading and headings that step down in order (a project's name is its heading), the side panel no longer counts as a second
+  banner, the statistics charts and tour dots have roles, and the sidebar project list is valid ARIA.
+- **One colour changed:** the brand blue is slightly darker so text on its tinted background reaches the
+  4.5:1 contrast minimum.
+
+## Documentation: every decision, every diagram
+
+The documentation was audited against the code on 2026-10-09 and brought up to date.
+
+- **A new [Decisions](../decisions/index.md) section** records what was decided, why, what it cost and where it
+  lives, for the data model, the interface (including how dictation works and what it runs on), the platform and
+  tooling, and **everything the tests do not cover** with the reason for each. Where the repository does not say why,
+  the entry says so instead of guessing.
+- **[Diagrams](../architecture/diagrams.md):** system context, deployment, backend and frontend components, a full
+  entity-relationship diagram of all 22 tables (generated from the models), class diagrams of the field types, rule
+  actions and core models, nine sequence diagrams (sign-in, creating an entry, editing a schema, offline sync, Mira,
+  recurrence, sharing, import), four activity diagrams, five state diagrams, an API map and a permissions diagram.
+- **Gaps closed:** the Saved filters API had no page; seven routes, five tables and seven migrations were
+  undocumented; the authentication page named the wrong email provider and omitted refresh, logout and the
+  session cookie; the architecture pages listed neither the newer files nor the real routes; the Mira API page still
+  described confirming every action; the test counts and the gap list were out of date.
+- **A script keeps it honest:** `scripts/docs_audit.py` compares the running app with the docs. It reported all of
+  the above, and now reports none.

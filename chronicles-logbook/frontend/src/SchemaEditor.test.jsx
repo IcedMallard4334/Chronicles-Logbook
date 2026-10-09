@@ -77,7 +77,7 @@ beforeEach(() => {
 /** Open Field Notes and land on the given tab. */
 async function openProject(tab) {
   render(<MemoryRouter><App /></MemoryRouter>)
-  const projects = await screen.findByRole("listbox", { name: "Projects" })
+  const projects = await screen.findByRole("list", { name: "Projects" })
   fireEvent.click(within(projects).getByText("Field Notes"))
   await screen.findByRole("heading", { name: "Field Notes" })
   if (tab) fireEvent.click(screen.getByRole("tab", { name: tab }))
@@ -167,7 +167,7 @@ describe("reading a schema", () => {
 
     render(<MemoryRouter><App /></MemoryRouter>)
     fireEvent.click(await screen.findByRole("button", { name: /Show archived/ }))
-    const archived = await screen.findByRole("listbox", { name: "Archived projects" })
+    const archived = await screen.findByRole("list", { name: "Archived projects" })
     fireEvent.click(within(archived).getByText("Field Notes"))
     fireEvent.click(await screen.findByRole("tab", { name: "Schema" }))
 
@@ -1340,5 +1340,37 @@ describe("planned work and finished work", () => {
 
     await waitFor(() => expect(createEntry).toHaveBeenCalled())
     expect(createEntry.mock.calls[0][1]).toMatchObject({ todo: true, title: "Plan the lab" })
+  })
+})
+
+// ── Reading the entry list with a screen reader ──────────────────────────────
+
+describe("the recorded entries list", () => {
+  it("is a list of rows, each opened by one button named for its entry", async () => {
+    fetchEntries.mockResolvedValue([
+      { id: "e1", title: "Dawn survey", data: {}, created_at: "2026-09-12T10:00:00Z" },
+      { id: "e2", title: "", data: {}, created_at: "2026-09-11T10:00:00Z" },
+    ])
+
+    await openProject()
+
+    const list = within(await entryList()).getByRole("list")
+    // A list item is not also a button: the row's one control is the title inside it.
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2)
+    expect(within(list).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Dawn survey",
+      "Untitled entry",
+    ])
+  })
+
+  it("opens the entry from a click anywhere on its row or from its button", async () => {
+    fetchEntries.mockResolvedValue([
+      { id: "e1", title: "Dawn survey", data: {}, created_at: "2026-09-12T10:00:00Z" },
+    ])
+
+    await openProject()
+    fireEvent.click(within(await entryList()).getByRole("button", { name: "Dawn survey" }))
+
+    expect(await screen.findByRole("dialog", { name: /Dawn survey/ })).toBeInTheDocument()
   })
 })

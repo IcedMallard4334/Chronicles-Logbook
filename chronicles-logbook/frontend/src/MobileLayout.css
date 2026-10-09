@@ -315,7 +315,7 @@
   .detail-description { font-size: 0.82rem; overflow-wrap: anywhere; }
   .detail-description:not(.is-open) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .detail-description-toggle { display: inline-block; padding: 0; }
-  .project-title-row h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .project-title-row h1 { font-size: 1.1rem; overflow-wrap: anywhere; }
   .detail-meta { font-size: 0.74rem; }
   /* The four project tabs share the screen's width equally, so Automation
      stays on screen instead of scrolling out of sight sideways. */

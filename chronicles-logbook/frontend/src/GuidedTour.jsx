@@ -147,12 +147,12 @@ function TourCard({
         tabIndex={-1}
       >
         <div className="tour-card-body">
-          <h3 id="tour-card-title">{step.title}</h3>
+          <h2 id="tour-card-title">{step.title}</h2>
           <p>{step.body}</p>
         </div>
         <div className="tour-card-foot">
           {total > 1 ? (
-            <span className="tour-progress" aria-label={`Step ${index + 1} of ${total}`}>
+            <span className="tour-progress" role="img" aria-label={`Step ${index + 1} of ${total}`}>
               {Array.from({ length: total }, (_, dot) => (
                 <span key={dot} className={dot === index ? "is-current" : ""} />
               ))}

@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  root.classList.remove("has-drawer", "drawer-compact", "drawer-resizing")
+  root.classList.remove("has-drawer", "drawer-compact", "drawer-overlay", "drawer-resizing")
   root.style.removeProperty("--drawer-inset")
 })
 
@@ -33,6 +33,30 @@ const open = (props = {}) =>
   )
 
 describe("Drawer", () => {
+  it("pushes the page over when there is room beside it, and lies over it when there is not", () => {
+    const { unmount } = open()
+    expect(root).toHaveClass("has-drawer")
+    expect(root).not.toHaveClass("drawer-overlay")
+    unmount()
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 900 })
+    const narrow = open()
+    // 900 wide leaves 380 beside a 520 drawer: too little for the page's own layout.
+    expect(root).toHaveClass("drawer-overlay")
+    narrow.unmount()
+    expect(root).not.toHaveClass("drawer-overlay")
+  })
+
+  it("is a plain dialog, so it adds no banner or complementary landmark to the page", () => {
+    open()
+
+    const dialog = screen.getByRole("dialog", { name: "Edit thing" })
+    expect(dialog.tagName).toBe("DIV")
+    expect(dialog.querySelector("header, aside")).toBeNull()
+    expect(screen.queryByRole("banner")).toBeNull()
+    expect(screen.queryByRole("complementary")).toBeNull()
+  })
+
   it("is a named, non-modal dialog docked to <body>, with the page left usable", () => {
     const { container } = render(
       <div id="caller">

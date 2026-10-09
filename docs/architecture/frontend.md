@@ -56,9 +56,9 @@ graph TB
 | `TaskPanel.jsx` | Task creation/editing, task list, filters, checklist UI with progress bar |
 | `api.js` | HTTP client wrapping all backend endpoints |
 | `fieldTypes.js` | The field-type registry (`FIELD_TYPE_META` — label, hint, badge and colour for every type) that the builder, the entry form and the entry table all read from, plus the parser and evaluator for computed-field expressions and the name↔id resolution those expressions are edited through |
-| `App.css` | Component styles (~2100 lines) |
+| `App.css` | Component styles (about 3,650 lines) |
 | `ProfilePage.css` | Profile page styles |
-| `tasks.css` | Task-specific styles (~250 lines) |
+| `tasks.css` | Task-specific styles (about 290 lines) |
 | `index.css` | Global CSS variables, light/dark/system themes |
 
 **Sprint 3 additions** (the diagram above predates these; not redrawn to keep
@@ -88,8 +88,8 @@ view switch, not from the diagram's Sprint 1/2 shell):
 | `EntryHistory.jsx`, `DeletedEntries.jsx`, `entryVersions.js` | Versions, reverting, "as it stood on" a date, restoring deleted entries |
 | `StatusEditor.jsx`, `StatusPicker.jsx`, `statuses.js` | Defining, choosing and filtering by entry statuses |
 | `MiraAssistant.jsx`, `MiraMarkdown.jsx` | Mira's panel: streaming, Markdown, history, proposal cards |
-| `miraActions.js` | Runs confirmed Mira proposals through the ordinary API (26 handlers) |
-| `speech.js` | Dictation (alternatives, vocabulary, spoken punctuation, pause-based punctuation) and speaking |
+| `miraActions.js`, `useMira.js` | Runs Mira's actions through the ordinary API with per-step progress (a batch never throws and stops at the first failure), checks them in friendly terms before the server is asked, and tells her how each step went; `useMira` holds the whole conversation (auto-run unless the person asked to be asked first, deleting always asks, at most two self-corrections, Stop) |
+| `speech.js` | Voice dictation on the browser's Web Speech API (`SpeechRecognition`): five alternative readings, vocabulary, spoken punctuation, pause-based punctuation. It does not speak; the in-app screen reader was removed. See [UI-29](../decisions/interface.md#ui-29-dictation-sits-on-the-browsers-web-speech-api) |
 | `Streaks.jsx` | The two streak counters in the top bar |
 | `AchievementsSection.jsx`, `AchievementsPage.jsx`, `AchievementParts.jsx` | The profile summary, the page of every badge, and the shared ring, bars and detail card |
 | `AchievementCelebration.jsx`, `BadgeArt.jsx`, `Confetti.jsx` | The celebration dialog, badge art and confetti |
@@ -97,60 +97,92 @@ view switch, not from the diagram's Sprint 1/2 shell):
 | `EntryTaskGuide.jsx` | The "Entry or task?" explainer |
 | `preferences.js` | Theme, accent, and custom colours (basic, or advanced: controls, second colour, page glow, page background) |
 
+**Files the table above never listed.** Added by the docs audit on 2026-10-09 (the decisions behind most of
+them are in [Decisions: interface](../decisions/interface.md)):
+
+| File | Responsibility |
+|---|---|
+| `EntryShared.jsx` | Everything an entry shares between pages: the new-entry fields, the built-in title and time fields, the entry drawer (read, edit, history, bring up to date), project-link chips, tag and checklist inputs, and entry naming |
+| `entryNames.js` | The one place an entry is named for display: title, else first readable words, else the day it was written, never its id |
+| `timeSpent.js`, `formatDuration.js` | The hours-and-minutes check (10,000 h ceiling, existing values grandfathered) and "3h 20m" |
+| `BoardView.jsx` | The Board: columns from a dropdown field or from status, optimistic drag between columns |
+| `CalendarView.jsx`, `calendarDates.js` | The month grid, merging Chronicles items with Google events; date helpers (Google's all-day end dates are exclusive) |
+| `FieldTimeline.jsx` | One field's values over time as a chart and a table; reused inside Statistics |
+| `StructuredSearch.jsx`, `SavedFilterBar.jsx` | The "filter by custom field" builder and named, re-applicable filters |
+| `WorkspacePages.jsx`, `OutstandingPage.jsx`, `TodayPage.jsx` | The All Entries and All Tasks pages, the Outstanding view (grouped by how soon work is due) and Today |
+| `Invitations.jsx` | The invitations bell (appears only when something is waiting; polled every minute) |
+| `OfflineStatus.jsx`, `offlineQueue.js`, `offlineSync.js` | Offline capture: the indicator and review panel, the IndexedDB queue (per user, with capture time and a client id), and the drain that sends it (retry / rejected / paused) |
+| `csvImport.js`, `exportFormats.js` | Reading a CSV into the import document with a preview, and writing the six export formats (CSV, Markdown, HTML, text, PDF, JSON) in the browser |
+| `useDialogFocus.js` | Focus in, Escape, focus back, optional Tab trap, for every dialog and popover |
+| `ViewTransition.jsx` | The short entrance animation between views, the delayed loader and skeleton rows |
+| `AmbientBackground.jsx`, `ChroniclesLogo.jsx`, `EditIcon.jsx`, `LearningIcons.jsx`, `LearningCardArt.jsx` | The drawn backdrop scenes, the logo, the animated pencil, and the Learning icons and card art |
+| `LearningChronicles.jsx`, `LearningHubPage.jsx`, `LearningLauncher.jsx`, `ChronicleReader.jsx`, `learningContent.js` | Learning Chronicles: the card grid, the `/learning` hub, the launcher under Mira, the lesson reader and the guides themselves (plain data) |
+| `LandingPage.jsx` | The page before sign-in, drawn in CSS, with its own light/dark toggle |
+| `SetupPage.jsx`, `OnboardingLayout.jsx`, `MiraConsentPage.jsx` | The first-run steps: preferences, then Mira's consent (cached per session) |
+| `GoogleConnectionCard.jsx` | **Not used anywhere.** Despite its name it is a "Today" overview card (due today, overdue, logged today). It is left in place rather than deleted without checking with its author; it reads `project.is_archived`, which the API does not send (the field is `archived`), so it would need fixing before use |
+| `test-setup.js` | Test environment set-up: jest-dom matchers and the browser APIs jsdom lacks |
+
 ## Routing
+
+Every route except the sign-in page is loaded lazily (UI-41); `SessionGate` restores the session before any of
+them renders.
 
 ```mermaid
 graph LR
-    L[Landing /] -->|not signed in| LP[Auth Page]
+    L["/ (landing)"] -->|not signed in| LP[Landing page]
     L -->|signed in| APP
-    APP[/app] --> Shell[App Shell]
-    Shell --> PD[Project Dashboard]
-    PROF[/profile] --> PP[Profile Page]
-    CB[/auth/callback] --> AC[AuthCallback]
+    SI["/signin"] --> AP[Auth page]
+    APP["/app"] --> Shell[App shell]
+    SETUP["/setup, /mira-permissions"] --> OB[First-run steps]
+    PROF["/profile"] --> PP[Profile]
+    HELP["/help"] --> HP[Help manual]
+    ACH["/achievements"] --> AC[Badges]
+    LRN["/learning, /learning/:id"] --> LH[Learning Chronicles]
+    CB["/auth/callback"] --> AC2[AuthCallback]
 ```
 
-```jsx
-<BrowserRouter>
-  <Routes>
-    <Route path="/" element={<LandingRoute />} />
-    <Route path="/app" element={<ProtectedAppRoute />} />
-    <Route path="/profile" element={<ProtectedProfileRoute />} />
-    <Route path="/auth/callback" element={<AuthCallback />} />
-  </Routes>
-</BrowserRouter>
-```
+| Route | Page | Needs a session |
+|---|---|---|
+| `/` | Landing page (redirects to `/app` when signed in) | No |
+| `/signin` | Sign-in | No |
+| `/auth/callback` | Receives the OAuth result and stores the token | No |
+| `/app` | The workspace (every view is a `?view=` of this one route) | Yes, and Mira consent decided |
+| `/setup`, `/mira-permissions` | First-run preferences and Mira's consent | Yes |
+| `/profile`, `/help`, `/achievements` | Profile, help manual, every badge | Yes |
+| `/learning`, `/learning/:chronicleId` | The guide hub and a guide | Yes |
+| anything else | Redirects to `/` | |
 
-`localStorage` holds the JWT (`chronicles_token`) and cached user info (`chronicles_user`). Protected routes redirect unauthenticated users to `/`.
+`localStorage` holds the access token (`chronicles_token`) and cached user info (`chronicles_user`); the 30-day
+session cookie renews the token ([Authentication](../api/authentication.md)). Protected routes send an
+unauthenticated visitor to `/`. The views inside `/app` are `home`, `today`, `assistant` (Mira), `entries`,
+`tasks`, `board`, `outstanding`, `calendar`, `statistics` and `activities`.
 
 ## Theme system
 
 The frontend supports three modes: **light**, **dark**, and **system**. Themes are controlled by a `data-theme` attribute on the `<html>` element and a set of CSS custom properties defined in `index.css`:
 
 ```css
-:root {
-  --bg: #f7f7fa;
-  --surface: #ffffff;
-  --text: #2a2a3b;
-  --muted: #8b8ba3;
-  --blue: #6366f1;
-  --mauve: #c4b5fd;
-  --line: #e6e6ee;
+:root {                       /* light, abridged; the full set is in index.css */
+  --bg: #e8ebf1;
+  --surface: #f6f7fa;
+  --text: #292c39;
+  --muted: #606a80;
+  --line: #d5d9e3;
+  --blue: #4f50d4;            /* was #5b5ce2: darkened for 4.5:1 text on --blue-bg */
+  --blue-bg: #e2e5ff;
+  --mauve: #7653c8;
+  --accent: var(--blue);      /* aliases: highlights read these */
+  --accent-light: var(--blue-bg);
   --radius: 14px;
 }
-
-[data-theme="dark"] {
-  --bg: #1a1a2e;
-  --surface: #23233a;
-  --text: #e6e6ee;
-  --muted: #8b8ba3;
-  --line: #3a3a55;
-}
+[data-theme="dark"] { --blue: #9189dc; --blue-bg: #282943; /* ... */ }
 ```
+
 
 ## Colour palette
 
-- **Blue** (`--blue: #6366f1`) — actions, links, interactive elements
-- **Mauve** (`--mauve: #c4b5fd`) — highlights, completed states
+- **Blue** (`--blue: #4f50d4`) — actions, links, interactive elements
+- **Mauve** (`--mauve: #7653c8`) — highlights, completed states
 - **Grey tones** (`--muted`) — secondary text, borders
 - **Green (`--success`) / red (`--error`)** — a project's status dot in the sidebar, reused verbatim on linked-project chips elsewhere so one colour language is learned once
 - **Amber** (`--warning: #b45309`) — an action that is allowed but will change data the user did not just type, such as a schema edit that reshapes existing entries. Distinct from `--error`, which marks something that failed
@@ -167,7 +199,9 @@ what fluidity alone cannot.
 | ≥ 1360px | Shell stops growing and centres; content keeps a comfortable measure |
 | 860px | Two-column layouts (project detail, workspace grids) collapse to one |
 | 760px | Home hub panels stack; internal padding tightens |
-| 720px | The three-column feature grid becomes one |
+| 720px | The three-column feature grid becomes one. The phone layout begins: a bottom bar on every page, a project sheet that opens upward, the side drawer takes the whole screen, All Entries rows become cards (UI-47) |
+| 1100px | Below this much room beside an open drawer, the top bar shows icons only (UI-13) |
+| 760px | Below this much room beside an open drawer, the drawer lies over the page instead of pushing it (UI-13) |
 | 680 / 560 / 420px | Setup grids step down; footer actions, the share panel and the invite form go full-width |
 
 Three rules are worth stating because they are the ones that actually break:
@@ -184,7 +218,8 @@ Three rules are worth stating because they are the ones that actually break:
   controls to 44px. Keying off the input device rather than the screen means a
   touchscreen laptop is covered too, which a width breakpoint would miss.
 
-Appearance across real devices is still checked by hand: `jsdom` runs the
+Why each breakpoint is where it is, and what was tried first, is in
+[Decisions: interface](../decisions/interface.md#ui-47-the-phone-layout-has-its-own-navigation). Appearance across real devices is still checked by hand: `jsdom` runs the
 component tests with no layout engine, so it cannot catch a visual overflow.
 
 ## Accents
@@ -362,7 +397,8 @@ the views cannot drift apart.
 
 ## Entry list
 
-One row is one entry, so the row is the unit of attention: a hover light marks
+A row is a plain list item whose title is a real button, stretched over the whole row, so a click anywhere opens
+the entry and a screen reader hears which entry it is (UI-18). One row is one entry, so the row is the unit of attention: a hover light marks
 where an entry ends and the next begins, and hints that a row is a thing rather
 than a list of loose values. Column labels are truncated past twenty characters
 with the full name riding along as a tooltip, since a header three lines tall
@@ -386,6 +422,7 @@ numeric column is read down, not across.
 - **React Router for view routing** — the app has grown beyond a single view; React Router gives clean URLs (`/app`, `/profile`) and handles auth redirects naturally.
 - **CSS custom properties over CSS-in-JS** — themes are achieved purely through CSS variables, keeping the styling layer simple and performant.
 - **Fetch-based API client** — `api.js` wraps the native `fetch` API with token injection and error handling, rather than using Axios or another library.
+- **Every decision, with its reason, is in the [Decisions](../decisions/index.md) section.** This page describes how the frontend is put together; that section says why it is that way.
 - **Preview before applying a schema change** — the alternative is an undo, which would mean storing a copy of every entry before every edit. Showing what will happen is cheaper than being able to reverse it, and clearer at the moment the decision is made.
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder.

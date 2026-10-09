@@ -86,7 +86,7 @@
 
 .tour-card.is-center::before { display: none; }
 
-.tour-card h3 {
+.tour-card h2 {
   margin: 0 0 6px;
   font-size: 1.02rem;
   letter-spacing: -0.015em;

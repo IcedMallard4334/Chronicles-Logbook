@@ -393,13 +393,13 @@ export default function ProfilePage() {
                     {colourMode === "basic" ? (
                       <label className="colour-picker">
                         <span>Your colour</span>
-                        <input type="color" aria-label="Custom accent colour" value={custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("accent", event.target.value)} />
+                        <input type="color" aria-label="Custom accent colour" value={custom.accent || currentColour("--blue", "#4f50d4")} onChange={(event) => changeCustom("accent", event.target.value)} />
                       </label>
                     ) : (
                       <>
                         <label className="colour-picker">
                           <span>Buttons and highlights</span>
-                          <input type="color" aria-label="Buttons and highlights" value={custom.controls || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("controls", event.target.value)} />
+                          <input type="color" aria-label="Buttons and highlights" value={custom.controls || custom.accent || currentColour("--blue", "#4f50d4")} onChange={(event) => changeCustom("controls", event.target.value)} />
                         </label>
                         <label className="colour-picker">
                           <span>Second colour</span>
@@ -407,7 +407,7 @@ export default function ProfilePage() {
                         </label>
                         <label className="colour-picker">
                           <span>Page glow</span>
-                          <input type="color" aria-label="Page glow" value={custom.glow || custom.accent || currentColour("--blue", "#5b5ce2")} onChange={(event) => changeCustom("glow", event.target.value)} />
+                          <input type="color" aria-label="Page glow" value={custom.glow || custom.accent || currentColour("--blue", "#4f50d4")} onChange={(event) => changeCustom("glow", event.target.value)} />
                         </label>
                         <label className="colour-picker">
                           <span>Page background</span>

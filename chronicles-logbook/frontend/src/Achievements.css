@@ -14,7 +14,7 @@
 .achievement-ring-label strong { font-size: 2rem; line-height: 1; }
 .achievement-ring-label span { font-size: 0.78rem; color: var(--muted); }
 .achievement-breakdown { display: grid; gap: 0.4rem; }
-.achievement-breakdown h3 { margin: 0 0 0.2rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.achievement-breakdown h2 { margin: 0 0 0.2rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .achievement-bar { display: grid; grid-template-columns: 6.5rem 1fr 2.6rem; gap: 0.5rem; align-items: center; font-size: 0.82rem; }
 .achievement-bar-track { display: block; height: 0.6rem; border-radius: 999px; background: var(--line, rgba(127, 127, 127, 0.25)); overflow: hidden; }
 .achievement-bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--blue, #6b5bff); transition: width 0.4s ease; }
