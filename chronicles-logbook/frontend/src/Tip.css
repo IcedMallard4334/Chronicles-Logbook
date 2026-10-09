@@ -1,0 +1,68 @@
+/* The app's tooltip, drawn from the palette so it follows the theme and accent. */
+
+.has-tip { position: relative; }
+
+.tip-bubble {
+  position: absolute;
+  top: calc(100% + 10px);
+  z-index: 10500;
+  width: max-content;
+  max-width: min(280px, 80vw);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 30px color-mix(in srgb, #0f0e1a 22%, transparent);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms;
+}
+
+.tip-bubble.is-center { left: 50%; margin-left: 0; translate: -50% 0; }
+.tip-bubble.is-end { right: 0; }
+
+/* A small arrow pointing at the control. */
+.tip-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+.tip-bubble.is-center::before { left: calc(50% - 4px); }
+.tip-bubble.is-end::before { right: 14px; }
+
+/* Shown on hover and keyboard focus; never while the control has opened a menu of its own. */
+.has-tip:hover > .tip-bubble,
+.has-tip:focus-visible > .tip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 250ms, 250ms, 0s;
+}
+
+.has-tip[aria-expanded="true"] > .tip-bubble { display: none; }
+
+@media (hover: none) {
+  /* A finger has no hover; focus (a tap) still shows it. */
+  .has-tip:hover:not(:focus-visible) > .tip-bubble { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip-bubble { transition: none; transform: none; }
+}
+
+/* The avatar button clips to its circle; its photo rounds itself, so it can let the bubble out. */
+.user-menu-trigger.user-avatar.has-tip { overflow: visible; }

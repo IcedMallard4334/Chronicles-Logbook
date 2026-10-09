@@ -48,7 +48,7 @@ CORS origins come from `CORS_ORIGINS` (comma-separated) and fall back to the loc
 |---|---|---|
 | `auth` | `/auth` | Google OAuth authentication, Google Calendar OAuth, current user, account deletion |
 | `projects` | `/projects` | Project CRUD, archiving/unarchiving, entry management (create, edit, history, revert, restore), schema definitions and previews, sharing, leaving a project |
-| `invitations` | `/invitations` | The invitee's side of sharing: list, accept, decline |
+| `invitations` | `/invitations` | Both sides of an invitation: the invitee lists, accepts and declines; the owner is told of answers and dismisses them |
 | `tasks` | `/projects/{project_id}/tasks` | Task CRUD, toggle completion, filtering, checklists |
 | `entries` | `/entries` | Global entry search across projects |
 | `automation` | `/projects/{project_id}/rules`, `/reminders` | Sprint 3: entry rules, recurring entries, the cross-project reminders bell |
@@ -60,6 +60,7 @@ CORS origins come from `CORS_ORIGINS` (comma-separated) and fall back to the loc
 | `achievements` | `/achievements` | Badges with progress, and marking their celebrations as shown |
 | `dashboard` | `/dashboard` | The grid dashboard: panels, their sizes and the grid width |
 | `saved_filters` | `/saved-filters` | Named, reusable Entries-page search combinations |
+| `public` | `/public` | Reference anyone may read without signing in: the API's description, the field types, and the limits |
 | `transfer` | `/export`, `/import`, `/projects/{id}/export.csv` | Full-account JSON export, additive import, and a per-project CSV |
 
 ## Supporting modules

@@ -93,6 +93,8 @@ import { PencilIcon } from "./EditIcon"
 import LearningLauncher from "./LearningLauncher"
 import { timeSpentProblem } from "./timeSpent"
 import Drawer from "./Drawer"
+import ProjectTeam from "./ProjectTeam"
+import { TipBubble } from "./Tip"
 import { BuiltInFieldCards, SchemaFieldEditor, SchemaFieldSummary } from "./SchemaParts"
 import FormField, { ShortTextBox } from "./FormField"
 import { defaultSchemaFields, isBuiltInName, missingRequired, missingRequiredMessage } from "./formFields"
@@ -142,13 +144,13 @@ function UserMenu({ userName, avatarUrl, initials }) {
           things. Profile itself is the first item in the menu. */}
       <button
         type="button"
-        className="user-menu-trigger user-avatar"
+        className="user-menu-trigger user-avatar has-tip"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={`${userName} — account menu`}
-        title={userName}
       >
+        <TipBubble text={userName} align="end" />
         {avatarUrl ? (
           <img src={avatarUrl} alt="" referrerPolicy="no-referrer" />
         ) : (
@@ -1685,6 +1687,8 @@ function EntryList({
   onEntryDeleted,
 }) {
   const [selectedEntryId, setSelectedEntryId] = useState(null)
+  // "" is everyone; otherwise a person's id, or "none" for entries with no recorded author.
+  const [loggedBy, setLoggedBy] = useState("")
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects]
@@ -1729,6 +1733,20 @@ function EntryList({
   const statuses = useProjectStatuses(linkedIds)
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || null
 
+  // The people who wrote these entries, so the list can be narrowed to one of them. It is only
+  // offered when more than one person (or an unknown author) is in the list.
+  const authors = useMemo(() => {
+    const found = new Map()
+    for (const entry of entries) {
+      const key = entry.created_by || "none"
+      if (!found.has(key)) found.set(key, entry.created_by_name || "Author not recorded")
+    }
+    return [...found].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [entries])
+  // A choice that no longer matches anyone (the entries changed under it) falls back to everyone.
+  const activeAuthor = authors.some(([key]) => key === loggedBy) ? loggedBy : ""
+  const shown = activeAuthor ? entries.filter((entry) => (entry.created_by || "none") === activeAuthor) : entries
+
   if (entries.length === 0) {
     return <p className="hint">No entries yet.</p>
   }
@@ -1740,8 +1758,21 @@ function EntryList({
   return (
     <div className="entry-list">
       <h3>Recent entries</h3>
+      {authors.length > 1 && (
+        <label className="entry-author-filter">
+          Logged by
+          <select value={activeAuthor} onChange={(event) => setLoggedBy(event.target.value)}>
+            <option value="">Everyone</option>
+            {authors.map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <ul className="log-list" role="list">
-        {entries.map((entry) => {
+        {shown.map((entry) => {
           // An entry keeps the exact shape it was recorded in until someone
           // individually migrates it — the *project's* current schema is
           // the wrong thing to render an old entry against, since it can
@@ -1995,6 +2026,7 @@ function ProjectDetail({
   const [addingEntry, setAddingEntry] = useState(false)
   const [savedNotice, setSavedNotice] = useState(null)
   const [sharing, setSharing] = useState(false)
+  const [teamOpen, setTeamOpen] = useState(false)
   const [, setProjectHintTick] = useState(0)
 
   useEffect(() => {
@@ -2057,6 +2089,10 @@ function ProjectDetail({
             <button type="button" className="meta-pill" onClick={() => setTab("schema")}>
               {project.entry_schema?.length || 0}{" "}
               {project.entry_schema?.length === 1 ? "field" : "fields"} · Schema
+            </button>
+            {/* Open to anyone who can read the project, not only its owner. */}
+            <button type="button" className="meta-pill team-pill" onClick={() => setTeamOpen(true)}>
+              Team
             </button>
           </p>
           {!project.shared && (
@@ -2199,6 +2235,7 @@ function ProjectDetail({
           <AutomationPanel project={project} />
         ) : null}
       </div>
+      {teamOpen && <ProjectTeam projectId={project.id} projectName={project.name} onClose={() => setTeamOpen(false)} />}
       {sharing && <ShareProjectDialog projectId={project.id} projectName={project.name} onClose={() => setSharing(false)} />}
       {project.shared && <footer className="detail-footer">
         {(

@@ -407,6 +407,36 @@ never been scanned. It now has been, with axe-core, on every main screen in ligh
 - **One colour changed:** the brand blue is slightly darker so text on its tinted background reaches the
   4.5:1 contrast minimum.
 
+## The team on a project
+
+A **Team** button beside a project's schema pill opens a drawer with who is working on it and what each person has
+done: entries logged, entries completed, entries edited, time logged, tasks added and completed, and schema changes,
+with a "Together" total and when each person was last active. It shows the owner, members who accepted, people who
+have been invited or declined, people who did something and have since left, and one "Author not recorded" row for
+work with no author. Owners and accepted members can open it. Everything is counted from the work stored in the
+project, so it always matches it, and what each figure means is written under it.
+
+Three things sit with it:
+
+- **Recent activity** in the same drawer: who logged, edited, finished or deleted what, who added or completed
+  tasks, who changed the schema, and who joined or declined, newest first.
+- **The owner is told when an invitation is answered.** The bell in the top bar shows "Sam joined Fieldwork" or
+  "Lee declined" for two weeks, or until dismissed.
+- **Logged by.** A project's entries can be narrowed to one person's when more than one person has written entries.
+  (The All Entries page does not have it yet; see UI-67 for why.)
+
+Schema changes were not recorded anywhere before (a schema save changes only the project), so a new table now
+records who made each one. It starts today; earlier changes are not known, and the drawer says from when it counts.
+See [Sharing](../api/sharing.md#the-team-who-is-working-here-and-what-they-have-done).
+
+## Our own tooltips, and a public reference API
+
+- **Tooltips in the app's own style.** The streak chips, the notification bells and the avatar used the browser's plain
+  white tooltip. They now show a bubble in the theme's colours that also appears on keyboard focus.
+- **Four endpoints need no sign-in:** `/health`, `/public/info`, `/public/field-types` and `/public/limits`. They
+  describe the API, the field types and the limits, hold nobody's data, and can be cached. See
+  [Public reference](../api/public.md). Nothing about a person or their logbook is public.
+
 ## Documentation: every decision, every diagram
 
 The documentation was audited against the code on 2026-10-09 and brought up to date.
@@ -416,8 +446,8 @@ The documentation was audited against the code on 2026-10-09 and brought up to d
   tooling, and **everything the tests do not cover** with the reason for each. Where the repository does not say why,
   the entry says so instead of guessing.
 - **[Diagrams](../architecture/diagrams.md):** system context, deployment, backend and frontend components, a full
-  entity-relationship diagram of all 22 tables (generated from the models), class diagrams of the field types, rule
-  actions and core models, nine sequence diagrams (sign-in, creating an entry, editing a schema, offline sync, Mira,
+  entity-relationship diagram of all 23 tables (generated from the models), class diagrams of the field types, rule
+  actions and core models, ten sequence diagrams (sign-in, creating an entry, editing a schema, offline sync, Mira,
   recurrence, sharing, import), four activity diagrams, five state diagrams, an API map and a permissions diagram.
 - **Gaps closed:** the Saved filters API had no page; seven routes, five tables and seven migrations were
   undocumented; the authentication page named the wrong email provider and omitted refresh, logout and the

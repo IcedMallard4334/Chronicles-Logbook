@@ -601,6 +601,80 @@ it lives. Where the repository does not record a reason, the entry says so.
   function means the same entry reads the same everywhere.
 - **Where:** `entryNames.js`, `EntryShared.jsx`.
 
+## The team on a project
+
+### UI-64. The team is a drawer opened from a "Team" pill beside the schema pill
+
+- **Decided:** a **Team** button sits next to "N fields · Schema" in the project header and opens a drawer:
+  a "Together" totals block, one card per person, and a "How these are counted" note. It is visible to everyone who
+  can read the project, not only the owner.
+- **Why:**
+  - *A drawer, not a fifth tab:* the project tabs were just made to fit a phone (the fourth, Automation, had been
+    cut off), so a fifth would reopen that; a drawer is also how everything else attached to a project now opens
+    (UI-12), and it leaves the page usable.
+  - *Beside the schema pill, not among the owner's actions:* the owner-only group (share, archive, delete) is
+    hidden from members, and the team is exactly what a member should be able to see.
+  - *The explanation is on the screen:* a statistic nobody can interpret invites arguments, so what "completed"
+    and "edited" mean, that deleted entries are skipped, and from when schema changes are known are written under
+    the numbers.
+  - *People who have not answered or who declined show a sentence instead of a row of zeros,* because zeros would
+    read as "did nothing" when the truth is "cannot do anything yet".
+  - *Initials when there is no photo,* and the photo is requested with `referrerPolicy="no-referrer"` because
+    Google's image host refuses it otherwise (as for the avatar, see [Frontend](../architecture/frontend.md)).
+  - *"Active 3 hours ago",* not a timestamp, because the question being asked is "is anyone still working on
+    this?"; a date appears once it is over a month old.
+- **Where:** `ProjectTeam.jsx`, `ProjectTeam.css`, `App.jsx`, `api.js` (`fetchProjectTeam`).
+
+### UI-65. The activity feed lives in the team drawer
+
+- **Decided:** a "Recent activity" section in the team drawer: one line per event in words ("Sam finished "Plan the
+  lab"", "Thandi changed the schema (added Effort)") with how long ago.
+- **Why:** it answers the question the totals cannot, "what is happening?", beside the one they do, "who is on it?",
+  and a second screen would be another thing to test and document. It is supplementary: if it fails to load the
+  people and their figures still show, with "Nothing has happened here yet." in its place.
+- **Where:** `ProjectTeam.jsx` (`activityText`), `api.js`.
+
+### UI-66. The invitations bell now also carries the owner's notices
+
+- **Decided:** the same bell shows "Answered" (people you invited who replied, with a Dismiss button) above
+  "Invitations" (to answer). It appears when either is non-empty, and its name says "invitation" when there are only
+  invitations and "notice" when an answer is waiting.
+- **Why:** one place for everything about invitations, not two bells; it already polls and already hides when empty
+  (UI-50). The accessible name keeps the old wording when nothing has changed so nothing that relied on it moved.
+  Answers and invitations are fetched separately and each fails quietly, so one being down never hides the other.
+- **Where:** `Invitations.jsx`.
+
+### UI-67. "Logged by" narrows a project's entries to one person, in the browser
+
+- **Decided:** a "Logged by" menu above a project's Recent entries, shown only when more than one person (or an
+  unknown author) wrote entries: Everyone, each person, and "Author not recorded".
+- **Why:** once a project is shared, "show me what Sam did" is the obvious next question. A project's entries are
+  already fully loaded, so it is a filter on that list with no new endpoint. A choice that no longer matches anyone
+  falls back to Everyone.
+- **Not done, deliberately:** the All Entries page spans projects and is paged by the server, so a client-side
+  filter there would silently hide matches on other pages (DB-32 is the same trap). Doing it properly needs a
+  `created_by` search parameter and a saved-filter field, which was left for later.
+- **Where:** `App.jsx` (`EntryList`).
+
+### UI-68. Our own tooltip, not the browser's `title`
+
+- **Decided:** the streak chips, the two bells and the avatar use a themed bubble (`TipBubble`) instead of a `title`
+  attribute. It is drawn in the palette (surface, border and text tokens), so it follows the theme and accent; it
+  appears after a quarter of a second on hover and on **keyboard focus**; it is anchored to the control's right edge
+  because these sit at the right of the window; and it does not show while the control has opened a menu.
+- **Why:** the browser draws a `title` tooltip itself: plain white, whatever the theme, slow, unreachable from a keyboard
+  or a phone, and (in the report that prompted this) it read like an alert dropped onto the screen. A bubble in the
+  app's own style reads as part of the app.
+- **Accessibility:** the bubble is `aria-hidden`, because the control already carries its name (`aria-label`, or visually
+  hidden text for the streaks); a screen reader would otherwise read it twice. The streak chips became focusable
+  (`tabIndex=0`) so a keyboard user can reach the tip.
+- **A trap found on the way:** the avatar button clips to its circle (`overflow: hidden`), which cut the bubble off.
+  Its photo rounds itself, so the button was allowed to overflow. A bubble inside any clipped ancestor would be cut the
+  same way; the other three are not clipped.
+- **Where else `title` remains:** many small buttons (pin, collapse, edit) still use `title` as a plain hint; they are
+  not alerts and were left.
+- **Where:** `Tip.jsx`, `Tip.css`, `Streaks.jsx`, `Reminders.jsx`, `Invitations.jsx`, `App.jsx`.
+
 ## Streaks and badges
 
 ### UI-60. Anything that saves counts as activity; reading and talking to Mira do not

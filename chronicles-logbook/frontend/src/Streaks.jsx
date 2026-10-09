@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { fetchStreaks, recordStreakActivity, STREAKS_CHANGED } from "./api"
+import { TipBubble } from "./Tip"
 import "./Streaks.css"
 
 /** The streak marks as line icons, so they take the theme's colours instead of an emoji's own. */
@@ -66,10 +67,13 @@ export default function Streaks() {
         const alive = streak.current > 0
         const tip = `${name}: ${dayLabel(streak.current)}. Longest: ${dayLabel(streak.longest)}. ${help} ${streak.active_today ? "Done for today." : nudge}`
         return (
-          <li key={key} className={`streak ${alive ? "is-alive" : ""} ${streak.active_today ? "is-done" : ""}`} title={tip}>
+          // Focusable so the tip is reachable from a keyboard and by tapping; the sr-only text is what a
+          // screen reader reads, and the visible bubble is hidden from it so it is not read twice.
+          <li key={key} className={`streak has-tip ${alive ? "is-alive" : ""} ${streak.active_today ? "is-done" : ""}`} tabIndex={0}>
             <StreakIcon kind={key} />
             <span className="streak-count">{streak.current}</span>
             <span className="sr-only">{tip}</span>
+            <TipBubble text={tip} align="end" />
           </li>
         )
       })}

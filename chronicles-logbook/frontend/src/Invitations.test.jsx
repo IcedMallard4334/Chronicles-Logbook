@@ -14,10 +14,18 @@ vi.mock("./api", () => ({
   fetchInvitations: vi.fn(),
   acceptInvitation: vi.fn(),
   declineInvitation: vi.fn(),
+  fetchInvitationAnswers: vi.fn(),
+  dismissInvitationAnswers: vi.fn(),
 }))
 
 import Invitations from "./Invitations"
-import { acceptInvitation, declineInvitation, fetchInvitations } from "./api"
+import {
+  acceptInvitation,
+  declineInvitation,
+  dismissInvitationAnswers,
+  fetchInvitationAnswers,
+  fetchInvitations,
+} from "./api"
 
 const invitation = {
   project_id: "p9",
@@ -33,6 +41,8 @@ beforeEach(() => {
   fetchInvitations.mockResolvedValue([invitation])
   acceptInvitation.mockResolvedValue(null)
   declineInvitation.mockResolvedValue(null)
+  fetchInvitationAnswers.mockResolvedValue([])
+  dismissInvitationAnswers.mockResolvedValue(null)
 })
 
 describe("the invitations bell", () => {
@@ -116,5 +126,55 @@ describe("answering an invitation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Join" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("no longer waiting")
+  })
+})
+
+describe("telling the owner an invitation was answered", () => {
+  const answered = [
+    { project_id: "p1", project_name: "Fieldwork", person_name: "Sam Dube", answer: "accepted", answered_at: "2026-10-09T09:00:00Z" },
+    { project_id: "p2", project_name: "Lab Log", person_name: "Lee Moyo", answer: "declined", answered_at: "2026-10-09T10:00:00Z" },
+  ]
+
+  it("shows the bell for an answer even when nothing is waiting for the owner's own reply", async () => {
+    fetchInvitations.mockResolvedValue([])
+    fetchInvitationAnswers.mockResolvedValue(answered)
+    render(<Invitations />)
+
+    const bell = await screen.findByRole("button", { name: /2 project notices/ })
+    fireEvent.click(bell)
+
+    expect(screen.getByText("Sam Dube")).toBeInTheDocument()
+    expect(screen.getByText("joined Fieldwork")).toBeInTheDocument()
+    expect(screen.getByText("declined Lab Log")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing is added to your workspace until you accept.")).toBeNull()
+  })
+
+  it("lists answers above the invitations to answer, and counts both", async () => {
+    fetchInvitationAnswers.mockResolvedValue([answered[0]])
+    render(<Invitations />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /2 project notices/ }))
+
+    expect(screen.getByText("joined Fieldwork")).toBeInTheDocument()
+    expect(screen.getByText("Reading Group")).toBeInTheDocument()
+  })
+
+  it("dismisses the notices, closing the panel when nothing else is left", async () => {
+    fetchInvitations.mockResolvedValue([])
+    fetchInvitationAnswers.mockResolvedValue(answered)
+    const { container } = render(<Invitations />)
+    fireEvent.click(await screen.findByRole("button", { name: /2 project notices/ }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+
+    await waitFor(() => expect(dismissInvitationAnswers).toHaveBeenCalled())
+    expect(container.querySelector(".invites")).toBeNull()
+  })
+
+  it("keeps working when the answers cannot be fetched", async () => {
+    fetchInvitationAnswers.mockRejectedValue(new Error("down"))
+    render(<Invitations />)
+
+    expect(await screen.findByRole("button", { name: /1 project invitation/ })).toBeInTheDocument()
   })
 })

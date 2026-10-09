@@ -14,7 +14,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { acceptInvitation, declineInvitation, fetchInvitations } from "./api"
+import { acceptInvitation, declineInvitation, dismissInvitationAnswers, fetchInvitationAnswers, fetchInvitations } from "./api"
+import { TipBubble } from "./Tip"
 import { useDialogFocus } from "./useDialogFocus"
 import "./Invitations.css"
 
@@ -22,6 +23,8 @@ const POLL_MS = 60_000
 
 export default function Invitations({ onChanged }) {
   const [invitations, setInvitations] = useState([])
+  // Invitations this person sent that have since been answered.
+  const [answers, setAnswers] = useState([])
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState("")
@@ -43,7 +46,22 @@ export default function Invitations({ onChanged }) {
       // still a working workspace, so this fails quietly.
       setInvitations([])
     }
+    try {
+      setAnswers(await fetchInvitationAnswers())
+    } catch {
+      setAnswers([])
+    }
   }, [])
+
+  const dismissAnswers = async () => {
+    setAnswers([])
+    if (invitations.length === 0) setOpen(false)
+    try {
+      await dismissInvitationAnswers()
+    } catch {
+      refresh()
+    }
+  }
 
   useEffect(() => {
     refresh()
@@ -92,32 +110,64 @@ export default function Invitations({ onChanged }) {
     }
   }
 
-  if (invitations.length === 0) return null
+  const waiting = invitations.length + answers.length
+  if (waiting === 0) return null
 
   return (
     <div className="invites" ref={panel}>
       <button
         type="button"
-        className="invites-bell"
+        className="invites-bell has-tip"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label={`${invitations.length} project ${invitations.length === 1 ? "invitation" : "invitations"}`}
-        title={`${invitations.length} waiting for an answer`}
+        aria-label={answers.length ? `${waiting} project ${waiting === 1 ? "notice" : "notices"}` : `${waiting} project ${waiting === 1 ? "invitation" : "invitations"}`}
       >
+        <TipBubble
+          align="end"
+          text={answers.length ? `${invitations.length} waiting for your answer, ${answers.length} answered` : `${invitations.length} waiting for an answer`}
+        />
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
-        <span className="invites-count">{invitations.length}</span>
+        <span className="invites-count">{waiting}</span>
       </button>
 
       {open && (
         <div ref={dialogRef} className="invites-panel" role="dialog" aria-label="Project invitations" tabIndex={-1}>
+          {answers.length > 0 && (
+            <section className="invites-answers" aria-label="Answers to your invitations">
+              <header className="invites-head">
+                <h3>Answered</h3>
+                <p>People you invited have replied.</p>
+              </header>
+              <ul className="invites-list" role="list">
+                {answers.map((answer) => (
+                  <li key={`${answer.project_id}-${answer.person_name}`} className="invites-item">
+                    <div className="invites-copy">
+                      <strong>{answer.person_name}</strong>
+                      <span className="invites-from">
+                        {answer.answer === "accepted" ? "joined" : "declined"} {answer.project_name}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="invites-actions invites-dismiss">
+                <button type="button" className="invites-decline" onClick={dismissAnswers}>
+                  Dismiss
+                </button>
+              </div>
+            </section>
+          )}
+
+          {invitations.length > 0 && (
           <header className="invites-head">
             <h3>Invitations</h3>
             <p>Nothing is added to your workspace until you accept.</p>
           </header>
+          )}
 
           {error && (
             <p className="invites-error" role="alert">
@@ -125,6 +175,7 @@ export default function Invitations({ onChanged }) {
             </p>
           )}
 
+          {invitations.length > 0 && (
           <ul className="invites-list" role="list">
             {invitations.map((invitation) => (
               <li key={invitation.project_id} className="invites-item">
@@ -163,11 +214,14 @@ export default function Invitations({ onChanged }) {
               </li>
             ))}
           </ul>
+          )}
 
+          {invitations.length > 0 && (
           <footer className="invites-foot">
             Joining lets you read the project and add entries to it. Its owner keeps
             everything else, and you can leave whenever you like.
           </footer>
+          )}
         </div>
       )}
     </div>

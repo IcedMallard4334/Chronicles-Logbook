@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("./api", () => ({
   fetchProjects: vi.fn(), fetchProject: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(),
   archiveProject: vi.fn(), unarchiveProject: vi.fn(), fetchEntries: vi.fn(), fetchEntriesGlobal: vi.fn(),
-  fetchTasks: vi.fn(), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
+  fetchTasks: vi.fn(), fetchProjectTeam: vi.fn(), fetchProjectActivity: vi.fn(() => Promise.resolve({ items: [] })), createEntry: vi.fn(), deleteAccount: vi.fn(), sendAIMessage: vi.fn(), signOut: vi.fn(),
   // The Home page is the dashboard now, so it loads its panels.
   fetchDashboard: vi.fn(() => Promise.resolve({ panels: [], columns: 3, updated_at: "2026-09-24T00:00:00Z" })), updateDashboardPanels: vi.fn(), fetchSavedFilters: vi.fn(() => Promise.resolve([])),
   fetchAchievements: vi.fn(() => Promise.resolve({ badges: [], earned: 0, total: 0, by_tier: {}, by_category: {} })), markAchievementsSeen: vi.fn(() => Promise.resolve()), ACTIVITY_EVENT: "chronicles-activity",
@@ -25,6 +25,7 @@ import {
   createEntry,
   fetchEntries,
   fetchEntriesGlobal,
+  fetchProjectTeam,
   fetchProjects,
   fetchStatistics,
   fetchTasks,
@@ -1372,5 +1373,68 @@ describe("the recorded entries list", () => {
     fireEvent.click(within(await entryList()).getByRole("button", { name: "Dawn survey" }))
 
     expect(await screen.findByRole("dialog", { name: /Dawn survey/ })).toBeInTheDocument()
+  })
+})
+
+// ── The team on a project ────────────────────────────────────────────────────
+
+describe("the project's Team button", () => {
+  it("opens who is working on the project, for anyone who can read it", async () => {
+    fetchProjectTeam.mockResolvedValue({
+      project_id: "proj-1",
+      people_working: 1,
+      people_invited: 0,
+      schema_changes_recorded_since: null,
+      totals: { entries_logged: 0, entries_completed: 0, entries_edited: 0, time_logged_minutes: 0, tasks_created: 0, tasks_completed: 0, schema_changes: 0, last_active: null },
+      contributors: [{ user_id: "u1", full_name: "Owner Person", email: "o@example.com", role: "owner", status: null, stats: { entries_logged: 0, entries_completed: 0, entries_edited: 0, time_logged_minutes: 0, tasks_created: 0, tasks_completed: 0, schema_changes: 0, last_active: null } }],
+    })
+
+    await openProject()
+    fireEvent.click(screen.getByRole("button", { name: "Team" }))
+
+    expect(await screen.findByRole("dialog", { name: "Who is working on Field Notes" })).toBeInTheDocument()
+    expect(fetchProjectTeam).toHaveBeenCalledWith("proj-1")
+    expect(await screen.findByText("Owner Person")).toBeInTheDocument()
+  })
+})
+
+describe("narrowing a project's entries to one person", () => {
+  const entries = [
+    { id: "e1", title: "Sam's entry", data: {}, created_by: "u-sam", created_by_name: "Sam Dube", created_at: "2026-09-12T10:00:00Z" },
+    { id: "e2", title: "Thandi's entry", data: {}, created_by: "u-thandi", created_by_name: "Thandi Nkosi", created_at: "2026-09-11T10:00:00Z" },
+    { id: "e3", title: "Old entry", data: {}, created_by: null, created_by_name: null, created_at: "2026-09-10T10:00:00Z" },
+  ]
+
+  it("offers Logged by only when more than one person wrote entries", async () => {
+    fetchEntries.mockResolvedValue([entries[0]])
+    await openProject()
+
+    await entryList()
+    expect(screen.queryByLabelText("Logged by")).toBeNull()
+  })
+
+  it("shows only that person's entries, and everyone again on request", async () => {
+    fetchEntries.mockResolvedValue(entries)
+    await openProject()
+    const list = await entryList()
+
+    fireEvent.change(screen.getByLabelText("Logged by"), { target: { value: "u-sam" } })
+    expect(within(list).getByText("Sam's entry")).toBeInTheDocument()
+    expect(within(list).queryByText("Thandi's entry")).toBeNull()
+
+    fireEvent.change(screen.getByLabelText("Logged by"), { target: { value: "none" } })
+    expect(within(list).getByText("Old entry")).toBeInTheDocument()
+    expect(within(list).queryByText("Sam's entry")).toBeNull()
+
+    fireEvent.change(screen.getByLabelText("Logged by"), { target: { value: "" } })
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3)
+  })
+
+  it("names entries with no recorded author plainly", async () => {
+    fetchEntries.mockResolvedValue(entries)
+    await openProject()
+    await entryList()
+
+    expect(within(screen.getByLabelText("Logged by")).getByRole("option", { name: "Author not recorded" })).toBeInTheDocument()
   })
 })

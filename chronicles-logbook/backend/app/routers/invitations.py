@@ -10,11 +10,11 @@ see rather than silence. Leaving a project afterwards lives on the projects
 router, because by then it is an access question rather than an invitation.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -28,7 +28,7 @@ from app.models import (
     User,
 )
 from app.routers.auth import get_current_user
-from app.schemas import ProjectInvitationResponse
+from app.schemas import InvitationAnswerResponse, ProjectInvitationResponse
 
 router = APIRouter(prefix="/invitations", tags=["Invitations"])
 
@@ -97,6 +97,66 @@ async def list_invitations(
         )
         for invitation, project, entry_count in result.all()
     ]
+
+
+# How long an answer is worth telling the owner about. Older ones are history, and without
+# a limit every answer given before dismissal existed would arrive at once.
+ANSWER_NOTICE_DAYS = 14
+
+
+@router.get("/answers", response_model=list[InvitationAnswerResponse])
+async def list_answers(
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Invitations you sent that have been answered, until you dismiss them.
+
+    The other half of the bell: it tells the owner "Sam joined Fieldwork" or "Lee
+    declined", so they find out without opening the members list.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=ANSWER_NOTICE_DAYS)
+    result = await db.execute(
+        select(ProjectMember, Project)
+        .join(Project, ProjectMember.project_id == Project.id)
+        .where(
+            Project.user_id == user.id,
+            ProjectMember.status.in_([MEMBERSHIP_ACCEPTED, MEMBERSHIP_DECLINED]),
+            ProjectMember.responded_at.is_not(None),
+            ProjectMember.responded_at >= since,
+            ProjectMember.owner_seen_at.is_(None),
+        )
+        .order_by(ProjectMember.responded_at.desc())
+    )
+    return [
+        InvitationAnswerResponse(
+            project_id=project.id,
+            project_name=project.name,
+            person_name=membership.member.full_name,
+            answer=membership.status,
+            answered_at=membership.responded_at,
+        )
+        for membership, project in result.all()
+    ]
+
+
+@router.post("/answers/seen", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_answers(
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Dismiss every notice of an answered invitation for the caller's projects."""
+    mine = select(Project.id).where(Project.user_id == user.id)
+    await db.execute(
+        update(ProjectMember)
+        .where(
+            ProjectMember.project_id.in_(mine),
+            ProjectMember.responded_at.is_not(None),
+            ProjectMember.owner_seen_at.is_(None),
+        )
+        .values(owner_seen_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{project_id}/accept", status_code=status.HTTP_204_NO_CONTENT)

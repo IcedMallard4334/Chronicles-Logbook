@@ -182,6 +182,16 @@ export async function fetchProjectMembers(id) {
   return request(`/projects/${id}/members`)
 }
 
+/** Who is working on a project and what each person has done in it. */
+export async function fetchProjectTeam(id) {
+  return request(`/projects/${id}/team`)
+}
+
+/** The most recent things people did on a project, newest first. */
+export async function fetchProjectActivity(id, limit = 30) {
+  return request(`/projects/${id}/activity?limit=${limit}`)
+}
+
 export async function shareProject(id, email) {
   return request(`/projects/${id}/members`, {
     method: "POST",
@@ -209,6 +219,15 @@ export async function acceptInvitation(projectId) {
 
 export async function declineInvitation(projectId) {
   return request(`/invitations/${projectId}/decline`, { method: "POST" })
+}
+
+/** Invitations you sent that have been answered, until you dismiss the notice. */
+export async function fetchInvitationAnswers() {
+  return request("/invitations/answers")
+}
+
+export async function dismissInvitationAnswers() {
+  return request("/invitations/answers/seen", { method: "POST" })
 }
 
 // ── Editing a live schema ─────────────────────────────────────────────

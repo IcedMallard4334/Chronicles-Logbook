@@ -106,6 +106,33 @@ with](#list-the-people-a-project-is-shared-with)) and can ask again.
 
 ---
 
+## Being told an invitation was answered
+
+The owner's half of the bell: it says "Sam joined Fieldwork" or "Lee declined" without opening the members list.
+
+### `GET /invitations/answers`
+
+Invitations **you sent** that have been answered and whose notice you have not dismissed, newest first. Only answers
+from the **last 14 days** are offered, so answers given before this existed never arrive as a flood of old news.
+Needs `Authorization: Bearer <token>`.
+
+```json
+[
+  { "project_id": "…", "project_name": "Fieldwork", "person_name": "Sam Dube",
+    "answer": "accepted", "answered_at": "2026-10-09T09:00:00Z" }
+]
+```
+
+An unanswered invitation is not an answer, and the person who answered is not told about their own answer; only the
+project's owner is.
+
+### `POST /invitations/answers/seen`
+
+Dismisses every notice for the caller's own projects (it stamps `project_members.owner_seen_at`). `204 No Content`.
+Dismissing never touches anyone else's notices, and a dismissed notice stays dismissed.
+
+---
+
 ## Leave a project
 
 ```
@@ -296,6 +323,86 @@ snapshot is kept in step with the schema an entry's data actually holds.
 
 ---
 
+## The team: who is working here and what they have done
+
+### `GET /projects/{project_id}/team`
+
+Who is on the project and what each person has done in it. Readable by the owner and by anyone who has
+**accepted**, the same as the project itself; anyone else gets `404`. Needs `Authorization: Bearer <token>`.
+
+```json
+{
+  "project_id": "cec52b68-d058-470d-9c6a-0ba316b213ae",
+  "people_working": 2,
+  "people_invited": 1,
+  "schema_changes_recorded_since": "2026-10-09T16:49:01Z",
+  "totals": { "entries_logged": 4, "entries_completed": 1, "entries_edited": 1, "time_logged_minutes": 155,
+              "tasks_created": 1, "tasks_completed": 1, "schema_changes": 1, "last_active": "2026-10-09T16:49:01Z" },
+  "contributors": [
+    { "user_id": "…", "full_name": "Thandi Nkosi", "email": "thandi@example.com", "avatar_url": null,
+      "role": "owner", "status": null, "invited_at": null,
+      "stats": { "entries_logged": 3, "entries_completed": 0, "entries_edited": 0, "time_logged_minutes": 155,
+                 "tasks_created": 1, "tasks_completed": 0, "schema_changes": 1, "last_active": "2026-10-09T16:49:01Z" } },
+    { "user_id": "…", "full_name": "Sam Dube", "role": "member", "status": "accepted", "stats": { "…": "…" } },
+    { "user_id": "…", "full_name": "Lee Moyo", "role": "member", "status": "pending", "stats": { "…": "0 everywhere" } }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `people_working` | The owner plus members who accepted. |
+| `people_invited` | Invitations not yet answered. A declined one is listed but counts in neither. |
+| `role` | `owner`; `member` (see `status`); `former` (did something here but is no longer on the project, whether they left or were removed); `unknown` (work whose author was never recorded, below). |
+| `schema_changes_recorded_since` | The earliest schema change on record, or `null` when none has been recorded. Changes made before this existed were not tracked and are not guessed. |
+
+**What each stat counts**, all from stored work and never from separate counters:
+
+| Stat | Counted from | Notes |
+|---|---|---|
+| `entries_logged` | Entries the person created | Soft-deleted entries are not counted. |
+| `time_logged_minutes` | `time_spent` on those entries | |
+| `entries_completed` | Versions the person saved that moved an entry from still to do to done | An entry **logged as already finished** counts as logged only, because nothing was completed afterwards. Whoever *finishes* it is credited, not whoever wrote it. |
+| `entries_edited` | Versions the person added by editing or reverting | Any entry, including other people's (an owner may correct a member's entry). A completion is also an edit. |
+| `tasks_created` | Tasks the person added | |
+| `tasks_completed` | Tasks currently complete that the person ticked off | Reopening a task removes it from the count, because the completion no longer stands. |
+| `schema_changes` | Rows in `project_schema_changes` | One per save that really changed the schema. A save that re-sends the same schema (the project form does this to rename) is not a change. |
+| `last_active` | The latest of all of the above | |
+
+The `unknown` row is **work with no author**: entries and tasks written before projects could be shared, and any
+whose author's account has since been deleted. It appears only when there is something to show.
+
+Why it is built this way: DB-65 and DB-66 in
+[Decisions: data and backend](../decisions/data-and-backend.md) and UI-64 in
+[Decisions: interface](../decisions/interface.md).
+
+### `GET /projects/{project_id}/activity`
+
+The most recent things people did on a project, newest first. Readable by the owner and accepted members (anyone
+else gets `404`). `limit` is 1 to 100, default 30.
+
+```json
+{ "project_id": "…",
+  "items": [
+    { "kind": "entry_completed", "at": "2026-10-09T10:00:00Z", "actor_id": "…", "actor_name": "Sam Dube", "subject": "Plan the lab" },
+    { "kind": "schema_changed",  "at": "2026-10-09T09:30:00Z", "actor_id": "…", "actor_name": "Thandi Nkosi", "subject": "added Effort" }
+  ] }
+```
+
+| `kind` | From | `subject` |
+|---|---|---|
+| `entry_logged`, `entry_edited`, `entry_completed`, `entry_reverted`, `entry_deleted` | Entry versions (who saved each, and what it did) | The entry's title at that version |
+| `task_added`, `task_completed` | Tasks | The task's title |
+| `schema_changed` | The schema-change record | What changed, for example `added Effort` (up to four) |
+| `member_joined`, `member_declined` | The time an invitation was answered | none |
+
+It is worked out from stored work, not a log of its own, so it cannot disagree with the project. Each source is cut to
+`limit` before merging, so it costs the same however long the history is. `actor_name` is `"Someone"` when the author
+was never recorded or the account is gone. **Honest limits:** a task's completion time is when its row last changed
+(a task has no completion timestamp of its own); schema changes are only known from the day they were first recorded;
+deleted entries still appear, as a deletion, because that is the point of a feed. Why: DB-67 in
+[Decisions](../decisions/data-and-backend.md).
+
 ## Known limitations
 
 Recorded rather than hidden, and candidates for future work:
@@ -307,8 +414,10 @@ Recorded rather than hidden, and candidates for future work:
   gets the same access (subject to the owner-vs-author split on editing
   entries above). Roles would need a column on `project_members` and a check
   at each site that currently only asks whether the caller is a member.
-- **No in-app notification beyond the invitations bell.** Accepting or
-  declining doesn't email the owner; they find out by checking the members
-  list.
+- **Schema changes are only counted from the day tracking began** (see `schema_changes_recorded_since`).
+- **Edits are credited to whoever saved the version,** so a correction the owner makes to a member's entry is the
+  owner's edit, while the entry stays logged by the member.
+- **No email.** Accepting or declining does not email the owner. They are told in the app, in the bell, for 14
+  days or until they dismiss it; the bell is polled, so it can be up to a minute late.
 
 AI Declaration: This page was substantially rewritten with Claude Code, Claude Sonnet 5, for the invite/accept/decline/leave flow and the per-entry authorship restriction; earlier content (originally reviewed and edited with Qoder) is carried forward where still accurate.
