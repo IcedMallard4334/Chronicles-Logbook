@@ -100,9 +100,23 @@ our own code choosing not to call write endpoints.
    `googleapis.com/calendar/v3/calendars/primary` and merges them with
    Chronicles entries and any manually-added "activities" for the same day.
 
+**Chronicles' own endpoints for this** (all need `Authorization: Bearer <token>`; Google's are the URLs above):
+
+| Endpoint | What it does |
+|---|---|
+| `GET /calendar/google/status` | `{ "connected": bool, "accounts": [{ "id", "label" }] }`. An account connected before accounts were stored separately appears with the id `legacy`. |
+| `GET /calendar/google/auth` | Returns `{ "authorization_url" }` for the calendar-only consent, carrying a short-lived signed state for this user. `503` if Google OAuth is not configured. |
+| `GET /auth/google/calendar/callback` | Where Google redirects after consent (see [Authentication](authentication.md)). It lives under `/auth` because that is the path registered in Google Cloud Console. |
+| `GET /calendar/google/events?start=&end=&account_id=` | The events in an RFC 3339 range, up to 250 per page, all pages merged. `403` if no calendar is connected, `401` if access expired or was revoked (reconnect), `502` if Google refused or is unavailable, `503` if it cannot be reached, `422` for a malformed `account_id`. |
+| `DELETE /calendar/google/disconnect?account_id=` | Deletes the stored token for one account (or all, when omitted). `204`. |
+
+Google's synchronous SDK runs in a thread pool so a slow calendar cannot block other API requests. Activities made
+inside Chronicles are separate, private and never written to Google (see
+[Dashboard and activities](dashboard-and-activities.md)).
+
 **Multiple accounts.** A user can connect more than one Google account and
 toggle each one's visibility independently without disconnecting it.
-"Disconnect" revokes and deletes that account's stored token.
+"Disconnect" deletes that account's stored token from Chronicles (it does not call Google to revoke the grant, so the person can also remove access from their Google account settings).
 
 **What we store:** an OAuth refresh token per connected account (needed to
 keep reading events without asking the user to re-approve constantly) and

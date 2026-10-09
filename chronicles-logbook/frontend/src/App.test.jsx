@@ -129,7 +129,7 @@ describe("workspace summary", () => {
 
     render(<MemoryRouter><App /></MemoryRouter>)
 
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
     // entries, logged, open tasks, day streak — every server-derived figure.
     expect(within(await screen.findByLabelText("Workspace summary")).getAllByText("–")).toHaveLength(3)
@@ -142,7 +142,7 @@ describe("workspace summary", () => {
     await screen.findByLabelText("Workspace summary")
 
     const callsBefore = fetchStatistics.mock.calls.length
-    fireEvent.click(within(await screen.findByRole("listbox", { name: "Projects" })).getByText("Field Notes"))
+    fireEvent.click(within(await screen.findByRole("list", { name: "Projects" })).getByText("Field Notes"))
 
     await waitFor(() => expect(fetchStatistics.mock.calls.length).toBeGreaterThan(callsBefore))
   })
@@ -151,7 +151,7 @@ describe("workspace summary", () => {
 describe("App workspace", () => {
   it("closes the phone layout's project sheet once a project is chosen", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     const aside = projects.closest("aside")
     // On a phone the sheet opens from the bottom bar's Projects tab.
     const bar = screen.getByRole("navigation", { name: "Quick navigation" })
@@ -167,7 +167,7 @@ describe("App workspace", () => {
 
   it("puts the dashboard on the home page, in the sidebar rather than the top bar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
-    await screen.findByRole("listbox", { name: "Projects" })
+    await screen.findByRole("list", { name: "Projects" })
 
     const sidebar = screen.getByRole("navigation", { name: "Workspace views" })
     expect(within(sidebar).getByRole("button", { name: "Dashboard" })).toBeInTheDocument()
@@ -193,14 +193,14 @@ describe("App workspace", () => {
 
   it("shows the current workspace project navigator", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     expect(within(projects).getByText("Field Notes")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mira" })).toBeInTheDocument()
   })
 
   it("opens a project from the workspace navigator", async () => {
     render(<MemoryRouter><App /></MemoryRouter>)
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     fireEvent.click(within(projects).getByText("Field Notes"))
     expect(await screen.findByRole("heading", { name: "Field Notes" })).toBeInTheDocument()
   })
@@ -416,7 +416,7 @@ describe("guided tour (US-3.23)", () => {
 
     render(<MemoryRouter><App /></MemoryRouter>)
 
-    await screen.findByRole("listbox", { name: "Projects" })
+    await screen.findByRole("list", { name: "Projects" })
     expect(
       screen.queryByRole("heading", { name: "This is your logbook" })
     ).not.toBeInTheDocument()
@@ -432,7 +432,7 @@ describe("guided tour (US-3.23)", () => {
     )
 
     render(<MemoryRouter><App /></MemoryRouter>)
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     expect(await screen.findByRole("heading", { name: "Your workspace" })).toBeInTheDocument()
 
     fireEvent.click(within(projects).getByText("Field Notes"))
@@ -714,7 +714,7 @@ describe("entry rules in a project (US-3.12)", () => {
     fetchProjects.mockResolvedValue([bugs])
     fetchRules.mockResolvedValue([defaultKind])
     render(<MemoryRouter><App /></MemoryRouter>)
-    const projects = await screen.findByRole("listbox", { name: "Projects" })
+    const projects = await screen.findByRole("list", { name: "Projects" })
     fireEvent.click(within(projects).getByText("Bug Log"))
     await screen.findByRole("heading", { name: "Bug Log" })
   }

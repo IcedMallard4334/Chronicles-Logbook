@@ -24,6 +24,9 @@ const PAGE_MIN_WIDTH = 320
 const KEY_STEP = 24
 // Below this much room beside the drawer the top bar drops to icons, so it still fits.
 const COMPACT_PAGE_WIDTH = 1100
+// Below this much room the page cannot lay itself out beside the drawer (its sidebar and
+// content need about this much), so the drawer lies over it instead of pushing it over.
+const OVERLAY_PAGE_WIDTH = 760
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -80,7 +83,7 @@ export default function Drawer({ title, subtitle, onClose, closeLabel = "Close",
       openDrawers -= 1
       if (openDrawers <= 0) {
         openDrawers = 0
-        document.documentElement.classList.remove("has-drawer", "drawer-compact")
+        document.documentElement.classList.remove("has-drawer", "drawer-compact", "drawer-overlay")
         document.documentElement.style.removeProperty("--drawer-inset")
       }
     }
@@ -89,6 +92,7 @@ export default function Drawer({ title, subtitle, onClose, closeLabel = "Close",
   useEffect(() => {
     reserveRoom(width)
     document.documentElement.classList.toggle("drawer-compact", windowWidth - width < COMPACT_PAGE_WIDTH)
+    document.documentElement.classList.toggle("drawer-overlay", windowWidth - width < OVERLAY_PAGE_WIDTH)
   }, [width, windowWidth])
 
   // Focus moves in when it opens and goes back to whatever opened it when it closes.
@@ -162,7 +166,7 @@ export default function Drawer({ title, subtitle, onClose, closeLabel = "Close",
   // wrappers, and any transform on an ancestor would make this "fixed" panel position
   // itself inside that wrapper instead of against the window.
   return createPortal(
-    <aside
+    <div
       ref={panelRef}
       className={`drawer${resizing ? " is-resizing" : ""}${className ? ` ${className}` : ""}`}
       style={{ "--drawer-width": `${width}px` }}
@@ -190,7 +194,7 @@ export default function Drawer({ title, subtitle, onClose, closeLabel = "Close",
         onDoubleClick={resetWidth}
         title="Drag to resize. Double-click to reset."
       />
-      <header className="drawer-head">
+      <div className="drawer-head">
         <div className="drawer-heading">
           <h2 id={headingId}>{title}</h2>
           {subtitle && <p className="drawer-subtitle">{subtitle}</p>}
@@ -198,10 +202,10 @@ export default function Drawer({ title, subtitle, onClose, closeLabel = "Close",
         <button type="button" className="drawer-close" onClick={onClose} aria-label={closeLabel}>
           ×
         </button>
-      </header>
+      </div>
       <div className={`drawer-progress${busy ? " is-busy" : ""}`} aria-hidden="true" />
       <div className="drawer-body">{children}</div>
-    </aside>,
+    </div>,
     document.body
   )
 }

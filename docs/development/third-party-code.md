@@ -60,14 +60,27 @@ These are left over from an earlier iteration, when a small Express service was
 considered before the backend settled on FastAPI. Nothing in `src/` imports
 them and no npm script invokes them:
 
-`better-sqlite3`, `cors`, `dotenv`, `express`, `supertest`, `concurrently`,
-`nodemon`
+`cors`, `dotenv`, `express`, `supertest`, `concurrently`, `nodemon`
 
 They are recorded here rather than quietly left in place. Removing them is a
-tidy-up for the next sprint rather than something to do immediately before a
-submission, because it means regenerating `package-lock.json`, which CI installs
-from with `npm ci`. `better-sqlite3` is the one with a real cost: it is a native
-module that is compiled during install, so it slows every CI run.
+tidy-up rather than something to do immediately before a submission, because it
+means regenerating `package-lock.json`, which CI installs from with `npm ci`.
+
+**`better-sqlite3` was removed on 2026-10-07.** It was the one with a real cost: a
+native module compiled during install, which broke `npm ci` on machines without
+build tools and itself needed Node 22. The frontend now declares `engines: node >=20`
+(Vite 8 and Vitest 4 need it) so an older runtime fails with a clear message instead
+of a cryptic one. See PL-17 in [Decisions](../decisions/platform-and-delivery.md).
+
+## Documentation and tooling
+
+| Package or tool | Used for | Why this one |
+|---|---|---|
+| `mkdocs-material` | Builds this documentation site | The brief suggests a pre-established Markdown docs tool on static hosting. Material adds search, navigation and Mermaid diagrams with no code to write. |
+| `pymdown-extensions` | Markdown extras the site uses | Admonitions, tabs and tables of contents the pages rely on. |
+| `mermaid` (from a CDN) | The diagrams on the architecture pages | Diagrams stay as text in the repository and are rendered in the browser. |
+| `axe-core` (not a dependency) | The accessibility audit of the signed-in app | Run by hand against the running app from a temporary folder, because Lighthouse cannot sign in. It is deliberately **not** in `package.json`, since it is not part of any build or test; adding it to CI is a possible next step ([N-07](../decisions/not-tested.md#n-07)). |
+| Lighthouse | Performance, accessibility and SEO of the public landing page | Google's own auditing tool; see [API Performance](../testing/api-performance.md). |
 
 ## Vendored or copied code
 

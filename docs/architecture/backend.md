@@ -4,33 +4,51 @@ The backend is a **FastAPI** application running on Python 3.12+ with async SQLA
 
 ## Entry point
 
-`chronicles-logbook/backend/main.py` creates the FastAPI app and registers all routers:
+`chronicles-logbook/backend/main.py` creates the FastAPI app, adds the session and CORS middleware, and
+registers every router:
 
 ```python
-app = FastAPI(title="Chronicles Logbook", version="1.0.0")
+app = FastAPI(title="Chronicles API", lifespan=lifespan)
 
-app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(tasks.router)
-app.include_router(entries.router)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY, same_site="lax", https_only=COOKIE_SECURE)
+app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True, ...)
+
+app.include_router(projects.router)       # plus invitations, entries, saved_filters, statistics,
+app.include_router(auth.router)           # transfer, tasks, calendar, activities, ai, automation
+...                                       # (three routers), dashboard, streaks and achievements
 ```
 
-The app uses a **lifespan context manager** to create database tables on startup:
+`GET /health` returns `{"status": "ok"}` and does no database work, so it measures the network and the
+framework, not the database (used by the latency checks in
+[API Performance](../testing/api-performance.md)).
 
-```python
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-```
+### What happens on start-up
+
+The **lifespan** function does more than create tables. In order, and only on PostgreSQL where noted:
+
+1. Takes a transaction-scoped **advisory lock** (`pg_advisory_xact_lock`) so the two uvicorn workers
+   (`startup.txt`: `--workers 2`) take turns instead of racing to create the same table.
+2. Runs `Base.metadata.create_all`, which builds missing **tables** but never adds a missing **column**.
+3. Adds missing columns with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` from the `_ADDED_COLUMNS` list, and the
+   `ix_entries_deleted_at` index. On SQLite it instead brings an older local file up to date
+   (`add_missing_sqlite_columns`).
+4. Backfills: entries that predate history get their current state as version 1, entries from before statuses
+   get `Still to do` or `Done`, and version-1 rows get the action `created`.
+
+This is the **only** thing that changes an existing production database, because the deploy never runs the SQL
+files in `migrations/`. It only ever adds, which is why the code calls it "not a substitute for Alembic". The
+reasoning, the incident behind it and a test that guards it are in
+[Decisions: DB-51 to DB-53](../decisions/data-and-backend.md#db-51-schema-changes-reach-production-through-a-startup-patch-not-alembic).
+
+CORS origins come from `CORS_ORIGINS` (comma-separated) and fall back to the local development origins.
 
 ## Router modules
 
 | Router | Prefix | Responsibility |
 |---|---|---|
 | `auth` | `/auth` | Google OAuth authentication, Google Calendar OAuth, current user, account deletion |
-| `projects` | `/projects` | Project CRUD, archiving/unarchiving, entry management, schema definitions, sharing/invitations |
+| `projects` | `/projects` | Project CRUD, archiving/unarchiving, entry management (create, edit, history, revert, restore), schema definitions and previews, sharing, leaving a project |
+| `invitations` | `/invitations` | The invitee's side of sharing: list, accept, decline |
 | `tasks` | `/projects/{project_id}/tasks` | Task CRUD, toggle completion, filtering, checklists |
 | `entries` | `/entries` | Global entry search across projects |
 | `automation` | `/projects/{project_id}/rules`, `/reminders` | Sprint 3: entry rules, recurring entries, the cross-project reminders bell |
@@ -42,7 +60,7 @@ async def lifespan(app: FastAPI):
 | `achievements` | `/achievements` | Badges with progress, and marking their celebrations as shown |
 | `dashboard` | `/dashboard` | The grid dashboard: panels, their sizes and the grid width |
 | `saved_filters` | `/saved-filters` | Named, reusable Entries-page search combinations |
-| `transfer` | `/export`, `/import` | Full-account JSON export/import |
+| `transfer` | `/export`, `/import`, `/projects/{id}/export.csv` | Full-account JSON export, additive import, and a per-project CSV |
 
 ## Supporting modules
 
@@ -60,7 +78,8 @@ router reads as a sequence of decisions rather than an implementation.
 | `app/computed.py` | Evaluates `computed` field expressions |
 | `app/schema_migration.py` | Works out and applies what a schema edit does to existing entries |
 | `app/automation.py` | Sprint 3: matches an entry against a project's rules and applies their actions |
-| `app/custom_statistics.py` | Sprint 3: per-project field aggregation/grouping behind the Statistics page |
+| `app/custom_statistics.py` | Sprint 3: the figures a person defines for themselves (`sum`, `avg`, `min`, `max`, `count` over number fields, in the same safe grammar as computed fields) |
+| `app/search.py` | Structured, type-aware search over custom fields: conditions combined with AND or OR, ranked by relevance (US-3.11), also reused by rules |
 | `app/services/gemini_service.py` | Wraps the Google Gemini API for Mira, including streaming and function calling; the one file to change to swap AI providers |
 | `app/mira_tools.py` | The closed list of functions Mira may propose, their argument validation, and the plain-language summary of each |
 | `app/mira_context.py` | Builds the small workspace snapshot Mira is shown (names, ids, a few titles; never full entries) |

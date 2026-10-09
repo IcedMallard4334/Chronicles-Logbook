@@ -23,7 +23,7 @@ erDiagram
     }
 
     password_credentials {
-        uuid user_id PK_FK
+        uuid user_id PK,FK
         varchar password_hash
     }
 
@@ -78,7 +78,7 @@ erDiagram
 | Column | Type | Description |
 |---|---|---|
 | `id` | UUID (PK) | Primary key |
-| `google_sub` | VARCHAR(255) | Unique Google OAuth subject ID, or `password:<uuid>` for password-based accounts |
+| `google_sub` | VARCHAR(255) | Unique Google OAuth subject ID, or `dev-login-<uuid>` for an account made with the local-development sign-in (see [Authentication](../api/authentication.md)) |
 | `email` | VARCHAR(320) | Unique email address |
 | `full_name` | VARCHAR(100) | Display name |
 | `avatar_url` | VARCHAR(2048) | Optional profile picture URL from Google |
@@ -239,6 +239,19 @@ checks can't create the same day's entry twice.
 | `user_activity_days` | `(user_id, day, kind)` primary key, `kind` = `login` or `interaction`: the days behind the two streaks. |
 | `user_achievements` | `(user_id, key)` primary key, `earned_at`, `seen`: badges earned and whether the celebration has been shown. A hidden `__initialised__` row marks the first check so existing accounts are awarded quietly. |
 
+### Tables the first pass of this page missed
+
+Found by the docs audit (`scripts/docs_audit.py`) on 2026-10-09 and recorded here.
+
+| Table | Key columns | Description |
+|---|---|---|
+| `login_sessions` | `token_hash` (PK, SHA-256), `user_id` (FK → users, cascade), `expires_at` | The server side of the 30-day session cookie. Only the hash of the cookie's value is stored, so a database leak does not yield usable cookies. |
+| `mira_consents` | `user_id` (PK, FK → users, cascade), `accepted`, `version` (VARCHAR 30), `updated_at` | Whether the person allowed Mira to read their workspace, and which version of the notice they answered. A choice against an older version no longer counts (see [Mira actions](../features/mira-actions.md#consent)). |
+| `saved_filters` | `id` (PK), `user_id` (FK → users, cascade), `name` (VARCHAR 100), `criteria` (JSONB), timestamps; **unique `(user_id, name)`** | Named, reusable Entries-page filters (US-2.12). Criteria are JSON so a new filter control needs no schema change; the unique pair is what makes saving a name twice an overwrite. See [Saved filters](../api/saved-filters.md). |
+| `google_calendar_accounts` | `id` (PK), `user_id` (FK → users, cascade, indexed), `calendar_id` (VARCHAR 512), `label`, `refresh_token`, `created_at`; unique `(user_id, calendar_id)` | One connected Google account per row, so a person can connect several. Holds only a refresh token; events are fetched live and never stored. |
+| `google_calendar_tokens` | `user_id` (PK, FK → users, cascade), `refresh_token`, timestamps | The original single-account token, from before accounts were stored separately. It still works and is shown as the account `legacy`; new connections go to `google_calendar_accounts`. |
+| `calendar_activities` | `id` (PK), `user_id` (FK → users, cascade, indexed), `title` (VARCHAR 255), `description` (VARCHAR 4000), `day` (DATE, indexed), `all_day`, `start_time` / `end_time` (VARCHAR 5, `HH:MM`), `created_at` | A person's own scheduled items. Private to Chronicles and **never written to Google Calendar**. Times are `HH:MM` text because an activity has no time zone: it happens at that local time on that local day. |
+
 ```mermaid
 erDiagram
     users ||--o{ mira_conversations : has
@@ -319,7 +332,15 @@ re-run:
 | `002_calendar_token_timestamps.sql` | Calendar token timestamps |
 | `003_login_sessions.sql` | Login session tracking |
 | `004_retired_schema_fields.sql` | `projects.retired_schema`, `entries.retired_data` |
-| `005` to `013` | Schema versioning, sharing, authorship, invitations, entry titles and the Sprint 3 tables |
+| `005_schema_versioning.sql` | `projects.schema_version`, `entries.schema_version` and `schema_snapshot` |
+| `006_project_members.sql` | Sharing a project: `project_members` |
+| `007_authorship.sql` | `entries.created_by`, `tasks.created_by` / `completed_by` (nullable, `ON DELETE SET NULL`) |
+| `008_project_invitations.sql` | `project_members.status` and invitation columns; **defaults to `accepted`** so existing collaborators keep their access |
+| `009_entry_title.sql` | `entries.title`, independent of any project's schema |
+| `010_entry_revisions.sql` | `entry_revisions`: the immutable version history |
+| `011_entry_automation.sql` | `entry_rules`, `entry_recurrences`, `recurrence_occurrences` |
+| `012_statistics_layout.sql` | `statistics_layouts` |
+| `013_saved_statistics.sql` | `saved_statistics` |
 | `014_entry_history.sql` | Soft deletion, version actions/notes/changed fields, baseline versions |
 | `015_entry_due_time.sql` | `due_time` on entries and versions |
 | `016_mira_conversations.sql` | `mira_conversations`, `mira_messages` |
@@ -327,6 +348,14 @@ re-run:
 | `018_dashboard_grid.sql` | `dashboards.columns` |
 | `019_entry_statuses.sql` | `projects.statuses`, `entries.status`, `entry_revisions.status`, backfill |
 | `020_achievements.sql` | `user_achievements` |
+| `021_task_due_time.sql` | `tasks.due_time`, an optional time of day for a task's deadline |
+| `022_rule_triggers.sql` | `entry_rules.trigger` (`created` or `status`) and `trigger_status` |
+
+These files are the **record** of each change. They are not run by the deploy: what reaches an existing production
+database is the start-up patch in `main.py` (`_ADDED_COLUMNS`), and a test fails if a migration adds a column that
+list does not carry. Why that is so, and what it costs, is DB-51 in
+[Decisions: data and backend](../decisions/data-and-backend.md#db-51-schema-changes-reach-production-through-a-startup-patch-not-alembic).
+Two branches once both numbered their migration `004`; the later one became `005` (PL-18).
 
 !!! note
     Because user-defined data lives in JSONB columns, most feature work (new field types, new statistics, checklists) requires **no database migration** — just backend logic changes. Core column additions, such as `entries.time_spent` or `entries.retired_data`, do require a migration or `ALTER TABLE` in production.

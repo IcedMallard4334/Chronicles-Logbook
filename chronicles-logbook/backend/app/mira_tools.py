@@ -2,8 +2,9 @@
 
 Mira never changes anything herself. A model reply can contain function calls;
 each one is validated here against a closed list and returned to the browser as
-a *proposal*. The browser shows it, and only when the signed-in person confirms
-does it run — through the same authenticated API a manual action uses, so every
+a *proposal*. The browser runs it — straight away when it only adds or edits, and
+only after a click when it deletes (or for everything, if the person asked to be
+asked first) — through the same authenticated API a manual action uses, so every
 ordinary permission and validation rule applies to it too.
 
 Projects, fields, entries, tasks and activities are referred to the way a person

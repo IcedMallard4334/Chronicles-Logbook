@@ -18,6 +18,8 @@ html.has-drawer body {
   padding-right: var(--drawer-inset, 0px);
   transition: padding-right 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Too little room to share: the drawer covers the page rather than squeezing it. */
+html.has-drawer.drawer-overlay body { padding-right: 0; }
 html.drawer-resizing body { transition: none; }
 
 /* With the drawer open the page beside it can be narrow, so the top bar keeps only the

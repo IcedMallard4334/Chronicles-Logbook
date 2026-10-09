@@ -93,3 +93,22 @@ Significant technical decisions are documented as ADRs following [Nygard's forma
 - **Fetch-based API client** — no Axios dependency, uses native browser APIs
 
 AI Declaration: The preceding document was reviewed and edited with: Qoder
+
+## Keeping the documentation true
+
+The documentation falls behind the code unless something checks it. Before a release, and after adding a route, a
+table, a migration or a setting, run:
+
+```bash
+cd chronicles-logbook/backend
+./venv/Scripts/python.exe ../scripts/docs_audit.py      # Windows
+./venv/bin/python ../scripts/docs_audit.py               # macOS / Linux
+```
+
+It lists routes whose method and path appear on no page, tables missing from the database page, migrations nobody
+mentions, and settings nobody documents. `--strict` makes it exit 1 so it can become a CI step.
+
+**When you make a decision, record it.** Add an entry to the right page under
+[Decisions](../decisions/index.md) in the same pull request: what was decided, why, what it costs or what was
+rejected, and where it lives. If the reason is not known, write that it is not recorded, never a guess. A
+decision in a code comment or a commit message that is not on those pages is easy to lose.

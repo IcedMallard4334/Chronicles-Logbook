@@ -75,7 +75,7 @@ nav:
     - Backend: architecture/backend.md
     - Frontend: architecture/frontend.md
     - Database: architecture/database.md
-    - Use Case Diagrams: architecture/use-case-diagrams.md
+    - Diagrams: architecture/diagrams.md
     - Authentication & Azure: architecture/authentication-and-azure.md
   - API Reference:
     - Overview (our API vs external APIs): api/overview.md
@@ -84,6 +84,7 @@ nav:
     - Schema and field types: api/schema.md
     - Entries: api/entries.md
     - Tasks: api/tasks.md
+    - Saved filters: api/saved-filters.md
     - Rules, recurrence and reminders: features/entry-automation.md
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
@@ -96,6 +97,12 @@ nav:
     - Post-review improvements: features/whats-new.md
     - Mira actions and consent: features/mira-actions.md
     - Achievements: features/achievements.md
+  - Decisions:
+    - Overview: decisions/index.md
+    - Data and backend: decisions/data-and-backend.md
+    - Interface and frontend: decisions/interface.md
+    - Platform and delivery: decisions/platform-and-delivery.md
+    - What we do not test: decisions/not-tested.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md

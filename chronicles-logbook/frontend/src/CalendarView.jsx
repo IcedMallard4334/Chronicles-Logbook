@@ -131,6 +131,7 @@ export default function CalendarView({ projects = [], userId = null, onEditProje
   }
   return (
     <section className="integrated-calendar" aria-label="Integrated calendar">
+      <h1 className="sr-only">Calendar</h1>
       <div className="ic-toolbar">
         <h2>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2>
         <div className="ic-navigation">

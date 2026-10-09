@@ -63,7 +63,7 @@ beforeEach(() => {
 
 async function openProject(tab) {
   render(<MemoryRouter><App /></MemoryRouter>)
-  const projects = await screen.findByRole("listbox", { name: "Projects" })
+  const projects = await screen.findByRole("list", { name: "Projects" })
   fireEvent.click(within(projects).getByText("Field Notes"))
   await screen.findByRole("heading", { name: "Field Notes" })
   if (tab) fireEvent.click(screen.getByRole("tab", { name: tab }))

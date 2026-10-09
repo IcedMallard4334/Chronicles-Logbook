@@ -391,7 +391,8 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
 
 // ── Task Panel (main export) ─────────────────────────────────────────
 
-export function TaskPanel({ projectId, onLogEntry }) {
+export function TaskPanel({ projectId, onLogEntry, headingLevel = 3 }) {
+  const Heading = `h${headingLevel}`
   const [finished, setFinished] = useState(null)
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -450,7 +451,7 @@ export function TaskPanel({ projectId, onLogEntry }) {
     <div className="task-panel">
       <div className="task-panel-header">
         <div className="panel-head">
-          <h3>Tasks</h3>
+          <Heading>Tasks</Heading>
           <p>Track what needs to be done for this project.</p>
         </div>
         {!showForm && !editingTask && (

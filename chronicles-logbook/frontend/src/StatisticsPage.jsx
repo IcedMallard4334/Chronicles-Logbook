@@ -277,7 +277,7 @@ export default function StatisticsPage({ projects, onNavigate }) {
                 </tbody>
               </table>
             ) : (
-              <div className="stats-chart" aria-label="Time logged per project">
+              <div className="stats-chart" role="img" aria-label="Time logged per project">
                 <ResponsiveContainer width="100%" height={Math.max(160, timeRows.length * 46)}>
                   <BarChart data={timeRows} layout="vertical" margin={{ top: 4, right: 56, left: 8, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" horizontal={false} />
@@ -341,7 +341,7 @@ export default function StatisticsPage({ projects, onNavigate }) {
             </tbody>
           </table>
         ) : (
-          <div className="stats-chart" aria-label="Entries per week">
+          <div className="stats-chart" role="img" aria-label="Entries per week">
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={activityRows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
