@@ -50,7 +50,12 @@ describe("Streaks", () => {
       )
     })
 
-    await waitFor(() => expect(screen.getByText(/Activity streak: 1 day\./)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/Activity streak: 1 day\./).length).toBeGreaterThan(0))
+    // Read once by a screen reader (the sr-only text); the visible bubble is hidden from it and is not a browser title.
+    const chip = screen.getAllByText(/Activity streak: 1 day\./)[0].closest("li")
+    expect(chip).toHaveClass("has-tip")
+    expect(chip).not.toHaveAttribute("title")
+    expect(chip.querySelector(".tip-bubble")).toHaveAttribute("aria-hidden", "true")
   })
 
   it("stays out of the way when the streak service fails", async () => {

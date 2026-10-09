@@ -1,0 +1,151 @@
+/* The team drawer: totals, then one card per person. Colours come from the palette. */
+
+.team-drawer h3 {
+  margin: 18px 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.team-drawer section:first-child h3 { margin-top: 0; }
+
+.team-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.team-stats > div {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.team-stats dt {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.team-stats dd {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.team-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.team-person {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.team-person.is-quiet { opacity: 0.85; }
+
+.team-person-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.team-avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.team-avatar-initials {
+  display: grid;
+  place-items: center;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.team-person-name {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.team-person-name strong,
+.team-person-email {
+  overflow-wrap: anywhere;
+}
+
+.team-person-email {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.team-role {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.team-role.is-pending,
+.team-role.is-former,
+.team-role.is-unknown {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.team-active,
+.team-quiet-note {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.team-notes ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* A project's Team button sits beside the schema pill. */
+.meta-pill.team-pill { margin-left: 8px; }
+
+.team-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.team-feed li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.84rem;
+}
+
+.team-feed li:last-child { border-bottom: 0; }
+.team-feed span { overflow-wrap: anywhere; }
+.team-feed time { flex: none; color: var(--muted); font-size: 0.76rem; }

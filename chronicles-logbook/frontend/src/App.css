@@ -3653,3 +3653,13 @@ button.log-link-chip:hover {
 .task-finished-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.5rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--blue-soft, rgba(107,91,255,.4)); border-radius: 0.6rem; background: var(--blue-bg, rgba(107,91,255,.08)); font-size: 0.88rem; }
 .task-finished-note span { flex: 1 1 16rem; }
 .entries-toolbar .entry-task-guide-button { margin-right: auto; margin-left: 0.5rem; }
+
+/* Narrowing a project's entries to one person's. */
+.entry-author-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}

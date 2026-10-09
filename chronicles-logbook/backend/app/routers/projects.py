@@ -20,6 +20,7 @@ from app.models import (
     EntryRule,
     Project,
     ProjectMember,
+    ProjectSchemaChange,
     SavedStatistic,
     Task,
     User,
@@ -34,16 +35,21 @@ from app.schemas import (
     MAX_TAG_LENGTH,
     MAX_TAGS,
     MAX_TIME_SPENT_MINUTES,
+    ActivityItem,
+    Contributor,
+    ContributorStats,
     EntryCreate,
     EntryMigrationPreview,
     EntryResponse,
     EntryRevertRequest,
     EntryRevisionResponse,
     EntryUpdate,
+    ProjectActivityResponse,
     ProjectCreate,
     ProjectMemberResponse,
     ProjectResponse,
     ProjectShareRequest,
+    ProjectTeamResponse,
     ProjectUpdate,
     SchemaChange,
     SchemaChangePreview,
@@ -784,6 +790,19 @@ async def _replace_schema(
     _guard_archived_schema_change(project, proposed_schema)
 
     simulation, entry_count = await _plan_schema_change(project, proposed_schema, user, db)
+
+    # Recorded only when the schema really changed: the project form re-sends
+    # the schema it already has to save a rename, and that is not a schema edit.
+    if simulation.changes:
+        db.add(
+            ProjectSchemaChange(
+                project_id=project.id,
+                changed_by=user.id,
+                from_version=project.schema_version,
+                to_version=project.schema_version + 1,
+                summary=[{"kind": change.kind, "field": change.field_name} for change in simulation.changes],
+            )
+        )
 
     project.schema_version += 1
     project.entry_schema = proposed_schema
@@ -1543,6 +1562,342 @@ async def get_entry_links(
                 break
 
     return backlinks
+
+
+def _later(current: datetime | None, candidate: datetime | None) -> datetime | None:
+    """The later of two timestamps, either of which may be missing or naive."""
+    if candidate is None:
+        return current
+    if candidate.tzinfo is None:
+        candidate = candidate.replace(tzinfo=timezone.utc)
+    if current is None or candidate > current:
+        return candidate
+    return current
+
+
+@router.get("/{project_id}/team", response_model=ProjectTeamResponse)
+async def read_project_team(
+    project_id: UUID,
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Who is working on this project, and what each of them has done in it.
+
+    Readable by the owner and by anyone who has accepted, the same as the
+    project itself. Every figure is counted from what is already stored (entries,
+    their versions, tasks and the schema-change record), never from separate
+    counters, so it cannot drift from the work behind it. A person who has
+    left, or whose account is gone, still appears if they did anything, because
+    a record keeps its authors.
+    """
+    project = await _get_readable_project(project_id, user, db)
+
+    stats: dict[UUID | None, ContributorStats] = {}
+
+    def of(person: UUID | None) -> ContributorStats:
+        return stats.setdefault(person, ContributorStats())
+
+    # Entries logged, and the time they record. Soft-deleted entries are hidden
+    # by the session's query filter, so they are not counted.
+    for author, count, minutes, latest in (
+        await db.execute(
+            select(
+                Entry.created_by,
+                func.count(Entry.id),
+                func.coalesce(func.sum(Entry.time_spent), 0),
+                func.max(Entry.created_at),
+            )
+            .where(Entry.project_id == project.id)
+            .group_by(Entry.created_by)
+        )
+    ).all():
+        row = of(author)
+        row.entries_logged = count
+        row.time_logged_minutes = int(minutes or 0)
+        row.last_active = _later(row.last_active, latest)
+
+    # Edits and completions come from the version history: each version says who
+    # made it, what it did, and which values it changed (and what they were).
+    for changed_by, action, changed_fields, previous_values, changed_at in (
+        await db.execute(
+            select(
+                EntryRevision.changed_by,
+                EntryRevision.action,
+                EntryRevision.changed_fields,
+                EntryRevision.previous_values,
+                EntryRevision.changed_at,
+            )
+            .join(Entry, Entry.id == EntryRevision.entry_id)
+            .where(Entry.project_id == project.id)
+        )
+    ).all():
+        row = of(changed_by)
+        row.last_active = _later(row.last_active, changed_at)
+        if action in ("edited", "reverted"):
+            row.entries_edited += 1
+            # Outstanding before, finished now.
+            if "todo" in (changed_fields or []) and (previous_values or {}).get("todo") is True:
+                row.entries_completed += 1
+
+    for creator, count, latest in (
+        await db.execute(
+            select(Task.created_by, func.count(Task.id), func.max(Task.created_at))
+            .where(Task.project_id == project.id)
+            .group_by(Task.created_by)
+        )
+    ).all():
+        row = of(creator)
+        row.tasks_created = count
+        row.last_active = _later(row.last_active, latest)
+
+    for completer, count, latest in (
+        await db.execute(
+            select(Task.completed_by, func.count(Task.id), func.max(Task.updated_at))
+            .where(Task.project_id == project.id, Task.completed.is_(True))
+            .group_by(Task.completed_by)
+        )
+    ).all():
+        row = of(completer)
+        row.tasks_completed = count
+        row.last_active = _later(row.last_active, latest)
+
+    first_schema_change: datetime | None = None
+    for editor, count, earliest, latest in (
+        await db.execute(
+            select(
+                ProjectSchemaChange.changed_by,
+                func.count(ProjectSchemaChange.id),
+                func.min(ProjectSchemaChange.changed_at),
+                func.max(ProjectSchemaChange.changed_at),
+            )
+            .where(ProjectSchemaChange.project_id == project.id)
+            .group_by(ProjectSchemaChange.changed_by)
+        )
+    ).all():
+        row = of(editor)
+        row.schema_changes = count
+        row.last_active = _later(row.last_active, latest)
+        if earliest is not None:
+            earliest = earliest if earliest.tzinfo else earliest.replace(tzinfo=timezone.utc)
+            if first_schema_change is None or earliest < first_schema_change:
+                first_schema_change = earliest
+
+    owner = await db.get(User, project.user_id)
+    memberships = (
+        await db.execute(
+            select(ProjectMember, User)
+            .join(User, User.id == ProjectMember.user_id)
+            .where(ProjectMember.project_id == project.id)
+        )
+    ).all()
+    members = {membership.user_id: (membership, person) for membership, person in memberships}
+
+    contributors: list[Contributor] = []
+    if owner is not None:
+        contributors.append(
+            Contributor(
+                user_id=owner.id,
+                full_name=owner.full_name,
+                email=owner.email,
+                avatar_url=owner.avatar_url,
+                role="owner",
+                stats=stats.pop(owner.id, ContributorStats()),
+            )
+        )
+    for member_id, (membership, person) in sorted(
+        members.items(), key=lambda item: item[1][1].full_name.casefold()
+    ):
+        contributors.append(
+            Contributor(
+                user_id=person.id,
+                full_name=person.full_name,
+                email=person.email,
+                avatar_url=person.avatar_url,
+                role="member",
+                status=membership.status,
+                invited_at=membership.created_at,
+                stats=stats.pop(member_id, ContributorStats()),
+            )
+        )
+
+    # Whoever is left did something here but is no longer on the project.
+    leftovers = {key: value for key, value in stats.items() if key is not None}
+    if leftovers:
+        names = {
+            person.id: person
+            for person in (await db.scalars(select(User).where(User.id.in_(leftovers)))).all()
+        }
+        for person_id, row in sorted(
+            leftovers.items(), key=lambda item: (names[item[0]].full_name.casefold() if item[0] in names else "")
+        ):
+            person = names.get(person_id)
+            contributors.append(
+                Contributor(
+                    user_id=person_id,
+                    full_name=person.full_name if person else "A former member",
+                    email=person.email if person else None,
+                    avatar_url=person.avatar_url if person else None,
+                    role="former",
+                    stats=row,
+                )
+            )
+    unknown = stats.get(None)
+    if unknown is not None and any(
+        value for key, value in unknown.model_dump().items() if key != "last_active"
+    ):
+        contributors.append(
+            Contributor(full_name="Author not recorded", role="unknown", stats=unknown)
+        )
+
+    totals = ContributorStats()
+    for person in contributors:
+        for key in (
+            "entries_logged",
+            "entries_completed",
+            "entries_edited",
+            "time_logged_minutes",
+            "tasks_created",
+            "tasks_completed",
+            "schema_changes",
+        ):
+            setattr(totals, key, getattr(totals, key) + getattr(person.stats, key))
+        totals.last_active = _later(totals.last_active, person.stats.last_active)
+
+    return ProjectTeamResponse(
+        project_id=project.id,
+        people_working=sum(
+            1 for person in contributors if person.role == "owner" or person.status == "accepted"
+        ),
+        people_invited=sum(1 for person in contributors if person.status == "pending"),
+        schema_changes_recorded_since=first_schema_change,
+        totals=totals,
+        contributors=contributors,
+    )
+
+
+@router.get("/{project_id}/activity", response_model=ProjectActivityResponse)
+async def read_project_activity(
+    project_id: UUID,
+    limit: int = Query(30, ge=1, le=100),
+    user: User = Depends(get_current_user),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """The most recent things people did on this project, newest first.
+
+    Worked out from what is stored: entry versions (so logging, editing, finishing,
+    reverting and deleting each say who did them), tasks, schema changes and who
+    joined or declined. Readable by the owner and accepted members. Each source is
+    cut to ``limit`` before merging, so the answer costs the same however long the
+    project's history is.
+
+    Two honest limits: a task's completion time is when the task row last changed
+    (it has no completion timestamp of its own), and schema changes begin on the
+    day they started being recorded.
+    """
+    project = await _get_readable_project(project_id, user, db)
+    events: list[tuple[str, datetime, UUID | None, str | None]] = []
+
+    def stamp(value: datetime) -> datetime:
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    # Deleted entries are hidden from ordinary queries; their deletion is exactly
+    # what this should show, so ask for them.
+    revisions = await db.execute(
+        select(
+            EntryRevision.changed_by,
+            EntryRevision.action,
+            EntryRevision.changed_at,
+            EntryRevision.title,
+            EntryRevision.changed_fields,
+            EntryRevision.previous_values,
+        )
+        .join(Entry, Entry.id == EntryRevision.entry_id)
+        .where(Entry.project_id == project.id)
+        .order_by(EntryRevision.changed_at.desc())
+        .limit(limit)
+        .execution_options(include_deleted=True)
+    )
+    for changed_by, action, changed_at, title, changed_fields, previous_values in revisions.all():
+        if action == "created":
+            kind = "entry_logged"
+        elif action == "deleted":
+            kind = "entry_deleted"
+        elif action == "reverted":
+            kind = "entry_reverted"
+        elif "todo" in (changed_fields or []) and (previous_values or {}).get("todo") is True:
+            kind = "entry_completed"
+        else:
+            kind = "entry_edited"
+        events.append((kind, stamp(changed_at), changed_by, title or "an entry"))
+
+    for creator, created_at, title in (
+        await db.execute(
+            select(Task.created_by, Task.created_at, Task.title)
+            .where(Task.project_id == project.id)
+            .order_by(Task.created_at.desc())
+            .limit(limit)
+        )
+    ).all():
+        events.append(("task_added", stamp(created_at), creator, title))
+
+    for completer, updated_at, title in (
+        await db.execute(
+            select(Task.completed_by, Task.updated_at, Task.title)
+            .where(Task.project_id == project.id, Task.completed.is_(True))
+            .order_by(Task.updated_at.desc())
+            .limit(limit)
+        )
+    ).all():
+        events.append(("task_completed", stamp(updated_at), completer, title))
+
+    for editor, changed_at, summary in (
+        await db.execute(
+            select(ProjectSchemaChange.changed_by, ProjectSchemaChange.changed_at, ProjectSchemaChange.summary)
+            .where(ProjectSchemaChange.project_id == project.id)
+            .order_by(ProjectSchemaChange.changed_at.desc())
+            .limit(limit)
+        )
+    ).all():
+        detail = ", ".join(f"{item.get('kind', 'changed')} {item.get('field', '')}".strip() for item in (summary or [])[:4])
+        events.append(("schema_changed", stamp(changed_at), editor, detail or None))
+
+    for membership in (
+        await db.scalars(
+            select(ProjectMember)
+            .where(
+                ProjectMember.project_id == project.id,
+                ProjectMember.responded_at.is_not(None),
+                ProjectMember.status.in_([MEMBERSHIP_ACCEPTED, MEMBERSHIP_DECLINED]),
+            )
+            .order_by(ProjectMember.responded_at.desc())
+            .limit(limit)
+        )
+    ).all():
+        kind = "member_joined" if membership.status == MEMBERSHIP_ACCEPTED else "member_declined"
+        events.append((kind, stamp(membership.responded_at), membership.user_id, None))
+
+    events.sort(key=lambda event: event[1], reverse=True)
+    events = events[:limit]
+
+    people = {
+        person.id: person.full_name
+        for person in (
+            await db.scalars(select(User).where(User.id.in_({e[2] for e in events if e[2] is not None})))
+        ).all()
+    }
+    return ProjectActivityResponse(
+        project_id=project.id,
+        items=[
+            ActivityItem(
+                kind=kind,
+                at=at,
+                actor_id=actor,
+                actor_name=people.get(actor, "Someone") if actor else "Someone",
+                subject=subject,
+            )
+            for kind, at, actor, subject in events
+        ],
+    )
 
 
 @router.get("/{project_id}/members", response_model=list[ProjectMemberResponse])

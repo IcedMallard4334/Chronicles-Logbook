@@ -369,6 +369,89 @@ class ProjectInvitationResponse(BaseModel):
     invited_at: datetime
 
 
+# ── The team on a project ────────────────────────────────────────────────────
+
+
+class InvitationAnswerResponse(BaseModel):
+    """An invitation the owner sent, now answered, until they dismiss the notice."""
+
+    project_id: UUID
+    project_name: str
+    person_name: str
+    answer: Literal["accepted", "declined"]
+    answered_at: datetime
+
+
+class ActivityItem(BaseModel):
+    """One thing someone did on a project, worked out from what is stored."""
+
+    kind: Literal[
+        "entry_logged",
+        "entry_edited",
+        "entry_completed",
+        "entry_reverted",
+        "entry_deleted",
+        "task_added",
+        "task_completed",
+        "schema_changed",
+        "member_joined",
+        "member_declined",
+    ]
+    at: datetime
+    actor_id: UUID | None = None
+    # "Someone" when the author was never recorded or the account is gone.
+    actor_name: str
+    # The entry or task the line is about, or what changed in the schema.
+    subject: str | None = None
+
+
+class ProjectActivityResponse(BaseModel):
+    project_id: UUID
+    items: list[ActivityItem]
+
+
+
+class ContributorStats(BaseModel):
+    """What one person has done in one project, counted from what is stored."""
+
+    entries_logged: int = 0
+    # Entries this person moved from outstanding to done. An entry logged as
+    # already finished is "logged" only: nothing was completed afterwards.
+    entries_completed: int = 0
+    # Versions this person added by editing or reverting an entry.
+    entries_edited: int = 0
+    time_logged_minutes: int = 0
+    tasks_created: int = 0
+    tasks_completed: int = 0
+    schema_changes: int = 0
+    last_active: datetime | None = None
+
+
+class Contributor(BaseModel):
+    # None for the one row that stands for work whose author is not known
+    # (written before sharing existed, or by an account since deleted).
+    user_id: UUID | None = None
+    full_name: str
+    email: str | None = None
+    avatar_url: str | None = None
+    role: Literal["owner", "member", "former", "unknown"]
+    # Only meaningful for a member: whether the invitation was taken up.
+    status: Literal["accepted", "pending", "declined"] | None = None
+    invited_at: datetime | None = None
+    stats: ContributorStats
+
+
+class ProjectTeamResponse(BaseModel):
+    project_id: UUID
+    people_working: int
+    people_invited: int
+    # The earliest schema change on record, so the figure can be read as
+    # "since then" rather than "ever". None while none has been recorded.
+    schema_changes_recorded_since: datetime | None = None
+    totals: ContributorStats
+    contributors: list[Contributor]
+
+
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
 
 

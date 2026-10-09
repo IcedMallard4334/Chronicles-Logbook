@@ -14,8 +14,8 @@ supersedes it and adds what has been built since.
 
 | | Measured on 9 October 2026 | Written target | Enforced by the build? |
 |---|---|---|---|
-| Backend | 736 tests, about 95% statement coverage | above 90% | **No** |
-| Frontend | 962 tests, 84.4% statements, 87.5% lines | above 80% | **No** |
+| Backend | 780 tests, about 95% statement coverage | above 90% | **No** |
+| Frontend | 987 tests, 84.6% statements, 87.6% lines | above 80% | **No** |
 
 The brief's testing criterion asks "what is your code coverage (above 80%? above 50%)?". Neither suite has a
 `fail-under` threshold in CI, so a drop would not fail a build; CI only reports the figure, posts it on the

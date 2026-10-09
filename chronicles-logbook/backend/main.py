@@ -19,6 +19,7 @@ from app.routers import (
     entries,
     invitations,
     projects,
+    public,
     saved_filters,
     statistics,
     streaks,
@@ -66,6 +67,7 @@ _ADDED_COLUMNS = (
     ("project_members", "status", "VARCHAR(20) NOT NULL DEFAULT 'accepted'"),
     ("project_members", "invited_by", "UUID REFERENCES users(id) ON DELETE SET NULL"),
     ("project_members", "responded_at", "TIMESTAMPTZ"),
+    ("project_members", "owner_seen_at", "TIMESTAMPTZ"),
     ("entries", "title", "VARCHAR(255)"),
     # Entry history & corrections (US-3.10) — see migrations/014_entry_history.sql.
     ("entries", "deleted_at", "TIMESTAMPTZ"),
@@ -203,6 +205,7 @@ app.include_router(automation.reminders_router)
 app.include_router(dashboard.router)
 app.include_router(streaks.router)
 app.include_router(achievements.router)
+app.include_router(public.router)
 
 
 @app.get("/health")

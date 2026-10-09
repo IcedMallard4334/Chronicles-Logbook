@@ -250,6 +250,8 @@ Found by the docs audit (`scripts/docs_audit.py`) on 2026-10-09 and recorded her
 | `saved_filters` | `id` (PK), `user_id` (FK → users, cascade), `name` (VARCHAR 100), `criteria` (JSONB), timestamps; **unique `(user_id, name)`** | Named, reusable Entries-page filters (US-2.12). Criteria are JSON so a new filter control needs no schema change; the unique pair is what makes saving a name twice an overwrite. See [Saved filters](../api/saved-filters.md). |
 | `google_calendar_accounts` | `id` (PK), `user_id` (FK → users, cascade, indexed), `calendar_id` (VARCHAR 512), `label`, `refresh_token`, `created_at`; unique `(user_id, calendar_id)` | One connected Google account per row, so a person can connect several. Holds only a refresh token; events are fetched live and never stored. |
 | `google_calendar_tokens` | `user_id` (PK, FK → users, cascade), `refresh_token`, timestamps | The original single-account token, from before accounts were stored separately. It still works and is shown as the account `legacy`; new connections go to `google_calendar_accounts`. |
+| `project_schema_changes` | `id` (PK), `project_id` (FK → projects, cascade, indexed), `changed_by` (FK → users, **set null**, indexed), `from_version`, `to_version`, `summary` (JSONB, `[{kind, field}]`), `changed_at` (indexed) | Who changed a project's schema, and when, so the team view can say. A schema save only changes the project and touches no entry, so nothing else recorded the author. Written only when the schema really changed. Begins on the day it was introduced; earlier changes are not known and are not backfilled. `changed_by` is cleared, not cascaded, when an account goes (DB-44). |
+| `project_members.owner_seen_at` | (column) | When the owner dismissed the notice that this invitation was answered. Null until then. `responded_at` and this column together drive `GET /invitations/answers`. Added by migration `024` and the start-up patch. |
 | `calendar_activities` | `id` (PK), `user_id` (FK → users, cascade, indexed), `title` (VARCHAR 255), `description` (VARCHAR 4000), `day` (DATE, indexed), `all_day`, `start_time` / `end_time` (VARCHAR 5, `HH:MM`), `created_at` | A person's own scheduled items. Private to Chronicles and **never written to Google Calendar**. Times are `HH:MM` text because an activity has no time zone: it happens at that local time on that local day. |
 
 ```mermaid
@@ -350,6 +352,8 @@ re-run:
 | `020_achievements.sql` | `user_achievements` |
 | `021_task_due_time.sql` | `tasks.due_time`, an optional time of day for a task's deadline |
 | `022_rule_triggers.sql` | `entry_rules.trigger` (`created` or `status`) and `trigger_status` |
+| `023_project_schema_changes.sql` | `project_schema_changes`: who changed a project's schema, and when |
+| `024_invitation_answer_notices.sql` | `project_members.owner_seen_at`: the owner's dismissal of an "answered" notice |
 
 These files are the **record** of each change. They are not run by the deploy: what reaches an existing production
 database is the start-up patch in `main.py` (`_ADDED_COLUMNS`), and a test fails if a migration adds a column that

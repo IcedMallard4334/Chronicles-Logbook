@@ -587,6 +587,100 @@ argued at length elsewhere link there instead of repeating it.
   on each sign-in.
 - **Where:** `app/routers/auth.py` (`google_callback`).
 
+### DB-65. Who changed a schema is recorded in its own table, from now on
+
+- **Decided:** every schema save that really changes the schema adds a `project_schema_changes` row: who, when,
+  the version it moved from and to, and a summary of what changed (kind and field name). Nothing is backfilled.
+- **Why:** a schema save changes only the project and never an entry (DB-10), so a team view had nowhere to find out
+  who made one: the project keeps only a version number. Entries and tasks already carry their authors, and every
+  entry version records who made it, so they needed nothing new; the schema was the one gap. A save that re-sends
+  the schema it already has (the project form does so to rename a project) changes nothing and is **not** recorded.
+- **Why not backfill:** the information does not exist. The honest options were to guess an author or to start
+  counting now, and the response says from when (`schema_changes_recorded_since`) so a count is never read as
+  "ever". `changed_by` is cleared rather than cascaded when an account is deleted, so the change survives its
+  author (DB-44); it then appears under "Author not recorded".
+- **Where:** `app/models.py` (`ProjectSchemaChange`), `app/routers/projects.py` (`_replace_schema`),
+  migration `023`. The start-up patch needs no entry because it is a new table, which `create_all` builds.
+
+### DB-66. Team statistics are counted from stored work, on request
+
+- **Decided:** `GET /projects/{id}/team` counts entries logged, entries completed, entries edited, time logged,
+  tasks added, tasks completed and schema changes per person from the rows that already exist. There are no
+  counters and no cache.
+- **Why:** the same reasoning as badges (DB-38): a counter can drift from the work behind it, a count cannot. It costs a handful of grouped queries and one pass over the project's entry versions, which is acceptable at the size
+  of one project; it would be revisited if a single project grew to many thousands of versions.
+- **How each is defined**, since a number is only as good as its definition:
+  - *Completed* means the person saved a version in which `todo` went from true to false. An entry logged as
+    finished is not "completed" by anyone, and whoever finishes planned work is credited even if someone else
+    wrote it.
+  - *Edited* counts versions with the action `edited` or `reverted`, credited to whoever saved the version, so an
+    owner's correction of a member's entry is the owner's edit while the entry stays logged by the member.
+  - *Tasks completed* counts tasks that are currently complete, credited to `completed_by`; reopening one removes
+    it, because the completion no longer stands (DB-46).
+  - Soft-deleted entries are excluded by the session filter (DB-27).
+- **Who appears:** the owner; every member with their invitation state (pending and declined are shown but do not
+  count as working); **former** members who did something and then left or were removed, because a record keeps
+  its authors; and one **"Author not recorded"** row for work with no author (written before sharing existed, or
+  by a deleted account), shown only when there is something in it.
+- **Who may read it:** the owner and accepted members, the same rule as the project (`_get_readable_project`). The
+  figures describe people's work on a shared record, which a member already sees, and a pending invitee sees
+  nothing, as with everything else. *Whether members should see each other's statistics at all was decided here,
+  not asked of a user; it is easy to restrict to the owner.*
+- **Where:** `app/routers/projects.py` (`read_project_team`), `app/schemas.py` (`ProjectTeamResponse`),
+  `backend/tests/test_project_team.py` (17 tests).
+
+### DB-67. The activity feed is derived from stored work, not a log of its own
+
+- **Decided:** `GET /projects/{id}/activity` builds its lines from entry versions, tasks, the schema-change record and
+  the time invitations were answered, merges them by time and returns the newest `limit`. There is no separate
+  events table.
+- **Why:** entry versions already record who did what and when (DB-27), so a second log would only restate them and
+  could drift from them (the same reasoning as DB-38 and DB-66). Each source is cut to `limit` before the merge, so
+  the cost does not grow with the project's history. Deletions are shown, by asking the query for deleted entries
+  (`include_deleted`), because a feed that hid deletions would hide the most important thing it could say.
+- **Limits, stated rather than hidden:** a task has no completion timestamp, so "completed" is when its row last
+  changed (a later edit moves it); schema changes begin on the day they were first recorded (DB-65); edits are
+  credited to whoever saved the version (DB-66).
+- **Where:** `app/routers/projects.py` (`read_project_activity`), `app/schemas.py` (`ActivityItem`),
+  `backend/tests/test_project_activity.py`.
+
+### DB-68. The owner is told an invitation was answered, for 14 days or until dismissed
+
+- **Decided:** `GET /invitations/answers` lists answered invitations for the caller's projects whose notice has not
+  been dismissed and which were answered in the last 14 days; `POST /invitations/answers/seen` dismisses them by
+  stamping a new nullable `project_members.owner_seen_at`.
+- **Why:** the sharing page listed "no notification" as a known limitation; an owner only found out by opening the
+  members list. A column on the membership is the smallest thing that can remember a dismissal. The 14-day window is
+  because every answer given since invitations were introduced has `owner_seen_at` empty, and without a limit they
+  would all arrive at once the day this shipped. *Why exactly 14 days is not otherwise recorded.* Rows from before
+  answers were timestamped have no `responded_at` and give no notice.
+- **Why not email:** an email path is hard to test and needs a template and a failure policy; the in-app notice
+  covers "tell me when it happens" and the bell is already where invitations arrive (UI-66).
+- **Where:** `app/routers/invitations.py`, `app/models.py` (`owner_seen_at`), migration `024`, start-up patch.
+
+### DB-69. A small set of read-only reference endpoints is public
+
+- **Decided:** `GET /public/info`, `/public/field-types` and `/public/limits` (and the existing `/health`) need no
+  sign-in. They describe the API, the ten field types with what each stores and how it can be searched, and the limits
+  the API enforces.
+- **Why:** the brief's "API" criterion asks whether the API is available for external usage, and someone building
+  against Chronicles needs to know what it accepts before they have an account. This is the part that is safe to open:
+  every response is identical for every caller, contains nobody's data, touches no database and reads no session, so it
+  cannot leak anything, costs almost nothing to serve, and needs no rate limit beyond the platform's. It is cacheable
+  for an hour because it only changes when the code does.
+- **How it stays true:** the limits are imported from the same constants the validation uses (not copied), and a test
+  fails if a field type is added without being described. A test also confirms the advertised project-name limit is
+  the real one.
+- **What was considered and left out:**
+  - *Usage counts (users, projects, entries):* they reveal how much Chronicles is used and serve no one building
+    against it.
+  - *A public read-only view of a project:* making a person's record world-readable is a decision for its owner, so it
+    would need an explicit "publish" switch, an unguessable link and a way to revoke it. That is a feature with its own
+    privacy design, not a side effect of an API question.
+  - *Making existing endpoints anonymous:* every other endpoint is scoped to a person, so there is nothing about them
+    that could be public.
+- **Where:** `app/routers/public.py`, `backend/tests/test_public_reference.py`, [Public reference](../api/public.md).
+
 ### DB-55. OAuth `state` is a signed token, not a session cookie
 
 - **Decided:** the state is a JWT-signed nonce (`{uuid}.{jwt}`), not Authlib's session-based state.

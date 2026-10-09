@@ -28,12 +28,14 @@ flowchart LR
     end
     google["Google<br/>OpenID Connect sign-in"]
     gcal["Google Calendar API<br/>read-only"]
+    developer([Someone building against the API])
     gemini["Google Gemini API<br/>Mira"]
     resend["Resend<br/>deletion email"]
     docs["Documentation site<br/>MkDocs Material"]
     speech["Browser speech service<br/>dictation"]
 
     person --> fe
+    developer -.->|"no sign-in: /public/*, /health"| be
     person -.->|reads| docs
     fe -->|HTTPS + bearer token| be
     be --> db
@@ -158,7 +160,7 @@ flowchart TB
 
 ## Full entity-relationship diagram
 
-All 22 tables, generated from the SQLAlchemy models by script on 2026-10-09 so it cannot disagree with them.
+All 23 tables, generated from the SQLAlchemy models by script on 2026-10-09 so it cannot disagree with them.
 Relationship labels are the foreign-key column and its delete rule. The older diagram on the
 [Database](database.md) page is a hand-drawn summary and omits tables that came later.
 
@@ -184,6 +186,8 @@ erDiagram
     projects ||--o{ project_members : "project_id (cascade)"
     users ||--o{ project_members : "user_id (cascade)"
     users ||--o| project_members : "invited_by (set null)"
+    projects ||--o{ project_schema_changes : "project_id (cascade)"
+    users ||--o| project_schema_changes : "changed_by (set null)"
     users ||--o{ projects : "user_id (cascade)"
     entry_recurrences ||--o{ recurrence_occurrences : "recurrence_id (cascade)"
     entries ||--o| recurrence_occurrences : "entry_id (set null)"
@@ -331,6 +335,15 @@ erDiagram
         char invited_by FK
         datetime responded_at
         datetime created_at
+    }
+    project_schema_changes {
+        char id PK
+        char project_id FK
+        char changed_by FK
+        integer from_version
+        integer to_version
+        jsonb summary
+        datetime changed_at
     }
     projects {
         char id PK
@@ -528,6 +541,12 @@ classDiagram
         +datetime deleted_at
         +UUID created_by
     }
+    class ProjectSchemaChange {
+        +UUID changed_by  null if the account is gone
+        +int from_version
+        +int to_version
+        +list summary
+    }
     class EntryRevision {
         +int revision
         +str action  created|edited|deleted|reverted
@@ -548,6 +567,7 @@ classDiagram
     Project "1" --> "*" ProjectMember
     User "1" --> "*" ProjectMember
     Project "1" --> "*" EntryRule
+    Project "1" --> "*" ProjectSchemaChange : who changed the schema
     Entry "1" --> "*" EntryRevision : immutable history
     Entry "1" --> "0..1" EntryRecurrence
     EntryRecurrence "1" --> "*" RecurrenceOccurrence : unique per date
@@ -721,6 +741,30 @@ sequenceDiagram
     end
 ```
 
+### Reading the team on a project
+
+*Source: `read_project_team` in `app/routers/projects.py`, `ProjectTeam.jsx`. Decisions DB-65, DB-66, UI-64.*
+
+```mermaid
+sequenceDiagram
+    actor P as Owner or accepted member
+    participant FE as Team drawer
+    participant API as GET /projects/{id}/team
+    participant DB as Database
+
+    P->>FE: Team
+    FE->>API: request
+    API->>DB: is the caller the owner or an accepted member? else 404
+    API->>DB: entries by author (count, time, latest)
+    API->>DB: entry versions for the project (who, action, changed fields)
+    API->>DB: tasks by creator, and complete tasks by completer
+    API->>DB: schema changes by author
+    API->>DB: owner and every membership
+    API->>API: merge: owner, members with their state, former members, one "author not recorded" row
+    API-->>FE: people working, invited, totals, one entry per person
+    FE->>P: Together, then a card per person, then how it is counted
+```
+
 ### Recurring entries without a scheduler
 
 *Source: `app/automation.py`, `app/routers/automation.py`. Decision DB-30.*
@@ -772,6 +816,10 @@ sequenceDiagram
         I->>API: POST /invitations/{project_id}/decline
         API->>DB: status = declined (kept, so the owner sees the answer)
     end
+    Note over O: the owner's bell polls GET /invitations/answers
+    API-->>O: "Sam joined Fieldwork" (answers from the last 14 days)
+    O->>API: POST /invitations/answers/seen (Dismiss)
+    API->>DB: owner_seen_at = now
 ```
 
 ### Importing a backup
@@ -1009,12 +1057,14 @@ mindmap
         list
         accept
         decline
+        answers and dismiss
     Records
       /projects
         CRUD, archive
         schema and preview
         entries
         history, revert, restore
+        team and activity
         members for sharing, leave
         export.csv
       per-project tasks
@@ -1045,8 +1095,11 @@ mindmap
     Data
       /export
       /import
-    Health
+    Public, no sign-in
       /health
+      /public/info
+      /public/field-types
+      /public/limits
 ```
 
 ### Who may do what

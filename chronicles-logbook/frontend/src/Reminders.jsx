@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { fetchReminders } from "./api"
 import { dueLabel, remindersLabel } from "./automationRules"
+import { TipBubble } from "./Tip"
 import { useDialogFocus } from "./useDialogFocus"
 import "./Invitations.css"
 import "./Reminders.css"
@@ -80,13 +81,13 @@ export default function Reminders({ onOpenProject, onOccurrencesCreated }) {
     <div className="invites reminders" ref={panel}>
       <button
         type="button"
-        className="invites-bell"
+        className="invites-bell has-tip"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={remindersLabel(summary)}
-        title={remindersLabel(summary)}
       >
+        <TipBubble text={remindersLabel(summary)} align="end" />
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <circle cx="12" cy="13" r="8" />
           <path d="M12 9v4l2.5 2" />

@@ -259,6 +259,14 @@ class ProjectMember(Base):
         nullable=True,
     )
 
+    # When the owner dismissed the notice of this answer. Null until then; only
+    # answers from the last two weeks are ever offered, so an answer given long ago
+    # (before this existed) does not arrive as a flood of old news.
+    owner_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Both sides of an invitation need a name to show: the project's members
     # list wants the invitee, and the invitee's notifications want the owner.
     member = relationship("User", lazy="selectin", foreign_keys=[user_id])
@@ -454,6 +462,38 @@ class EntryRevision(Base):
     @property
     def changed_by_name(self) -> str | None:
         return self.editor.full_name if self.editor else None
+
+
+class ProjectSchemaChange(Base):
+    """Who changed a project's schema, and when.
+
+    A schema save only changes the project, never an entry, so nothing else
+    records it: ``schema_version`` goes up and the author is lost. This is the
+    audit trail the team view reads. It begins on the day it was introduced;
+    changes before then are not known, and are not invented.
+    """
+
+    __tablename__ = "project_schema_changes"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Cleared rather than cascaded: the change happened whether or not the
+    # person who made it still has an account.
+    changed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    from_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    to_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # [{"kind": "added", "field": "Weight"}, ...]: field names, because the
+    # names are what a person recognises, and kinds as the schema editor reports them.
+    summary: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType, nullable=False, default=list, server_default="[]"
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+    )
 
 
 class Task(Base):
