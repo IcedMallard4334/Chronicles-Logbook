@@ -677,6 +677,16 @@ it lives. Where the repository does not record a reason, the entry says so.
 - **Why the page does not work out permissions:** the server says `can_edit` and `can_delete` on each note, so the
   rules live in one place (DB-70). A button that should not be offered is not drawn, and a refused action shows the
   server's message on that note.
+- **Search box, above the All / Only me / Shared buttons:** it asks the server (after a quarter-second pause in typing,
+  so one request per pause and not one per letter) and says "No notes match “…”" when nothing does. The old list stays
+  on screen while a new one loads, so the page does not flash empty. Adding a note while a search is active asks the
+  server again, because the new note may not match the search and the page should not guess.
+- **Touch targets:** the first version had text links 18 to 22px wide and 13px radio buttons, which are hard to hit on
+  a phone. The links are now at least 44 by 36px and the radios 20px (the whole labelled row is also tappable).
+- **Dark-theme red:** the scan (see N-17, and UI-17 for the app's wider accessibility position) found that the theme's error red is 4.42:1 on the dark card, just under the
+  4.5:1 minimum, so the Delete links and error messages on this tab use a lighter red (#f87171, 6.0:1) in the dark
+  theme. The light theme's red is 4.51:1 and was left. The same colour is used elsewhere in the app and was not
+  re-checked there.
 - **Why delete asks first:** a note cannot be recovered, so it confirms with the same plain browser dialog the task
   list uses; a purpose-built dialog was not worth it for this.
 - **Called "Notes", although an entry can have a field named "Notes":** the tab is in the tab list and the field is in

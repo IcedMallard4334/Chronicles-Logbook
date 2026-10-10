@@ -4,14 +4,15 @@
 .project-notes {
   --note-ink-l: 28%;
   --note-bar-l: 48%;
+  --note-danger: var(--error);
   display: grid;
   gap: 14px;
   max-width: 760px;
 }
 
-:root[data-theme="dark"] .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; }
+:root[data-theme="dark"] .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; --note-danger: #f87171; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; }
+  :root:not([data-theme="light"]) .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; --note-danger: #f87171; }
 }
 
 .project-notes h3 { margin: 0; }
@@ -56,6 +57,8 @@
   gap: 8px;
   cursor: pointer;
 }
+
+.note-visibility input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; }
 
 .note-visibility small { display: block; color: var(--muted); font-size: 0.78rem; }
 
@@ -114,11 +117,12 @@
 
 .note-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 
-.note-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+.note-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
 .note-link {
-  min-height: 32px;
-  padding: 0;
+  min-height: 36px;
+  min-width: 44px;
+  padding: 0 4px;
   border: 0;
   background: none;
   color: var(--blue);
@@ -128,6 +132,8 @@
   cursor: pointer;
 }
 
-.note-link.is-danger { color: var(--error); }
+.note-link.is-danger { color: var(--note-danger); }
 
-.note-error { margin: 0; color: var(--error); font-size: 0.85rem; }
+.note-error { margin: 0; color: var(--note-danger); font-size: 0.85rem; }
+
+.note-search input[type="search"] { width: 100%; min-height: 40px; }

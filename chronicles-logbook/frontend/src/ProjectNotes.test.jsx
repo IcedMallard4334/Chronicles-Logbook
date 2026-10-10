@@ -291,4 +291,48 @@ describe("ProjectNotes", () => {
 
     expect(await screen.findByText(/^Edited /)).toBeInTheDocument()
   })
+  it("searches on the server after a short pause, not on every keystroke", async () => {
+    fetchNotes.mockResolvedValueOnce([note({ body: "Other" }), note({ id: "b", body: "Centrifuge" })])
+    fetchNotes.mockResolvedValueOnce([note({ id: "b", body: "Centrifuge" })])
+    const user = userEvent.setup()
+    render(<ProjectNotes projectId="p1" />)
+    await screen.findByText("Other")
+    expect(fetchNotes).toHaveBeenLastCalledWith("p1", "")
+
+    const box = screen.getByLabelText("Search notes")
+    await user.type(box, "cent")
+    await user.type(box, "r")
+
+    await waitFor(() => expect(fetchNotes).toHaveBeenLastCalledWith("p1", "centr"))
+    expect(fetchNotes).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.queryByText("Other")).toBeNull())
+    expect(screen.getByText("Centrifuge")).toBeInTheDocument()
+  })
+
+  it("says what was searched for when nothing matches", async () => {
+    fetchNotes.mockResolvedValueOnce([note()]).mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    render(<ProjectNotes projectId="p1" />)
+    await screen.findByText("Check the calibration")
+
+    await user.type(screen.getByLabelText("Search notes"), "zebra")
+
+    expect(await screen.findByText("No notes match “zebra”.")).toBeInTheDocument()
+  })
+
+  it("asks the server again after adding a note while a search is active", async () => {
+    fetchNotes.mockResolvedValue([note({ body: "Alpha" })])
+    createNote.mockResolvedValue(note({ id: "new", body: "Beta" }))
+    const user = userEvent.setup()
+    render(<ProjectNotes projectId="p1" />)
+    await screen.findByText("Alpha")
+    await user.type(screen.getByLabelText("Search notes"), "alp")
+    await waitFor(() => expect(fetchNotes).toHaveBeenLastCalledWith("p1", "alp"))
+    const before = fetchNotes.mock.calls.length
+
+    await user.type(screen.getByLabelText("New note"), "Beta")
+    await user.click(screen.getByRole("button", { name: "Add note" }))
+
+    await waitFor(() => expect(fetchNotes.mock.calls.length).toBe(before + 1))
+  })
 })

@@ -55,6 +55,11 @@ The shared notes plus the caller's own private ones: pinned first, then the most
 Optional `?visibility=private` or `?visibility=shared` narrows it (`private` still means only the caller's own);
 any other value is `422`.
 
+Optional `?q=` searches: it keeps the notes whose **text or author's name** contains the term, in any case. The term
+is trimmed, a blank one is ignored, and more than 200 characters is `422`. `%` and `_` are ordinary characters, so
+`?q=50%25` finds "50%" rather than everything. The search is applied **on top of** the visibility rule, never instead
+of it, so it cannot surface someone else's private note. It can be combined with `visibility`.
+
 ### `POST /projects/{project_id}/notes`
 
 ```json
@@ -80,6 +85,6 @@ to delete someone else's shared note gets `403 You cannot delete this note`. A n
 
 - **Reading one note by id.** The list is the only read; a project has few notes and the list is small.
 - **Notes on an entry or a task.** A note belongs to a project; an entry already has its own free-text fields.
-- **Search across notes, or counts in the statistics.** See DB-70.
+- **Search across projects, or counts in the statistics.** Search works inside one project only. See DB-70.
 
 AI Declaration: Written with Claude Code (Sonnet 5.5) from `app/routers/notes.py` and its tests, 2026-10-10.

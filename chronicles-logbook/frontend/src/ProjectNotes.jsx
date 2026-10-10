@@ -12,6 +12,7 @@ import "./ProjectNotes.css"
  */
 
 export const MAX_NOTE_LENGTH = 5000
+const SEARCH_DELAY_MS = 250
 
 // Eight hues spread round the wheel. A person's colour comes from their id, so it is the same
 // for everyone, on every device, with nothing stored. The text and bar are drawn from the hue
@@ -179,15 +180,24 @@ export default function ProjectNotes({ projectId }) {
   const [notes, setNotes] = useState(null)
   const [error, setError] = useState("")
   const [filter, setFilter] = useState("all")
+  const [search, setSearch] = useState("")
+  // The server does the searching (text and author's name, any case); waiting a moment after the
+  // last keystroke keeps it to one request per pause rather than one per letter.
+  const [term, setTerm] = useState("")
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTerm(search.trim()), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [search])
 
   const load = useCallback(async () => {
     setError("")
     try {
-      setNotes(await fetchNotes(projectId))
+      setNotes(await fetchNotes(projectId, term))
     } catch (caught) {
       setError(formatError(caught))
     }
-  }, [projectId])
+  }, [projectId, term])
 
   useEffect(() => {
     load()
@@ -210,7 +220,9 @@ export default function ProjectNotes({ projectId }) {
         submitLabel="Add note"
         onSubmit={async (fields) => {
           const created = await createNote(projectId, fields)
-          setNotes((current) => arrange([created, ...(current || [])]))
+          // With a search active the new note may not match it, so the list is asked for again.
+          if (term) await load()
+          else setNotes((current) => arrange([created, ...(current || [])]))
         }}
       />
       {error && (
@@ -221,6 +233,18 @@ export default function ProjectNotes({ projectId }) {
       {notes === null && !error && <p className="notes-empty" role="status">Loading notes…</p>}
       {notes && (
         <>
+          <div className="note-search">
+            <label className="field-label">
+              <span className="sr-only">Search notes</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search notes by text or author"
+                maxLength={200}
+              />
+            </label>
+          </div>
           <div className="note-filters" role="group" aria-label="Show notes">
             {FILTERS.map(([key, label]) => (
               <button
@@ -236,7 +260,11 @@ export default function ProjectNotes({ projectId }) {
           </div>
           {shown.length === 0 ? (
             <p className="notes-empty" role="status">
-              {notes.length === 0 ? "No notes yet. Write the first one above." : "No notes of this kind."}
+              {term
+                ? `No notes match “${term}”.`
+                : notes.length === 0
+                  ? "No notes yet. Write the first one above."
+                  : "No notes of this kind."}
             </p>
           ) : (
             <ul className="note-list">

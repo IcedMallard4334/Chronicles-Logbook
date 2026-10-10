@@ -436,6 +436,7 @@ See [Sharing](../api/sharing.md#the-team-who-is-working-here-and-what-they-have-
 - **Private means private.** Nobody else on the project can see a private note, including the owner.
 - **Shared notes show who wrote them,** with a coloured bar and name that stay the same for each person. You can
   edit, pin or delete your own; the owner can also delete a shared note.
+- **Search your notes** by text or by the author's name. Search only ever looks through notes you are allowed to see.
 - See [Project notes](../api/notes.md) and DB-70 / UI-69 in the [decision log](../decisions/index.md).
 
 ## Our own tooltips, and a public reference API

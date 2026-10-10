@@ -678,9 +678,17 @@ argued at length elsewhere link there instead of repeating it.
   private note is never loaded. Asking for one by id reads exactly like a note that does not exist, which stops the id
   being used to learn that a private note is there. A shared note you cannot edit is `403`, because its existence is
   already known to you.
-- **Why not a history, search or statistics for notes:** a note is free writing, not a record. Entries are the
-  record (DB-27) and are what the statistics count; counting notes there would blur the two. *Whether notes
-  should be searchable is not decided.*
+- **Why no history or statistics for notes:** a note is free writing, not a record. Entries are the record (DB-27)
+  and are what the statistics count; counting notes there would blur the two.
+- **Search (`?q=`), added the day after the notes themselves, on request:** it matches the note's text and its author's
+  name, case-insensitively, in the database. *Why in the database and not in the browser:* the browser only ever holds
+  the 200 notes it was sent, so a browser-side filter would quietly miss older ones, and API users would get nothing;
+  the cost is one request after a short pause in typing. *Why the author's name:* on a team "what did Sam write" is as
+  natural as a word. *Why `%` and `_` are escaped:* otherwise a search for "50%" would match every note.
+  *Why it cannot leak:* the term is added to the visibility condition with AND, so it narrows what the caller could
+  already see (a test searches for a word that is in another person's private note and gets only the shared one).
+  *Not done:* ranking by relevance, matching across projects, and word stemming. A note search is a "find the line
+  I wrote" tool; the Entries page already has the heavier search (DB-32, DB-33).
 - **Why the author is cleared (SET NULL) and not cascaded:** a shared note is the team's, so it should outlive one
   member's account, the same reasoning as DB-44. It shows as "Former member". A private note whose author is gone is
   then readable by nobody, which is the honest result of "only the author".

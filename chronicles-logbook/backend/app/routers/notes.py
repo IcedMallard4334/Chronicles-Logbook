@@ -30,6 +30,7 @@ router = APIRouter(prefix="/projects/{project_id}/notes", tags=["Notes"])
 
 # A page of notes is plenty for one project; asking for more is not a use this serves.
 MAX_NOTES_LISTED = 200
+MAX_SEARCH_LENGTH = 200
 
 
 def _visible_to(user: User):
@@ -78,18 +79,31 @@ async def _visible_note(project_id: UUID, note_id: UUID, user: User, db: AsyncSe
 async def list_notes(
     project_id: UUID,
     visibility: str | None = Query(default=None, pattern="^(private|shared)$"),
+    q: str | None = Query(default=None, max_length=MAX_SEARCH_LENGTH),
     user: User = Depends(get_current_user),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     """The shared notes on a project plus the caller's own private ones.
 
     Pinned first, then the most recently changed. ``visibility`` narrows the list;
-    asking for ``private`` still only ever returns the caller's own.
+    asking for ``private`` still only ever returns the caller's own. ``q`` keeps the
+    notes whose text, or whose author's name, contains it (any case). It is applied
+    on top of the visibility rule, never instead of it, so a search cannot surface
+    someone else's private note.
     """
     project = await _get_readable_project(project_id, user, db)
     query = select(ProjectNote).where(ProjectNote.project_id == project.id, _visible_to(user))
     if visibility:
         query = query.where(ProjectNote.visibility == visibility)
+    term = (q or "").strip()
+    if term:
+        # autoescape makes % and _ ordinary characters, so "50%" finds "50%" and not everything.
+        query = query.where(
+            or_(
+                ProjectNote.body.icontains(term, autoescape=True),
+                ProjectNote.author.has(User.full_name.icontains(term, autoescape=True)),
+            )
+        )
     notes = (
         await db.scalars(
             query.order_by(ProjectNote.pinned.desc(), ProjectNote.updated_at.desc()).limit(MAX_NOTES_LISTED)

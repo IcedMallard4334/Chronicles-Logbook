@@ -188,8 +188,9 @@ export async function fetchProjectTeam(id) {
 }
 
 /** Notes on a project: the shared ones plus the caller's own private ones. */
-export async function fetchNotes(projectId) {
-  return request(`/projects/${projectId}/notes`)
+export async function fetchNotes(projectId, search = "") {
+  const term = search.trim()
+  return request(`/projects/${projectId}/notes${term ? `?q=${encodeURIComponent(term)}` : ""}`)
 }
 
 export async function createNote(projectId, note) {

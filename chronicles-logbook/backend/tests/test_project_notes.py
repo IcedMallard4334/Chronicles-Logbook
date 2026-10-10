@@ -208,3 +208,66 @@ async def test_a_shared_note_outlives_its_authors_account_as_former_member(
     assert notes[0]["author"]["full_name"] == "Former member"
     assert notes[0]["can_edit"] is False
     assert notes[0]["can_delete"] is True  # the owner may take it down
+
+
+async def test_search_finds_notes_by_their_text_in_any_case(authenticated_client):
+    project_id = await _project(authenticated_client)
+    await _note(authenticated_client, project_id, "Book the Centrifuge for Thursday")
+    await _note(authenticated_client, project_id, "Order tubes")
+
+    assert await _bodies(authenticated_client, project_id, "?q=centrifuge") == ["Book the Centrifuge for Thursday"]
+    assert await _bodies(authenticated_client, project_id, "?q=%20TUBES%20") == ["Order tubes"]
+    assert await _bodies(authenticated_client, project_id, "?q=nothing-matches") == []
+    # A blank search is no search.
+    assert len(await _bodies(authenticated_client, project_id, "?q=%20%20")) == 2
+
+
+async def test_search_treats_percent_and_underscore_as_ordinary_characters(authenticated_client):
+    project_id = await _project(authenticated_client)
+    await _note(authenticated_client, project_id, "Yield was 50% of target")
+    await _note(authenticated_client, project_id, "Unrelated words")
+
+    assert await _bodies(authenticated_client, project_id, "?q=50%25") == ["Yield was 50% of target"]
+    assert await _bodies(authenticated_client, project_id, "?q=%25") == ["Yield was 50% of target"]
+    assert await _bodies(authenticated_client, project_id, "?q=_") == []
+
+
+async def test_search_also_matches_the_authors_name_on_shared_notes(
+    authenticated_client, second_authenticated_client
+):
+    project_id = await _project(authenticated_client)
+    await _share(authenticated_client, second_authenticated_client, project_id)
+    written = await _note(second_authenticated_client, project_id, "from the member", visibility="shared")
+    await _note(authenticated_client, project_id, "from the owner", visibility="shared")
+    first_name = written["author"]["full_name"].split()[0]
+
+    found = await _bodies(authenticated_client, project_id, f"?q={first_name}")
+
+    assert "from the member" in found
+
+
+async def test_search_never_surfaces_someone_elses_private_note(
+    authenticated_client, second_authenticated_client
+):
+    project_id = await _project(authenticated_client)
+    await _share(authenticated_client, second_authenticated_client, project_id)
+    await _note(second_authenticated_client, project_id, "needle in a private note")
+    await _note(second_authenticated_client, project_id, "needle in a shared note", visibility="shared")
+
+    assert await _bodies(authenticated_client, project_id, "?q=needle") == ["needle in a shared note"]
+    assert await _bodies(authenticated_client, project_id, "?q=needle&visibility=private") == []
+    assert len(await _bodies(second_authenticated_client, project_id, "?q=needle")) == 2
+
+
+async def test_search_can_be_combined_with_a_visibility_filter(authenticated_client):
+    project_id = await _project(authenticated_client)
+    await _note(authenticated_client, project_id, "alpha private")
+    await _note(authenticated_client, project_id, "alpha shared", visibility="shared")
+
+    assert await _bodies(authenticated_client, project_id, "?q=alpha&visibility=shared") == ["alpha shared"]
+
+
+async def test_an_overlong_search_is_refused(authenticated_client):
+    project_id = await _project(authenticated_client)
+
+    assert (await authenticated_client.get(f"/projects/{project_id}/notes?q={'x' * 201}")).status_code == 422
