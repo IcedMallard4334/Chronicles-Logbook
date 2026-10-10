@@ -1,12 +1,12 @@
-/* Project notes. A shared note's bar and name take a hue from its author; the lightness is set
-   here, per theme, so the name keeps its contrast on the card whichever hue it is. */
+/* Project notes. A shared note's bar, avatar and name take a hue from its author; the lightness is
+   set here, per theme, so the name keeps its contrast on the card whichever hue it is. */
 
 .project-notes {
   --note-ink-l: 28%;
   --note-bar-l: 48%;
   --note-danger: var(--error);
   display: grid;
-  gap: 14px;
+  gap: 16px;
   max-width: 760px;
 }
 
@@ -15,14 +15,13 @@
   :root:not([data-theme="light"]) .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; --note-danger: #f87171; }
 }
 
-.project-notes h3 { margin: 0; }
+.notes-head { display: flex; align-items: baseline; gap: 10px; }
+.notes-head h3 { margin: 0; }
+.notes-total { color: var(--muted); font-size: 0.85rem; }
 
-.notes-intro,
-.notes-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
+.notes-empty { margin: 0; padding: 18px 0; text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+/* ── The form: one calm card, the text first, the controls in a single row beneath ── */
 
 .note-form {
   display: grid;
@@ -33,64 +32,109 @@
   background: var(--surface);
 }
 
-.note-form textarea { width: 100%; resize: vertical; }
+.note-form:focus-within { border-color: var(--blue); }
+.note-form.is-editing { padding: 0; border: 0; background: none; }
 
-.note-visibility {
-  display: grid;
-  gap: 6px;
+.note-field { display: block; }
+
+.note-field textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.note-field textarea:focus { outline: none; border-color: var(--blue); background: var(--surface); }
+.note-field textarea::placeholder { color: var(--muted); }
+
+.note-form-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.note-form-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.note-btn { min-height: 38px; padding: 0 16px; }
+.note-count { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.note-help { margin: 0; color: var(--muted); font-size: 0.8rem; }
+
+/* Two choices drawn as one control. The real radios stay in place (invisible but focusable), so the
+   keyboard and screen readers behave as for any radio group; the label is what is drawn. */
+.note-segment {
+  display: inline-flex;
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  min-width: 0;
 }
 
-.note-visibility legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
+.note-segment label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
   color: var(--muted);
-}
-
-.note-visibility label {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.note-visibility input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; }
+.note-segment label.is-on { background: var(--blue-bg); color: var(--blue); }
+.note-segment label:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.note-segment input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 
-.note-visibility small { display: block; color: var(--muted); font-size: 0.78rem; }
+/* ── Search and the kind filter share one row, and wrap on a phone ── */
 
-.note-form-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.note-count { margin-left: auto; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.note-search { flex: 1 1 220px; min-width: 0; }
 
-.note-filters { display: flex; gap: 6px; flex-wrap: wrap; }
-
-.note-filters button {
-  min-height: 36px;
+.note-search input[type="search"] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text);
   font: inherit;
+  font-size: 0.9rem;
+}
+
+.note-search input[type="search"]:focus { outline: none; border-color: var(--blue); }
+
+.note-filters { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); }
+
+.note-filters button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
   font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.note-filters button.active {
-  border-color: var(--blue);
-  background: var(--blue-bg);
-  color: var(--blue);
-  font-weight: 600;
-}
+.note-filters button.active { background: var(--blue-bg); color: var(--blue); }
 
-.note-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+/* ── The notes ── */
+
+.note-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 
 .note-card {
   --note-hue: 215;
-  padding: 12px 14px;
+  padding: 14px 16px 6px;
   border: 1px solid var(--line);
   border-left: 4px solid var(--line);
   border-radius: var(--radius-md);
@@ -101,13 +145,35 @@
 .note-card.is-private { border-left-style: dashed; }
 .note-card.is-pinned { box-shadow: var(--shadow); }
 
-.note-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 0.82rem; }
-.note-author { font-weight: 700; color: var(--muted); }
+.note-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+
+.note-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.note-card.is-shared .note-avatar {
+  background: hsl(var(--note-hue) 60% var(--note-bar-l) / 0.18);
+  color: hsl(var(--note-hue) 60% var(--note-ink-l));
+}
+
+.note-who { display: grid; min-width: 0; line-height: 1.25; }
+.note-author { font-weight: 700; font-size: 0.9rem; color: var(--muted); overflow-wrap: anywhere; }
 .note-card.is-shared .note-author { color: hsl(var(--note-hue) 60% var(--note-ink-l)); }
-.note-when { margin-left: auto; color: var(--muted); }
+.note-when { color: var(--muted); font-size: 0.78rem; }
+
+.note-badges { display: flex; gap: 6px; margin-left: auto; flex: none; }
 
 .note-badge {
-  padding: 1px 8px;
+  padding: 1px 9px;
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 0.72rem;
@@ -115,25 +181,43 @@
   color: var(--muted);
 }
 
-.note-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.note-body { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
 
-.note-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+/* The actions sit under a hairline, left-aligned with the text above them, as quiet buttons. */
+.note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 -8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
 
 .note-link {
   min-height: 36px;
   min-width: 44px;
-  padding: 0 4px;
+  padding: 0 10px;
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--blue);
   font: inherit;
   font-size: 0.84rem;
-  text-decoration: underline;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.note-link.is-danger { color: var(--note-danger); }
+.note-link:hover { background: var(--blue-bg); }
+.note-link.is-danger { color: var(--note-danger); margin-left: auto; }
+.note-link.is-danger:hover { background: color-mix(in srgb, var(--note-danger) 14%, transparent); }
 
 .note-error { margin: 0; color: var(--note-danger); font-size: 0.85rem; }
 
-.note-search input[type="search"] { width: 100%; min-height: 40px; }
+@media (max-width: 520px) {
+  .note-segment { width: 100%; }
+  .note-segment label { flex: 1; justify-content: center; padding: 0 8px; white-space: normal; text-align: center; }
+  .note-form-actions { width: 100%; }
+  .note-form-actions .btn-primary { flex: 1; }
+  .note-filters { width: 100%; }
+  .note-filters button { flex: 1; }
+}

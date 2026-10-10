@@ -68,7 +68,6 @@ function ThemePicker({ theme, onChange }) {
           type="button"
           role="radio"
           aria-checked={theme === option.id}
-          title={option.label}
           className={theme === option.id ? "is-selected" : ""}
           onClick={() => onChange(option.id)}
         >
@@ -312,7 +311,7 @@ export default function ProfilePage() {
           </div>
           <div className="nav-pill-right">
             <div className="account-actions">
-              <div className="user-avatar" title={user?.full_name || "User"}>
+              <div className="user-avatar">
                 {user?.avatar_url ? (
                   <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" />
                 ) : (

@@ -123,7 +123,6 @@ describe("TaskPanel", () => {
 
   it("deletes a task after confirmation", async () => {
     deleteTask.mockResolvedValue(null)
-    window.confirm = vi.fn(() => true)
 
     render(<TaskPanel projectId="proj-1" />)
 
@@ -132,10 +131,24 @@ describe("TaskPanel", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Delete task" }))
+    const dialog = screen.getByRole("alertdialog", { name: "Delete this task?" })
+    expect(deleteTask).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete task" }))
 
     await waitFor(() => {
       expect(deleteTask).toHaveBeenCalledWith("proj-1", "task-1")
     })
+  })
+
+  it("does not delete a task when the question is cancelled", async () => {
+    render(<TaskPanel projectId="proj-1" />)
+    await waitFor(() => expect(screen.getByText("Write tests")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete task" }))
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    expect(deleteTask).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
   })
 
   it("shows checklist progress for a task", async () => {

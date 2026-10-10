@@ -10,11 +10,12 @@ import "./Tip.css"
  * Put `has-tip` on the element and a `<TipBubble>` inside it. The bubble is hidden from assistive technology
  * (`aria-hidden`) because the element already carries its own accessible name or text; saying it twice would
  * make a screen reader read it twice. `align="end"` anchors the bubble's right edge to the element's, for
- * controls near the right of the window, where a centred bubble would run off the screen.
+ * controls near the right of the window, where a centred bubble would run off the screen. `above` puts the
+ * bubble over the control instead of under it, for controls at the bottom of a panel.
  */
-export function TipBubble({ text, align = "center" }) {
+export function TipBubble({ text, align = "center", above = false }) {
   return (
-    <span className={`tip-bubble is-${align}`} aria-hidden="true">
+    <span className={`tip-bubble is-${align}${above ? " is-above" : ""}`} aria-hidden="true">
       {text}
     </span>
   )

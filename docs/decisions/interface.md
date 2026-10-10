@@ -656,6 +656,37 @@ it lives. Where the repository does not record a reason, the entry says so.
   `created_by` search parameter and a saved-filter field, which was left for later.
 - **Where:** `App.jsx` (`EntryList`).
 
+### UI-71. No browser pop-ups: our own tooltip and our own confirm dialog everywhere they can go
+
+- **Decided:** (a) Every button and icon control that had a `title` tooltip now uses the themed bubble (`TipBubble`,
+  UI-68): the project panel collapse and expand buttons, Create project, Pin, Edit project, the Entries, Tasks and
+  Notes tabs, the trash button (used throughout), the task checkbox, the Activity tabs, the dashboard drag handle,
+  the theme switch on the landing page, the dictation microphone, linked-entry chips, and the small "link",
+  "calculated" and type-dot badges and the checklist preview on an entry. (b) The three `window.confirm` questions
+  (delete a task, delete a note, leave a shared project) use `ConfirmDialog`, a modal in the app's own style.
+- **Why:** the browser draws both itself: a plain tooltip that ignores the theme, appears slowly and cannot be reached
+  by keyboard or touch, and a "page says" box that looks like an error and cannot be styled. A screenshot of the
+  panel-collapse tooltip prompted this (10 October 2026), after the same complaint about the streak chips (UI-68).
+- **`ConfirmDialog` choices:** it is an `alertdialog`, so a screen reader announces the question and its message;
+  focus starts on **Cancel**, so Enter by reflex deletes nothing; Escape and a click outside cancel; it reuses the
+  focus trap that the other dialogs use. It is drawn into `document.body` with a portal, because rendered inside a
+  note card it came up off-centre and cut off (a fixed backdrop is positioned relative to an ancestor that has its own
+  stacking rules). The destructive button is a **filled** red with white text (6.5:1), because the app's plain
+  red-text `.btn-danger` is 4.42:1 on the dark surface, just under the 4.5:1 minimum.
+- **A tooltip near an edge:** a bubble is drawn inside its control, so an ancestor that clips (the sidebar) cuts it off.
+  The panel-collapse bubble is anchored to the button's right edge so it opens leftwards inside the sidebar, and the
+  microphone's opens **above** (`above`) because it sits at the bottom of Mira's panel.
+- **A tab's name does not include its tooltip:** the bubble is hidden from assistive technology, so a tab is still
+  announced as "Notes", not "Notes: private to you, or shared…".
+- **Left as the browser's own, on purpose:** the full name of a label that was cut short with "…", the event chips
+  in a calendar day, the badge list on the dashboard, and the drag-to-resize handle on drawers. Each sits inside
+  something that clips its overflow (a bubble would be cut off), and each is a hint that repeats text already on
+  screen or in the control's name. *If these should also change, they need a bubble drawn outside their container.*
+- **Removed rather than converted:** the "Required" tooltip on the asterisk (it is hidden from assistive technology,
+  and the input says it is required), the label tooltip on the theme choices and the avatar in the profile header (the
+  name is already beside them), and the tooltip on the add-entry button (its name and visible text already say it).
+- **Where:** `Tip.jsx`, `Tip.css`, `ConfirmDialog.jsx`, and the controls named above.
+
 ### UI-70. Number fields in an entry are left-aligned, like the rest
 
 - **Decided:** a number field (such as Hours) in an entry card sits left-aligned with its label, the same as every
@@ -690,6 +721,18 @@ it lives. Where the repository does not record a reason, the entry says so.
 - **Why the page does not work out permissions:** the server says `can_edit` and `can_delete` on each note, so the
   rules live in one place (DB-70). A button that should not be offered is not drawn, and a refused action shows the
   server's message on that note.
+- **Tidied on 10 October 2026, from a screenshot:** the text box comes first and the controls sit in one row
+  beneath it: a two-part switch ("Only me" | "Everyone on this project") on the left and the Add note button on the
+  right, with one line saying what the current choice means. The character counter only appears from 4,000 characters,
+  where the limit starts to matter. Search and the All / Only me / Shared buttons share a row (and stack on a phone).
+  A note is a card with a header (a small round avatar in the author's colour, the name, the date, and the Pinned and
+  Shared or Private badges), the text, and an action bar under a hairline: Edit, Pin and the visibility switch on the
+  left, **Delete** pushed to the right and in red so it is not hit by accident. The segmented control is two real radio
+  buttons drawn as one control, so keyboard and screen-reader behaviour is the browser's own.
+- **Why the header had to change with a fifth tab:** at about 900px the project's name was squeezed into a column of
+  single letters, because the title and the tabs shared one row that could not wrap. The row now wraps and the title
+  keeps at least 260px, so the tabs drop beneath it when there is no room. On a phone the five tabs share the width
+  equally and their text is a little smaller so "Automation" does not touch "Notes".
 - **Search box, above the All / Only me / Shared buttons:** it asks the server (after a quarter-second pause in typing,
   so one request per pause and not one per letter) and says "No notes match “…”" when nothing does. The old list stays
   on screen while a new one loads, so the page does not flash empty. Adding a note while a search is active asks the
@@ -700,8 +743,7 @@ it lives. Where the repository does not record a reason, the entry says so.
   4.5:1 minimum, so the Delete links and error messages on this tab use a lighter red (#f87171, 6.0:1) in the dark
   theme. The light theme's red is 4.51:1 and was left. The same colour is used elsewhere in the app and was not
   re-checked there.
-- **Why delete asks first:** a note cannot be recovered, so it confirms with the same plain browser dialog the task
-  list uses; a purpose-built dialog was not worth it for this.
+- **Why delete asks first:** a note cannot be recovered, so it confirms with the app's own dialog (UI-71).
 - **Called "Notes", although an entry can have a field named "Notes":** the tab is in the tab list and the field is in
   a form, so they are not confused; two existing tests that looked up the word "Notes" had to be made specific.
 - **Where:** `ProjectNotes.jsx`, `ProjectNotes.css`, `App.jsx` (the tab), `api.js`.

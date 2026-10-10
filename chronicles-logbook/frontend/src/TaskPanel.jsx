@@ -6,7 +6,9 @@ import {
   toggleTask,
   updateTask,
 } from "./api"
+import ConfirmDialog from "./ConfirmDialog"
 import { TrashButton } from "./TrashIcon"
+import { TipBubble } from "./Tip"
 import { EditButton } from "./EditIcon"
 
 function formatError(error) {
@@ -253,6 +255,7 @@ function TaskProgress({ checklist }) {
 function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [isUpdatingChecklist, setIsUpdatingChecklist] = useState(false)
 
   const handleToggle = async () => {
@@ -264,7 +267,7 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
   }
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${task.title}"?`)) return
+    setConfirmingDelete(false)
     setIsDeleting(true)
     try {
       await onDelete(projectId, task.id)
@@ -319,11 +322,11 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         type="button"
         role="checkbox"
         aria-checked={task.completed}
-        className={`task-checkbox ${task.completed ? "checked" : ""}`}
+        className={`task-checkbox has-tip ${task.completed ? "checked" : ""}`}
         onClick={handleToggle}
         aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
-        title={task.completed ? "Mark incomplete" : "Mark complete"}
       >
+        <TipBubble text={task.completed ? "Mark incomplete" : "Mark complete"} />
         {task.completed && (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
             <path d="M3 8.5l3.5 3.5 6.5-8" strokeLinecap="round" strokeLinejoin="round" />
@@ -381,10 +384,20 @@ function TaskItem({ projectId, task, onToggle, onEdit, onDelete, onRefresh }) {
         <EditButton onClick={() => onEdit(task)} aria-label="Edit task" />
         <TrashButton
           label="Delete task"
-          onClick={handleDelete}
+          onClick={() => setConfirmingDelete(true)}
           disabled={isDeleting}
         />
       </div>
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Delete this task?"
+          message={`“${task.title}” will be removed from the project. This cannot be undone.`}
+          confirmLabel="Delete task"
+          danger
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
     </li>
   )
 }

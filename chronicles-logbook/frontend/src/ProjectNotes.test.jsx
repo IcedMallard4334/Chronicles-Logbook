@@ -194,17 +194,21 @@ describe("ProjectNotes", () => {
   it("deletes only after confirming", async () => {
     fetchNotes.mockResolvedValue([note()])
     deleteNote.mockResolvedValue(null)
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true)
     const user = userEvent.setup()
     render(<ProjectNotes projectId="p1" />)
 
+    // Asking, then backing out, deletes nothing.
     await user.click(await screen.findByRole("button", { name: "Delete" }))
+    const dialog = screen.getByRole("alertdialog", { name: "Delete this note?" })
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
     expect(deleteNote).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+
     await user.click(screen.getByRole("button", { name: "Delete" }))
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete note" }))
 
     expect(deleteNote).toHaveBeenCalledWith("p1", "n1")
     expect(await screen.findByText(/No notes yet/)).toBeInTheDocument()
-    expect(confirm).toHaveBeenCalledTimes(2)
   })
 
   it("lets the owner delete a shared note without offering to edit it", async () => {
@@ -231,11 +235,11 @@ describe("ProjectNotes", () => {
   it("reports a failed delete", async () => {
     fetchNotes.mockResolvedValue([note()])
     deleteNote.mockRejectedValue(new Error("You cannot delete this note"))
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     const user = userEvent.setup()
     render(<ProjectNotes projectId="p1" />)
 
     await user.click(await screen.findByRole("button", { name: "Delete" }))
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete note" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("You cannot delete this note")
     expect(screen.getByText("Check the calibration")).toBeInTheDocument()

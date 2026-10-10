@@ -15,7 +15,7 @@ supersedes it and adds what has been built since.
 | | Measured on 9 October 2026 | Written target | Enforced by the build? |
 |---|---|---|---|
 | Backend | 800 tests, about 95% statement coverage | above 90% | **No** |
-| Frontend | 1,012 tests, 84.7% statements, 87.7% lines | above 80% | **No** |
+| Frontend | 1,021 tests, 84.9% statements, 87.9% lines | above 80% | **No** |
 
 The brief's testing criterion asks "what is your code coverage (above 80%? above 50%)?". Neither suite has a
 `fail-under` threshold in CI, so a drop would not fail a build; CI only reports the figure, posts it on the
@@ -187,8 +187,10 @@ before the fix; see the [test policy](../development/testing.md#test-policy).
 - **Colour in a real browser.** The tests check that a shared note gets the same hue for the same author and that
   the hue is set on the card; they cannot see the colour. So the tab was **scanned with axe-core by hand** on
   10 October 2026 (WCAG 2.2 AA and best practice): the system, light and dark themes, a phone-width window, and with
-  an edit form open and a search active. The scan found one real problem (the dark theme's red, UI-69), which was fixed
-  and the scan repeated clean. The contrast of all eight author hues was also computed for both themes. This is a
+  an edit form open and a search active, and again after the layout was tidied, including with the confirm dialog
+  open. The scans found two real problems (the dark theme's red, and the plain red button in the dialog, UI-69 and
+  UI-71), which were fixed and the scan repeated clean. The converted tooltips were looked at on the project tabs and
+  the sidebar, not one by one on every page they appear on. The contrast of all eight author hues was also computed for both themes. This is a
   manual check, not part of CI, like the app's other accessibility audits (UI-17). Not done:
   a real phone, a screen reader walk-through of the tab, and a user test of whether the colours are told apart.
 - **Two people at once.** The permission tests act as two different accounts in turn, which proves who may see and

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react"
 import MiraMarkdown from "./MiraMarkdown"
+import { TipBubble } from "./Tip"
 import { appendDictation, dictationSupported, startDictation } from "./speech"
 import { TrashButton } from "./TrashIcon"
 import "./MiraAssistant.css"
@@ -167,7 +168,7 @@ function Conversation({ messages, batches = [], sending, error, onSend, onStop, 
       {listening && <p className="mira-dictation-status" role="status">Listening… {interim && <em>{interim}</em>}</p>}
       {voiceError && <p className="mira-error" role="alert">{voiceError}</p>}
       <div className="mira-composer-actions">
-        {canDictate && <button type="button" className={`mira-mic${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} title={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
+        {canDictate && <button type="button" className={`mira-mic has-tip${listening ? " is-listening" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop dictating" : "Dictate your message"} onClick={toggleDictation}><TipBubble above text={listening ? "Stop dictating" : "Dictate your message"} /><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg></button>}
         <span className="mira-composer-hint"><span className="mira-keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length}/2000</span></span>
         {sending
           ? <button className="btn-secondary mira-stop" type="button" onClick={() => onStop?.()}>Stop</button>

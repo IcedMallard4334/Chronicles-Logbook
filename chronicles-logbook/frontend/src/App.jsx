@@ -93,6 +93,7 @@ import { PencilIcon } from "./EditIcon"
 import LearningLauncher from "./LearningLauncher"
 import { timeSpentProblem } from "./timeSpent"
 import Drawer from "./Drawer"
+import ConfirmDialog from "./ConfirmDialog"
 import ProjectNotes from "./ProjectNotes"
 import ProjectTeam from "./ProjectTeam"
 import { TipBubble } from "./Tip"
@@ -822,7 +823,8 @@ function ProjectList({
         <span className="workspace-sidebar-mark" aria-hidden="true">C</span>
         <div><strong>Workspace</strong><span>Projects and activity</span></div>
         {onCollapse && (
-          <button type="button" className="btn-icon panel-collapse" aria-label="Hide the project panel" title="Hide the project panel" onClick={onCollapse}>
+          <button type="button" className="btn-icon panel-collapse has-tip" aria-label="Hide the project panel" onClick={onCollapse}>
+            <TipBubble text="Hide the project panel" align="end" />
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18" /></svg>
           </button>
         )}
@@ -864,12 +866,12 @@ function ProjectList({
         <h2>Projects</h2>
         <button
           type="button"
-          className="btn-icon"
+          className="btn-icon has-tip"
           onClick={() => { setProjectsOpen(false); onCreate() }}
           aria-label="Create project"
-          title="Create project"
         >
           +
+          <TipBubble text="Create project" align="end" />
         </button>
       </div>
       <label className="workspace-sidebar-search"><span className="sr-only">Search projects</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects…" /></label>
@@ -892,7 +894,7 @@ function ProjectList({
                     <span className="project-name">{project.name}</span>
                     <small className={projectState[project.id] === "Needs attention" ? "project-status is-attention" : "project-status"}>{projectState[project.id] || "Checking…"}</small>
                   </button>
-                  <button type="button" className={`project-pin ${pinnedIds.includes(project.id) ? "is-pinned" : ""}`} onClick={() => togglePinned(project.id)} aria-label={`${pinnedIds.includes(project.id) ? "Unpin" : "Pin"} ${project.name}`} title={pinnedIds.includes(project.id) ? "Unpin project" : "Pin project"}>★</button>
+                  <button type="button" className={`project-pin has-tip ${pinnedIds.includes(project.id) ? "is-pinned" : ""}`} onClick={() => togglePinned(project.id)} aria-label={`${pinnedIds.includes(project.id) ? "Unpin" : "Pin"} ${project.name}`}>★<TipBubble text={pinnedIds.includes(project.id) ? "Unpin project" : "Pin project"} align="end" /></button>
                 </li>
               ))}
             </ul>
@@ -1645,13 +1647,13 @@ function ChecklistValue({ value }) {
   if (items.length === 0) return "—"
   const done = items.filter((item) => item && item.completed).length
   return (
-    <span
-      className="checklist-preview"
-      title={items
-        .map((item) => `${item.completed ? "✓" : "○"} ${item.text}`)
-        .join("\n")}
-    >
+    <span className="checklist-preview has-tip" tabIndex={0}>
       {done} of {items.length} done
+      <TipBubble
+        text={items
+          .map((item) => `${item.completed ? "✓" : "○"} ${item.text}`)
+          .join("\n")}
+      />
     </span>
   )
 }
@@ -1666,11 +1668,9 @@ function LinkValue({ value, entryById }) {
   if (!value) return "—"
   const target = entryById.get(value)
   return (
-    <span
-      className="link-badge"
-      title={target ? "This entry links to that one" : "The entry it linked to is gone"}
-    >
+    <span className="link-badge has-tip">
       ↳ {entryPreview(target)}
+      <TipBubble text={target ? "This entry links to that one" : "The entry it linked to is gone"} />
     </span>
   )
 }
@@ -1822,11 +1822,9 @@ function EntryList({
                             header — the registry's colours at a size that does
                             not compete with the values, the word on hover. */}
                         {meta?.badge && (
-                          <span
-                            className={`log-type-dot is-${meta.color}`}
-                            title={meta.badge}
-                            aria-hidden="true"
-                          />
+                          <span className={`log-type-dot has-tip is-${meta.color}`} aria-hidden="true">
+                            <TipBubble text={meta.badge} />
+                          </span>
                         )}
                       </span>
                       <span className="log-value">
@@ -1856,12 +1854,12 @@ function EntryList({
                             users alike, not just visually. */}
                         {field.type === "computed" && (
                           <span
-                            className="calculated-badge"
+                            className="calculated-badge has-tip"
                             role="img"
                             aria-label="Calculated from the other fields on this entry"
-                            title="Calculated from the other fields on this entry"
                           >
                             ƒ
+                            <TipBubble text="Calculated from the other fields on this entry" />
                           </span>
                         )}
                       </span>
@@ -2024,6 +2022,7 @@ function ProjectDetail({
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [tab, setTab] = useState("entries")
   const [leaving, setLeaving] = useState(false)
+  const [confirmingLeave, setConfirmingLeave] = useState(false)
   const [addingEntry, setAddingEntry] = useState(false)
   const [savedNotice, setSavedNotice] = useState(null)
   const [sharing, setSharing] = useState(false)
@@ -2047,7 +2046,7 @@ function ProjectDetail({
   const showProjectHint = projectTour && !seenTours().includes(projectTour.id)
 
   const handleLeave = async () => {
-    if (!window.confirm(`Leave "${project.name}"? Entries you wrote stay in it.`)) return
+    setConfirmingLeave(false)
     setLeaving(true)
     try {
       await onLeaveProject?.()
@@ -2065,12 +2064,12 @@ function ProjectDetail({
             {project.archived && <span className="status-badge archived-badge">Archived</span>}
             <button
               type="button"
-              className="btn-icon btn-edit"
+              className="btn-icon btn-edit has-tip"
               onClick={onEditProject}
               aria-label="Edit project"
-              title="Edit project"
             >
               <PencilIcon size={16} />
+              <TipBubble text="Edit project" />
             </button>
           </div>
           {project.description && (
@@ -2113,11 +2112,11 @@ function ProjectDetail({
             type="button"
             role="tab"
             aria-selected={tab === "entries"}
-            className={tab === "entries" ? "active" : ""}
-            title="Entries: a record of work you have already done"
+            className={`has-tip ${tab === "entries" ? "active" : ""}`}
             onClick={() => setTab("entries")}
           >
             Entries
+            <TipBubble text="Entries: a record of work you have already done" align="end" />
           </button>
           <button
             type="button"
@@ -2132,11 +2131,11 @@ function ProjectDetail({
             type="button"
             role="tab"
             aria-selected={tab === "tasks"}
-            className={tab === "tasks" ? "active" : ""}
-            title="Tasks: things you still need to do"
+            className={`has-tip ${tab === "tasks" ? "active" : ""}`}
             onClick={() => setTab("tasks")}
           >
             Tasks
+            <TipBubble text="Tasks: things you still need to do" align="end" />
           </button>
           <button
             type="button"
@@ -2151,11 +2150,11 @@ function ProjectDetail({
             type="button"
             role="tab"
             aria-selected={tab === "notes"}
-            className={tab === "notes" ? "active" : ""}
-            title="Notes: private to you, or shared with everyone on the project"
+            className={`has-tip ${tab === "notes" ? "active" : ""}`}
             onClick={() => setTab("notes")}
           >
             Notes
+            <TipBubble text="Notes: private to you, or shared with everyone on the project" align="end" />
           </button>
         </div>
       </header>
@@ -2175,7 +2174,6 @@ function ProjectDetail({
                   aria-expanded={addingEntry || (project.entries || []).length === 0}
                   aria-controls="new-entry-form"
                   aria-label={addingEntry ? "Close the new entry form" : "Add a new entry"}
-                  title={addingEntry ? "Close" : "Add a new entry"}
                   onClick={() => { setSavedNotice(null); setAddingEntry((open) => !open) }}
                   disabled={(project.entries || []).length === 0}
                 >
@@ -2260,7 +2258,7 @@ function ProjectDetail({
             <button
               type="button"
               className="btn-secondary detail-leave-btn"
-              onClick={handleLeave}
+              onClick={() => setConfirmingLeave(true)}
               disabled={leaving}
             >
               {leaving ? "Leaving…" : "Leave project"}
@@ -2268,6 +2266,16 @@ function ProjectDetail({
           </div>
         )}
       </footer>}
+      {confirmingLeave && (
+        <ConfirmDialog
+          title="Leave this project?"
+          message={`You will no longer see “${project.name}”. The entries you wrote stay in it.`}
+          confirmLabel="Leave project"
+          danger
+          onConfirm={handleLeave}
+          onCancel={() => setConfirmingLeave(false)}
+        />
+      )}
       {showProjectHint && (
         <PageHint
           hint={projectTour}
@@ -3131,7 +3139,8 @@ function App() {
       </header>
       <main className={`app-main ${showWorkspaceSidebar ? "home-main" : "app-main-wide"}${showWorkspaceSidebar && panelCollapsed ? " is-panel-collapsed" : ""}`}>
         {showWorkspaceSidebar && panelCollapsed && (
-          <button type="button" className="panel-expand" aria-label="Show the project panel" title="Show the project panel" onClick={togglePanel}>
+          <button type="button" className="panel-expand has-tip" aria-label="Show the project panel" onClick={togglePanel}>
+            <TipBubble text="Show the project panel" />
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg>
             <span>Projects</span>
           </button>

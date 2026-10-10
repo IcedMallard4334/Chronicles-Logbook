@@ -1,4 +1,5 @@
 import "./TrashIcon.css"
+import { TipBubble } from "./Tip"
 
 /** A trash can whose lid lifts when its button is hovered or focused. */
 export function TrashIcon({ size = 18 }) {
@@ -20,9 +21,9 @@ export function TrashIcon({ size = 18 }) {
  */
 export function TrashButton({ label, text, onClick, disabled, className = "", type = "button", ...rest }) {
   return (
-    <button type={type} className={`btn-trash ${text ? "btn-trash-labelled" : ""} ${className}`.trim()} aria-label={text ? undefined : label} title={label} onClick={onClick} disabled={disabled} {...rest}>
+    <button type={type} className={`btn-trash ${text ? "btn-trash-labelled" : "has-tip"} ${className}`.trim()} aria-label={text ? undefined : label} onClick={onClick} disabled={disabled} {...rest}>
       <TrashIcon />
-      {text && <span>{text}</span>}
+      {text ? <span>{text}</span> : <TipBubble text={label} align="end" />}
     </button>
   )
 }

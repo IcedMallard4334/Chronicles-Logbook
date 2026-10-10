@@ -220,9 +220,9 @@ describe("short text and long text in an entry", () => {
   it("marks the fields that are needed with an asterisk, and not the ones that are not", async () => {
     await openNewEntry([PLACE, STORY])
 
-    expect(within(screen.getByLabelText("Place").closest(".form-field")).getByTitle("Required")).toBeInTheDocument()
-    expect(within(screen.getByLabelText("Story").closest(".form-field")).queryByTitle("Required")).not.toBeInTheDocument()
-    expect(within(screen.getByLabelText("Title").closest(".form-field")).getByTitle("Required")).toBeInTheDocument()
+    expect(screen.getByLabelText("Place").closest(".form-field").querySelector(".form-field-required")).not.toBeNull()
+    expect(screen.getByLabelText("Story").closest(".form-field").querySelector(".form-field-required")).toBeNull()
+    expect(screen.getByLabelText("Title").closest(".form-field").querySelector(".form-field-required")).not.toBeNull()
   })
 
   it("says which required fields are empty instead of saving, and lets an optional one stay empty", async () => {

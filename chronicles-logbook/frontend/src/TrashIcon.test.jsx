@@ -8,7 +8,9 @@ describe("TrashButton", () => {
     const onClick = vi.fn()
     const { container } = render(<TrashButton label="Delete task" onClick={onClick} />)
     const button = screen.getByRole("button", { name: "Delete task" })
-    expect(button).toHaveAttribute("title", "Delete task")
+    // Our own tooltip, not the browser's title attribute.
+    expect(button).not.toHaveAttribute("title")
+    expect(screen.getByText("Delete task")).toHaveClass("tip-bubble")
     expect(container.querySelector(".trash-lid")).toBeInTheDocument()
     fireEvent.click(button)
     expect(onClick).toHaveBeenCalled()

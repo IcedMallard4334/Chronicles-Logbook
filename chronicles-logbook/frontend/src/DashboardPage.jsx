@@ -1,4 +1,5 @@
 import { entryName } from "./entryNames"
+import { TipBubble } from "./Tip"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   fetchDashboard,
@@ -647,13 +648,13 @@ export default function DashboardPage({ projects, embedded = false }) {
                   <div className="dashboard-panel-controls">
                     <button
                       type="button"
-                      className="dashboard-panel-grip"
+                      className="dashboard-panel-grip has-tip"
                       aria-label="Drag to rearrange panel"
-                      title="Drag to rearrange"
                       disabled={saving}
                       onPointerDown={(event) => startDrag(event, panel.id)}
                     >
                       ⠿
+                      <TipBubble text="Drag to rearrange" />
                     </button>
                     <select
                       aria-label="Panel width"

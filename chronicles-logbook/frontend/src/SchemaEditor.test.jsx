@@ -13,7 +13,7 @@ vi.mock("./api", () => ({
   createMiraConversation: vi.fn(() => Promise.resolve({ id: "conv-1" })), fetchMiraConversations: vi.fn(() => Promise.resolve([])),
   fetchMiraConversation: vi.fn(), deleteMiraConversation: vi.fn(), streamMiraReply: vi.fn(() => Promise.resolve()),
   fetchStatistics: vi.fn(), previewSchemaChange: vi.fn(), updateSchema: vi.fn(),
-  fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(),
+  fetchProjectMembers: vi.fn(() => Promise.resolve([])), shareProject: vi.fn(), unshareProject: vi.fn(), leaveProject: vi.fn(() => Promise.resolve(null)),
   // US-3.12: no rules, nothing repeating, nothing to be reminded of.
   fetchRules: vi.fn(() => Promise.resolve([])), fetchRecurrences: vi.fn(() => Promise.resolve([])),
   fetchRecurrence: vi.fn(() => Promise.resolve(null)), localDateString: vi.fn(() => "2026-09-27"),
@@ -29,6 +29,7 @@ import {
   fetchProjects,
   fetchStatistics,
   fetchTasks,
+  leaveProject,
   previewSchemaChange,
   updateSchema,
 } from "./api"
@@ -695,7 +696,7 @@ describe("filling in an entry", () => {
 
     await openProject()
 
-    fireEvent.click(screen.getByTitle("Open Reading List"))
+    fireEvent.click(screen.getByRole("button", { name: "Reading List" }))
 
     expect(await screen.findByRole("heading", { name: "Reading List" })).toBeInTheDocument()
   })
@@ -752,7 +753,7 @@ describe("reading entries back", () => {
     await openProject()
 
     const list = await entryList()
-    fireEvent.click(within(list).getByTitle("Open Reading List"))
+    fireEvent.click(within(list).getByRole("button", { name: "Reading List" }))
 
     expect(await screen.findByRole("heading", { name: "Reading List" })).toBeInTheDocument()
   })
@@ -794,7 +795,7 @@ describe("reading entries back", () => {
     const list = await entryList()
     expect(within(list).getByText("180")).toBeInTheDocument()
     expect(
-      within(list).getByTitle("Calculated from the other fields on this entry")
+      within(list).getByRole("img", { name: "Calculated from the other fields on this entry" })
     ).toBeInTheDocument()
   })
 
@@ -874,8 +875,8 @@ describe("reading entries back", () => {
     await openProject()
 
     const list = await entryList()
-    expect(within(list).getByTitle("Linked")).toBeInTheDocument()
-    expect(within(list).getByTitle("Calculated")).toBeInTheDocument()
+    expect(within(list).getByText("Linked", { selector: ".tip-bubble" })).toBeInTheDocument()
+    expect(within(list).getByText("Calculated", { selector: ".tip-bubble" })).toBeInTheDocument()
   })
 })
 
@@ -988,6 +989,23 @@ describe("filling in a rich entry", () => {
 
     expect(screen.queryByRole("group", { name: "Project actions" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Leave project" })).toBeInTheDocument()
+  })
+
+  it("asks before leaving a shared project, and leaves only when confirmed", async () => {
+    fetchProjects.mockResolvedValue([{ ...fieldNotes, entry_schema: [NOTES], shared: true }, otherProject])
+    fetchEntries.mockResolvedValue([])
+    await openProject()
+    await screen.findByRole("heading", { name: "New entry" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave project" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "Leave this project?" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    expect(leaveProject).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave project" }))
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Leave project" }))
+
+    await waitFor(() => expect(leaveProject).toHaveBeenCalledWith(fieldNotes.id))
   })
 
   it("shows past entries first, and opens the new-entry form from a small + button", async () => {
@@ -1243,7 +1261,7 @@ describe("reading rich values back", () => {
 
     const list = await entryList()
     // The link column names its target rather than showing the id it stores.
-    expect(within(list).getByTitle("This entry links to that one")).toHaveTextContent(
+    expect(within(list).getByText("This entry links to that one").closest(".link-badge")).toHaveTextContent(
       "↳ Read the manual"
     )
     // And the target names the entries that point at it (US-2.3).
@@ -1268,7 +1286,7 @@ describe("reading rich values back", () => {
 
     const list = await entryList()
     expect(
-      within(list).getByTitle("The entry it linked to is gone")
+      within(list).getByText("The entry it linked to is gone").closest(".link-badge")
     ).toHaveTextContent("An entry that is no longer there")
   })
 })

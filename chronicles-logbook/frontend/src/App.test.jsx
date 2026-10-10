@@ -736,7 +736,8 @@ describe("entry rules in a project (US-3.12)", () => {
     await openBugLog()
 
     const tabList = screen.getByRole("tablist", { name: "Project tabs" })
-    expect(within(tabList).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    // The label is the first child; the tooltip bubble after it is not part of the name.
+    expect(within(tabList).getAllByRole("tab").map((tab) => tab.firstChild.textContent)).toEqual([
       "Entries", "Schema", "Tasks", "Automation", "Notes",
     ])
   })

@@ -10,6 +10,7 @@ import { BUILT_IN_FIELDS, TITLE_MAX, missingRequired, missingRequiredMessage } f
 import Drawer from "./Drawer"
 import RecurrenceControl from "./RecurrenceControl"
 import { TrashButton } from "./TrashIcon"
+import { TipBubble } from "./Tip"
 import StatusPicker from "./StatusPicker"
 import { hasCustomStatuses, statusOf } from "./statuses"
 
@@ -116,11 +117,11 @@ export function LinkChip({ targetId, projects, status, onOpen }) {
   return (
     <button
       type="button"
-      className="log-link-chip"
+      className="log-link-chip has-tip"
       onClick={() => onOpen(targetId)}
-      title={`Open ${target.name}`}
     >
       {content}
+      <TipBubble text={`Open ${target.name}`} />
     </button>
   )
 }
@@ -912,11 +913,9 @@ function EntryDetailDrawer({ project, entry, projects = [], entries = [], canMan
                         status={statuses[entry.data[field.id]]}
                       />
                     ) : field.type === "link" && entry.data?.[field.id] ? (
-                      <span
-                        className="link-badge"
-                        title={entryById.has(entry.data[field.id]) ? "This entry links to that one" : "The entry it linked to is gone"}
-                      >
+                      <span className="link-badge has-tip">
                         ↳ {entryById.has(entry.data[field.id]) ? entryPreview(entryById.get(entry.data[field.id])) : "linked entry"}
+                        <TipBubble text={entryById.has(entry.data[field.id]) ? "This entry links to that one" : "The entry it linked to is gone"} />
                       </span>
                     ) : (
                       formatEntryValue(field, entry.data?.[field.id], projectNames)

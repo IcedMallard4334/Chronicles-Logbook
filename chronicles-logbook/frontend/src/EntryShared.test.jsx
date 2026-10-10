@@ -283,7 +283,7 @@ describe("EntryDetailModal", () => {
       />
     )
 
-    expect(screen.getByTitle("This entry links to that one")).toHaveTextContent(
+    expect(screen.getByText("This entry links to that one").closest(".link-badge")).toHaveTextContent(
       "Project Alpha"
     )
   })
