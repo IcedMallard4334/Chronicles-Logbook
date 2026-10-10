@@ -36,13 +36,21 @@ The schema is **user-defined**, not hardcoded. Entries, statistics, filters, and
 
 - **Automation** — rules that tag, fill in a field, or flag an entry as to-do automatically when it's saved, matched against project-defined conditions
 - **Recurring entries and reminders** — entries that repeat on a schedule, and an in-app bell listing everything overdue, due today or coming up
-- **Entry history** — every edit keeps the entry's previous values as a numbered, timestamped revision, viewable (not yet restorable) from the entry itself
+- **Entry history** — every edit keeps the entry's previous values as a numbered, timestamped revision, viewable from the entry itself, and any version can be restored (restoring adds a new version, so nothing is lost)
 - **Customisable Dashboard** — a workspace-wide, user-arranged panel layout (US-3.9)
 - **Statistics page** — workspace-wide and per-project field totals, groupings and charts, separate from the per-entry timeline
 - **Activity view** — every entry across every project in one searchable, filterable, chronological list, with a "Field trends" view plotting one field over time
 - **Accessibility pass (US-3.19)** — Lighthouse Accessibility 100/100; semantic roles, keyboard focus management, and screen-reader-visible status indicators throughout, see [External Services & Integrations](api/external-services.md) and [User Feedback — Sprint 3](methodology/user-feedback-sprint-3.md)
 - **Performance pass (US-3.17)** — Lighthouse Performance 69 → 95, see [API Performance, Load & Robustness](testing/api-performance.md)
 - **Responsive design** — adapts to desktop and mobile viewports
+
+**Final sprint**
+
+- **Project notes** — a Notes tab per project; each note is private to its author or shared with the team, shown with the author's name and colour, and searchable
+- **Project team** — who is working on a project and what each person has done (entries, tasks, time, schema changes), with a recent-activity feed, a "Logged by" filter and a notice to the owner when an invitation is answered
+- **Public reference API** — four read-only endpoints that need no sign-in (`/health`, `/public/info`, `/public/field-types`, `/public/limits`)
+- **No browser pop-ups** — the app's own tooltips and confirmation dialog in place of the browser's
+- **Decision log and diagrams** — every design decision with its reason, and architecture, database, class, sequence, activity and API diagrams, see [Decisions](decisions/index.md) and [Diagrams](architecture/diagrams.md)
 
 ## Tech Stack
 

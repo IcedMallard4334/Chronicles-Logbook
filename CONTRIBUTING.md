@@ -9,22 +9,25 @@ Thank you for contributing to Chronicles! This document provides a quick referen
 git checkout main && git pull origin main
 
 # 2. Create a feature branch
-git checkout -b feature/<issue-number>-<short-description>
+git checkout -b feat/<short-description>
 
 # 3. Make focused commits (Conventional Commits)
 git commit -m "feat(scope): concise description"
 
 # 4. Push and open a PR
-git push -u origin feature/<issue-number>-<short-description>
+git push -u origin feat/<short-description>
 ```
 
 ## Branch Naming
 
 ```
-<type>/<issue-number>-<short-kebab-description>
+<type>/<short-description>
 ```
 
-Types: `feature`, `fix`, `docs`, `refactor`, `test`, `chore`.
+- `feat/<short-description>` — new feature
+- `fix/<short-description>` — bug fix
+- `docs/<short-description>` — documentation change
+- `chore/<short-description>` — maintenance or tooling change
 
 ## Commit Messages
 
@@ -50,7 +53,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 5. Ensure CI passes (lint + test + build)
 6. Request review from at least one teammate
 7. Address review comments in new commits
-8. Squash-merge on approval, then delete the branch
+8. After review, merge into `main`. The deploy pipeline then pushes the change to Azure
 
 ## Code Style
 
@@ -59,7 +62,18 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 | Python | ruff | `python -m ruff check .` |
 | JavaScript/JSX | oxlint | `npm run lint` |
 
-Run both before committing. CI will also enforce these checks.
+Run both before committing. CI will also enforce these checks. Then run the tests and check that the docs still match the code:
+
+```bash
+# Backend (from chronicles-logbook/backend)
+python -m pytest
+python ../scripts/docs_audit.py
+
+# Frontend (from chronicles-logbook/frontend)
+npm run test -- --run
+```
+
+When you change behaviour, update the docs in the same pull request and record the decision and its reason in [docs/decisions](docs/decisions/index.md).
 
 ## What Not to Commit
 
