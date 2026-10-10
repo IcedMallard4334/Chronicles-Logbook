@@ -452,6 +452,61 @@ class ProjectTeamResponse(BaseModel):
     contributors: list[Contributor]
 
 
+# ── Project notes ────────────────────────────────────────────────────────────
+
+MAX_NOTE_LENGTH = 5000
+
+
+class NoteBody(BaseModel):
+    body: str = Field(min_length=1, max_length=MAX_NOTE_LENGTH)
+
+    @field_validator("body")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("A note cannot be empty")
+        return value.strip()
+
+
+class NoteCreate(NoteBody):
+    visibility: Literal["private", "shared"] = "private"
+    pinned: bool = False
+
+
+class NoteUpdate(BaseModel):
+    body: str | None = Field(default=None, min_length=1, max_length=MAX_NOTE_LENGTH)
+    visibility: Literal["private", "shared"] | None = None
+    pinned: bool | None = None
+
+    @field_validator("body")
+    @classmethod
+    def _not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("A note cannot be empty")
+        return value.strip() if value is not None else None
+
+
+class NoteAuthor(BaseModel):
+    user_id: UUID | None = None
+    full_name: str
+    avatar_url: str | None = None
+
+
+class NoteResponse(BaseModel):
+    id: UUID
+    project_id: UUID
+    author: NoteAuthor
+    body: str
+    visibility: Literal["private", "shared"]
+    pinned: bool
+    created_at: datetime
+    updated_at: datetime
+    # What the caller may do, decided by the server so the page never guesses.
+    mine: bool
+    can_edit: bool
+    can_delete: bool
+
+
 # ── Editing a live schema (US-2.6, US-2.7) ───────────────────────────────────
 
 

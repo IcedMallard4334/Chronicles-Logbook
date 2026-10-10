@@ -89,6 +89,7 @@ nav:
     - Rules, recurrence and reminders: features/entry-automation.md
     - Statistics: api/statistics.md
     - Sharing: api/sharing.md
+    - Project notes: api/notes.md
     - Export and import: api/transfer.md
     - Mira: api/mira.md
     - Streaks and achievements: api/progress.md

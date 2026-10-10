@@ -105,7 +105,7 @@ describe("reading a schema", () => {
     await openProject("Schema")
 
     expect(await screen.findByText("Hours")).toBeInTheDocument()
-    expect(screen.getByText("Notes")).toBeInTheDocument()
+    expect(screen.getByText("Notes", { selector: ":not([role=tab])" })).toBeInTheDocument()
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Edit schema" })).toBeInTheDocument()
   })

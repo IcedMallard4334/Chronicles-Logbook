@@ -18,6 +18,7 @@ from app.routers import (
     dashboard,
     entries,
     invitations,
+    notes,
     projects,
     public,
     saved_filters,
@@ -190,6 +191,7 @@ app.add_middleware(
 
 app.include_router(projects.router)
 app.include_router(invitations.router)
+app.include_router(notes.router)
 app.include_router(entries.router)
 app.include_router(saved_filters.router)
 app.include_router(statistics.router)

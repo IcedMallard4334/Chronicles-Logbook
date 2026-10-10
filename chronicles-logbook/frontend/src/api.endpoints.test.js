@@ -12,6 +12,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   createCalendarActivity,
+  createNote,
+  deleteNote,
+  fetchNotes,
+  updateNote,
   createTask,
   deleteCalendarActivity,
   deleteProject,
@@ -243,6 +247,37 @@ describe("api client — endpoint contracts", () => {
     fetch.mockResolvedValueOnce(noContent())
     await deleteTask("p1", "t1")
     expect(urlOf()).toBe(`${BASE}/projects/p1/tasks/t1`)
+    expect(optionsOf().method).toBe("DELETE")
+  })
+
+  it("lists notes, passing a search term encoded and trimmed, or none when it is blank", async () => {
+    fetch.mockResolvedValue(ok([]))
+    await fetchNotes("p1")
+    expect(urlOf()).toBe(`${BASE}/projects/p1/notes`)
+    fetch.mockClear()
+    await fetchNotes("p1", "   ")
+    expect(urlOf()).toBe(`${BASE}/projects/p1/notes`)
+    fetch.mockClear()
+    await fetchNotes("p1", " 50% & more ")
+    expect(urlOf()).toBe(`${BASE}/projects/p1/notes?q=50%25%20%26%20more`)
+  })
+
+  it("creates, changes and deletes a note", async () => {
+    fetch.mockResolvedValueOnce(ok({ id: "n1" }))
+    await createNote("p1", { body: "x", visibility: "shared" })
+    expect(urlOf()).toBe(`${BASE}/projects/p1/notes`)
+    expect(optionsOf().method).toBe("POST")
+    expect(JSON.parse(optionsOf().body)).toEqual({ body: "x", visibility: "shared" })
+
+    fetch.mockClear()
+    fetch.mockResolvedValueOnce(ok({ id: "n1" }))
+    await updateNote("p1", "n1", { pinned: true })
+    expect(urlOf()).toBe(`${BASE}/projects/p1/notes/n1`)
+    expect(optionsOf().method).toBe("PUT")
+
+    fetch.mockClear()
+    fetch.mockResolvedValueOnce(noContent())
+    await deleteNote("p1", "n1")
     expect(optionsOf().method).toBe("DELETE")
   })
 

@@ -93,6 +93,7 @@ import { PencilIcon } from "./EditIcon"
 import LearningLauncher from "./LearningLauncher"
 import { timeSpentProblem } from "./timeSpent"
 import Drawer from "./Drawer"
+import ProjectNotes from "./ProjectNotes"
 import ProjectTeam from "./ProjectTeam"
 import { TipBubble } from "./Tip"
 import { BuiltInFieldCards, SchemaFieldEditor, SchemaFieldSummary } from "./SchemaParts"
@@ -2146,6 +2147,16 @@ function ProjectDetail({
           >
             Automation
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "notes"}
+            className={tab === "notes" ? "active" : ""}
+            title="Notes: private to you, or shared with everyone on the project"
+            onClick={() => setTab("notes")}
+          >
+            Notes
+          </button>
         </div>
       </header>
       <div className="detail-body">
@@ -2233,6 +2244,8 @@ function ProjectDetail({
           />
         ) : tab === "automation" ? (
           <AutomationPanel project={project} />
+        ) : tab === "notes" ? (
+          <ProjectNotes projectId={project.id} />
         ) : null}
       </div>
       {teamOpen && <ProjectTeam projectId={project.id} projectName={project.name} onClose={() => setTeamOpen(false)} />}
@@ -2534,6 +2547,7 @@ const PROJECT_TAB_HEADINGS = {
   schema: "Project schema",
   tasks: "Project tasks",
   automation: "Project automation",
+  notes: "Project notes",
 }
 
 function App() {

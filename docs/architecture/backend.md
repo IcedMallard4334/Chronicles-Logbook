@@ -59,6 +59,7 @@ CORS origins come from `CORS_ORIGINS` (comma-separated) and fall back to the loc
 | `streaks` | `/streaks` | The login and activity streaks |
 | `achievements` | `/achievements` | Badges with progress, and marking their celebrations as shown |
 | `dashboard` | `/dashboard` | The grid dashboard: panels, their sizes and the grid width |
+| `notes` | `/projects/{id}/notes` | Notes on a project, private to the author or shared with the team |
 | `saved_filters` | `/saved-filters` | Named, reusable Entries-page search combinations |
 | `public` | `/public` | Reference anyone may read without signing in: the API's description, the field types, and the limits |
 | `transfer` | `/export`, `/import`, `/projects/{id}/export.csv` | Full-account JSON export, additive import, and a per-project CSV |

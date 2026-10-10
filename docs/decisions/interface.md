@@ -656,6 +656,43 @@ it lives. Where the repository does not record a reason, the entry says so.
   `created_by` search parameter and a saved-filter field, which was left for later.
 - **Where:** `App.jsx` (`EntryList`).
 
+### UI-69. Notes are a fifth project tab, and a shared note is told apart by its author's colour
+
+- **Decided:** a **Notes** tab after Automation. At the top, a form (text, and a "Who can see this note" choice:
+  *Only me* or *Everyone on this project*, defaulting to *Only me*). Below it, an All / Only me / Shared filter and the
+  notes, pinned first. Each note shows its author, a "Private" or "Shared" badge and its date; the author can edit,
+  pin, change who can see it, or delete; an owner can delete a shared note.
+- **Why a tab:** notes belong to the project and are used alongside entries, tasks and automation, which are tabs.
+  A drawer (as for Team, UI-64) is for looking something up while working; notes are written and kept, so they
+  get a page of their own.
+- **Why a colour per author:** on a team, "whose note is this" is the first question. Each shared note has a coloured
+  left bar and the author's name in the same hue. The hue is picked from eight, by hashing the author's id, so a person
+  has the same colour for everyone and on every device, and nothing is stored. A private note instead has a dashed grey
+  bar and says "Only you can see this", so the two kinds are never confused.
+- **Why colour is never the only signal:** the author's name and a "Shared" / "Private" badge are always written out,
+  and the dashed versus solid bar is a shape difference, so someone who cannot tell hues apart loses nothing.
+- **Contrast was computed, not eyeballed:** the author name is the hue at 28% lightness on the light card and 74% on
+  the dark one. For all eight hues that is at least 5.4:1 in the light theme and 6.2:1 in the dark one (the AA minimum
+  for this text is 4.5:1). A first attempt at 32% gave 4.38:1 for the green and was darkened.
+- **Why the page does not work out permissions:** the server says `can_edit` and `can_delete` on each note, so the
+  rules live in one place (DB-70). A button that should not be offered is not drawn, and a refused action shows the
+  server's message on that note.
+- **Search box, above the All / Only me / Shared buttons:** it asks the server (after a quarter-second pause in typing,
+  so one request per pause and not one per letter) and says "No notes match “…”" when nothing does. The old list stays
+  on screen while a new one loads, so the page does not flash empty. Adding a note while a search is active asks the
+  server again, because the new note may not match the search and the page should not guess.
+- **Touch targets:** the first version had text links 18 to 22px wide and 13px radio buttons, which are hard to hit on
+  a phone. The links are now at least 44 by 36px and the radios 20px (the whole labelled row is also tappable).
+- **Dark-theme red:** the scan (see N-17, and UI-17 for the app's wider accessibility position) found that the theme's error red is 4.42:1 on the dark card, just under the
+  4.5:1 minimum, so the Delete links and error messages on this tab use a lighter red (#f87171, 6.0:1) in the dark
+  theme. The light theme's red is 4.51:1 and was left. The same colour is used elsewhere in the app and was not
+  re-checked there.
+- **Why delete asks first:** a note cannot be recovered, so it confirms with the same plain browser dialog the task
+  list uses; a purpose-built dialog was not worth it for this.
+- **Called "Notes", although an entry can have a field named "Notes":** the tab is in the tab list and the field is in
+  a form, so they are not confused; two existing tests that looked up the word "Notes" had to be made specific.
+- **Where:** `ProjectNotes.jsx`, `ProjectNotes.css`, `App.jsx` (the tab), `api.js`.
+
 ### UI-68. Our own tooltip, not the browser's `title`
 
 - **Decided:** the streak chips, the two bells and the avatar use a themed bubble (`TipBubble`) instead of a `title`

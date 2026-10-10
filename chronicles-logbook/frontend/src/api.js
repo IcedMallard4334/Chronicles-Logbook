@@ -187,6 +187,24 @@ export async function fetchProjectTeam(id) {
   return request(`/projects/${id}/team`)
 }
 
+/** Notes on a project: the shared ones plus the caller's own private ones. */
+export async function fetchNotes(projectId, search = "") {
+  const term = search.trim()
+  return request(`/projects/${projectId}/notes${term ? `?q=${encodeURIComponent(term)}` : ""}`)
+}
+
+export async function createNote(projectId, note) {
+  return request(`/projects/${projectId}/notes`, { method: "POST", body: JSON.stringify(note) })
+}
+
+export async function updateNote(projectId, noteId, changes) {
+  return request(`/projects/${projectId}/notes/${noteId}`, { method: "PUT", body: JSON.stringify(changes) })
+}
+
+export async function deleteNote(projectId, noteId) {
+  return request(`/projects/${projectId}/notes/${noteId}`, { method: "DELETE" })
+}
+
 /** The most recent things people did on a project, newest first. */
 export async function fetchProjectActivity(id, limit = 30) {
   return request(`/projects/${id}/activity?limit=${limit}`)

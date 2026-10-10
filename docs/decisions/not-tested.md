@@ -14,8 +14,8 @@ supersedes it and adds what has been built since.
 
 | | Measured on 9 October 2026 | Written target | Enforced by the build? |
 |---|---|---|---|
-| Backend | 780 tests, about 95% statement coverage | above 90% | **No** |
-| Frontend | 987 tests, 84.6% statements, 87.6% lines | above 80% | **No** |
+| Backend | 800 tests, about 95% statement coverage | above 90% | **No** |
+| Frontend | 1,012 tests, 84.7% statements, 87.7% lines | above 80% | **No** |
 
 The brief's testing criterion asks "what is your code coverage (above 80%? above 50%)?". Neither suite has a
 `fail-under` threshold in CI, so a drop would not fail a build; CI only reports the figure, posts it on the
@@ -181,6 +181,21 @@ before the fix; see the [test policy](../development/testing.md#test-policy).
 
 - `DayActivityDialog.jsx` had no test file when the older list was written. It has one now. Its focus
   handling is the browser's own (a native `<dialog>`), which is not re-tested.
+
+### N-17. Project notes: what the tests do not prove — Gap {#n-17}
+
+- **Colour in a real browser.** The tests check that a shared note gets the same hue for the same author and that
+  the hue is set on the card; they cannot see the colour. So the tab was **scanned with axe-core by hand** on
+  10 October 2026 (WCAG 2.2 AA and best practice): the system, light and dark themes, a phone-width window, and with
+  an edit form open and a search active. The scan found one real problem (the dark theme's red, UI-69), which was fixed
+  and the scan repeated clean. The contrast of all eight author hues was also computed for both themes. This is a
+  manual check, not part of CI, like the app's other accessibility audits (UI-17). Not done:
+  a real phone, a screen reader walk-through of the tab, and a user test of whether the colours are told apart.
+- **Two people at once.** The permission tests act as two different accounts in turn, which proves who may see and
+  change what. Two people editing the same note in the same second is not tested; the last save wins, as for the
+  other free-text fields.
+- **A very long list.** The list is capped at 200 notes. Behaviour beyond that is by design (the oldest are not
+  shown), not tested, and not expected for one project.
 
 ## Why the numbers are not the goal
 
