@@ -27,14 +27,14 @@ describe("FormField", () => {
     )
 
     expect(screen.getByLabelText("Title")).toHaveAttribute("aria-required", "true")
-    expect(screen.getByTitle("Required")).toHaveAttribute("aria-hidden", "true")
+    expect(document.querySelector(".form-field-required")).toHaveAttribute("aria-hidden", "true")
   })
 
   it("does not mark an optional field required", () => {
     render(<FormField label="Notes">{(props) => <input {...props} />}</FormField>)
 
     expect(screen.getByLabelText("Notes")).not.toHaveAttribute("aria-required")
-    expect(screen.queryByTitle("Required")).not.toBeInTheDocument()
+    expect(document.querySelector(".form-field-required")).toBeNull()
   })
 
   it("shows a hint, and an error that marks the box invalid", () => {

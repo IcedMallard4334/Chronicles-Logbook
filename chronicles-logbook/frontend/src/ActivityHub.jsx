@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import ActivitiesPage from "./ActivitiesPage"
+import { TipBubble } from "./Tip"
 import "./ActivityHub.css"
 
 const TABS = [
@@ -27,11 +28,11 @@ export default function ActivityHub({ logged, initialTab = "logged" }) {
             id={`activity-tab-${item.id}`}
             aria-selected={tab === item.id}
             aria-controls="activity-panel"
-            title={item.hint}
-            className={tab === item.id ? "is-selected" : ""}
+            className={`has-tip${tab === item.id ? " is-selected" : ""}`}
             onClick={() => setTab(item.id)}
           >
             {item.label}
+            <TipBubble text={item.hint} />
           </button>
         ))}
       </div>

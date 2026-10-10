@@ -25,6 +25,14 @@ describe("TipBubble", () => {
     expect(container.querySelector(".tip-bubble")).toHaveClass("is-end")
   })
 
+  it("can sit above the control, for controls at the bottom of a panel", () => {
+    const { container, rerender } = render(<TipBubble text="x" />)
+    expect(container.querySelector(".tip-bubble")).not.toHaveClass("is-above")
+
+    rerender(<TipBubble text="x" above />)
+    expect(container.querySelector(".tip-bubble")).toHaveClass("is-above")
+  })
+
   it("is not the browser's own title tooltip", () => {
     const { container } = render(<TipBubble text="x" />)
 

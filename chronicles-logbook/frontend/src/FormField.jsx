@@ -102,7 +102,7 @@ export default function FormField({
         ) : (
           <label htmlFor={controlId} className="form-field-name">{label}</label>
         )}
-        {required && <span className="form-field-required" aria-hidden="true" title="Required">*</span>}
+        {required && <span className="form-field-required" aria-hidden="true">*</span>}
         {typeLabel && <span id={typeId} className="form-field-type">{typeLabel}</span>}
       </div>
       {hint && <p id={hintId} className="form-field-hint">{hint}</p>}

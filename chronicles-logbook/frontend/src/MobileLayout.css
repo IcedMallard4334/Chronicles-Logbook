@@ -317,10 +317,10 @@
   .detail-description-toggle { display: inline-block; padding: 0; }
   .project-title-row h1 { font-size: 1.1rem; overflow-wrap: anywhere; }
   .detail-meta { font-size: 0.74rem; }
-  /* The four project tabs share the screen's width equally, so Automation
+  /* The five project tabs share the screen's width equally, so Notes
      stays on screen instead of scrolling out of sight sideways. */
-  .tab-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
-  .tab-switch button { min-width: 0; padding: 6px 2px; font-size: 0.72rem; }
+  .tab-switch { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; }
+  .tab-switch button { min-width: 0; padding: 6px 2px; font-size: 0.68rem; letter-spacing: -0.015em; }
 
   /* Home: the welcome is a line, not a hero. */
   .home-hub-welcome { flex-wrap: wrap; align-items: center; }
@@ -427,7 +427,6 @@
   .log-row:last-child { border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 0; }
   .log-title { margin: 0 0 8px; font-size: 0.95rem; overflow-wrap: anywhere; }
   .log-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
-  .log-field.is-numeric { text-align: left; }
   .log-field:has(.log-value > :is(ul, div, span:not(:empty)):only-child) { min-width: 0; }
   .log-label { font-size: 0.62rem; }
   .log-value { font-size: 0.85rem; overflow-wrap: anywhere; }

@@ -1078,7 +1078,8 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 16px 20px;
   padding: 24px 28px;
   border-bottom: 1px solid var(--line);
 }
@@ -1095,6 +1096,9 @@
      the header wider instead of wrapping, running the text behind the tabs
      on the other side of the header. */
   min-width: 0;
+  /* Takes what the tabs leave, but never less than a readable title: below that the tabs drop under it
+     instead of squeezing the name into a column of single letters (five tabs need more room than four did). */
+  flex: 1 1 260px;
 }
 
 .project-title-row {
@@ -1175,6 +1179,7 @@
 }
 
 .tab-switch {
+  flex: none;
   display: inline-flex;
   gap: 2px;
   padding: 4px;
@@ -2331,14 +2336,9 @@
   min-width: 0;
 }
 
-/* Figures are read down a column, not across a row, so a numeric column
-   lines its label and value up on the right like any other table of
-   numbers — with fixed-width digits, so the column lines up character by
-   character rather than only at its edge. */
-.log-field.is-numeric {
-  text-align: right;
-}
-
+/* Numbers keep fixed-width digits, but are not right-aligned: each entry is its own card
+   with its own grid, so there is no column of figures to line up, and a lone right-aligned
+   value read as misplaced (UI-70). */
 .log-field.is-numeric .log-value {
   font-variant-numeric: tabular-nums;
 }
@@ -3663,3 +3663,19 @@ button.log-link-chip:hover {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+.confirm-dialog { max-width: 440px; width: min(440px, calc(100vw - 2rem)); }
+.confirm-dialog h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.confirm-dialog p { margin: 0; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+/* The confirm button of a destructive question is a filled red button with white text (6.5:1 in either theme);
+   the plain red-text .btn-danger is 4.42:1 on the dark surface, just under the 4.5:1 minimum. */
+.confirm-dialog .btn-danger {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #b91c1c;
+  color: #fff;
+  font-weight: 600;
+}
+.confirm-dialog .btn-danger:hover:not(:disabled) { background: #991b1b; }

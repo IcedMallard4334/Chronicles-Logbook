@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
 import ChroniclesLogo from "./ChroniclesLogo"
+import { TipBubble } from "./Tip"
 import { StreakIcon } from "./Streaks"
 import { getGoogleLoginUrl } from "./api"
 import "./LandingPage.css"
@@ -255,12 +256,12 @@ export default function LandingPage() {
         <div className="lp-nav-actions">
           <button
             type="button"
-            className="lp-theme-toggle"
+            className="lp-theme-toggle has-tip"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
             <ThemeIcon theme={theme} />
+            <TipBubble text={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} align="end" />
           </button>
           <Link className="lp-link" to="/signin">Sign in</Link>
           <a className="lp-button" href={start}>Get started</a>

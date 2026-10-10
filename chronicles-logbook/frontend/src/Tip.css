@@ -1,6 +1,6 @@
 /* The app's tooltip, drawn from the palette so it follows the theme and accent. */
 
-.has-tip { position: relative; }
+:where(.has-tip) { position: relative; }
 
 .tip-bubble {
   position: absolute;
@@ -26,6 +26,8 @@
   transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms;
 }
 
+.tip-bubble.is-above { top: auto; bottom: calc(100% + 10px); transform: translateY(4px); }
+.tip-bubble.is-above::before { top: auto; bottom: -5px; transform: rotate(225deg); }
 .tip-bubble.is-center { left: 50%; margin-left: 0; translate: -50% 0; }
 .tip-bubble.is-end { right: 0; }
 
@@ -66,3 +68,9 @@
 
 /* The avatar button clips to its circle; its photo rounds itself, so it can let the bubble out. */
 .user-menu-trigger.user-avatar.has-tip { overflow: visible; }
+
+/* A tip that lists lines (a checklist's items) keeps its line breaks. */
+.has-tip > .tip-bubble { white-space: pre-line; }
+
+/* A tip that lists lines (a checklist's items) keeps its line breaks. */
+.has-tip > .tip-bubble { white-space: pre-line; }

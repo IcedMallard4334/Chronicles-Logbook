@@ -429,6 +429,16 @@ Schema changes were not recorded anywhere before (a schema save changes only the
 records who made each one. It starts today; earlier changes are not known, and the drawer says from when it counts.
 See [Sharing](../api/sharing.md#the-team-who-is-working-here-and-what-they-have-done).
 
+## Tidier notes, and no more browser pop-ups
+
+- **A cleaner Notes tab:** the form is one compact card with a switch between *Only me* and *Everyone on this
+  project*, search and filters share a row, and each note has its author's avatar and an action bar.
+- **Our own tooltips everywhere,** including the project panel buttons, the tabs, the trash buttons and the small
+  badges on an entry, in place of the browser's plain ones.
+- **Our own "are you sure?"** when deleting a task or a note, or leaving a shared project, instead of the browser's box.
+- Number fields (such as Hours) in an entry now line up on the left with the other fields.
+- The project header no longer squeezes the name into a column of letters on a narrower window.
+
 ## Project notes: private or shared
 
 - **A Notes tab on every project.** Write a note, choose **Only me** or **Everyone on this project**, and keep it.
