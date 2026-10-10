@@ -475,7 +475,7 @@ argued at length elsewhere link there instead of repeating it.
 
 ### DB-45. Deleting a project deletes its children **explicitly**
 
-- **Decided:** the delete handler removes tasks, recurrences, entries and so on in code, and the UI asks
+- **Decided:** the delete handler removes tasks, recurrences, entries, notes, schema-change records and so on in code, and the UI asks
   the owner to type the project's name.
 - **Why:** `tasks.project_id` carries no cascade, so PostgreSQL would refuse to delete a project that
   still had tasks; and SQLite does not enforce foreign keys unless asked to, so the tests would not have
@@ -657,6 +657,38 @@ argued at length elsewhere link there instead of repeating it.
 - **Why not email:** an email path is hard to test and needs a template and a failure policy; the in-app notice
   covers "tell me when it happens" and the bell is already where invitations arrive (UI-66).
 - **Where:** `app/routers/invitations.py`, `app/models.py` (`owner_seen_at`), migration `024`, start-up patch.
+
+### DB-70. Project notes are private or shared, one switch per note
+
+- **Decided:** a note on a project has a `visibility` of `private` (the default) or `shared`. A private note is read
+  only by its author, including **not** by the project's owner. A shared note is read by everyone on the project and
+  carries its author. Only the author edits a note; the author, or the owner for a *shared* note, deletes it.
+- **Why a switch per note, not one choice for the whole feature:** the request was for notes someone can "save and
+  see anytime", and the open question was whether the team should see them. Both needs are real. A scratch reminder
+  to oneself should not be readable by the team, and a decision the team reached should not be locked in one person's
+  head. A per-note switch gives both, defaults to the safe one (private), and can be changed later, so a mistaken
+  choice is not permanent.
+- **Why the owner cannot read a private note:** "private" has to mean private, or people would write less honestly
+  and the label would be a promise the app does not keep. The owner already controls the project's structure and
+  membership (DB-42); reading personal notes is a different power and is not needed to run a project.
+- **Why the owner can delete a shared note:** it sits on the team's page, so the person responsible for the page
+  needs a way to remove something that should not be there. Deleting a private note is not offered because the owner
+  cannot see it.
+- **Why filtered in the query, and `404` not `403`:** the list is "shared, or private and mine", so another person's
+  private note is never loaded. Asking for one by id reads exactly like a note that does not exist, which stops the id
+  being used to learn that a private note is there. A shared note you cannot edit is `403`, because its existence is
+  already known to you.
+- **Why not a history, search or statistics for notes:** a note is free writing, not a record. Entries are the
+  record (DB-27) and are what the statistics count; counting notes there would blur the two. *Whether notes
+  should be searchable is not decided.*
+- **Why the author is cleared (SET NULL) and not cascaded:** a shared note is the team's, so it should outlive one
+  member's account, the same reasoning as DB-44. It shows as "Former member". A private note whose author is gone is
+  then readable by nobody, which is the honest result of "only the author".
+- **Why deleted explicitly with the project:** SQLite in the tests does not enforce cascades (DB-45), and a test
+  caught that notes were left behind when a project was deleted; `delete_project` now removes them (and the
+  schema-change records, which had the same gap) in code.
+- **Where:** `app/models.py` (`ProjectNote`), `app/routers/notes.py`, `app/schemas.py` (`Note*`), migration `025`,
+  `tests/test_project_notes.py`, [Project notes](../api/notes.md).
 
 ### DB-69. A small set of read-only reference endpoints is public
 

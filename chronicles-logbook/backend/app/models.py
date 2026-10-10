@@ -496,6 +496,44 @@ class ProjectSchemaChange(Base):
     )
 
 
+NOTE_PRIVATE = "private"
+NOTE_SHARED = "shared"
+
+
+class ProjectNote(Base):
+    """A free-form note on a project: private to its author, or shared with the team.
+
+    Not an entry: it has no schema, no versions and does not count in any statistic.
+    Visibility is checked in the query that reads notes, never after it, so a
+    private note is never loaded for anyone but its author.
+    """
+
+    __tablename__ = "project_notes"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Cleared, not cascaded, so a shared note outlives its author's account.
+    # A private note whose author is gone is then readable by nobody.
+    author_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    visibility: Mapped[str] = mapped_column(String(10), nullable=False, default=NOTE_PRIVATE)
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    author = relationship("User", lazy="selectin", foreign_keys=[author_id])
+
+
 class Task(Base):
     __tablename__ = "tasks"
 

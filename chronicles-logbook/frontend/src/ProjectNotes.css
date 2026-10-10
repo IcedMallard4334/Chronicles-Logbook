@@ -1,0 +1,133 @@
+/* Project notes. A shared note's bar and name take a hue from its author; the lightness is set
+   here, per theme, so the name keeps its contrast on the card whichever hue it is. */
+
+.project-notes {
+  --note-ink-l: 28%;
+  --note-bar-l: 48%;
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+:root[data-theme="dark"] .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .project-notes { --note-ink-l: 74%; --note-bar-l: 62%; }
+}
+
+.project-notes h3 { margin: 0; }
+
+.notes-intro,
+.notes-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.note-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.note-form textarea { width: 100%; resize: vertical; }
+
+.note-visibility {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.note-visibility legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.note-visibility label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.note-visibility small { display: block; color: var(--muted); font-size: 0.78rem; }
+
+.note-form-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.note-count { margin-left: auto; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.note-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.note-filters button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.note-filters button.active {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.note-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+.note-card {
+  --note-hue: 215;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.note-card.is-shared { border-left-color: hsl(var(--note-hue) 60% var(--note-bar-l)); }
+.note-card.is-private { border-left-style: dashed; }
+.note-card.is-pinned { box-shadow: var(--shadow); }
+
+.note-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 0.82rem; }
+.note-author { font-weight: 700; color: var(--muted); }
+.note-card.is-shared .note-author { color: hsl(var(--note-hue) 60% var(--note-ink-l)); }
+.note-when { margin-left: auto; color: var(--muted); }
+
+.note-badge {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.note-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+
+.note-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+
+.note-link {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: 0.84rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.note-link.is-danger { color: var(--error); }
+
+.note-error { margin: 0; color: var(--error); font-size: 0.85rem; }

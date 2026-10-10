@@ -429,6 +429,15 @@ Schema changes were not recorded anywhere before (a schema save changes only the
 records who made each one. It starts today; earlier changes are not known, and the drawer says from when it counts.
 See [Sharing](../api/sharing.md#the-team-who-is-working-here-and-what-they-have-done).
 
+## Project notes: private or shared
+
+- **A Notes tab on every project.** Write a note, choose **Only me** or **Everyone on this project**, and keep it.
+  Private is the default, and the choice can be changed at any time with *Make private* or *Share with the team*.
+- **Private means private.** Nobody else on the project can see a private note, including the owner.
+- **Shared notes show who wrote them,** with a coloured bar and name that stay the same for each person. You can
+  edit, pin or delete your own; the owner can also delete a shared note.
+- See [Project notes](../api/notes.md) and DB-70 / UI-69 in the [decision log](../decisions/index.md).
+
 ## Our own tooltips, and a public reference API
 
 - **Tooltips in the app's own style.** The streak chips, the notification bells and the avatar used the browser's plain

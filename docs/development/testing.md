@@ -251,8 +251,8 @@ comfortably on their own, without needing to average up:
 
 | Codebase | Statement coverage | Tests | Measured |
 |---|---|---|---|
-| Backend (pytest + coverage.py) | **95%** (4,871 statements, 238 missed) | 780, across 37 test files | 9 October 2026 |
-| Frontend (Vitest + @vitest/coverage-v8) | **84.6%** (87.6% of lines) | 987, across 75 test files | 9 October 2026 |
+| Backend (pytest + coverage.py) | **95%** (5,054 statements, 252 missed) | 794, across 38 test files | 10 October 2026 |
+| Frontend (Vitest + @vitest/coverage-v8) | **84.6%** (87.6% of lines) | 1,007, across 76 test files | 10 October 2026 |
 
 !!! warning "Targets, not gates"
     Neither suite has a `fail-under` threshold, so CI would not fail if coverage fell. The percentages are the

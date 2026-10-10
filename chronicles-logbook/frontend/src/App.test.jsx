@@ -732,12 +732,12 @@ describe("entry rules in a project (US-3.12)", () => {
   // width, which pushed Automation off the screen's edge. The four tabs now
   // share the row equally (a four-column grid in MobileLayout.css); this pins
   // the four tabs that layout relies on.
-  it("shows all four project tabs in the tab list", async () => {
+  it("shows all five project tabs in the tab list", async () => {
     await openBugLog()
 
     const tabList = screen.getByRole("tablist", { name: "Project tabs" })
     expect(within(tabList).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Entries", "Schema", "Tasks", "Automation",
+      "Entries", "Schema", "Tasks", "Automation", "Notes",
     ])
   })
 

@@ -20,6 +20,7 @@ from app.models import (
     EntryRule,
     Project,
     ProjectMember,
+    ProjectNote,
     ProjectSchemaChange,
     SavedStatistic,
     Task,
@@ -655,6 +656,8 @@ async def delete_project(
     await db.execute(delete(EntryRule).where(EntryRule.project_id == project_id))
     await db.execute(delete(SavedStatistic).where(SavedStatistic.project_id == project_id))
     await db.execute(delete(Entry).where(Entry.project_id == project_id))
+    await db.execute(delete(ProjectNote).where(ProjectNote.project_id == project_id))
+    await db.execute(delete(ProjectSchemaChange).where(ProjectSchemaChange.project_id == project_id))
     await db.execute(delete(ProjectMember).where(ProjectMember.project_id == project_id))
     await db.execute(delete(Project).where(Project.id == project_id))
     await db.commit()

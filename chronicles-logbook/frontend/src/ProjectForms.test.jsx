@@ -85,7 +85,7 @@ describe("the fields every entry has", () => {
     expect(within(builtIn).getByText("Short text")).toBeInTheDocument()
     expect(within(builtIn).getAllByText("Number")).toHaveLength(2)
     expect(within(builtIn).getAllByText(/Built in\./)).toHaveLength(3)
-    expect(screen.getByText("Notes")).toBeInTheDocument()
+    expect(screen.getByText("Notes", { selector: ":not([role=tab])" })).toBeInTheDocument()
   })
 
   it("keeps them on show, but disabled and impossible to remove, while the schema is edited", async () => {
