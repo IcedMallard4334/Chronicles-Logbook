@@ -8,7 +8,7 @@ why, what it cost, and where it lives**, instead of having to reconstruct it fro
 | Page | What it covers |
 |---|---|
 | [Data and backend](data-and-backend.md) | The data model, how a schema change treats existing entries, field limits, history, search and statistics, sharing and permissions, import and export, migrations, sign-in and sessions, external services. Entries `DB-01` to `DB-70`. |
-| [Interface and frontend](interface.md) | Forms and fields, drawers, accessibility, Mira and **dictation**, guidance for new people, Learning Chronicles and its videos, look and feel, navigation and phones, offline capture. Entries `UI-01` to `UI-69`. |
+| [Interface and frontend](interface.md) | Forms and fields, drawers, accessibility, Mira and **dictation**, guidance for new people, Learning Chronicles and its videos, look and feel, navigation and phones, offline capture. Entries `UI-01` to `UI-70`. |
 | [Platform, delivery and tooling](platform-and-delivery.md) | CI and the self-hosted runner, deployment, the documentation site, dependencies, linting, how the docs are kept true. Entries `PL-01` to `PL-22`. |
 | [What we do not test, and why](not-tested.md) | Every area the automated tests do not cover, with the reason, what we do instead, and the risk. Entries `N-01` to `N-17`. |
 

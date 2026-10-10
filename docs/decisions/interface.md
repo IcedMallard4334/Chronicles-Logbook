@@ -656,6 +656,19 @@ it lives. Where the repository does not record a reason, the entry says so.
   `created_by` search parameter and a saved-filter field, which was left for later.
 - **Where:** `App.jsx` (`EntryList`).
 
+### UI-70. Number fields in an entry are left-aligned, like the rest
+
+- **Decided:** a number field (such as Hours) in an entry card sits left-aligned with its label, the same as every
+  other field. Its digits stay fixed-width (`tabular-nums`) so figures of different lengths still line up if they
+  happen to be stacked.
+- **Why:** the earlier rule right-aligned numbers "so a column of figures lines up", which is right for a table. An
+  entry is not a table row: each card has its own grid, so with one value there is no column, and the Hours value
+  sat apart from its neighbours and looked misplaced (reported with a screenshot, 10 October 2026). Phones already
+  left-aligned numbers, so this also makes the two layouts agree.
+- **Not recorded:** whether any table elsewhere in the app still needs right-aligned figures; the statistics tables
+  were not changed.
+- **Where:** `App.css` (`.log-field.is-numeric`), `MobileLayout.css`.
+
 ### UI-69. Notes are a fifth project tab, and a shared note is told apart by its author's colour
 
 - **Decided:** a **Notes** tab after Automation. At the top, a form (text, and a "Who can see this note" choice:
