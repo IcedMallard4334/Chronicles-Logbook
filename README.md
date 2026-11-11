@@ -1,7 +1,5 @@
 # Chronicles
 
-![CI](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles/actions/workflows/ci.yml/badge.svg?branch=main)
-![Deploy](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles/actions/workflows/deploy.yml/badge.svg?branch=main)
 
 
 ![Backend Coverage](badges/backend-coverage.svg)
@@ -11,6 +9,17 @@ A customisable digital logbook that lets students track project work without the
 
 Chronicles is built for COMS3011A (Project 7) at Wits. Besides logging entries and tasks, it supports sharing a project with a team (with private and shared notes), rules and recurring entries, a Gemini-backed assistant called Mira, streaks and badges, offline capture, and a documented public API. See [Features](#features) and the [release notes](RELEASE_NOTES.md).
 
+## About this repository
+
+Chronicles was built as a group project for COMS3011A (Software Design) at the University of the Witwatersrand in
+2026 by team **Driven by Design**: Athalia, Ethan Chigodo, Hlakulo, Nkosilathi Dube, Tebogo Sebopela and Victor
+Hyginus. Development happened on the university's own Gitea server, which is no longer available, so this repository
+is the public home of the project.
+
+The full history is kept, and every commit still carries its author's name. Before publishing, two things were
+changed: credentials that had been committed by mistake were removed from every commit, and personal email
+addresses were replaced. The CI and deployment workflows are in `.gitea/workflows/` and do not run on GitHub.
+
 ## Links
 
 | | URL |
@@ -18,7 +27,7 @@ Chronicles is built for COMS3011A (Project 7) at Wits. Besides logging entries a
 | **Documentation** | [chronicles-drivenbydesign-docs.azurewebsites.net](https://chronicles-drivenbydesign-docs.azurewebsites.net) |
 | **Live app** | [chronicles-drivenbydesign-app…azurewebsites.net](https://chronicles-drivenbydesign-app-hfeehwdce7dfd9fr.uaenorth-01.azurewebsites.net/) |
 | **API (Swagger)** | [chronicles-drivenbydesign-api…azurewebsites.net/docs](https://chronicles-drivenbydesign-api-gub5h0e8aee0gcb0.uaenorth-01.azurewebsites.net/docs) |
-| **Repository** | [sdp.ms.wits.ac.za/driven-by-design/Chronicles](https://sdp.ms.wits.ac.za/driven-by-design/Chronicles) |
+| **Repository** | [github.com/IcedMallard4334/Chronicles-Logbook](https://github.com/IcedMallard4334/Chronicles-Logbook) |
 | **Release notes** | [RELEASE_NOTES.md](RELEASE_NOTES.md) |
 | **Decision log** | [docs/decisions](docs/decisions/index.md): every design decision, with its reason |
 
@@ -128,8 +137,8 @@ Chronicles/
 ### 1. Clone the repository
 
 ```bash
-git clone https://sdp.ms.wits.ac.za/driven-by-design/Chronicles.git
-cd Chronicles
+git clone https://github.com/IcedMallard4334/Chronicles-Logbook.git
+cd Chronicles-Logbook
 ```
 
 ### 2. Start PostgreSQL
